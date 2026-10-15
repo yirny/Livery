@@ -213,14 +213,19 @@ namespace
 		return count;
 	}
 
-	// Checkbox per worn piece; unticked pieces are left out of the outfit.
+	// Right column: a checkbox per worn piece; unticked pieces are left out of
+	// the outfit. The list is exactly as tall as its rows so it does not scroll,
+	// capped so a heavily dressed NPC cannot push the window off screen.
 	void DrawPieceList(State& a_state)
 	{
+		constexpr float kMaxHeightRatio = 0.6f;  // of the screen height
+
 		const auto& pieces = a_state.request.pieces;
-		Theme::HeadingText(a_state.request.actorName.c_str());
+		const auto& style = ImGui::GetStyle();
 		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), pieces.size()).c_str());
-		const float rowHeight = ImGui::GetTextLineHeightWithSpacing();
-		const float listHeight = rowHeight * static_cast<float>(std::min<std::size_t>(pieces.size(), 8)) + rowHeight * 0.5f;
+		const float rowsHeight = static_cast<float>(pieces.size()) * ImGui::GetFrameHeightWithSpacing() - style.ItemSpacing.y;
+		const float fullHeight = rowsHeight + (style.WindowPadding.y + style.ChildBorderSize) * 2.0f;
+		const float listHeight = (std::min)(fullHeight, ImGui::GetIO().DisplaySize.y * kMaxHeightRatio);
 		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
 			for (std::size_t i = 0; i < pieces.size(); ++i) {
 				ImGui::PushID(static_cast<int>(i));
@@ -278,11 +283,43 @@ namespace
 		} else if (CountTickedPieces(a_state) == 0) {
 			ImGui::TextDisabled("Tick at least one piece.");
 		} else if (!a_state.error.empty()) {
-			ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s", a_state.error.c_str());
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+			ImGui::TextWrapped("%s", a_state.error.c_str());
+			ImGui::PopStyleColor();
 		} else {
 			ImGui::NewLine();
 		}
 		return enter && valid;
+	}
+
+	enum class FormAction
+	{
+		kNone,
+		kSave,
+		kCancel
+	};
+
+	// Left column: name, categories, Save / Cancel.
+	FormAction DrawForm(State& a_state)
+	{
+		bool save = DrawNameField(a_state);
+		DrawCategoryField(a_state);
+		ImGui::Spacing();
+		const bool valid = !Trimmed(a_state.name.data()).empty() && CountTickedPieces(a_state) > 0;
+		ImGui::BeginDisabled(!valid);
+		save = Theme::Button("Save") || save;
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+
+		if (a_state.status != Status::kEditing) {
+			ImGui::TextDisabled("Saving...");
+			return FormAction::kNone;
+		}
+		if (save && valid) {
+			return FormAction::kSave;
+		}
+		return cancel ? FormAction::kCancel : FormAction::kNone;
 	}
 
 	void RequestSave(State& a_state)
@@ -410,7 +447,9 @@ namespace CaptureWindow
 		FlushInput(state, io);
 
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.3f, 0.0f), ImGuiCond_Appearing);
+		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width
+		constexpr float kFormWidthRatio = 0.45f;    // left column, of the table width
+		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * kWindowWidthRatio, 0.0f), ImGuiCond_Appearing);
 		auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
 		if (!Theme::HasTitleBar()) {
 			flags |= ImGuiWindowFlags_NoTitleBar;
@@ -421,28 +460,25 @@ namespace CaptureWindow
 		}
 		Theme::DecorateWindow();
 
-		const bool editing = state.status == Status::kEditing;
-		ImGui::BeginDisabled(!editing);
-		DrawPieceList(state);
-		ImGui::Separator();
+		Theme::HeadingText(state.request.actorName.c_str());
 
-		bool save = DrawNameField(state);
-		DrawCategoryField(state);
-		ImGui::Spacing();
-		const bool valid = !Trimmed(state.name.data()).empty() && CountTickedPieces(state) > 0;
-		ImGui::BeginDisabled(!valid);
-		save = Theme::Button("Save") || save;
-		ImGui::EndDisabled();
-		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		auto action = FormAction::kNone;
+		ImGui::BeginDisabled(state.status != Status::kEditing);
+		if (ImGui::BeginTable("layout", 2, ImGuiTableFlags_SizingStretchProp)) {
+			ImGui::TableSetupColumn("form", ImGuiTableColumnFlags_WidthStretch, kFormWidthRatio);
+			ImGui::TableSetupColumn("pieces", ImGuiTableColumnFlags_WidthStretch, 1.0f - kFormWidthRatio);
+			ImGui::TableNextColumn();
+			action = DrawForm(state);
+			ImGui::TableNextColumn();
+			DrawPieceList(state);
+			ImGui::EndTable();
+		}
 		ImGui::EndDisabled();
 
-		if (editing && save && valid) {
+		if (action == FormAction::kSave) {
 			RequestSave(state);
-		} else if (editing && cancel) {
+		} else if (action == FormAction::kCancel) {
 			RequestCancel();
-		} else if (!editing) {
-			ImGui::TextDisabled("Saving...");
 		}
 		ImGui::End();
 	}
