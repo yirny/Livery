@@ -7,8 +7,10 @@ namespace Theme
 {
 	enum class Skin
 	{
-		kTailor,  // Tailor 3.0's colours, spacing and fonts
-		kClassic  // Dear ImGui's default dark style
+		kTailor,   // Tailor 3.0's colours, spacing and fonts
+		kClassic,  // Dear ImGui's default dark style
+		kVanilla,  // the game's own menus
+		kNordic    // NORDIC UI
 	};
 
 	// Contract: render thread, once, after ImGui::CreateContext and before the

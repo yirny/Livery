@@ -183,6 +183,10 @@ else()
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/TailorOutfitCapture.ini"
             DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
 
+    # Fonts of the Vanilla and Nordic skins, with their OFL licences (src/Theme.cpp).
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/TailorOutfitCapture"
+            DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
+
     # `cmake --build --preset deploy`  (or  cmake --workflow --preset deploy)
     add_custom_target(
         deploy
