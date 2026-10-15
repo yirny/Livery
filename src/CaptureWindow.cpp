@@ -5,8 +5,9 @@
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game)
 //   Input        - QueueInput translates engine events; FeedInput hands them and
 //                  the game's cursor position to ImGui
-//   Draw         - shared list and button-row helpers
-//   Create page  - name, categories, worn pieces; Create New / Update Existing / Cancel
+//   Draw         - page switching, shared list and button-row helpers
+//   Pieces page  - worn pieces (first page); Create New / Update Existing / Cancel
+//   Name page    - name and categories of the new outfit; Create / Back
 //   Update page  - library outfits and the chosen one's categories and pieces;
 //                  Update opens the confirm popup, whose Confirm hands over to onUpdate
 #include "PCH.h"
@@ -37,12 +38,13 @@ namespace
 	{
 		kClosed,
 		kEditing,
-		kSaving  // Create New or Confirm pressed; waiting for onSave / onUpdate to Close() or SetError()
+		kSaving  // Create or Confirm pressed; waiting for onSave / onUpdate to Close() or SetError()
 	};
 
 	enum class Page
 	{
-		kCreate,
+		kPieces,
+		kName,
 		kUpdate
 	};
 
@@ -75,8 +77,9 @@ namespace
 		bool                            focusNameField = false;
 		std::vector<InputRecord>        pending;
 		bool                            resetImGui = false;  // set by Open, handled on the next frame
-		Page                            page = Page::kCreate;
+		Page                            page = Page::kPieces;
 		int                             selectedOutfit = -1;  // index into request.existingOutfits, -1 for none
+		int                             recentreFrames = 0;   // frames left to pin the window to the screen centre
 	};
 
 	State& GetState()
@@ -234,6 +237,18 @@ namespace
 
 	// --- Draw -----------------------------------------------------------------
 
+	// The window is pinned to the screen centre for a few frames, as the pages
+	// differ in size and an auto-resized window fits new content one frame late.
+	void GoToPage(State& a_state, Page a_page)
+	{
+		constexpr int kRecentreFrames = 2;  // the frame that draws the new page and the one that has fitted it
+
+		a_state.page = a_page;
+		a_state.error.clear();
+		a_state.focusNameField = a_page == Page::kName;
+		a_state.recentreFrames = kRecentreFrames;
+	}
+
 	std::vector<std::size_t> TickedPieces(const State& a_state)
 	{
 		std::vector<std::size_t> ticked;
@@ -294,7 +309,7 @@ namespace
 		ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
 	}
 
-	// The two-column layout both pages share. When it returns true, fill the
+	// The Update page's two-column layout. When it returns true, fill the
 	// cells and call EndColumns.
 	bool BeginColumns()
 	{
@@ -317,10 +332,14 @@ namespace
 		ImGui::PopStyleVar();
 	}
 
-	// --- Create page ----------------------------------------------------------
+	void RequestCancel()
+	{
+		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
+	}
 
-	// Right column: a checkbox per worn piece; unticked pieces are left out of
-	// the outfit.
+	// --- Pieces page ----------------------------------------------------------
+
+	// A checkbox per worn piece; unticked pieces are left out of the outfit.
 	void DrawPieceList(State& a_state)
 	{
 		const auto& pieces = a_state.request.pieces;
@@ -334,7 +353,64 @@ namespace
 			}
 		}
 		ImGui::EndChild();
+		if (CountTickedPieces(a_state) == 0) {
+			ImGui::TextDisabled("Tick at least one piece.");
+		}
 	}
+
+	enum class PiecesAction
+	{
+		kNone,
+		kNamePage,
+		kUpdatePage,
+		kCancel
+	};
+
+	// Create New / Update Existing / Cancel centred under a rule. Both pages
+	// they open act on the ticked pieces, so both need at least one.
+	PiecesAction DrawPiecesButtons(const State& a_state)
+	{
+		BeginButtonRow({ "Create New", "Update Existing", "Cancel" });
+		const bool hasPieces = CountTickedPieces(a_state) > 0;
+		ImGui::BeginDisabled(!hasPieces);
+		const bool create = Theme::Button("Create New");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		const bool canUpdate = hasPieces && !a_state.request.existingOutfits.empty();
+		ImGui::BeginDisabled(!canUpdate);
+		const bool update = Theme::Button("Update Existing");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+
+		if (create && hasPieces) {
+			return PiecesAction::kNamePage;
+		}
+		if (update && canUpdate) {
+			return PiecesAction::kUpdatePage;
+		}
+		return cancel ? PiecesAction::kCancel : PiecesAction::kNone;
+	}
+
+	void DrawPiecesPage(State& a_state)
+	{
+		DrawPieceList(a_state);
+		switch (DrawPiecesButtons(a_state)) {
+		case PiecesAction::kNamePage:
+			GoToPage(a_state, Page::kName);
+			break;
+		case PiecesAction::kUpdatePage:
+			GoToPage(a_state, Page::kUpdate);
+			break;
+		case PiecesAction::kCancel:
+			RequestCancel();
+			break;
+		case PiecesAction::kNone:
+			break;
+		}
+	}
+
+	// --- Name page ------------------------------------------------------------
 
 	std::string CategoryPreview(const State& a_state)
 	{
@@ -427,8 +503,6 @@ namespace
 		const bool valid = !Trimmed(a_state.name.data()).empty();
 		if (!valid) {
 			ImGui::TextDisabled("Enter a name.");
-		} else if (CountTickedPieces(a_state) == 0) {
-			ImGui::TextDisabled("Tick at least one piece.");
 		} else if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		} else {
@@ -438,43 +512,33 @@ namespace
 		return enter && valid;
 	}
 
-	enum class FormAction
+	enum class NameAction
 	{
 		kNone,
 		kSave,
-		kUpdatePage,
-		kCancel
+		kBack
 	};
 
-	// Create New / Update Existing / Cancel centred under a rule.
+	// Create / Back centred under a rule.
 	// a_save is true when the name field already asked to save.
-	FormAction DrawCreateButtons(State& a_state, bool a_save)
+	NameAction DrawNameButtons(const State& a_state, bool a_save)
 	{
-		BeginButtonRow({ "Create New", "Update Existing", "Cancel" });
-		const bool hasPieces = CountTickedPieces(a_state) > 0;
-		const bool valid = !Trimmed(a_state.name.data()).empty() && hasPieces;
+		BeginButtonRow({ "Create", "Back" });
+		const bool valid = !Trimmed(a_state.name.data()).empty();
 		ImGui::BeginDisabled(!valid);
-		const bool save = Theme::Button("Create New") || a_save;
+		const bool save = Theme::Button("Create") || a_save;
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		const bool canUpdate = hasPieces && !a_state.request.existingOutfits.empty();
-		ImGui::BeginDisabled(!canUpdate);
-		const bool update = Theme::Button("Update Existing");
-		ImGui::EndDisabled();
-		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Saving...");
-			return FormAction::kNone;
+			return NameAction::kNone;
 		}
 		if (save && valid) {
-			return FormAction::kSave;
+			return NameAction::kSave;
 		}
-		if (update && canUpdate) {
-			return FormAction::kUpdatePage;
-		}
-		return cancel ? FormAction::kCancel : FormAction::kNone;
+		return back ? NameAction::kBack : NameAction::kNone;
 	}
 
 	void RequestSave(State& a_state)
@@ -493,39 +557,24 @@ namespace
 		SKSE::GetTaskInterface()->AddTask([onSave, name, pieces, categories] { onSave(name, pieces, categories); });
 	}
 
-	void RequestCancel()
+	// Reached only with at least one piece ticked, which onSave relies on;
+	// the ticks cannot change here.
+	void DrawNamePage(State& a_state)
 	{
-		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
-	}
-
-	void DrawCreatePage(State& a_state)
-	{
-		bool save = false;
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
-		if (BeginColumns()) {
-			ImGui::TableNextColumn();
-			save = DrawNameField(a_state);
-			DrawCategoryField(a_state);
-			ImGui::TableNextColumn();
-			ResetCellBaseline();
-			DrawPieceList(a_state);
-			EndColumns();
-		}
-		const auto action = DrawCreateButtons(a_state, save);
+		const bool save = DrawNameField(a_state);
+		DrawCategoryField(a_state);
+		const auto action = DrawNameButtons(a_state, save);
 		ImGui::EndDisabled();
 
 		switch (action) {
-		case FormAction::kSave:
+		case NameAction::kSave:
 			RequestSave(a_state);
 			break;
-		case FormAction::kUpdatePage:
-			a_state.page = Page::kUpdate;
-			a_state.error.clear();
+		case NameAction::kBack:
+			GoToPage(a_state, Page::kPieces);
 			break;
-		case FormAction::kCancel:
-			RequestCancel();
-			break;
-		case FormAction::kNone:
+		case NameAction::kNone:
 			break;
 		}
 	}
@@ -578,8 +627,8 @@ namespace
 		ImGui::EndChild();
 	}
 
-	// Update / Cancel centred under a rule; Update only opens the confirm popup.
-	// Returns true when the user asked to go back to the Create page.
+	// Update / Back centred under a rule; Update only opens the confirm popup.
+	// Returns true when the user asked to go back to the Pieces page.
 	// Contract: called in the window's own ID scope, as DrawConfirmPopup is, so
 	// OpenPopup and BeginPopupModal name the same popup.
 	bool DrawUpdateButtons(State& a_state)
@@ -587,7 +636,7 @@ namespace
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
-		BeginButtonRow({ "Update", "Cancel" });
+		BeginButtonRow({ "Update", "Back" });
 		ImGui::BeginDisabled(a_state.selectedOutfit < 0);
 		if (Theme::Button("Update")) {
 			ImGui::OpenPopup(kConfirmPopup);
@@ -595,7 +644,7 @@ namespace
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		// While the popup is open, Escape is its own Cancel.
-		const bool back = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kConfirmPopup));
+		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kConfirmPopup));
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Saving...");
@@ -667,9 +716,7 @@ namespace
 		if (DrawConfirmPopup(a_state)) {
 			RequestUpdate(a_state);
 		} else if (back) {
-			a_state.page = Page::kCreate;
-			a_state.error.clear();
-			a_state.focusNameField = true;
+			GoToPage(a_state, Page::kPieces);
 		}
 	}
 }
@@ -696,11 +743,12 @@ namespace CaptureWindow
 			}
 			state.error.clear();
 			state.pending.clear();
-			state.focusNameField = true;
+			state.focusNameField = false;
 			state.status = Status::kEditing;
 			state.resetImGui = true;
-			state.page = Page::kCreate;
+			state.page = Page::kPieces;
 			state.selectedOutfit = -1;
+			state.recentreFrames = 0;  // the first frame centres the window anyway (ImGuiCond_Appearing)
 		}
 		g_open = true;
 		SetGameFrozen(true);
@@ -794,11 +842,15 @@ namespace CaptureWindow
 			state.resetImGui = false;
 		}
 
-		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width
+		const ImGuiCond posCondition = state.recentreFrames > 0 ? ImGuiCond_Always : ImGuiCond_Appearing;
+		state.recentreFrames = (std::max)(state.recentreFrames - 1, 0);
+		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), posCondition, ImVec2(0.5f, 0.5f));
+		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width, for the two-column Update page
+		constexpr float kNarrowWidthRatio = 0.30f;  // of the screen width, for the one-column pages
+		const float     widthRatio = state.page == Page::kUpdate ? kWindowWidthRatio : kNarrowWidthRatio;
 		// Width is fixed every frame; the height follows the content (a zero
 		// axis is left to AlwaysAutoResize), so the window never needs to scroll.
-		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * kWindowWidthRatio, 0.0f), ImGuiCond_Always);
+		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * widthRatio, 0.0f), ImGuiCond_Always);
 		auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
 		if (!Theme::HasTitleBar()) {
 			flags |= ImGuiWindowFlags_NoTitleBar;
@@ -810,10 +862,16 @@ namespace CaptureWindow
 		Theme::DecorateWindow();
 
 		Theme::HeadingText(state.request.actorName.c_str());
-		if (state.page == Page::kCreate) {
-			DrawCreatePage(state);
-		} else {
+		switch (state.page) {
+		case Page::kPieces:
+			DrawPiecesPage(state);
+			break;
+		case Page::kName:
+			DrawNamePage(state);
+			break;
+		case Page::kUpdate:
 			DrawUpdatePage(state);
+			break;
 		}
 		ImGui::End();
 	}
