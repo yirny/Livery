@@ -248,20 +248,51 @@ namespace
 		return preview.empty() ? "None" : preview;
 	}
 
-	// Multi-select dropdown: checkboxes inside a combo, which keep the popup
-	// open while the user ticks several categories.
+	// One full-width option row: hover fill, a highlighted fill and accent text
+	// with a check mark on the right when ticked. An InvisibleButton does not
+	// close the combo popup, so the user can tick several rows in one go.
+	// Contract: the label is shown as is, so it must not use "##" IDs.
+	void DrawCategoryRow(const char* a_label, bool& a_ticked)
+	{
+		const auto&  style = ImGui::GetStyle();
+		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight());
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		if (ImGui::InvisibleButton(a_label, size)) {
+			a_ticked = !a_ticked;
+		}
+		const bool hovered = ImGui::IsItemHovered();
+
+		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+		auto*        draw = ImGui::GetWindowDrawList();
+		if (a_ticked || hovered) {
+			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(a_ticked ? ImGuiCol_Header : ImGuiCol_FrameBgHovered), style.FrameRounding);
+		}
+		const ImU32  textColour = ImGui::GetColorU32(a_ticked ? ImGuiCol_CheckMark : ImGuiCol_Text);
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
+		draw->AddText(ImVec2(topLeft.x + style.FramePadding.x, midY - text.y * 0.5f), textColour, a_label);
+		if (a_ticked) {
+			const float  mark = ImGui::GetFontSize() * 0.3f;  // half width of the check mark
+			const float  right = bottomRight.x - style.FramePadding.x;
+			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
+			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
+		}
+	}
+
+	// Multi-select dropdown: a combo whose popup lists every category as a row.
 	void DrawCategoryField(State& a_state)
 	{
 		Theme::LabelText("Categories");
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (ImGui::BeginCombo("##categories", CategoryPreview(a_state).c_str(), ImGuiComboFlags_HeightLargest)) {
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, ImGui::GetStyle().ItemInnerSpacing.y));
 			const auto& options = a_state.request.categories;
 			for (std::size_t i = 0; i < options.size(); ++i) {
-				if (i == 0 || options[i].group != options[i - 1].group) {
-					ImGui::TextDisabled("%s", options[i].group.c_str());
-				}
-				ImGui::Checkbox(options[i].name.c_str(), &a_state.ticked[i]);
+				ImGui::PushID(static_cast<int>(i));
+				DrawCategoryRow(options[i].name.c_str(), a_state.ticked[i]);
+				ImGui::PopID();
 			}
+			ImGui::PopStyleVar();
 			ImGui::EndCombo();
 		}
 	}
