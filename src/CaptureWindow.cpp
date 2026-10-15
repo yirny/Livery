@@ -386,7 +386,7 @@ namespace
 		if (!io.WantCaptureKeyboard) {
 			input.moveForward = (ImGui::IsKeyDown(ImGuiKey_W) ? 1.0f : 0.0f) - (ImGui::IsKeyDown(ImGuiKey_S) ? 1.0f : 0.0f);
 			input.moveRight = (ImGui::IsKeyDown(ImGuiKey_D) ? 1.0f : 0.0f) - (ImGui::IsKeyDown(ImGuiKey_A) ? 1.0f : 0.0f);
-			input.fast = io.KeyShift;
+			input.slow = io.KeyShift;
 		}
 		input.seconds = io.DeltaTime;
 		const bool any = input.lookX != 0.0f || input.lookY != 0.0f || input.panX != 0.0f || input.panY != 0.0f ||

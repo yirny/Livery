@@ -23,6 +23,9 @@ namespace Settings
 	// Safe from any thread.
 	Theme::Skin Skin();
 
+	// Game units per second of the preview camera with W / A / S / D. Safe from any thread.
+	float CameraMoveSpeed();
+
 	// Whether a keyboard key going down (DirectInput scan code) is the capture hotkey:
 	// the configured key, with its modifier held when one is configured.
 	// Contract: call from the input path while handling that key's event, since the
