@@ -6,7 +6,11 @@
     "dependencies": [
         "spdlog",
         "directxtk",
-        "rapidcsv"
+        "rapidcsv",
+        {
+            "name": "imgui",
+            "features": ["dx11-binding", "win32-binding"]
+        }
     ],
     "features": {
         "tests": {

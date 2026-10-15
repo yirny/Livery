@@ -41,6 +41,8 @@ else()
     # directxtk must be found before add_commonlibsse_plugin (CommonLibSSE-NG links
     # Microsoft::DirectXTK transitively).
     find_package(directxtk CONFIG REQUIRED)
+    # Dear ImGui with the Win32 + DX11 backends, drawn from a DXGI Present hook (src/Hooks.cpp).
+    find_package(imgui CONFIG REQUIRED)
     # rapidcsv must be in vcpkg.json (CommonLibSSE-NG unconditionally adds it as an include dir)
 
     # CommonLibSSE-NG
@@ -83,6 +85,8 @@ else()
         AUTHOR
         "LocalDeveloper"
         SOURCES
+        src/CaptureWindow.cpp
+        src/Hooks.cpp
         src/Plugin.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"
         USE_ADDRESS_LIBRARY)
@@ -99,6 +103,9 @@ else()
     endif()
 
     target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h)
+
+    # imgui's vcpkg port does not link the system libraries its backends need.
+    target_link_libraries(${PROJECT_NAME} PRIVATE imgui::imgui d3d11 dwmapi imm32)
 
     target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
                                                        "${CMAKE_CURRENT_BINARY_DIR}/src")
