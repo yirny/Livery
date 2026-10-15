@@ -220,7 +220,7 @@ namespace
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
 			if (a_state.ticked[i]) {
 				preview += preview.empty() ? "" : ", ";
-				preview += a_state.request.categories[i];
+				preview += a_state.request.categories[i].name;
 			}
 		}
 		return preview.empty() ? "None" : preview;
@@ -233,8 +233,12 @@ namespace
 		ImGui::TextUnformatted("Categories");
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (ImGui::BeginCombo("##categories", CategoryPreview(a_state).c_str(), ImGuiComboFlags_HeightLargest)) {
-			for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
-				ImGui::Checkbox(a_state.request.categories[i].c_str(), &a_state.ticked[i]);
+			const auto& options = a_state.request.categories;
+			for (std::size_t i = 0; i < options.size(); ++i) {
+				if (i == 0 || options[i].group != options[i - 1].group) {
+					ImGui::TextDisabled("%s", options[i].group.c_str());
+				}
+				ImGui::Checkbox(options[i].name.c_str(), &a_state.ticked[i]);
 			}
 			ImGui::EndCombo();
 		}
@@ -270,7 +274,7 @@ namespace
 		std::vector<std::string> categories;
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
 			if (a_state.ticked[i]) {
-				categories.push_back(a_state.request.categories[i]);
+				categories.push_back(a_state.request.categories[i].name);
 			}
 		}
 		auto onSave = a_state.request.onSave;

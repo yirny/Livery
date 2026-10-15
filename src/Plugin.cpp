@@ -27,10 +27,22 @@ namespace
 
 	// Tailor's built-in categories (TailorAPI.h, "RULES EVERY FUNCTION SHARES").
 	// API 1.0 cannot list categories, so the player's custom ones cannot be offered.
-	constexpr std::array<const char*, 9> kBuiltInCategories{
-		"Clothing", "Light Armor", "Heavy Armor",
-		"Adventuring", "Town", "Home", "Sleep", "Swimming", "Warm"
+	struct BuiltInCategory
+	{
+		const char* group;
+		const char* name;
 	};
+	constexpr std::array<BuiltInCategory, 9> kBuiltInCategories{ {
+		{ "Armor class", "Clothing" },
+		{ "Armor class", "Light Armor" },
+		{ "Armor class", "Heavy Armor" },
+		{ "Situation", "Adventuring" },
+		{ "Situation", "Town" },
+		{ "Situation", "Home" },
+		{ "Situation", "Sleep" },
+		{ "Situation", "Swimming" },
+		{ "Situation", "Warm" },
+	} };
 
 	TailorAPI::ITailorInterface1* g_tailor = nullptr;
 	RE::ObjectRefHandle           g_target{};
@@ -57,12 +69,12 @@ namespace
 		return {};
 	}
 
-	std::vector<std::string> AvailableCategories()
+	std::vector<CaptureWindow::CategoryOption> AvailableCategories()
 	{
-		std::vector<std::string> categories;
-		for (const auto* category : kBuiltInCategories) {
-			if (g_tailor->DoesCategoryExist(category)) {
-				categories.emplace_back(category);
+		std::vector<CaptureWindow::CategoryOption> categories;
+		for (const auto& category : kBuiltInCategories) {
+			if (g_tailor->DoesCategoryExist(category.name)) {
+				categories.push_back({ category.group, category.name });
 			}
 		}
 		return categories;

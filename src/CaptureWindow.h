@@ -18,12 +18,18 @@ namespace RE
 // calls Tailor: Save hands the typed name to Request::onSave in an SKSE task.
 namespace CaptureWindow
 {
+	struct CategoryOption
+	{
+		std::string group;  // small heading shown above the first option of each group
+		std::string name;   // the category's name as Tailor shows it
+	};
+
 	struct Request
 	{
-		std::string              actorName;      // shown as the title line
-		std::vector<std::string> pieceNames;     // shown as a read-only list
-		std::string              suggestedName;  // initial text of the name field
-		std::vector<std::string> categories;     // offered in the multi-select dropdown, none preselected
+		std::string                 actorName;      // shown as the title line
+		std::vector<std::string>    pieceNames;     // shown as a read-only list
+		std::string                 suggestedName;  // initial text of the name field
+		std::vector<CategoryOption> categories;     // offered in the multi-select dropdown, none preselected
 
 		// Runs on the game thread with the trimmed, non-empty name and the
 		// categories the user ticked (in the order of `categories`). It must end
