@@ -36,8 +36,9 @@ namespace Theme
 	// Call right after ImGui::Begin: corner ornaments (Nordic).
 	void DecorateWindow();
 
-	// One line in the heading font; Nordic centres it over an ornamented rule.
-	void HeadingText(const char* text);
+	// One line in the heading font, then the subtitle (if any) greyed close under
+	// it; Nordic centres both over an ornamented rule.
+	void HeadingText(const char* text, const char* subtitle = nullptr);
 
 	// Pixels at 1080p to pixels on the current back buffer.
 	float Scale();
