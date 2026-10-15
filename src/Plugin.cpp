@@ -31,9 +31,13 @@ namespace
 
 		const auto ref = handle.get();
 		auto*      actor = ref ? ref->As<RE::Actor>() : nullptr;
-		// Tailor never handles children (see TailorAPI.h); exclude them here too.
-		if (!actor || actor == RE::PlayerCharacter::GetSingleton() || actor->IsChild()) {
+		if (!actor || actor == RE::PlayerCharacter::GetSingleton()) {
 			Notify("Tailor Capture: aim at an NPC.");
+			return;
+		}
+		// Tailor never handles children (see TailorAPI.h).
+		if (actor->IsChild()) {
+			Notify("Tailor Capture: children's outfits cannot be captured.");
 			return;
 		}
 
