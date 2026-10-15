@@ -72,6 +72,8 @@ namespace CaptureWindow
 
 		// Runs on the game thread each time the user ticks (true) or unticks
 		// (false) pieces[index], in click order. Empty for no live preview.
+		// While it is set the game keeps running behind the window; otherwise
+		// the window freezes the game.
 		std::function<void(std::size_t index, bool ticked)> onPieceToggled;
 
 		// Runs on the game thread once the window has closed, whatever closed it:
