@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants      - hotkey, category name
-//   Tailor writes  - SaveOutfit creates the outfit, adds pieces and the category
+//   Constants      - hotkey, Tailor's built-in categories
+//   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories
 //   Capture        - F8 handler: collect worn armor, then open the name window
 //                    (or save under an automatic name where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
@@ -14,6 +14,7 @@
 #include "Hooks.h"
 #include "TailorAPI.h"
 
+#include <array>
 #include <cstdint>
 #include <format>
 #include <optional>
@@ -23,7 +24,13 @@
 namespace
 {
 	constexpr std::uint32_t kHotkey = 0x42;  // F8 (DirectInput scan code)
-	constexpr const char*   kCategory = "Captured";
+
+	// Tailor's built-in categories (TailorAPI.h, "RULES EVERY FUNCTION SHARES").
+	// API 1.0 cannot list categories, so the player's custom ones cannot be offered.
+	constexpr std::array<const char*, 9> kBuiltInCategories{
+		"Clothing", "Light Armor", "Heavy Armor",
+		"Adventuring", "Town", "Home", "Sleep", "Swimming", "Warm"
+	};
 
 	TailorAPI::ITailorInterface1* g_tailor = nullptr;
 	RE::ObjectRefHandle           g_target{};
@@ -50,20 +57,30 @@ namespace
 		return {};
 	}
 
+	std::vector<std::string> AvailableCategories()
+	{
+		std::vector<std::string> categories;
+		for (const auto* category : kBuiltInCategories) {
+			if (g_tailor->DoesCategoryExist(category)) {
+				categories.emplace_back(category);
+			}
+		}
+		return categories;
+	}
+
 	// Contract: game thread; Tailor 3.0 library already loaded (g_ready).
 	// API 1.0 cannot delete an outfit, so every refusal that can be checked up
-	// front is checked before CreateOutfit. Returns an error message, or
-	// nullopt on success (then the HUD message has been shown).
-	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors)
+	// front is checked before CreateOutfit. Categories are added only after the
+	// pieces: an empty outfit in a situation pool can dress someone in nothing.
+	// Returns an error message, or nullopt on success (HUD message shown).
+	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<std::string>& categories)
 	{
 		if (!g_ready || !g_tailor) {
 			return "Tailor 3.0+ is not ready.";
 		}
 		if (g_tailor->DoesOutfitExist(name.c_str())) {
 			return std::format("An outfit named \"{}\" already exists.", name);
-		}
-		if (!g_tailor->DoesCategoryExist(kCategory) && !g_tailor->CreateCustomCategory(kCategory)) {
-			return "Could not create the Captured category.";
 		}
 		if (!g_tailor->CreateOutfit(name.c_str(), "", -1)) {
 			return "Tailor refused to create the outfit (see Tailor.log).";
@@ -81,8 +98,15 @@ namespace
 			// Nothing can be undone here; tell the user what to clean up.
 			return "Tailor rejected every piece; delete the empty outfit in Tailor.";
 		}
-		if (!g_tailor->AddCategory(name.c_str(), kCategory)) {
-			Notify(std::format("Tailor: saved {} ({} pieces), but category assignment failed.", name, added));
+		std::string failed;
+		for (const auto& category : categories) {
+			if (!g_tailor->AddCategory(name.c_str(), category.c_str())) {
+				logger::warn("AddCategory({}, {}) failed", name, category);
+				failed += failed.empty() ? category : ", " + category;
+			}
+		}
+		if (!failed.empty()) {
+			Notify(std::format("Tailor: saved {} ({} pieces), but could not add it to: {}.", name, added, failed));
 			return std::nullopt;
 		}
 
@@ -135,11 +159,12 @@ namespace
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
 		request.suggestedName = NextAutomaticName();
+		request.categories = AvailableCategories();
 		for (const auto* armor : armors) {
 			request.pieceNames.push_back(DisplayName(*armor));
 		}
-		request.onSave = [armors = std::move(armors)](const std::string& name) {
-			if (const auto error = SaveOutfit(name, armors)) {
+		request.onSave = [armors = std::move(armors)](const std::string& name, const std::vector<std::string>& categories) {
+			if (const auto error = SaveOutfit(name, armors, categories)) {
 				CaptureWindow::SetError(*error);
 			} else {
 				CaptureWindow::Close();
@@ -184,13 +209,13 @@ namespace
 			return;
 		}
 
-		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name.
+		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name, no category.
 		const auto name = NextAutomaticName();
 		if (name.empty()) {
 			Notify("Tailor Capture: no free outfit name.");
 			return;
 		}
-		if (const auto error = SaveOutfit(name, armors)) {
+		if (const auto error = SaveOutfit(name, armors, {})) {
 			Notify("Tailor Capture: " + *error);
 		}
 	}

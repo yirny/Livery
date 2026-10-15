@@ -23,10 +23,12 @@ namespace CaptureWindow
 		std::string              actorName;      // shown as the title line
 		std::vector<std::string> pieceNames;     // shown as a read-only list
 		std::string              suggestedName;  // initial text of the name field
+		std::vector<std::string> categories;     // offered in the multi-select dropdown, none preselected
 
-		// Runs on the game thread with the trimmed, non-empty name. It must end
+		// Runs on the game thread with the trimmed, non-empty name and the
+		// categories the user ticked (in the order of `categories`). It must end
 		// by calling Close() (done) or SetError() (keep the window open).
-		std::function<void(const std::string& name)> onSave;
+		std::function<void(const std::string& name, const std::vector<std::string>& categories)> onSave;
 	};
 
 	void Open(Request request);

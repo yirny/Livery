@@ -1,6 +1,6 @@
 # TailorOutfitCapture — Claude Code Rules
 
-SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v9.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Talks to Tailor through its mod API 1.0 (`src/TailorAPI.h`, Tailor 3.0+). Feature: F8 on a crosshair NPC saves the armor they wear as a new Tailor outfit in the custom category "Captured".
+SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v9.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Talks to Tailor through its mod API 1.0 (`src/TailorAPI.h`, Tailor 3.0+). Feature: F8 on a crosshair NPC opens an ImGui window (name + built-in categories) and saves the armor they wear as a new Tailor outfit.
 
 Build (Windows): run inside the VS developer environment (`.vscode/tasks.json` does this; default build task = `Ctrl+Shift+B`):
 `cmake --preset release-windows` then `cmake --build --preset release-windows` → `build/msvc/tailoroutfitcapture.dll`.
@@ -40,7 +40,7 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 The Tailor library (outfits, categories) is shared by every save and character, and API 1.0 cannot delete outfits or categories: every building call is permanent for the user.
 
 - Only add: a new outfit under an unused name (`DoesOutfitExist` first), its pieces, then its category (pieces before category).
-- Never rename or change existing outfits, never `RemoveArmorFromOutfit` on an outfit this plugin did not just create, never put outfits into situation pools (Adventuring, Town, Home, Sleep, Swimming, Warm) unless asked.
+- Never rename or change existing outfits, never `RemoveArmorFromOutfit` on an outfit this plugin did not just create, put outfits into situation pools (Adventuring, Town, Home, Sleep, Swimming, Warm) only when the user ticked them in the window — never by default.
 - Validate inputs before `CreateOutfit` so a refusal cannot leave an empty outfit.
 - Building functions and functions taking `RE::Actor*`: game thread only (SKSE task).
 

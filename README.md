@@ -46,7 +46,11 @@ TailorOutfitCapture captures the armor an NPC is currently wearing into a [Tailo
 2. Aim the crosshair at an NPC (not the player, not a child).
 3. Press **F8**. The game pauses and a small window lists the worn pieces and asks for an outfit name (pre-filled with `Captured Outfit NNN`). Press Enter or **Save** to create the outfit; **Cancel** or Esc creates nothing.
 
-The plugin creates the outfit in the custom category `Captured`, adds every worn armor piece, and shows the result as a HUD message. The window is drawn with Dear ImGui on Skyrim SE/AE; on Skyrim VR there is no window and the automatic name is used. Only ASCII names can be typed in this version. Details go to `Documents/My Games/Skyrim Special Edition/SKSE/TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
+The plugin creates the outfit in the custom category `Captured`, adds every worn armor piece, and shows the result as a HUD message. The window is drawn with Dear ImGui on Skyrim SE/AE; on Skyrim VR there is no window and the automatic name is used. Only ASCII names can be typed in this version.
+
+The window offers Tailor's nine built-in categories (Clothing, Light Armor, Heavy Armor, Adventuring, Town, Home, Sleep, Swimming, Warm) in a multi-select dropdown, none ticked by default. Custom categories the player created in Tailor cannot be offered: Tailor's mod API 1.0 has no function that lists categories, only `DoesCategoryExist` for a name the caller already knows.
+
+Details go to `Documents/My Games/Skyrim Special Edition/SKSE/TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
 
 Worn armor that the game created at runtime (for example, player-enchanted gear) is skipped, because Tailor refuses it and the API cannot delete an empty outfit.
 
