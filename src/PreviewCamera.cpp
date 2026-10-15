@@ -13,6 +13,8 @@
 
 #include "PreviewCamera.h"
 
+#include "Settings.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -23,8 +25,7 @@ namespace
 {
 	// --- Constants ------------------------------------------------------------
 
-	constexpr float kMoveSpeed = 300.0f;            // game units per second with W / A / S / D
-	constexpr float kFastFactor = 3.0f;             // on kMoveSpeed while Shift is held
+	constexpr float kSlowFactor = 0.5f;             // on the move speed while Shift is held, as in tfc
 	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag
 	constexpr float kPanUnitsPerPixel = 1.0f;       // of a right drag
 	constexpr float kZoomUnitsPerStep = 40.0f;      // forward per wheel step
@@ -188,7 +189,7 @@ namespace PreviewCamera
 		const RE::NiPoint3 right{ std::cos(yaw), -std::sin(yaw), 0.0f };
 		const RE::NiPoint3 up{ 0.0f, 0.0f, 1.0f };
 
-		const float step = kMoveSpeed * (input.fast ? kFastFactor : 1.0f) * input.seconds;
+		const float step = Settings::CameraMoveSpeed() * (input.slow ? kSlowFactor : 1.0f) * input.seconds;
 		auto        move = forward * (input.moveForward * step + input.zoomSteps * kZoomUnitsPerStep);
 		move += right * (input.moveRight * step);
 		// A right drag takes the view along with the mouse: the camera goes the other way.
