@@ -287,18 +287,14 @@ namespace
 		ImGui::PopStyleColor();
 	}
 
-	// A rule that spans the window, then the cursor placed so a row of buttons
-	// with these labels (Theme::Button, one item spacing apart) is centred.
+	// A gap, then the cursor placed so a row of buttons with these labels
+	// (Theme::Button, one item spacing apart) is centred.
 	void BeginButtonRow(std::initializer_list<const char*> a_labels)
 	{
-		constexpr float kRuleMargin = 4.0f;  // pixels at 1080p, added above and below the rule
+		constexpr float kGap = 17.0f;  // pixels at 1080p, on top of one extra item spacing
 
 		const auto& style = ImGui::GetStyle();
-		const float margin = kRuleMargin * Theme::Scale();
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + margin);
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, style.ItemSpacing.y + margin));
-		ImGui::Separator();
-		ImGui::PopStyleVar();
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.ItemSpacing.y + kGap * Theme::Scale());
 		float width = style.ItemSpacing.x * static_cast<float>(a_labels.size() - 1);
 		for (const auto* label : a_labels) {
 			width += Theme::ButtonWidth(label);
@@ -370,7 +366,7 @@ namespace
 		kCancel
 	};
 
-	// Create New / Update Existing / Cancel centred under a rule. Both pages
+	// Create New / Update Existing / Cancel centred below a gap. Both pages
 	// they open act on the ticked pieces, so both need at least one.
 	PiecesAction DrawPiecesButtons(const State& a_state)
 	{
@@ -562,7 +558,7 @@ namespace
 		kBack
 	};
 
-	// Create / Back centred under a rule.
+	// Create / Back centred below a gap.
 	// a_save is true when the name field already asked to save.
 	NameAction DrawNameButtons(const State& a_state, bool a_save)
 	{
@@ -697,7 +693,7 @@ namespace
 		ImGui::EndChild();
 	}
 
-	// Update / Back centred under a rule; Update only opens the confirm popup.
+	// Update / Back centred below a gap; Update only opens the confirm popup.
 	// Returns true when the user asked to go back to the Pieces page.
 	// Contract: called in the window's own ID scope, as DrawConfirmPopup is, so
 	// OpenPopup and BeginPopupModal name the same popup.
