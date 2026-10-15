@@ -528,8 +528,10 @@ namespace CaptureWindow
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width
 		constexpr float kFormWidthRatio = 0.45f;    // left column, of the table width
-		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * kWindowWidthRatio, 0.0f), ImGuiCond_Appearing);
-		auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+		// Width is fixed every frame; the height follows the content (a zero
+		// axis is left to AlwaysAutoResize), so the window never needs to scroll.
+		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * kWindowWidthRatio, 0.0f), ImGuiCond_Always);
+		auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
 		if (!Theme::HasTitleBar()) {
 			flags |= ImGuiWindowFlags_NoTitleBar;
 		}
