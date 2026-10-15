@@ -2,10 +2,11 @@
 //
 // FILE MAP
 //   Constants      - hotkey, Tailor's built-in categories
-//   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories
-//   Capture        - F8 handler: check the target, collect worn armor, detect the armor class, then open
-//                    the name window with it ticked (or save under an automatic name with it where the
-//                    overlay is unavailable)
+//   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
+//                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
+//   Capture        - F8 handler: check the target, collect worn armor, detect the armor class, list the
+//                    library's outfits, then open the window with it ticked (or save under an automatic
+//                    name with it where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
 //   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, trampoline, hooks
@@ -18,8 +19,10 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -76,33 +79,41 @@ namespace
 		return {};
 	}
 
-	// Contract: library.json is Tailor's own file, not part of its API: read only,
-	// never written. It can lag behind Tailor's in-memory library, so callers keep
-	// only the names DoesCategoryExist confirms. Any surprise yields an empty list.
-	std::vector<std::string> ReadCustomCategoryNames()
+	// Contract: Tailor's JSON files are its own, not part of its API: read only,
+	// never written. They can lag behind Tailor's in-memory library, so callers
+	// keep only the names the API confirms. Any surprise yields a discarded value.
+	nlohmann::json ReadTailorFile(const char* a_file, int a_knownVersion)
 	{
-		constexpr auto kLibraryFile = L"Data/SKSE/Plugins/Tailor/library.json";
-		constexpr int  kKnownVersion = 2;  // the "version" field this reader was written against
-
-		const auto    path = std::filesystem::current_path() / kLibraryFile;
+		const auto    path = std::filesystem::current_path() / "Data/SKSE/Plugins/Tailor" / a_file;
 		std::ifstream file{ path };
 		if (!file) {
-			logger::warn("Custom categories unavailable: cannot open Tailor's library.json");
-			return {};
+			logger::warn("Cannot open Tailor's {}", a_file);
+			return nlohmann::json::value_t::discarded;
 		}
-		const auto library = nlohmann::json::parse(file, nullptr, false);
-		if (library.is_discarded() || !library.is_object()) {
-			logger::warn("Custom categories unavailable: library.json is not valid JSON");
-			return {};
+		auto json = nlohmann::json::parse(file, nullptr, false);
+		if (json.is_discarded() || !json.is_object()) {
+			logger::warn("Tailor's {} is not valid JSON", a_file);
+			return nlohmann::json::value_t::discarded;
 		}
-		const auto version = library.find("version");
-		if (version == library.end() || !version->is_number_integer() || version->get<int>() != kKnownVersion) {
-			logger::warn("Custom categories unavailable: unknown library.json version");
+		const auto version = json.find("version");
+		if (version == json.end() || !version->is_number_integer() || version->get<int>() != a_knownVersion) {
+			logger::warn("Tailor's {} has an unknown version", a_file);
+			return nlohmann::json::value_t::discarded;
+		}
+		return json;
+	}
+
+	std::vector<std::string> ReadCustomCategoryNames()
+	{
+		constexpr int kKnownVersion = 2;  // the "version" field this reader was written against
+
+		const auto library = ReadTailorFile("library.json", kKnownVersion);
+		if (library.is_discarded()) {
 			return {};
 		}
 		const auto list = library.find("categories");
 		if (list == library.end() || !list->is_array()) {
-			logger::warn("Custom categories unavailable: library.json has no category list");
+			logger::warn("Tailor's library.json has no category list");
 			return {};
 		}
 
@@ -112,6 +123,30 @@ namespace
 			const auto name = category.find("name");
 			if (isDefault != category.end() && isDefault->is_boolean() && !isDefault->get<bool>() &&
 				name != category.end() && name->is_string()) {
+				names.push_back(name->get<std::string>());
+			}
+		}
+		return names;
+	}
+
+	std::vector<std::string> ReadOutfitNames()
+	{
+		constexpr int kKnownVersion = 1;  // the "version" field this reader was written against
+
+		const auto outfits = ReadTailorFile("outfits.json", kKnownVersion);
+		if (outfits.is_discarded()) {
+			return {};
+		}
+		const auto list = outfits.find("outfits");
+		if (list == outfits.end() || !list->is_array()) {
+			logger::warn("Tailor's outfits.json has no outfit list");
+			return {};
+		}
+
+		std::vector<std::string> names;
+		for (const auto& outfit : *list) {
+			const auto name = outfit.find("name");
+			if (name != outfit.end() && name->is_string()) {
 				names.push_back(name->get<std::string>());
 			}
 		}
@@ -179,6 +214,66 @@ namespace
 		Notify(std::format("Tailor: saved {} ({} pieces).", name, added));
 		if (added != armors.size()) {
 			logger::warn("Saved {} of {} worn pieces", added, armors.size());
+		}
+		return std::nullopt;
+	}
+
+	// The outfit's loaded pieces; pieces from plugins that are not loaded are left out.
+	std::vector<RE::TESObjectARMO*> OutfitArmors(const std::string& name)
+	{
+		std::vector<RE::TESObjectARMO*> armors;
+		g_tailor->GetOutfitArmors(
+			name.c_str(), [](RE::TESObjectARMO* armor, void* context) {
+				if (armor) {
+					static_cast<std::vector<RE::TESObjectARMO*>*>(context)->push_back(armor);
+				}
+			},
+			&armors);
+		return armors;
+	}
+
+	// Contract: game thread; Tailor 3.0 library already loaded (g_ready); the user
+	// confirmed replacing this outfit's pieces. New pieces go in before old ones
+	// come out, and nothing comes out unless one went in, so the outfit (which may
+	// sit in a situation pool) is never left empty. Its categories and gender stay.
+	// Returns an error message, or nullopt on success (HUD message shown).
+	std::optional<std::string> UpdateOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors)
+	{
+		if (!g_ready || !g_tailor) {
+			return "Tailor 3.0+ is not ready.";
+		}
+		if (!g_tailor->DoesOutfitExist(name.c_str())) {
+			return std::format("The outfit \"{}\" no longer exists.", name);
+		}
+		const auto previous = OutfitArmors(name);
+
+		std::vector<RE::TESObjectARMO*> accepted;
+		for (auto* armor : armors) {
+			if (g_tailor->AddArmorToOutfit(name.c_str(), armor)) {
+				accepted.push_back(armor);
+			} else {
+				logger::warn("Rejected armor {:08X}", armor->GetFormID());
+			}
+		}
+		if (accepted.empty()) {
+			return std::format("Tailor rejected every piece; \"{}\" was not changed.", name);
+		}
+
+		std::size_t stuck = 0;
+		for (auto* armor : previous) {
+			if (std::ranges::find(accepted, armor) == accepted.end() && !g_tailor->RemoveArmorFromOutfit(name.c_str(), armor)) {
+				logger::warn("RemoveArmorFromOutfit({}, {:08X}) failed", name, armor->GetFormID());
+				++stuck;
+			}
+		}
+		if (stuck) {
+			Notify(std::format("Tailor: updated {} ({} pieces), but {} old piece(s) could not be removed.", name, accepted.size(), stuck));
+			return std::nullopt;
+		}
+
+		Notify(std::format("Tailor: updated {} ({} pieces).", name, accepted.size()));
+		if (accepted.size() != armors.size()) {
+			logger::warn("Updated with {} of {} ticked pieces", accepted.size(), armors.size());
 		}
 		return std::nullopt;
 	}
@@ -271,12 +366,52 @@ namespace
 		return "Clothing";
 	}
 
+	// The library's outfits in case-insensitive name order, each with the known
+	// categories it is in and its loaded pieces. Outfit names come from
+	// outfits.json (API 1.0 cannot list every outfit), checked with DoesOutfitExist.
+	std::vector<CaptureWindow::ExistingOutfit> ExistingOutfits(const std::vector<CaptureWindow::CategoryOption>& categories)
+	{
+		auto names = ReadOutfitNames();
+		std::ranges::sort(names, [](const std::string& a, const std::string& b) { return _stricmp(a.c_str(), b.c_str()) < 0; });
+
+		std::vector<CaptureWindow::ExistingOutfit> outfits;
+		for (auto& name : names) {
+			if (!g_tailor->DoesOutfitExist(name.c_str())) {
+				continue;
+			}
+			CaptureWindow::ExistingOutfit outfit{ .name = std::move(name) };
+			for (const auto& category : categories) {
+				if (g_tailor->IsOutfitInCategory(outfit.name.c_str(), category.name.c_str())) {
+					outfit.categories.push_back(category.name);
+				}
+			}
+			for (const auto* armor : OutfitArmors(outfit.name)) {
+				outfit.pieces.push_back(DisplayName(*armor));
+			}
+			outfits.push_back(std::move(outfit));
+		}
+		return outfits;
+	}
+
+	std::vector<RE::TESObjectARMO*> PickPieces(const std::vector<RE::TESObjectARMO*>& armors, const std::vector<std::size_t>& indices)
+	{
+		std::vector<RE::TESObjectARMO*> picked;
+		picked.reserve(indices.size());
+		for (const auto index : indices) {
+			picked.push_back(armors[index]);
+		}
+		return picked;
+	}
+
+	// Contract: game thread (Tailor queries that hand out armor forms run here,
+	// so the window itself never calls Tailor).
 	void OpenNameWindow(const RE::Actor& actor, std::vector<RE::TESObjectARMO*> armors)
 	{
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
 		request.suggestedName = NextAutomaticName();
 		request.categories = AvailableCategories();
+		request.existingOutfits = ExistingOutfits(request.categories);
 		const auto* armorClass = DetectArmorClass(armors);
 		for (auto& category : request.categories) {
 			category.selected = category.name == armorClass;
@@ -284,14 +419,15 @@ namespace
 		for (const auto* armor : armors) {
 			request.pieces.push_back({ DisplayName(*armor), !LooksLikeWig(*armor) });
 		}
-		request.onSave = [armors = std::move(armors)](const std::string& name, const std::vector<std::size_t>& pieces,
-							 const std::vector<std::string>& categories) {
-			std::vector<RE::TESObjectARMO*> selected;
-			selected.reserve(pieces.size());
-			for (const auto index : pieces) {
-				selected.push_back(armors[index]);
+		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories) {
+			if (const auto error = SaveOutfit(name, PickPieces(armors, pieces), categories)) {
+				CaptureWindow::SetError(*error);
+			} else {
+				CaptureWindow::Close();
 			}
-			if (const auto error = SaveOutfit(name, selected, categories)) {
+		};
+		request.onUpdate = [armors = std::move(armors)](const std::string& name, const std::vector<std::size_t>& pieces) {
+			if (const auto error = UpdateOutfit(name, PickPieces(armors, pieces))) {
 				CaptureWindow::SetError(*error);
 			} else {
 				CaptureWindow::Close();
