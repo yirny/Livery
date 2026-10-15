@@ -1,4 +1,4 @@
-# ExampleMod
+# tailoroutfitcapture
 
 A starter template for Skyrim Special Edition / Anniversary Edition SKSE plugins using
 [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMake](https://cmake.org), and [vcpkg](https://vcpkg.io).
@@ -12,6 +12,7 @@ Supports building on **Linux** (cross-compilation via `clang-cl` + [xwin](https:
 ## Requirements
 
 - [SKSE64](https://skse.silverlock.org/)
+- [Tailor](https://www.nexusmods.com/skyrimspecialedition) 3.0 or newer
 - [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) for SE and AE, or [VR Address Library for SKSEVR](https://www.nexusmods.com/skyrimspecialedition/mods/58101) for VR
 
 ## Installation
@@ -19,13 +20,13 @@ Supports building on **Linux** (cross-compilation via `clang-cl` + [xwin](https:
 **Mod manager (recommended):**
 
 1. Install the requirements above.
-2. Install ExampleMod via your mod manager.
+2. Install tailoroutfitcapture via your mod manager.
 3. Launch Skyrim via SKSE.
 
 **Manual:**
 
 1. Install the requirements above.
-2. Copy `ExampleMod.dll` to `Data\SKSE\Plugins\`.
+2. Copy `tailoroutfitcapture.dll` to `Data\SKSE\Plugins\`.
 3. Launch Skyrim via SKSE.
 
 ## Compatibility
@@ -37,13 +38,17 @@ Supports building on **Linux** (cross-compilation via `clang-cl` + [xwin](https:
 
 ---
 
-## What the Starter Plugin Does
+## What the Plugin Does
 
-When loaded by Skyrim the plugin:
+TailorOutfitCapture captures the armor an NPC is currently wearing into a [Tailor](https://github.com/heathbrownkeyworks/Tailor) outfit. Requires **Tailor 3.0 or newer** (mod API 1.0).
 
-1. **Writes a log** to `Data/SKSE/Plugins/ExampleMod.log` via spdlog.
-2. **Hooks `kDataLoaded`** (fires once all game data is loaded).
-3. **Prints to the in-game console** (`~` key): `[ExampleMod] Loaded successfully!`
+1. Load a save or start a new game.
+2. Aim the crosshair at an NPC (not the player, not a child).
+3. Press **F8**.
+
+The plugin creates an outfit named `Captured Outfit NNN` in the custom category `Captured`, adds every worn armor piece, and shows the result as a HUD message. Details go to `Documents/My Games/Skyrim Special Edition/SKSE/TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
+
+Worn armor that the game created at runtime (for example, player-enchanted gear) is skipped, because Tailor refuses it and the API cannot delete an empty outfit.
 
 ---
 
@@ -114,7 +119,7 @@ The `--recurse-submodules` flag (or `-- --recurse-submodules` for `gh repo clone
 
 #### 2. Set your mod name and author
 
-For a repo created from the template, the **Template Setup** workflow (`setup.yml`) renames the `ExampleMod` and `Author` placeholders, deriving them from the repo name and owner, commits the result, and removes itself. It can run automatically when the repo is created; if it hasn't, trigger it from the **Actions** tab ("Template Setup" > "Run workflow"). Once it has run, `git pull` to get the renamed sources.
+For a repo created from the template, the **Template Setup** workflow (`setup.yml`) renames the `tailoroutfitcapture` and `LocalDeveloper` (author) placeholders, deriving them from the repo name and owner, commits the result, and removes itself. It can run automatically when the repo is created; if it hasn't, trigger it from the **Actions** tab ("Template Setup" > "Run workflow"). Once it has run, `git pull` to get the renamed sources.
 
 Prefer to rename locally, or cloned the template directly? Run the init script instead. It replaces the placeholders, initialises the submodules (CommonLibSSE-NG + vcpkg), bootstraps vcpkg, and copies `.env.example` to `.env`.
 
@@ -155,7 +160,7 @@ cmake --preset release-linux
 cmake --build --preset release-linux
 ```
 
-The DLL lands in `build/release-linux/ExampleMod.dll`.
+The DLL lands in `build/release-linux/tailoroutfitcapture.dll`.
 
 ##### Deploy to mod manager
 
@@ -165,10 +170,10 @@ The DLL lands in `build/release-linux/ExampleMod.dll`.
 source .env && cmake --workflow --preset deploy
 ```
 
-This configures, builds, and copies `ExampleMod.dll` + `ExampleMod.pdb` directly into:
+This configures, builds, and copies `tailoroutfitcapture.dll` + `tailoroutfitcapture.pdb` directly into:
 
 ```
-$SKYRIM_MODS_FOLDER/ExampleMod/SKSE/Plugins/
+$SKYRIM_MODS_FOLDER/tailoroutfitcapture/SKSE/Plugins/
 ```
 
 Vortex will detect the new mod folder automatically. Enable it in Vortex, then launch Skyrim.
@@ -188,7 +193,7 @@ cmake --build --preset release-windows
 
 > Run these from a **Developer Command Prompt for VS** (or after sourcing `vcvars64.bat`) so `cl.exe` and the Windows SDK are on `PATH`. The preset uses the Ninja generator, which builds with whatever MSVC toolset the environment provides.
 
-The DLL lands in `build/msvc/ExampleMod.dll`.
+The DLL lands in `build/msvc/tailoroutfitcapture.dll`.
 
 #### 5. Running tests
 
@@ -294,4 +299,4 @@ python3 scripts/generate-nexus-page.py --copy
 
 ## License
 
-Copyright (c) 2026 ExampleMod Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later, so mods built from this template are distributed under the same terms.
+Copyright (c) 2026 tailoroutfitcapture Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later, so mods built from this template are distributed under the same terms.
