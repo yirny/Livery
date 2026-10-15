@@ -16,8 +16,8 @@ namespace RE
 // Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
 // the game thread from the input dispatch hook. All state is guarded by one
 // mutex. Nothing here calls Tailor: Create New hands the typed name to
-// Request::onSave, and Update Existing the chosen outfit to Request::onUpdate,
-// in an SKSE task.
+// Request::onSave, Update Existing the chosen outfit to Request::onUpdate, and
+// each piece tick to Request::onPieceToggled, in an SKSE task.
 namespace CaptureWindow
 {
 	struct CategoryOption
@@ -46,6 +46,7 @@ namespace CaptureWindow
 		std::string                 actorName;             // shown as the title line
 		std::string                 actorSummary;          // shown greyed under the title line; "" for none
 		std::vector<Piece>          pieces;                // shown as a checkbox list; both actions need at least one ticked
+		std::string                 previewNote;           // shown greyed under the piece list; "" for none
 		std::string                 suggestedName;         // initial text of the name field
 		std::vector<CategoryOption> categories;            // offered in the multi-select dropdown
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Update Existing page, in display order
@@ -68,6 +69,15 @@ namespace CaptureWindow
 		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces,
 			const std::vector<std::string>& categories)>
 			onUpdate;
+
+		// Runs on the game thread each time the user ticks (true) or unticks
+		// (false) pieces[index], in click order. Empty for no live preview.
+		std::function<void(std::size_t index, bool ticked)> onPieceToggled;
+
+		// Runs on the game thread once the window has closed, whatever closed it:
+		// Cancel, the game hiding the menu, a load, or onSave / onUpdate calling
+		// Close(). Empty for nothing to do.
+		std::function<void()> onClose;
 	};
 
 	void Open(Request request);
