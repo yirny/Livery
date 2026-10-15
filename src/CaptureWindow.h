@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -29,8 +30,9 @@ namespace CaptureWindow
 
 	struct Piece
 	{
-		std::string name;      // the armor's display name
-		bool        selected;  // initial state of its checkbox
+		std::string   name;       // the armor's display name
+		bool          selected;   // initial state of its checkbox
+		std::uint32_t slots = 0;  // body slot mask; ticking the piece unticks others sharing a slot
 	};
 
 	// One frame of mouse and key input over the game rather than the window,

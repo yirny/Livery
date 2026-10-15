@@ -30,6 +30,7 @@
 #include <initializer_list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <utility>
 
 namespace
@@ -37,6 +38,10 @@ namespace
 	constexpr std::size_t kNameCapacity = 64;                 // bytes, UTF-8, including the terminator
 	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // ID shared by OpenPopup and BeginPopupModal
+	// Frames the window's place is pinned after Open or a page change: an
+	// auto-resized window fits new content a frame late, and PlaceWindow sees
+	// the fitted height a frame after that.
+	constexpr int kRecentreFrames = 3;
 
 	enum class Status
 	{
@@ -87,6 +92,9 @@ namespace
 		Page                            page = Page::kPieces;
 		int                             selectedOutfit = -1;  // index into request.existingOutfits, -1 for none
 		int                             recentreFrames = 0;   // frames left to pin the window to its place
+		std::optional<ImVec2>           placeCentre;          // where a pinned window's centre goes; none for the start place
+		ImVec2                          windowPos{};          // of the window in the last frame drawn
+		ImVec2                          windowSize{};
 		bool                            frozeGame = false;    // Open froze the game, so Close unfreezes it
 		int                             viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
 		float                           viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
@@ -254,16 +262,39 @@ namespace
 
 	// --- Draw -----------------------------------------------------------------
 
-	// The window is pinned to its place for a few frames, as the pages differ
-	// in size and an auto-resized window fits new content one frame late.
+	// The new page is centred where the current one is (the user may have moved
+	// it); PlaceWindow keeps it inside the screen.
 	void GoToPage(State& a_state, Page a_page)
 	{
-		constexpr int kRecentreFrames = 2;  // the frame that draws the new page and the one that has fitted it
-
 		a_state.page = a_page;
 		a_state.error.clear();
 		a_state.focusNameField = a_page == Page::kName;
+		a_state.placeCentre = ImVec2(a_state.windowPos.x + a_state.windowSize.x * 0.5f, a_state.windowPos.y + a_state.windowSize.y * 0.5f);
 		a_state.recentreFrames = kRecentreFrames;
+	}
+
+	// While pinned, centres the window on placeCentre, or on its start place:
+	// vertically centred, and on the left beside a preview camera's view or
+	// else in the middle. The centre is kept so the page's width and the last
+	// frame's height fit the screen; one taller than the screen keeps its top
+	// edge on it. Unpinned, the window stays where the user left it.
+	void PlaceWindow(State& a_state, const ImGuiIO& a_io, float a_width)
+	{
+		constexpr float kSideMarginRatio = 0.03f;  // of the screen width, between its left edge and the window beside a preview
+
+		if (a_state.recentreFrames == 0) {
+			return;
+		}
+		--a_state.recentreFrames;
+		const auto&  screen = a_io.DisplaySize;
+		const bool   aside = static_cast<bool>(a_state.request.onViewInput);
+		const ImVec2 start(aside ? screen.x * kSideMarginRatio + a_width * 0.5f : screen.x * 0.5f, screen.y * 0.5f);
+		const ImVec2 centre = a_state.placeCentre.value_or(start);
+		const auto   inside = [](float a_centre, float a_extent, float a_limit) {
+			return (std::max)(a_extent * 0.5f, (std::min)(a_centre, a_limit - a_extent * 0.5f));
+		};
+		const ImVec2 fitted(inside(centre.x, a_width, screen.x), inside(centre.y, a_state.windowSize.y, screen.y));
+		ImGui::SetNextWindowPos(fitted, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	}
 
 	std::vector<std::size_t> TickedPieces(const State& a_state)
@@ -398,6 +429,23 @@ namespace
 
 	// --- Pieces page ----------------------------------------------------------
 
+	// Ticking a piece unticks the ticked ones sharing a body slot with it, as
+	// equipping it takes them off; their onPieceToggled tasks go first.
+	void UntickSharingSlots(State& a_state, std::size_t a_index)
+	{
+		const auto& pieces = a_state.request.pieces;
+		const auto& onToggled = a_state.request.onPieceToggled;
+		for (std::size_t j = 0; j < pieces.size(); ++j) {
+			if (j == a_index || !a_state.pieceTicked[j] || (pieces[j].slots & pieces[a_index].slots) == 0) {
+				continue;
+			}
+			a_state.pieceTicked[j] = false;
+			if (onToggled) {
+				SKSE::GetTaskInterface()->AddTask([onToggled, j] { onToggled(j, false); });
+			}
+		}
+	}
+
 	// A checkbox per inventory piece; unticked pieces are left out of the outfit.
 	// Each click goes to onPieceToggled (the live preview) in its own SKSE task,
 	// queued in click order.
@@ -410,8 +458,13 @@ namespace
 		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
 			for (std::size_t i = 0; i < pieces.size(); ++i) {
 				ImGui::PushID(static_cast<int>(i));
-				if (ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i]) && onToggled) {
-					SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_state.pieceTicked[i]] { onToggled(i, ticked); });
+				if (ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i])) {
+					if (a_state.pieceTicked[i]) {
+						UntickSharingSlots(a_state, i);
+					}
+					if (onToggled) {
+						SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_state.pieceTicked[i]] { onToggled(i, ticked); });
+					}
 				}
 				ImGui::PopID();
 			}
@@ -891,7 +944,8 @@ namespace CaptureWindow
 			state.resetImGui = true;
 			state.page = Page::kPieces;
 			state.selectedOutfit = -1;
-			state.recentreFrames = 0;  // the first frame places the window anyway (ImGuiCond_Appearing)
+			state.recentreFrames = kRecentreFrames;
+			state.placeCentre.reset();  // the start place
 			state.viewDragButton = -1;
 			state.viewDragX = 0.0f;
 			state.viewDragY = 0.0f;
@@ -1022,19 +1076,13 @@ namespace CaptureWindow
 			state.resetImGui = false;
 		}
 
-		const ImGuiCond posCondition = state.recentreFrames > 0 ? ImGuiCond_Always : ImGuiCond_Appearing;
-		state.recentreFrames = (std::max)(state.recentreFrames - 1, 0);
-		// With a preview camera the window sits on the left, beside the actor it shows on the right.
-		constexpr float kSideMarginRatio = 0.03f;  // of the screen width, between its left edge and the window
-		const bool      aside = static_cast<bool>(state.request.onViewInput);
-		const float     x = aside ? io.DisplaySize.x * kSideMarginRatio : io.DisplaySize.x * 0.5f;
-		ImGui::SetNextWindowPos(ImVec2(x, io.DisplaySize.y * 0.5f), posCondition, ImVec2(aside ? 0.0f : 0.5f, 0.5f));
 		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width, for the two-column Update page
 		constexpr float kNarrowWidthRatio = 0.30f;  // of the screen width, for the one-column pages
-		const float     widthRatio = state.page == Page::kUpdate ? kWindowWidthRatio : kNarrowWidthRatio;
+		const float     width = io.DisplaySize.x * (state.page == Page::kUpdate ? kWindowWidthRatio : kNarrowWidthRatio);
+		PlaceWindow(state, io, width);
 		// Width is fixed every frame; the height follows the content (a zero
 		// axis is left to AlwaysAutoResize), so the window never needs to scroll.
-		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * widthRatio, 0.0f), ImGuiCond_Always);
+		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
 		auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
 		if (!Theme::HasTitleBar()) {
 			flags |= ImGuiWindowFlags_NoTitleBar;
@@ -1043,6 +1091,8 @@ namespace CaptureWindow
 			ImGui::End();
 			return;
 		}
+		state.windowPos = ImGui::GetWindowPos();
+		state.windowSize = ImGui::GetWindowSize();
 		Theme::DecorateWindow();
 
 		Theme::HeadingText(state.request.actorName.c_str(), state.request.actorSummary.c_str());
