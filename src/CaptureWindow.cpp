@@ -9,6 +9,8 @@
 
 #include "CaptureWindow.h"
 
+#include "Theme.h"
+
 #include <imgui.h>
 
 #include <algorithm>
@@ -202,7 +204,7 @@ namespace
 
 	void DrawPieceList(const CaptureWindow::Request& a_request)
 	{
-		ImGui::TextUnformatted(a_request.actorName.c_str());
+		Theme::HeadingText(a_request.actorName.c_str());
 		ImGui::Text("%zu piece(s) worn", a_request.pieceNames.size());
 		const float rowHeight = ImGui::GetTextLineHeightWithSpacing();
 		const float listHeight = rowHeight * static_cast<float>(std::min<std::size_t>(a_request.pieceNames.size(), 8)) + rowHeight * 0.5f;

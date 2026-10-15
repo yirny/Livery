@@ -17,15 +17,30 @@ namespace
 {
 	constexpr auto kIniSection = L"General";
 	constexpr auto kRestrictKey = L"RestrictToFollowersAndSpouse";
+	constexpr auto kUiSection = L"UI";
+	constexpr auto kSkinKey = L"Skin";
 
-	std::atomic<bool>     g_followersAndSpouseOnly{ true };
-	std::filesystem::path g_iniPath;  // set once by Load, read-only afterwards
+	std::atomic<bool>        g_followersAndSpouseOnly{ true };
+	std::atomic<Theme::Skin> g_skin{ Theme::Skin::kTailor };
+	std::filesystem::path    g_iniPath;  // set once by Load, read-only afterwards
+
+	const wchar_t* SkinName(Theme::Skin a_skin)
+	{
+		return a_skin == Theme::Skin::kClassic ? L"Classic" : L"Tailor";
+	}
 
 	// --- INI ------------------------------------------------------------------
 
 	void SaveFollowersAndSpouseOnly(bool value)
 	{
 		if (!::WritePrivateProfileStringW(kIniSection, kRestrictKey, value ? L"1" : L"0", g_iniPath.c_str())) {
+			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+		}
+	}
+
+	void SaveSkin(Theme::Skin a_skin)
+	{
+		if (!::WritePrivateProfileStringW(kUiSection, kSkinKey, SkinName(a_skin), g_iniPath.c_str())) {
 			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
 		}
 	}
@@ -41,6 +56,21 @@ namespace
 			g_followersAndSpouseOnly = value;
 			SaveFollowersAndSpouseOnly(value);
 			logger::info("RestrictToFollowersAndSpouse = {} (SKSE Menu Framework)", value);
+		}
+
+		// Takes effect the next time the capture window opens.
+		ImGuiMCP::Text("Window skin");
+		const auto skin = g_skin.load();
+		for (const auto option : { Theme::Skin::kTailor, Theme::Skin::kClassic }) {
+			const char* label = option == Theme::Skin::kTailor ? "Tailor" : "Classic";
+			if (ImGuiMCP::RadioButton(label, skin == option) && skin != option) {
+				g_skin = option;
+				SaveSkin(option);
+				logger::info("Skin = {} (SKSE Menu Framework)", label);
+			}
+			if (option == Theme::Skin::kTailor) {
+				ImGuiMCP::SameLine();
+			}
 		}
 	}
 }
@@ -59,6 +89,12 @@ namespace Settings
 			g_iniPath.c_str());
 		g_followersAndSpouseOnly = std::wstring_view{ value } != L"0";
 		logger::info("RestrictToFollowersAndSpouse = {}", g_followersAndSpouseOnly.load());
+
+		// Anything but "Classic" keeps the default (Tailor).
+		wchar_t skin[16]{};
+		::GetPrivateProfileStringW(kUiSection, kSkinKey, L"Tailor", skin, static_cast<DWORD>(std::size(skin)), g_iniPath.c_str());
+		g_skin = ::_wcsicmp(skin, L"Classic") == 0 ? Theme::Skin::kClassic : Theme::Skin::kTailor;
+		logger::info("Skin = {}", g_skin.load() == Theme::Skin::kClassic ? "Classic" : "Tailor");
 	}
 
 	void RegisterMenu()
@@ -76,5 +112,10 @@ namespace Settings
 	bool FollowersAndSpouseOnly()
 	{
 		return g_followersAndSpouseOnly.load();
+	}
+
+	Theme::Skin Skin()
+	{
+		return g_skin.load();
 	}
 }
