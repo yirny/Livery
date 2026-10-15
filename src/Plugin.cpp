@@ -464,6 +464,22 @@ namespace
 		*static_cast<std::string*>(context) = value ? value : "";
 	}
 
+	// Whether the worn armor is exactly the outfit's loaded pieces (e.g. not after
+	// the player handed the NPC better gear). Runtime-created armor never belongs
+	// to an outfit, so wearing any counts as a change.
+	// Contract: game thread (reads the actor's inventory).
+	bool WearsOutfitAsIs(RE::Actor& actor, const std::string& outfit)
+	{
+		std::size_t skipped = 0;
+		auto        worn = CollectWornArmor(actor, skipped);
+		auto        pieces = OutfitArmors(outfit);
+		std::ranges::sort(worn);
+		std::ranges::sort(pieces);
+		const auto duplicates = std::ranges::unique(pieces);
+		pieces.erase(duplicates.begin(), duplicates.end());
+		return skipped == 0 && worn == pieces;
+	}
+
 	// The line under the actor's name: where Tailor judges them to be and what it
 	// put on them. A fight counts as Adventuring: Tailor dresses people with an
 	// Adventuring outfit for it, while GetSituation keeps naming the place.
@@ -493,7 +509,13 @@ namespace
 			g_tailor->GetSituation(&actor, CopyTailorString, &situation);
 		}
 
-		const auto wearing = outfit.empty() ? std::string("wearing an unmanaged outfit") : std::format("wearing \"{}\"", outfit);
+		std::string wearing = "wearing an unmanaged outfit";
+		if (!outfit.empty()) {
+			wearing = std::format("wearing \"{}\"", outfit);
+			if (!WearsOutfitAsIs(actor, outfit)) {
+				wearing += " with changes";
+			}
+		}
 		for (const auto& [name, phrase] : kSituationPhrases) {
 			if (situation == name) {
 				return std::format("{}, {}.", phrase, wearing);
