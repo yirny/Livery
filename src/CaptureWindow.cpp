@@ -3,12 +3,14 @@
 // FILE MAP
 //   State        - one mutex-guarded struct: request, name buffer, category ticks, status
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game)
-//   Input        - QueueInput translates engine events; Draw feeds them to ImGui
+//   Input        - QueueInput translates engine events; FeedInput hands them and
+//                  the game's cursor position to ImGui
 //   Draw         - the window itself
 #include "PCH.h"
 
 #include "CaptureWindow.h"
 
+#include "Hooks.h"
 #include "Theme.h"
 
 #include <imgui.h>
@@ -177,10 +179,9 @@ namespace
 		}
 	}
 
-	// Contract: the cursor position comes only from the Win32 backend, which
-	// queues the OS cursor every frame (it never sees WM_MOUSEMOVE). A second
-	// source would win on click frames, since ImGui stops moving the cursor
-	// after a button change, and put the click away from the drawn cursor.
+	// Contract: the cursor position is queued just before these (FeedInput):
+	// ImGui stops moving the cursor after a button change in a frame, so a
+	// position queued after a click would put the click elsewhere.
 	void FlushInput(State& a_state, ImGuiIO& a_io)
 	{
 		for (const auto& record : a_state.pending) {
@@ -420,6 +421,7 @@ namespace CaptureWindow
 		}
 		g_open = true;
 		SetGameFrozen(true);
+		Hooks::ShowMenu();
 	}
 
 	void Close()
@@ -435,8 +437,9 @@ namespace CaptureWindow
 			state.ticked.reset();
 			state.pending.clear();
 		}
-		g_open = false;
+		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
 		SetGameFrozen(false);
+		Hooks::HideMenu();
 	}
 
 	void SetError(const std::string& a_message)
@@ -475,6 +478,25 @@ namespace CaptureWindow
 
 	// --- Render thread --------------------------------------------------------
 
+	// The game's cursor is queued after the OS cursor that ImGui_ImplWin32_NewFrame
+	// queued, so it wins, and before the buttons, so clicks land where the game
+	// draws its cursor.
+	void FeedInput()
+	{
+		auto&                  state = GetState();
+		const std::scoped_lock lock(state.mutex);
+		if (state.status == Status::kClosed) {
+			return;
+		}
+
+		auto& io = ImGui::GetIO();
+		if (auto* cursor = RE::MenuCursor::GetSingleton()) {
+			const auto& position = cursor->GetRuntimeData();
+			io.AddMousePosEvent(position.cursorPosX, position.cursorPosY);
+		}
+		FlushInput(state, io);
+	}
+
 	void Draw()
 	{
 		auto&                  state = GetState();
@@ -488,7 +510,6 @@ namespace CaptureWindow
 			ResetImGuiState(io);
 			state.resetImGui = false;
 		}
-		FlushInput(state, io);
 
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width

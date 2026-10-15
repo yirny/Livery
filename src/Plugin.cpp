@@ -6,7 +6,7 @@
 //   Capture        - F8 handler: check the target, collect worn armor, then open the name window
 //                    (or save under an automatic name where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
-//   Messaging      - Tailor interface, settings page, sink registration, ready state
+//   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, trampoline, hooks
 #include "PCH.h"
 
@@ -327,6 +327,7 @@ namespace
 
 		case SKSE::MessagingInterface::kDataLoaded:
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
+			Hooks::RegisterMenu();
 			break;
 
 		case SKSE::MessagingInterface::kPreLoadGame:
@@ -365,7 +366,7 @@ namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
-	// Three write_call<5> hooks need 14 bytes each; 64 leaves room to grow.
+	// Two write_call<5> hooks need 14 bytes each; 64 leaves room to grow.
 	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 64 });
 	SetupLog();
 	logger::info("TailorOutfitCapture loaded");

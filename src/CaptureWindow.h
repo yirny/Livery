@@ -12,10 +12,11 @@ namespace RE
 
 // The "name this outfit" window drawn with ImGui (see CaptureWindow.cpp).
 //
-// Contract: Open, Close and SetError run on the game thread; Draw runs on the
-// render thread (DXGI Present hook); QueueInput runs on the game thread from
-// the input dispatch hook. All state is guarded by one mutex. Nothing here
-// calls Tailor: Save hands the typed name to Request::onSave in an SKSE task.
+// Contract: Open, Close and SetError run on the game thread; FeedInput and
+// Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
+// the game thread from the input dispatch hook. All state is guarded by one
+// mutex. Nothing here calls Tailor: Save hands the typed name to
+// Request::onSave in an SKSE task.
 namespace CaptureWindow
 {
 	struct CategoryOption
@@ -52,5 +53,10 @@ namespace CaptureWindow
 	bool IsOpen();
 
 	void QueueInput(RE::InputEvent* const* events);
+
+	// Contract: after ImGui_ImplWin32_NewFrame and before ImGui::NewFrame.
+	void FeedInput();
+
+	// Contract: between ImGui::NewFrame and ImGui::Render.
 	void Draw();
 }
