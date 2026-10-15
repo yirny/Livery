@@ -862,6 +862,11 @@ namespace CaptureWindow
 		Theme::DecorateWindow();
 
 		Theme::HeadingText(state.request.actorName.c_str());
+		if (!state.request.actorSummary.empty()) {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			ImGui::TextWrapped("%s", state.request.actorSummary.c_str());
+			ImGui::PopStyleColor();
+		}
 		switch (state.page) {
 		case Page::kPieces:
 			DrawPiecesPage(state);

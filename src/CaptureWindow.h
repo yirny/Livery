@@ -44,6 +44,7 @@ namespace CaptureWindow
 	struct Request
 	{
 		std::string                 actorName;        // shown as the title line
+		std::string                 actorSummary;     // shown greyed under the title line; "" for none
 		std::vector<Piece>          pieces;           // shown as a checkbox list; both actions need at least one ticked
 		std::string                 suggestedName;    // initial text of the name field
 		std::vector<CategoryOption> categories;       // offered in the multi-select dropdown
