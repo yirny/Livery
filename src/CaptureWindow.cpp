@@ -6,7 +6,7 @@
 //   Input        - QueueInput translates engine events; FeedInput hands them and
 //                  the game's cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers
-//   Pieces page  - worn pieces (first page); Create New / Update Existing / Cancel
+//   Pieces page  - inventory pieces (first page); Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Update page  - library outfits, the chosen one's categories (its own ones
 //                  locked, more can be ticked) and pieces; Update opens the
@@ -339,7 +339,7 @@ namespace
 
 	// --- Pieces page ----------------------------------------------------------
 
-	// A checkbox per worn piece; unticked pieces are left out of the outfit.
+	// A checkbox per inventory piece; unticked pieces are left out of the outfit.
 	void DrawPieceList(State& a_state)
 	{
 		const auto& pieces = a_state.request.pieces;

@@ -4,9 +4,9 @@
 //   Constants      - Tailor's built-in categories
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
-//   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect worn
-//                    armor, detect the armor class, list the library's outfits, then open the window with it
-//                    ticked (or save under an automatic name with it where the overlay is unavailable)
+//   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
+//                    armor, detect the armor class, list the library's outfits, then open the window with the
+//                    worn pieces ticked (or save those under an automatic name where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
 //   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, trampoline, hooks
@@ -316,53 +316,86 @@ namespace
 		return married && actor.IsInFaction(married);
 	}
 
-	// Worn armor as plugin-defined forms. AddArmorToOutfit refuses runtime-created
-	// armor (FormID 0xFF......), so player-enchanted gear is replaced by the plugin
-	// armor it was made from (templateArmor, TNAM) and counted in substituted;
-	// runtime-created armor without one is left out and counted in skipped.
+	std::string DisplayName(const RE::TESObjectARMO& armor)
+	{
+		const auto* name = armor.GetName();
+		return name && *name ? name : std::format("{:08X}", armor.GetFormID());
+	}
+
+	struct InventoryArmor
+	{
+		RE::TESObjectARMO* armor;
+		bool               worn;
+	};
+
+	// Inventory armor as plugin-defined forms, worn pieces first, each group in
+	// name order. AddArmorToOutfit refuses runtime-created armor (FormID 0xFF......),
+	// so player-enchanted gear is replaced by the plugin armor it was made from
+	// (templateArmor, TNAM); runtime-created armor without one is left out. Only
+	// worn pieces count in substituted and skipped. A form both worn and carried
+	// is listed once, as worn.
 	// Non-playable armor is left out uncounted: body-mod parts such as the BHUNP /
 	// 3BA SMP objects (slot 48/50/51/60 per their MCM) are not clothing, and Tailor
 	// itself leaves non-playable armor on when it dresses the player.
-	std::vector<RE::TESObjectARMO*> CollectWornArmor(RE::Actor& actor, std::size_t& skipped, std::size_t& substituted)
+	std::vector<InventoryArmor> CollectArmor(RE::Actor& actor, std::size_t& skipped, std::size_t& substituted)
 	{
 		const auto inventory = actor.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
 
-		std::vector<RE::TESObjectARMO*> armors;
+		std::vector<InventoryArmor> armors;
 		armors.reserve(inventory.size());
 		skipped = 0;
 		substituted = 0;
 
 		for (const auto& [object, itemData] : inventory) {
 			const auto& [count, entry] = itemData;
-			if (count <= 0 || !entry || !entry->IsWorn()) {
+			if (count <= 0) {
 				continue;
 			}
 			auto* armor = object->As<RE::TESObjectARMO>();
 			if (!armor || armor->formFlags & RE::TESObjectARMO::RecordFlags::kNonPlayable) {
 				continue;
 			}
+			const bool worn = entry && entry->IsWorn();
 			if (armor->IsDynamicForm()) {
 				auto* base = armor->templateArmor;
 				if (!base || base->IsDynamicForm()) {
-					++skipped;
-					logger::info("Skipped runtime-created armor {:08X}", armor->GetFormID());
+					if (worn) {
+						++skipped;
+						logger::info("Skipped runtime-created armor {:08X}", armor->GetFormID());
+					}
 					continue;
 				}
-				++substituted;
-				logger::info("Using base armor {:08X} for runtime-created armor {:08X}", base->GetFormID(), armor->GetFormID());
+				if (worn) {
+					++substituted;
+					logger::info("Using base armor {:08X} for runtime-created armor {:08X}", base->GetFormID(), armor->GetFormID());
+				}
 				armor = base;
 			}
-			if (std::ranges::find(armors, armor) == armors.end()) {
-				armors.push_back(armor);
+			if (const auto found = std::ranges::find(armors, armor, &InventoryArmor::armor); found != armors.end()) {
+				found->worn = found->worn || worn;
+			} else {
+				armors.push_back({ armor, worn });
 			}
 		}
+
+		std::ranges::sort(armors, [](const InventoryArmor& a, const InventoryArmor& b) {
+			if (a.worn != b.worn) {
+				return a.worn;
+			}
+			return _stricmp(DisplayName(*a.armor).c_str(), DisplayName(*b.armor).c_str()) < 0;
+		});
 		return armors;
 	}
 
-	std::string DisplayName(const RE::TESObjectARMO& armor)
+	std::vector<RE::TESObjectARMO*> WornArmors(const std::vector<InventoryArmor>& armors)
 	{
-		const auto* name = armor.GetName();
-		return name && *name ? name : std::format("{:08X}", armor.GetFormID());
+		std::vector<RE::TESObjectARMO*> worn;
+		for (const auto& [armor, isWorn] : armors) {
+			if (isWorn) {
+				worn.push_back(armor);
+			}
+		}
+		return worn;
 	}
 
 	// Wigs occupy the Hair slot, sometimes with Long Hair, and nothing else;
@@ -513,7 +546,7 @@ namespace
 	{
 		std::size_t skipped = 0;
 		std::size_t substituted = 0;
-		auto        worn = CollectWornArmor(actor, skipped, substituted);
+		auto        worn = WornArmors(CollectArmor(actor, skipped, substituted));
 		auto        pieces = OutfitArmors(outfit);
 		std::ranges::sort(worn);
 		std::ranges::sort(pieces);
@@ -568,7 +601,9 @@ namespace
 
 	// Contract: game thread (Tailor queries that hand out armor forms run here,
 	// so the window itself never calls Tailor).
-	void OpenNameWindow(RE::Actor& actor, std::vector<RE::TESObjectARMO*> armors)
+	// Every inventory piece is listed; worn ones start ticked and decide the
+	// suggested armor class and gender.
+	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
@@ -576,13 +611,17 @@ namespace
 		request.suggestedName = NextAutomaticName();
 		request.categories = AvailableCategories();
 		request.existingOutfits = ExistingOutfits(request.categories);
-		const auto* armorClass = DetectArmorClass(armors);
+		const auto  worn = WornArmors(inventory);
+		const auto* armorClass = DetectArmorClass(worn);
 		for (auto& category : request.categories) {
 			category.selected = category.name == armorClass;
 		}
-		request.suggestedGender = DetectGender(armors);
-		for (const auto* armor : armors) {
-			request.pieces.push_back({ DisplayName(*armor), !LooksLikeWig(*armor) });
+		request.suggestedGender = DetectGender(worn);
+		std::vector<RE::TESObjectARMO*> armors;
+		armors.reserve(inventory.size());
+		for (const auto& [armor, isWorn] : inventory) {
+			request.pieces.push_back({ DisplayName(*armor), isWorn && !LooksLikeWig(*armor) });
+			armors.push_back(armor);
 		}
 		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories,
 							 int gender) {
@@ -638,15 +677,18 @@ namespace
 
 		std::size_t skipped = 0;
 		std::size_t substituted = 0;
-		auto        armors = CollectWornArmor(*actor, skipped, substituted);
-		if (armors.empty()) {
+		const auto  inventory = CollectArmor(*actor, skipped, substituted);
+		const auto  armors = WornArmors(inventory);
+		// The window also offers carried armor, so it opens with nothing worn.
+		const bool hasWindow = Hooks::IsRenderReady();
+		if (hasWindow ? inventory.empty() : armors.empty()) {
 			Notify(skipped ? "Tailor Capture: worn armor was created in-game and cannot be saved." :
 							 "Tailor Capture: no worn armor was found.");
 			return;
 		}
 
-		if (Hooks::IsRenderReady()) {
-			OpenNameWindow(*actor, std::move(armors));
+		if (hasWindow) {
+			OpenNameWindow(*actor, inventory);
 			return;
 		}
 
