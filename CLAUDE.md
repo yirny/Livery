@@ -13,7 +13,7 @@ Build (Windows): run inside the VS developer environment (`.vscode/tasks.json` d
 - No filler narration — outcomes, decisions, user input only. Never announce intent or post empty status.
 - Subagents: few lines (what changed, decisions needed). No per-file lists, brief-restating, or self-congratulation.
 - **Never report unverified behavior as confirmed.** Keep three states apart: built / verified by a tool (build, `dumpbin`, tests) / needs an in-game check.
-- Text before a tool call may not reach the user. An `AskUserQuestion` must be self-contained: put the deciding facts in the question and option descriptions; restate the decision and reason in the final message.
+- `AskUserQuestion`: when the deciding facts run over 3 lines, write them in a normal chat message first; the modal holds only a short question and brief option labels. Restate the decision and reason in the final message.
 - **Doc review** (`docs/*.md`, `README.md` + 「検討」「レビュー」/review): each name, new term, API signature — grep collisions; idiomatic English. Unsuitable → give alternative. Material issues only; none → 「なし」. Code → §8.
 
 ## 1. Pre-change confirmation (required)
