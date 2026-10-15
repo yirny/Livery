@@ -53,7 +53,7 @@ namespace
 			L"Skin of the capture window: Tailor, Vanilla, Nordic or Classic.\n"
 			L"Read once when the game starts." },
 		{ kHotkeySection, kHotkeyKeyKey, L"66",
-			L"Key that captures the NPC under the crosshair, as a DirectInput scan code (66 = F8).\n"
+			L"Key that captures the NPC under the crosshair, or you when there is none, as a DirectInput scan code (66 = F8).\n"
 			L"Easiest to change in game through SKSE Menu Framework. Read once when the game starts." },
 		{ kHotkeySection, kHotkeyModifierKey, L"0",
 			L"Key that must be held together with Key: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt.\n"
