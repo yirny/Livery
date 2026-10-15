@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <mutex>
 
@@ -205,7 +206,7 @@ namespace
 	void DrawPieceList(const CaptureWindow::Request& a_request)
 	{
 		Theme::HeadingText(a_request.actorName.c_str());
-		ImGui::Text("%zu piece(s) worn", a_request.pieceNames.size());
+		Theme::LabelText(std::format("{} piece(s) worn", a_request.pieceNames.size()).c_str());
 		const float rowHeight = ImGui::GetTextLineHeightWithSpacing();
 		const float listHeight = rowHeight * static_cast<float>(std::min<std::size_t>(a_request.pieceNames.size(), 8)) + rowHeight * 0.5f;
 		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
@@ -232,7 +233,7 @@ namespace
 	// open while the user ticks several categories.
 	void DrawCategoryField(State& a_state)
 	{
-		ImGui::TextUnformatted("Categories");
+		Theme::LabelText("Categories");
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (ImGui::BeginCombo("##categories", CategoryPreview(a_state).c_str(), ImGuiComboFlags_HeightLargest)) {
 			const auto& options = a_state.request.categories;
@@ -249,7 +250,7 @@ namespace
 	// Returns true when the user asked to save with a valid name.
 	bool DrawNameField(State& a_state)
 	{
-		ImGui::TextUnformatted("Outfit name");
+		Theme::LabelText("Outfit name");
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (a_state.focusNameField) {
 			ImGui::SetKeyboardFocusHere();
@@ -384,11 +385,15 @@ namespace CaptureWindow
 
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.3f, 0.0f), ImGuiCond_Appearing);
-		constexpr auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+		auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+		if (!Theme::HasTitleBar()) {
+			flags |= ImGuiWindowFlags_NoTitleBar;
+		}
 		if (!ImGui::Begin("Tailor Capture", nullptr, flags)) {
 			ImGui::End();
 			return;
 		}
+		Theme::DecorateWindow();
 
 		DrawPieceList(state.request);
 		ImGui::Separator();
@@ -400,10 +405,10 @@ namespace CaptureWindow
 		ImGui::Spacing();
 		const bool valid = !Trimmed(state.name.data()).empty();
 		ImGui::BeginDisabled(!valid);
-		save = ImGui::Button("Save") || save;
+		save = Theme::Button("Save") || save;
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		const bool cancel = ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		ImGui::EndDisabled();
 
 		if (editing && save) {
