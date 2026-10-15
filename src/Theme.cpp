@@ -4,15 +4,18 @@
 //   Constants  - font files per skin, Tailor's and Nordic's palettes
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
 //   Styles     - one ImGuiStyle per skin and its resolution scale
+//   Textures   - NORDIC UI's corner knot and heading rope (white alpha masks)
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame
-//   Theme      - LoadFonts / Apply, then the skinned widgets
+//   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
 // TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
 // and the resolution curve. Tailor ships its fonts; this plugin reads them from
 // Tailor's folder. The Vanilla and Nordic skins approximate the game's menus and
 // NORDIC UI with fonts this plugin ships (OFL): Barlow Condensed and Sovngarde.
-// A skin whose font files are missing draws with ImGui's default font.
+// Nordic's ornaments are NORDIC UI's own art (used with the author's open
+// permission, see textures/NORDIC-UI-CREDITS.txt). A skin whose font files are
+// missing draws with ImGui's default font; missing textures fall back to lines.
 #include "PCH.h"
 
 #include "Theme.h"
@@ -20,6 +23,9 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
+#include <d3d11.h>
+#include <wincodec.h>
+#include <wrl/client.h>
 
 #include <imgui.h>
 
@@ -35,6 +41,7 @@ namespace
 {
 	constexpr auto kTailorFontDir = L"Data/SKSE/Plugins/Tailor/fonts";
 	constexpr auto kOwnFontDir = L"Data/SKSE/Plugins/TailorOutfitCapture/fonts";
+	constexpr auto kTextureDir = L"Data/SKSE/Plugins/TailorOutfitCapture/textures";
 
 	// Tailor's measured size adjustment for Poppins and Montserrat (its FontMetricScale).
 	constexpr float kFontMetricScale = 4.0f / 3.0f;
@@ -82,7 +89,17 @@ namespace
 	constexpr ImU32 kNordicText = IM_COL32(240, 240, 240, 255);
 	constexpr ImU32 kNordicLabel = IM_COL32(165, 165, 165, 255);
 	constexpr ImU32 kNordicRule = IM_COL32(200, 200, 200, 90);
-	constexpr ImU32 kNordicOrnament = IM_COL32(150, 150, 150, 220);
+	constexpr ImU32 kNordicOrnament = IM_COL32(222, 222, 222, 255);  // NORDIC UI's #dedede
+
+	// A texture and the size it is drawn at, in pixels at 1080p before scaling
+	// (the PNGs are rendered at six times that from NORDIC UI's vector art).
+	struct Ornament
+	{
+		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
+		ImVec2                                           size;
+
+		ImTextureID Id() const { return reinterpret_cast<ImTextureID>(view.Get()); }
+	};
 
 	struct LoadedFonts
 	{
@@ -97,6 +114,8 @@ namespace
 	LoadedFonts g_nordicFonts;
 	Theme::Skin g_skin = Theme::Skin::kClassic;  // skin of the frame being built
 	float       g_scale = 1.0f;                  // its resolution scale, for hand-drawn ornaments
+	Ornament    g_cornerKnot{ nullptr, ImVec2(25.0f, 25.0f) };
+	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
 
 	// nullptr for Classic, which draws with ImGui's default font.
 	const SkinFonts* FontFilesOf(Theme::Skin a_skin)
@@ -221,6 +240,73 @@ namespace
 			logger::info("{} fonts loaded", files.skin);
 		} else {
 			logger::warn("{} fonts missing in {}; the skin uses the default font", files.skin, folder.string());
+		}
+	}
+
+	// --- Textures -------------------------------------------------------------
+
+	// Decodes a PNG with Windows Imaging Component into straight-alpha RGBA.
+	// Contract: COM must be initialised on the calling thread.
+	HRESULT DecodePng(IWICImagingFactory* a_wic, const wchar_t* a_path, UINT& a_width, UINT& a_height, std::vector<std::uint8_t>& a_pixels)
+	{
+		using Microsoft::WRL::ComPtr;
+		ComPtr<IWICBitmapDecoder> decoder;
+		if (const auto hr = a_wic->CreateDecoderFromFilename(a_path, nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder); FAILED(hr)) {
+			return hr;
+		}
+		ComPtr<IWICBitmapFrameDecode> frame;
+		if (const auto hr = decoder->GetFrame(0, &frame); FAILED(hr)) {
+			return hr;
+		}
+		ComPtr<IWICFormatConverter> converter;
+		if (const auto hr = a_wic->CreateFormatConverter(&converter); FAILED(hr)) {
+			return hr;
+		}
+		if (const auto hr = converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom); FAILED(hr)) {
+			return hr;
+		}
+		if (const auto hr = converter->GetSize(&a_width, &a_height); FAILED(hr)) {
+			return hr;
+		}
+		const UINT stride = a_width * 4;
+		a_pixels.resize(static_cast<std::size_t>(stride) * a_height);
+		return converter->CopyPixels(nullptr, stride, static_cast<UINT>(a_pixels.size()), a_pixels.data());
+	}
+
+	HRESULT CreateTexture(ID3D11Device* a_device, UINT a_width, UINT a_height, const std::uint8_t* a_pixels, ID3D11ShaderResourceView** a_view)
+	{
+		D3D11_TEXTURE2D_DESC desc{};
+		desc.Width = a_width;
+		desc.Height = a_height;
+		desc.MipLevels = 1;
+		desc.ArraySize = 1;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		D3D11_SUBRESOURCE_DATA                  data{ a_pixels, a_width * 4, 0 };
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+		if (const auto hr = a_device->CreateTexture2D(&desc, &data, &texture); FAILED(hr)) {
+			return hr;
+		}
+		return a_device->CreateShaderResourceView(texture.Get(), nullptr, a_view);
+	}
+
+	// Contract: render thread, on the game's D3D11 device; the view lives as
+	// long as the process. Stays null (with a warning) when the file is missing.
+	void LoadOrnament(ID3D11Device* a_device, IWICImagingFactory* a_wic, const std::filesystem::path& a_folder, const wchar_t* a_file, Ornament& a_out)
+	{
+		const auto                path = a_folder / a_file;
+		UINT                      width = 0;
+		UINT                      height = 0;
+		std::vector<std::uint8_t> pixels;
+		auto                      hr = DecodePng(a_wic, path.c_str(), width, height, pixels);
+		if (SUCCEEDED(hr)) {
+			hr = CreateTexture(a_device, width, height, pixels.data(), a_out.view.GetAddressOf());
+		}
+		if (FAILED(hr)) {
+			a_out.view.Reset();
+			logger::warn("Could not load {} (HRESULT {:#x}); the Nordic skin draws lines instead", path.string(), static_cast<unsigned>(hr));
 		}
 	}
 
@@ -409,10 +495,18 @@ namespace
 
 	// --- Ornaments ------------------------------------------------------------
 
-	// Line-drawn stand-in for NORDIC UI's knotwork corner: two nested L shapes
-	// and a small square in the corner. a_x / a_y (+1 or -1) point inwards.
+	// NORDIC UI's knotwork corner; the top-left texture is mirrored into the
+	// other corners by drawing it from the corner inwards. Without the texture:
+	// two nested L shapes and a small square. a_x / a_y (+1 or -1) point inwards.
 	void DrawCornerKnot(ImDrawList* a_draw, ImVec2 a_corner, float a_x, float a_y)
 	{
+		if (g_cornerKnot.view) {
+			const float  inset = 3.0f * g_scale;
+			const ImVec2 start(a_corner.x + a_x * inset, a_corner.y + a_y * inset);
+			const ImVec2 end(start.x + a_x * g_cornerKnot.size.x * g_scale, start.y + a_y * g_cornerKnot.size.y * g_scale);
+			a_draw->AddImage(g_cornerKnot.Id(), start, end, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(kNordicOrnament));
+			return;
+		}
 		const float inset = 6.0f * g_scale;
 		const float outer = 16.0f * g_scale;
 		const float inner = 9.0f * g_scale;
@@ -432,7 +526,8 @@ namespace
 		a_draw->AddRectFilled(ImVec2((std::min)(a.x, b.x), (std::min)(a.y, b.y)), ImVec2((std::max)(a.x, b.x), (std::max)(a.y, b.y)), color);
 	}
 
-	// Thin rule under the heading with a small diamond at its centre.
+	// NORDIC UI's rope under the heading. Without the texture: a thin rule
+	// with a small diamond at its centre.
 	void DrawHeadingRule()
 	{
 		const float half = ImGui::GetContentRegionAvail().x * 0.3f;
@@ -442,6 +537,14 @@ namespace
 		const float centreX = origin.x + ImGui::GetContentRegionAvail().x * 0.5f;
 		const float y = origin.y + height * 0.5f;
 		auto*       draw = ImGui::GetWindowDrawList();
+
+		if (g_headingRope.view) {
+			const ImVec2 halfSize(g_headingRope.size.x * g_scale * 0.5f, g_headingRope.size.y * g_scale * 0.5f);
+			draw->AddImage(g_headingRope.Id(), ImVec2(centreX - halfSize.x, y - halfSize.y), ImVec2(centreX + halfSize.x, y + halfSize.y),
+				ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(kNordicOrnament));
+			ImGui::Dummy(ImVec2(0.0f, height));
+			return;
+		}
 
 		draw->AddLine(ImVec2(centreX - half, y), ImVec2(centreX - diamond * 2.0f, y), ImGui::GetColorU32(kNordicRule));
 		draw->AddLine(ImVec2(centreX + diamond * 2.0f, y), ImVec2(centreX + half, y), ImGui::GetColorU32(kNordicRule));
@@ -492,6 +595,25 @@ namespace Theme
 		LoadSkinFonts(Skin::kTailor);
 		LoadSkinFonts(Skin::kVanilla);
 		LoadSkinFonts(Skin::kNordic);
+	}
+
+	void LoadTextures(ID3D11Device* a_device)
+	{
+		// The game's render thread already has COM; S_FALSE / RPC_E_CHANGED_MODE just mean that.
+		const auto                                 init = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+		Microsoft::WRL::ComPtr<IWICImagingFactory> wic;
+		const auto                                 hr = ::CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic));
+		if (FAILED(hr)) {
+			logger::warn("WIC unavailable (HRESULT {:#x}); the Nordic skin draws lines instead", static_cast<unsigned>(hr));
+		} else {
+			const auto folder = std::filesystem::current_path() / kTextureDir;
+			LoadOrnament(a_device, wic.Get(), folder, L"nordic-corner.png", g_cornerKnot);
+			LoadOrnament(a_device, wic.Get(), folder, L"nordic-heading.png", g_headingRope);
+		}
+		wic.Reset();
+		if (SUCCEEDED(init)) {
+			::CoUninitialize();
+		}
 	}
 
 	void Apply(Skin a_skin, float a_displayHeight)
