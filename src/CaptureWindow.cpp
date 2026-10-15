@@ -412,7 +412,10 @@ namespace CaptureWindow
 			for (std::size_t i = 0; i < state.request.pieces.size(); ++i) {
 				state.pieceTicked[i] = state.request.pieces[i].selected;
 			}
-			state.ticked = std::make_unique<bool[]>(state.request.categories.size());  // all false
+			state.ticked = std::make_unique<bool[]>(state.request.categories.size());
+			for (std::size_t i = 0; i < state.request.categories.size(); ++i) {
+				state.ticked[i] = state.request.categories[i].selected;
+			}
 			state.error.clear();
 			state.pending.clear();
 			state.focusNameField = true;
