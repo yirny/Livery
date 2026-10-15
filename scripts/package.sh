@@ -87,6 +87,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 mkdir -p "$tmp/SKSE/Plugins"
 cp "$dll" "$tmp/SKSE/Plugins/"
+cp -r Data/SKSE/Plugins/TailorOutfitCapture "$tmp/SKSE/Plugins/"  # skin fonts and their licences
 (cd "$tmp" && 7z a -tzip out.zip SKSE > /dev/null)
 mv "$tmp/out.zip" "$zip_name"
 

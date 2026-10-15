@@ -7,6 +7,7 @@
 
 #include "Settings.h"
 
+#include <array>
 #include <atomic>
 #include <filesystem>
 #include <string_view>
@@ -20,13 +21,33 @@ namespace
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kSkinKey = L"Skin";
 
+	struct SkinOption
+	{
+		Theme::Skin    skin;
+		const char*    label;    // SKSE Menu Framework and the log
+		const wchar_t* iniName;  // [UI] Skin value
+	};
+
+	// In SKSE Menu Framework order; the first is the default.
+	constexpr std::array<SkinOption, 4> kSkinOptions{ {
+		{ Theme::Skin::kTailor, "Tailor", L"Tailor" },
+		{ Theme::Skin::kVanilla, "Vanilla", L"Vanilla" },
+		{ Theme::Skin::kNordic, "Nordic", L"Nordic" },
+		{ Theme::Skin::kClassic, "Classic", L"Classic" },
+	} };
+
 	std::atomic<bool>        g_followersAndSpouseOnly{ true };
-	std::atomic<Theme::Skin> g_skin{ Theme::Skin::kTailor };
+	std::atomic<Theme::Skin> g_skin{ kSkinOptions[0].skin };
 	std::filesystem::path    g_iniPath;  // set once by Load, read-only afterwards
 
-	const wchar_t* SkinName(Theme::Skin a_skin)
+	const SkinOption& OptionOf(Theme::Skin a_skin)
 	{
-		return a_skin == Theme::Skin::kClassic ? L"Classic" : L"Tailor";
+		for (const auto& option : kSkinOptions) {
+			if (option.skin == a_skin) {
+				return option;
+			}
+		}
+		return kSkinOptions[0];
 	}
 
 	// --- INI ------------------------------------------------------------------
@@ -40,7 +61,7 @@ namespace
 
 	void SaveSkin(Theme::Skin a_skin)
 	{
-		if (!::WritePrivateProfileStringW(kUiSection, kSkinKey, SkinName(a_skin), g_iniPath.c_str())) {
+		if (!::WritePrivateProfileStringW(kUiSection, kSkinKey, OptionOf(a_skin).iniName, g_iniPath.c_str())) {
 			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
 		}
 	}
@@ -61,15 +82,14 @@ namespace
 		// Takes effect the next time the capture window opens.
 		ImGuiMCP::Text("Window skin");
 		const auto skin = g_skin.load();
-		for (const auto option : { Theme::Skin::kTailor, Theme::Skin::kClassic }) {
-			const char* label = option == Theme::Skin::kTailor ? "Tailor" : "Classic";
-			if (ImGuiMCP::RadioButton(label, skin == option) && skin != option) {
-				g_skin = option;
-				SaveSkin(option);
-				logger::info("Skin = {} (SKSE Menu Framework)", label);
-			}
-			if (option == Theme::Skin::kTailor) {
+		for (const auto& option : kSkinOptions) {
+			if (&option != &kSkinOptions[0]) {
 				ImGuiMCP::SameLine();
+			}
+			if (ImGuiMCP::RadioButton(option.label, skin == option.skin) && skin != option.skin) {
+				g_skin = option.skin;
+				SaveSkin(option.skin);
+				logger::info("Skin = {} (SKSE Menu Framework)", option.label);
 			}
 		}
 	}
@@ -90,11 +110,15 @@ namespace Settings
 		g_followersAndSpouseOnly = std::wstring_view{ value } != L"0";
 		logger::info("RestrictToFollowersAndSpouse = {}", g_followersAndSpouseOnly.load());
 
-		// Anything but "Classic" keeps the default (Tailor).
+		// A missing or unknown value keeps the default (Tailor).
 		wchar_t skin[16]{};
-		::GetPrivateProfileStringW(kUiSection, kSkinKey, L"Tailor", skin, static_cast<DWORD>(std::size(skin)), g_iniPath.c_str());
-		g_skin = ::_wcsicmp(skin, L"Classic") == 0 ? Theme::Skin::kClassic : Theme::Skin::kTailor;
-		logger::info("Skin = {}", g_skin.load() == Theme::Skin::kClassic ? "Classic" : "Tailor");
+		::GetPrivateProfileStringW(kUiSection, kSkinKey, L"", skin, static_cast<DWORD>(std::size(skin)), g_iniPath.c_str());
+		for (const auto& option : kSkinOptions) {
+			if (::_wcsicmp(skin, option.iniName) == 0) {
+				g_skin = option.skin;
+			}
+		}
+		logger::info("Skin = {}", OptionOf(g_skin.load()).label);
 	}
 
 	void RegisterMenu()
