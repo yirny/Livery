@@ -167,7 +167,9 @@ namespace
 				if (a_button.IsDown()) {
 					a_out.push_back({ InputRecord::Kind::kMouseWheel, 0, true, 0.0f, code == MouseKey::kWheelUp ? 1.0f : -1.0f });
 				}
-			} else if (code <= MouseKey::kMiddleButton && (a_button.IsDown() || a_button.IsUp())) {
+			} else if (code <= MouseKey::kMiddleButton && (a_button.IsDown() || !a_button.IsPressed())) {
+				// Any zero value is a release: IsUp() also needs a held time above
+				// zero, which a quick click may not have. ImGui drops repeated states.
 				a_out.push_back({ InputRecord::Kind::kMouseButton, static_cast<int>(code), a_button.IsDown(), 0.0f, 0.0f });
 			}
 			break;
@@ -251,18 +253,22 @@ namespace
 	// One full-width option row: hover fill, a highlighted fill and accent text
 	// with a check mark on the right when ticked. An InvisibleButton does not
 	// close the combo popup, so the user can tick several rows in one go.
+	// The hit area also covers half the gap above and below the fill, so rows
+	// stacked with no item spacing leave no dead strip between them.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	void DrawCategoryRow(const char* a_label, bool& a_ticked)
 	{
 		const auto&  style = ImGui::GetStyle();
-		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight());
-		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const float  halfGap = style.ItemInnerSpacing.y * 0.5f;
+		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
+		const ImVec2 hitTopLeft = ImGui::GetCursorScreenPos();
 		if (ImGui::InvisibleButton(a_label, size)) {
 			a_ticked = !a_ticked;
 		}
 		const bool hovered = ImGui::IsItemHovered();
 
-		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+		const ImVec2 topLeft(hitTopLeft.x, hitTopLeft.y + halfGap);
+		const ImVec2 bottomRight(hitTopLeft.x + size.x, hitTopLeft.y + size.y - halfGap);
 		auto*        draw = ImGui::GetWindowDrawList();
 		if (a_ticked || hovered) {
 			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(a_ticked ? ImGuiCol_Header : ImGuiCol_FrameBgHovered), style.FrameRounding);
@@ -285,7 +291,7 @@ namespace
 		Theme::LabelText("Categories");
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (ImGui::BeginCombo("##categories", CategoryPreview(a_state).c_str(), ImGuiComboFlags_HeightLargest)) {
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, ImGui::GetStyle().ItemInnerSpacing.y));
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
 			const auto& options = a_state.request.categories;
 			for (std::size_t i = 0; i < options.size(); ++i) {
 				ImGui::PushID(static_cast<int>(i));
