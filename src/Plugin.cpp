@@ -54,6 +54,11 @@ namespace
 		{ "Situation", "Warm" },
 	} };
 
+	// Slots that decide an outfit's armor class and gender, most telling first:
+	// Body sets how the outfit reads at a glance.
+	using BipedSlot = RE::BGSBipedObjectForm::BipedObjectSlot;
+	constexpr std::array kSlotPriority{ BipedSlot::kBody, BipedSlot::kHead, BipedSlot::kHands, BipedSlot::kFeet, BipedSlot::kCirclet };
+
 	TailorAPI::ITailorInterface1* g_tailor = nullptr;
 	RE::ObjectRefHandle           g_target{};
 	bool                          g_ready = false;
@@ -190,9 +195,10 @@ namespace
 	// API 1.0 cannot delete an outfit, so every refusal that can be checked up
 	// front is checked before CreateOutfit. Categories are added only after the
 	// pieces: an empty outfit in a situation pool can dress someone in nothing.
+	// gender is Tailor's value (-1 unisex, 0 male, 1 female); API 1.0 cannot change it later.
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::vector<std::string>& categories)
+		const std::vector<std::string>& categories, int gender)
 	{
 		if (!g_ready || !g_tailor) {
 			return "Tailor 3.0+ is not ready.";
@@ -200,7 +206,7 @@ namespace
 		if (g_tailor->DoesOutfitExist(name.c_str())) {
 			return std::format("An outfit named \"{}\" already exists.", name);
 		}
-		if (!g_tailor->CreateOutfit(name.c_str(), "", -1)) {
+		if (!g_tailor->CreateOutfit(name.c_str(), "", gender)) {
 			return "Tailor refused to create the outfit (see Tailor.log).";
 		}
 
@@ -357,13 +363,10 @@ namespace
 	}
 
 	// Tailor armor-type category of an outfit: the armor type of the first piece
-	// found on Body, then Head, Hands, Feet, Circlet; Clothing when none is.
-	// Body comes first because it sets how the outfit reads at a glance.
+	// found on a kSlotPriority slot; Clothing when none is.
 	const char* DetectArmorClass(const std::vector<RE::TESObjectARMO*>& armors)
 	{
-		using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
 		using Type = RE::BGSBipedObjectForm::ArmorType;
-		constexpr std::array kSlotPriority{ Slot::kBody, Slot::kHead, Slot::kHands, Slot::kFeet, Slot::kCirclet };
 
 		for (const auto slot : kSlotPriority) {
 			for (const auto* armor : armors) {
@@ -383,6 +386,40 @@ namespace
 			}
 		}
 		return "Clothing";
+	}
+
+	// A piece is for women when none of its armor addons has a male model and
+	// one has a female model.
+	bool IsFemaleOnly(const RE::TESObjectARMO& armor)
+	{
+		bool female = false;
+		for (const auto* addon : armor.armorAddons) {
+			if (!addon) {
+				continue;
+			}
+			const auto* male = addon->bipedModels[RE::SEXES::kMale].GetModel();
+			if (male && *male) {
+				return false;
+			}
+			const auto* model = addon->bipedModels[RE::SEXES::kFemale].GetModel();
+			female = female || (model && *model);
+		}
+		return female;
+	}
+
+	// Tailor gender of an outfit (-1 unisex, 1 female): decided by the first
+	// piece found on a kSlotPriority slot; unisex when none is. Never male: only
+	// the user picks that, in the window.
+	int DetectGender(const std::vector<RE::TESObjectARMO*>& armors)
+	{
+		for (const auto slot : kSlotPriority) {
+			for (const auto* armor : armors) {
+				if (armor->HasPartOf(slot)) {
+					return IsFemaleOnly(*armor) ? 1 : -1;
+				}
+			}
+		}
+		return -1;
 	}
 
 	// The library's outfits in case-insensitive name order, each with the known
@@ -479,11 +516,13 @@ namespace
 		for (auto& category : request.categories) {
 			category.selected = category.name == armorClass;
 		}
+		request.suggestedGender = DetectGender(armors);
 		for (const auto* armor : armors) {
 			request.pieces.push_back({ DisplayName(*armor), !LooksLikeWig(*armor) });
 		}
-		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories) {
-			if (const auto error = SaveOutfit(name, PickPieces(armors, pieces), categories)) {
+		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories,
+							 int gender) {
+			if (const auto error = SaveOutfit(name, PickPieces(armors, pieces), categories, gender)) {
 				CaptureWindow::SetError(*error);
 			} else {
 				CaptureWindow::Close();
@@ -541,7 +580,7 @@ namespace
 		}
 
 		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name and the
-		// detected armor class. Never a situation pool: the user chose none here.
+		// detected armor class and gender. Never a situation pool: the user chose none here.
 		const auto name = NextAutomaticName();
 		if (name.empty()) {
 			Notify("Tailor Capture: no free outfit name.");
@@ -551,7 +590,7 @@ namespace
 		if (const auto* armorClass = DetectArmorClass(armors); g_tailor->DoesCategoryExist(armorClass)) {
 			categories.emplace_back(armorClass);
 		}
-		if (const auto error = SaveOutfit(name, armors, categories)) {
+		if (const auto error = SaveOutfit(name, armors, categories, DetectGender(armors))) {
 			Notify("Tailor Capture: " + *error);
 		}
 	}

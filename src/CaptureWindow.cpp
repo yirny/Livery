@@ -7,7 +7,7 @@
 //                  the game's cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers
 //   Pieces page  - worn pieces (first page); Create New / Update Existing / Cancel
-//   Name page    - name and categories of the new outfit; Create / Back
+//   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Update page  - library outfits, the chosen one's categories (its own ones
 //                  locked, more can be ticked) and pieces; Update opens the
 //                  confirm popup, whose Confirm hands over to onUpdate
@@ -76,6 +76,7 @@ namespace
 		std::unique_ptr<bool[]>         ticked;        // one per request.categories
 		std::unique_ptr<bool[]>         updateTicked;  // one per request.categories, for the selected outfit
 		std::unique_ptr<bool[]>         updateLocked;  // one per request.categories: the selected outfit is already in it
+		int                             gender = -1;   // of the new outfit: -1 unisex, 0 male, 1 female
 		std::string                     error;
 		bool                            focusNameField = false;
 		std::vector<InputRecord>        pending;
@@ -530,6 +531,30 @@ namespace
 		return enter && valid;
 	}
 
+	// Tailor's gender values as one row of radio buttons. API 1.0 cannot change
+	// an outfit's gender after CreateOutfit; only the player can, in Tailor.
+	void DrawGenderField(State& a_state)
+	{
+		struct GenderOption
+		{
+			const char* label;
+			int         value;  // Tailor's value
+		};
+		constexpr std::array<GenderOption, 3> kGenderOptions{ {
+			{ "Unisex", -1 },
+			{ "Male", 0 },
+			{ "Female", 1 },
+		} };
+
+		Theme::LabelText("Gender");
+		for (std::size_t i = 0; i < kGenderOptions.size(); ++i) {
+			if (i > 0) {
+				ImGui::SameLine();
+			}
+			ImGui::RadioButton(kGenderOptions[i].label, &a_state.gender, kGenderOptions[i].value);
+		}
+	}
+
 	enum class NameAction
 	{
 		kNone,
@@ -571,8 +596,9 @@ namespace
 				categories.push_back(a_state.request.categories[i].name);
 			}
 		}
-		auto onSave = a_state.request.onSave;
-		SKSE::GetTaskInterface()->AddTask([onSave, name, pieces, categories] { onSave(name, pieces, categories); });
+		auto       onSave = a_state.request.onSave;
+		const auto gender = a_state.gender;
+		SKSE::GetTaskInterface()->AddTask([onSave, name, pieces, categories, gender] { onSave(name, pieces, categories, gender); });
 	}
 
 	// Reached only with at least one piece ticked, which onSave relies on;
@@ -582,6 +608,7 @@ namespace
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const bool save = DrawNameField(a_state);
 		DrawCategoryField(a_state, "##categories", a_state.ticked.get(), nullptr);
+		DrawGenderField(a_state);
 		const auto action = DrawNameButtons(a_state, save);
 		ImGui::EndDisabled();
 
@@ -793,6 +820,7 @@ namespace CaptureWindow
 			}
 			state.updateTicked = std::make_unique<bool[]>(state.request.categories.size());  // filled by SelectOutfit
 			state.updateLocked = std::make_unique<bool[]>(state.request.categories.size());
+			state.gender = state.request.suggestedGender;
 			state.error.clear();
 			state.pending.clear();
 			state.focusNameField = false;

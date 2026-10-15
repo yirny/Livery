@@ -43,19 +43,21 @@ namespace CaptureWindow
 
 	struct Request
 	{
-		std::string                 actorName;        // shown as the title line
-		std::string                 actorSummary;     // shown greyed under the title line; "" for none
-		std::vector<Piece>          pieces;           // shown as a checkbox list; both actions need at least one ticked
-		std::string                 suggestedName;    // initial text of the name field
-		std::vector<CategoryOption> categories;       // offered in the multi-select dropdown
-		std::vector<ExistingOutfit> existingOutfits;  // listed on the Update Existing page, in display order
+		std::string                 actorName;             // shown as the title line
+		std::string                 actorSummary;          // shown greyed under the title line; "" for none
+		std::vector<Piece>          pieces;                // shown as a checkbox list; both actions need at least one ticked
+		std::string                 suggestedName;         // initial text of the name field
+		std::vector<CategoryOption> categories;            // offered in the multi-select dropdown
+		std::vector<ExistingOutfit> existingOutfits;       // listed on the Update Existing page, in display order
+		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
 
 		// Runs on the game thread with the trimmed, non-empty name, the indices
-		// into `pieces` the user left ticked (ascending, never empty) and the
-		// categories the user ticked (in the order of `categories`). It must end
-		// by calling Close() (done) or SetError() (keep the window open).
+		// into `pieces` the user left ticked (ascending, never empty), the
+		// categories the user ticked (in the order of `categories`) and the chosen
+		// gender (-1, 0 or 1). It must end by calling Close() (done) or SetError()
+		// (keep the window open).
 		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces,
-			const std::vector<std::string>& categories)>
+			const std::vector<std::string>& categories, int gender)>
 			onSave;
 
 		// Runs on the game thread once the user confirmed replacing the pieces of
