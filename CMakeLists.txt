@@ -88,6 +88,7 @@ else()
         src/CaptureWindow.cpp
         src/Hooks.cpp
         src/Plugin.cpp
+        src/Settings.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"
         USE_ADDRESS_LIBRARY)
 
@@ -109,6 +110,9 @@ else()
 
     target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
                                                        "${CMAKE_CURRENT_BINARY_DIR}/src")
+
+    # SKSE Menu Framework API header, vendored unmodified (optional at runtime; see src/Settings.cpp).
+    target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern/SKSEMenuFramework")
 
     set_target_properties(
         ${PROJECT_NAME}
