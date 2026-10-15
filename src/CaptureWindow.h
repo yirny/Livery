@@ -24,17 +24,26 @@ namespace CaptureWindow
 		std::string name;   // the category's name as Tailor shows it
 	};
 
+	struct Piece
+	{
+		std::string name;      // the armor's display name
+		bool        selected;  // initial state of its checkbox
+	};
+
 	struct Request
 	{
 		std::string                 actorName;      // shown as the title line
-		std::vector<std::string>    pieceNames;     // shown as a read-only list
+		std::vector<Piece>          pieces;         // shown as a checkbox list; Save needs at least one ticked
 		std::string                 suggestedName;  // initial text of the name field
 		std::vector<CategoryOption> categories;     // offered in the multi-select dropdown, none preselected
 
-		// Runs on the game thread with the trimmed, non-empty name and the
+		// Runs on the game thread with the trimmed, non-empty name, the indices
+		// into `pieces` the user left ticked (ascending, never empty) and the
 		// categories the user ticked (in the order of `categories`). It must end
 		// by calling Close() (done) or SetError() (keep the window open).
-		std::function<void(const std::string& name, const std::vector<std::string>& categories)> onSave;
+		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces,
+			const std::vector<std::string>& categories)>
+			onSave;
 	};
 
 	void Open(Request request);

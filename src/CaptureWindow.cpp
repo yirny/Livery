@@ -56,7 +56,8 @@ namespace
 		Status                          status = Status::kClosed;
 		CaptureWindow::Request          request;
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         ticked;  // one per request.categories; bool[] because ImGui::Checkbox needs bool*
+		std::unique_ptr<bool[]>         pieceTicked;  // one per request.pieces; bool[] because ImGui::Checkbox needs bool*
+		std::unique_ptr<bool[]>         ticked;       // one per request.categories
 		std::string                     error;
 		bool                            focusNameField = false;
 		std::vector<InputRecord>        pending;
@@ -203,15 +204,28 @@ namespace
 
 	// --- Draw -----------------------------------------------------------------
 
-	void DrawPieceList(const CaptureWindow::Request& a_request)
+	std::size_t CountTickedPieces(const State& a_state)
 	{
-		Theme::HeadingText(a_request.actorName.c_str());
-		Theme::LabelText(std::format("{} piece(s) worn", a_request.pieceNames.size()).c_str());
+		std::size_t count = 0;
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			count += a_state.pieceTicked[i] ? 1 : 0;
+		}
+		return count;
+	}
+
+	// Checkbox per worn piece; unticked pieces are left out of the outfit.
+	void DrawPieceList(State& a_state)
+	{
+		const auto& pieces = a_state.request.pieces;
+		Theme::HeadingText(a_state.request.actorName.c_str());
+		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), pieces.size()).c_str());
 		const float rowHeight = ImGui::GetTextLineHeightWithSpacing();
-		const float listHeight = rowHeight * static_cast<float>(std::min<std::size_t>(a_request.pieceNames.size(), 8)) + rowHeight * 0.5f;
+		const float listHeight = rowHeight * static_cast<float>(std::min<std::size_t>(pieces.size(), 8)) + rowHeight * 0.5f;
 		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
-			for (const auto& piece : a_request.pieceNames) {
-				ImGui::BulletText("%s", piece.c_str());
+			for (std::size_t i = 0; i < pieces.size(); ++i) {
+				ImGui::PushID(static_cast<int>(i));
+				ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i]);
+				ImGui::PopID();
 			}
 		}
 		ImGui::EndChild();
@@ -261,6 +275,8 @@ namespace
 		const bool valid = !Trimmed(a_state.name.data()).empty();
 		if (!valid) {
 			ImGui::TextDisabled("Enter a name.");
+		} else if (CountTickedPieces(a_state) == 0) {
+			ImGui::TextDisabled("Tick at least one piece.");
 		} else if (!a_state.error.empty()) {
 			ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s", a_state.error.c_str());
 		} else {
@@ -274,6 +290,12 @@ namespace
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		const auto               name = Trimmed(a_state.name.data());
+		std::vector<std::size_t> pieces;
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			if (a_state.pieceTicked[i]) {
+				pieces.push_back(i);
+			}
+		}
 		std::vector<std::string> categories;
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
 			if (a_state.ticked[i]) {
@@ -281,7 +303,7 @@ namespace
 			}
 		}
 		auto onSave = a_state.request.onSave;
-		SKSE::GetTaskInterface()->AddTask([onSave, name, categories] { onSave(name, categories); });
+		SKSE::GetTaskInterface()->AddTask([onSave, name, pieces, categories] { onSave(name, pieces, categories); });
 	}
 
 	void RequestCancel()
@@ -302,6 +324,10 @@ namespace CaptureWindow
 			state.request = std::move(a_request);
 			state.name.fill('\0');
 			std::strncpy(state.name.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
+			state.pieceTicked = std::make_unique<bool[]>(state.request.pieces.size());
+			for (std::size_t i = 0; i < state.request.pieces.size(); ++i) {
+				state.pieceTicked[i] = state.request.pieces[i].selected;
+			}
 			state.ticked = std::make_unique<bool[]>(state.request.categories.size());  // all false
 			state.error.clear();
 			state.pending.clear();
@@ -395,15 +421,15 @@ namespace CaptureWindow
 		}
 		Theme::DecorateWindow();
 
-		DrawPieceList(state.request);
-		ImGui::Separator();
-
 		const bool editing = state.status == Status::kEditing;
 		ImGui::BeginDisabled(!editing);
+		DrawPieceList(state);
+		ImGui::Separator();
+
 		bool save = DrawNameField(state);
 		DrawCategoryField(state);
 		ImGui::Spacing();
-		const bool valid = !Trimmed(state.name.data()).empty();
+		const bool valid = !Trimmed(state.name.data()).empty() && CountTickedPieces(state) > 0;
 		ImGui::BeginDisabled(!valid);
 		save = Theme::Button("Save") || save;
 		ImGui::EndDisabled();
@@ -411,7 +437,7 @@ namespace CaptureWindow
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		ImGui::EndDisabled();
 
-		if (editing && save) {
+		if (editing && save && valid) {
 			RequestSave(state);
 		} else if (editing && cancel) {
 			RequestCancel();
