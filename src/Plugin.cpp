@@ -403,12 +403,56 @@ namespace
 		return picked;
 	}
 
+	void CopyTailorString(const char* value, void* context)
+	{
+		*static_cast<std::string*>(context) = value ? value : "";
+	}
+
+	// The line under the actor's name: where Tailor judges them to be and what it
+	// put on them. A fight counts as Adventuring: Tailor dresses people with an
+	// Adventuring outfit for it, while GetSituation keeps naming the place.
+	// Contract: game thread (GetOutfit and GetSituation take an actor). Tailor's
+	// strings are valid only during the callback, so CopyTailorString copies them.
+	std::string DescribeActor(RE::Actor& actor)
+	{
+		struct SituationPhrase
+		{
+			const char* situation;  // as GetSituation names it
+			const char* phrase;     // keeps the word Tailor shows for it
+		};
+		constexpr std::array<SituationPhrase, 6> kSituationPhrases{ {
+			{ "adventuring", "Out Adventuring" },
+			{ "town", "In Town" },
+			{ "home", "At Home" },
+			{ "sleep", "Ready for Sleep" },
+			{ "swimming", "Swimming" },
+			{ "warm", "Keeping Warm" },
+		} };
+
+		std::string outfit;
+		g_tailor->GetOutfit(&actor, CopyTailorString, &outfit);
+		std::string situation = "adventuring";
+		if (!actor.IsInCombat()) {
+			situation.clear();
+			g_tailor->GetSituation(&actor, CopyTailorString, &situation);
+		}
+
+		const auto wearing = outfit.empty() ? std::string("wearing an unmanaged outfit") : std::format("wearing \"{}\"", outfit);
+		for (const auto& [name, phrase] : kSituationPhrases) {
+			if (situation == name) {
+				return std::format("{}, {}.", phrase, wearing);
+			}
+		}
+		return std::format("W{}.", wearing.substr(1));
+	}
+
 	// Contract: game thread (Tailor queries that hand out armor forms run here,
 	// so the window itself never calls Tailor).
-	void OpenNameWindow(const RE::Actor& actor, std::vector<RE::TESObjectARMO*> armors)
+	void OpenNameWindow(RE::Actor& actor, std::vector<RE::TESObjectARMO*> armors)
 	{
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
+		request.actorSummary = DescribeActor(actor);
 		request.suggestedName = NextAutomaticName();
 		request.categories = AvailableCategories();
 		request.existingOutfits = ExistingOutfits(request.categories);
