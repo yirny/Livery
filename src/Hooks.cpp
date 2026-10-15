@@ -15,6 +15,8 @@
 #include "Hooks.h"
 
 #include "CaptureWindow.h"
+#include "Settings.h"
+#include "Theme.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -103,10 +105,7 @@ namespace
 		io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 		io.MouseDrawCursor = true;  // the game hides the OS cursor; draw our own
 
-		// Scale the default font with the screen so the window is readable at 1440p/4K.
-		const float scale = (std::max)(1.0f, static_cast<float>(desc.BufferDesc.Height) / 1080.0f * 1.5f);
-		ImGui::GetStyle().ScaleAllSizes(scale);
-		ImGui::GetStyle().FontScaleMain = scale;
+		Theme::LoadFonts();  // style and scale are set per frame by Theme::Apply
 
 		if (!ImGui_ImplWin32_Init(desc.OutputWindow) || !ImGui_ImplDX11_Init(device, context)) {
 			logger::error("ImGui: backend init failed");
@@ -132,7 +131,8 @@ namespace
 		}
 
 		ImGui_ImplDX11_NewFrame();
-		ImGui_ImplWin32_NewFrame();
+		ImGui_ImplWin32_NewFrame();  // sets io.DisplaySize
+		Theme::Apply(Settings::Skin(), ImGui::GetIO().DisplaySize.y);
 		ImGui::NewFrame();
 
 		CaptureWindow::Draw();
