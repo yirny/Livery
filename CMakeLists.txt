@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(
-    ExampleMod
+    tailoroutfitcapture
     VERSION 0.0.1
     DESCRIPTION "An SKSE plugin for Skyrim SE/AE"
     LANGUAGES CXX)
@@ -79,9 +79,9 @@ else()
     add_commonlibsse_plugin(
         ${PROJECT_NAME}
         NAME
-        "ExampleMod"
+        "tailoroutfitcapture"
         AUTHOR
-        "Author"
+        "LocalDeveloper"
         SOURCES
         src/Plugin.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"
@@ -105,7 +105,7 @@ else()
 
     set_target_properties(
         ${PROJECT_NAME}
-        PROPERTIES OUTPUT_NAME ExampleMod
+        PROPERTIES OUTPUT_NAME tailoroutfitcapture
                    PREFIX ""
                    SUFFIX ".dll")
 
