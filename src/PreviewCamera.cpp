@@ -49,7 +49,28 @@ namespace
 		RE::BSTSmartPointer<RE::TESCameraState> previousState;
 		FreeCameraFields                        freeFields;
 		bool                                    forcedThirdPerson = false;  // the player was in first person
+		RE::ActorHandle                         actor;                      // the previewed actor, which a left drag turns around
 	};
+
+	// Turns the camera's place around the actor by the angle the view just
+	// turned, so the actor keeps its place on screen and seems to turn on the
+	// spot (as in Tailor's preview). The actor's current position is the pivot,
+	// so it follows an NPC who walks; without the actor the view turns in place.
+	void OrbitActor(RE::FreeCameraState& free, const RE::ActorHandle& actor, float radians)
+	{
+		const auto target = actor.get();
+		if (!target || radians == 0.0f) {
+			return;
+		}
+		const auto  pivot = target->GetPosition();
+		const float dx = free.translation.x - pivot.x;
+		const float dy = free.translation.y - pivot.y;
+		const float sin = std::sin(radians);
+		const float cos = std::cos(radians);
+		// The same rotation the heading applies to its forward vector (sin yaw, cos yaw).
+		free.translation.x = pivot.x + dx * cos + dy * sin;
+		free.translation.y = pivot.y - dx * sin + dy * cos;
+	}
 
 	Session g_session;
 
@@ -137,6 +158,7 @@ namespace PreviewCamera
 		free->verticalDirection = 0;
 		free->lockToZPlane = false;
 
+		session.actor = actor.GetHandle();
 		session.active = true;
 		g_session = std::move(session);
 		logger::info("Preview camera on {:08X}", actor.GetFormID());
@@ -145,8 +167,9 @@ namespace PreviewCamera
 
 	// rotation.x is the pitch (positive looks down), rotation.y the heading the
 	// camera faces, in Skyrim's convention: heading 0 faces +Y, and turns clockwise
-	// seen from above. The engine reads the fields every frame, so nothing else
-	// needs an update.
+	// seen from above. A left drag sideways turns the view and the camera's place
+	// around the actor together; up and down tilts in place. The engine reads
+	// the fields every frame, so nothing else needs an update.
 	void Move(const CaptureWindow::ViewInput& input)
 	{
 		auto* camera = RE::PlayerCamera::GetSingleton();
@@ -155,7 +178,9 @@ namespace PreviewCamera
 			return;
 		}
 
-		free->rotation.y += input.lookX * kLookRadiansPerPixel;
+		const float turn = input.lookX * kLookRadiansPerPixel;
+		free->rotation.y += turn;
+		OrbitActor(*free, g_session.actor, turn);
 		free->rotation.x = std::clamp(free->rotation.x + input.lookY * kLookRadiansPerPixel, -kMaxPitch, kMaxPitch);
 		const float        yaw = free->rotation.y;
 		const float        pitch = free->rotation.x;
