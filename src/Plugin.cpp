@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants      - hotkey, Tailor's built-in categories
+//   Constants      - Tailor's built-in categories
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
-//   Capture        - F8 handler: check the target, collect worn armor, detect the armor class, list the
+//   Capture        - hotkey handler: check the target, collect worn armor, detect the armor class, list the
 //                    library's outfits, then open the window with it ticked (or save under an automatic
 //                    name with it where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
@@ -32,8 +32,6 @@
 
 namespace
 {
-	constexpr std::uint32_t kHotkey = 0x42;  // F8 (DirectInput scan code)
-
 	// Tailor's built-in categories (TailorAPI.h, "RULES EVERY FUNCTION SHARES").
 	// API 1.0 cannot list categories; the player's custom ones come from
 	// Tailor's library.json instead (ReadCustomCategoryNames).
@@ -688,7 +686,7 @@ namespace
 
 			for (auto* event = *events; event; event = event->next) {
 				auto* button = event->AsButtonEvent();
-				if (button && button->GetDevice() == RE::INPUT_DEVICE::kKeyboard && button->GetIDCode() == kHotkey && button->IsDown()) {
+				if (button && button->GetDevice() == RE::INPUT_DEVICE::kKeyboard && button->IsDown() && Settings::IsHotkey(button->GetIDCode())) {
 					const auto handle = g_target;
 					SKSE::GetTaskInterface()->AddTask([handle] { Capture(handle); });
 					break;
