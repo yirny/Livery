@@ -39,10 +39,17 @@ namespace Theme
 	// One line in the heading font; Nordic centres it over an ornamented rule.
 	void HeadingText(const char* text);
 
-	// A field label: grey in Nordic, plain text elsewhere.
+	// Pixels at 1080p to pixels on the current back buffer.
+	float Scale();
+
+	// A field label: grey in Nordic, plain text elsewhere. Sits a little closer
+	// to the control below it than the item spacing would.
 	void LabelText(const char* text);
 
 	// Returns true when pressed. Nordic draws a pointed-end frame.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Button(const char* label);
+
+	// Width Button(label) will take, so a caller can centre a row of them.
+	float ButtonWidth(const char* label);
 }

@@ -328,6 +328,8 @@ namespace
 			ImGui::SetKeyboardFocusHere();
 			a_state.focusNameField = false;
 		}
+		// The hint line carries no spacing of its own, so the name sits only one text line above Categories.
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 		const bool enter = ImGui::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue);
 
 		const bool valid = !Trimmed(a_state.name.data()).empty();
@@ -342,6 +344,7 @@ namespace
 		} else {
 			ImGui::NewLine();
 		}
+		ImGui::PopStyleVar();
 		return enter && valid;
 	}
 
@@ -352,15 +355,17 @@ namespace
 		kCancel
 	};
 
-	// Left column: name, categories, Save / Cancel.
-	FormAction DrawForm(State& a_state)
+	// Save / Cancel centred under a rule that spans the window.
+	// a_save is true when the name field already asked to save.
+	FormAction DrawButtons(State& a_state, bool a_save)
 	{
-		bool save = DrawNameField(a_state);
-		DrawCategoryField(a_state);
-		ImGui::Spacing();
+		const auto& style = ImGui::GetStyle();
+		ImGui::Separator();
+		const float width = Theme::ButtonWidth("Save") + style.ItemSpacing.x + Theme::ButtonWidth("Cancel");
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
 		const bool valid = !Trimmed(a_state.name.data()).empty() && CountTickedPieces(a_state) > 0;
 		ImGui::BeginDisabled(!valid);
-		save = Theme::Button("Save") || save;
+		const bool save = Theme::Button("Save") || a_save;
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
@@ -528,7 +533,7 @@ namespace CaptureWindow
 		if (!Theme::HasTitleBar()) {
 			flags |= ImGuiWindowFlags_NoTitleBar;
 		}
-		if (!ImGui::Begin("Tailor Capture", nullptr, flags)) {
+		if (!ImGui::Begin("Capturing Outfit for Tailor", nullptr, flags)) {
 			ImGui::End();
 			return;
 		}
@@ -536,17 +541,26 @@ namespace CaptureWindow
 
 		Theme::HeadingText(state.request.actorName.c_str());
 
-		auto action = FormAction::kNone;
+		constexpr float kColumnGap = 24.0f;  // pixels at 1080p, between the form and the piece list
+
+		bool save = false;
 		ImGui::BeginDisabled(state.status != Status::kEditing);
+		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kColumnGap * 0.5f * Theme::Scale(), ImGui::GetStyle().CellPadding.y));
 		if (ImGui::BeginTable("layout", 2, ImGuiTableFlags_SizingStretchProp)) {
 			ImGui::TableSetupColumn("form", ImGuiTableColumnFlags_WidthStretch, kFormWidthRatio);
 			ImGui::TableSetupColumn("pieces", ImGuiTableColumnFlags_WidthStretch, 1.0f - kFormWidthRatio);
 			ImGui::TableNextColumn();
-			action = DrawForm(state);
+			save = DrawNameField(state);
+			DrawCategoryField(state);
 			ImGui::TableNextColumn();
+			// A table hands the next cell the text baseline of the previous cell's last
+			// line (the combo's frame padding), which would push this label down.
+			ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
 			DrawPieceList(state);
 			ImGui::EndTable();
 		}
+		ImGui::PopStyleVar();
+		const auto action = DrawButtons(state, save);
 		ImGui::EndDisabled();
 
 		if (action == FormAction::kSave) {
