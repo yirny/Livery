@@ -741,7 +741,7 @@ namespace
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& [armor, isWorn] : inventory) {
-			request.pieces.push_back({ DisplayName(*armor), isWorn && !LooksLikeWig(*armor) });
+			request.pieces.push_back({ DisplayName(*armor), isWorn && !LooksLikeWig(*armor), armor->GetSlotMask().underlying() });
 			armors.push_back(armor);
 		}
 		AttachPreview(request, actor, armors);
