@@ -1,0 +1,7 @@
+nordic-corner.png and nordic-heading.png are NORDIC UI's corner knot and
+heading rope by Dopesan, rendered from NORDIC UI - Interface Overhaul
+(https://www.nexusmods.com/skyrimspecialedition/mods/49881) as white
+alpha masks; the plugin tints them at draw time.
+
+Used under the author's permissions on that page:
+"Permissions are open to use my art as you wish."

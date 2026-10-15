@@ -107,7 +107,8 @@ else()
     target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h)
 
     # imgui's vcpkg port does not link the system libraries its backends need.
-    target_link_libraries(${PROJECT_NAME} PRIVATE imgui::imgui d3d11 dwmapi imm32)
+    # windowscodecs (WIC) decodes the skin textures (src/Theme.cpp).
+    target_link_libraries(${PROJECT_NAME} PRIVATE imgui::imgui d3d11 dwmapi imm32 windowscodecs)
 
     target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
                                                        "${CMAKE_CURRENT_BINARY_DIR}/src")

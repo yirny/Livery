@@ -115,6 +115,7 @@ namespace
 		WndProcHook::func = reinterpret_cast<WNDPROC>(
 			SetWindowLongPtrA(desc.OutputWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WndProcHook::thunk)));
 
+		Theme::LoadTextures(device);
 		g_renderReady = true;
 		logger::info("ImGui initialised ({}x{})", desc.BufferDesc.Width, desc.BufferDesc.Height);
 	}
