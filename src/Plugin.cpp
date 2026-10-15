@@ -2,12 +2,13 @@
 //
 // FILE MAP
 //   Constants      - hotkey, Tailor's built-in categories
+//   Settings       - TailorOutfitCapture.ini, read once at plugin load
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories
-//   Capture        - F8 handler: collect worn armor, then open the name window
+//   Capture        - F8 handler: check the target, collect worn armor, then open the name window
 //                    (or save under an automatic name where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
 //   Messaging      - Tailor interface, sink registration, ready state
-//   Entry          - log, trampoline, hooks
+//   Entry          - log, settings, trampoline, hooks
 #include "PCH.h"
 
 #include "CaptureWindow.h"
@@ -16,9 +17,11 @@
 
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <format>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace
@@ -47,11 +50,30 @@ namespace
 	TailorAPI::ITailorInterface1* g_tailor = nullptr;
 	RE::ObjectRefHandle           g_target{};
 	bool                          g_ready = false;
+	bool                          g_followersAndSpouseOnly = true;  // [General] RestrictToFollowersAndSpouse
 
 	void Notify(const std::string& text)
 	{
 		RE::SendHUDMessage::ShowHUDMessage(text.c_str());
 		logger::info("{}", text);
+	}
+
+	// --- Settings -------------------------------------------------------------
+
+	// Contract: called once from SKSEPluginLoad; the result is cached so the
+	// F8 path never touches the file. A missing file or key keeps the default (on).
+	void LoadSettings()
+	{
+		constexpr auto kIniPath = L"Data/SKSE/Plugins/TailorOutfitCapture.ini";
+		// The game's working directory is the Skyrim folder (MO2's virtual Data included).
+		// An absolute path keeps GetPrivateProfileString from searching the Windows folder.
+		const auto path = std::filesystem::current_path() / kIniPath;
+
+		wchar_t value[8]{};
+		REX::W32::GetPrivateProfileStringW(L"General", L"RestrictToFollowersAndSpouse", L"1", value,
+			static_cast<std::uint32_t>(std::size(value)), path.c_str());
+		g_followersAndSpouseOnly = std::wstring_view{ value } != L"0";
+		logger::info("RestrictToFollowersAndSpouse = {}", g_followersAndSpouseOnly);
 	}
 
 	// --- Tailor writes --------------------------------------------------------
@@ -131,6 +153,19 @@ namespace
 
 	// --- Capture --------------------------------------------------------------
 
+	// Followers via the teammate flag; spouses via Skyrim.esm's PlayerMarriedFaction.
+	// Spouses added by marriage mods that use another faction are not recognised.
+	bool IsFollowerOrSpouse(RE::Actor& actor)
+	{
+		if (actor.IsPlayerTeammate()) {
+			return true;
+		}
+		// Skyrim.esm always loads at index 00, so its FormIDs are fixed.
+		constexpr RE::FormID kPlayerMarriedFaction = 0x000C6472;
+		const auto*          married = RE::TESForm::LookupByID<RE::TESFaction>(kPlayerMarriedFaction);
+		return married && actor.IsInFaction(married);
+	}
+
 	// Worn, plugin-defined armor only. Runtime-created armor (FormID 0xFF......,
 	// e.g. player-enchanted gear) is always refused by AddArmorToOutfit.
 	std::vector<RE::TESObjectARMO*> CollectWornArmor(RE::Actor& actor, std::size_t& skipped)
@@ -205,6 +240,10 @@ namespace
 		// Tailor never handles children (see TailorAPI.h).
 		if (actor->IsChild()) {
 			Notify("Tailor Capture: children's outfits cannot be captured.");
+			return;
+		}
+		if (g_followersAndSpouseOnly && !IsFollowerOrSpouse(*actor)) {
+			Notify("Tailor Capture: only followers and your spouse can be captured.");
 			return;
 		}
 
@@ -335,6 +374,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 64 });
 	SetupLog();
 	logger::info("TailorOutfitCapture loaded");
+	LoadSettings();
 	Hooks::Install();
 	return SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
 }
