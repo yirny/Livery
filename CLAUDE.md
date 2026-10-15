@@ -28,7 +28,8 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 
 ## 2. Where you may work
 
-- **Edit:** `src/` (except `src/TailorAPI.h`), `test/`, `docs/`, `README.md`; build config per §1 high impact.
+- **Edit:** `src/` (except `src/TailorAPI.h`), `test/`; build config per §1 high impact.
+- **Docs only on request:** never change `README.md` or `docs/` unless the user asks for it in that session; a code change does not imply a doc update. Mention in the summary when docs are now stale.
 - **Never edit:** `src/TailorAPI.h` — official header, must stay identical to upstream `docs/api/TailorAPI.h` (replace with a newer upstream copy only on request); `lib/commonlibsse-ng`, `lib/vcpkg` (submodules; bump only via `scripts/update.sh` on request); `build/`.
 - **Ask first:** `.github/`, `scripts/`, `lefthook.yml`, lint configs (`.clang-format`, `.clang-tidy`, `.vale*`, `dprint.json`).
 - **Never touch outside the repo:** the Skyrim install, MO2 mods / profiles / overwrite, Tailor's data files — give the user steps instead. Deploy only to `build/msvc/deploy/` unless the user set `DEPLOY_DIR_OVERRIDE`.
