@@ -44,7 +44,7 @@ namespace CaptureWindow
 		float moveForward = 0.0f;  // -1, 0 or 1 from S / W
 		float moveRight = 0.0f;    // -1, 0 or 1 from A / D
 		float zoomSteps = 0.0f;    // wheel steps, positive towards the view
-		bool  fast = false;        // Shift held
+		bool  slow = false;        // Shift held
 		float seconds = 0.0f;      // the frame's length
 	};
 
