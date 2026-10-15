@@ -90,6 +90,7 @@ else()
         src/CaptureWindow.cpp
         src/Hooks.cpp
         src/Plugin.cpp
+        src/PreviewCamera.cpp
         src/Settings.cpp
         src/Theme.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"
