@@ -38,15 +38,13 @@ namespace
 		{
 			kKey,
 			kMouseButton,
-			kMouseMove,
 			kMouseWheel,
 			kChar
 		};
 		Kind  kind;
 		int   code;  // ImGuiKey / mouse button / character
 		bool  down;
-		float x;  // mouse delta x, or wheel steps
-		float y;
+		float wheel;  // wheel steps
 	};
 
 	// --- State ----------------------------------------------------------------
@@ -62,7 +60,7 @@ namespace
 		std::string                     error;
 		bool                            focusNameField = false;
 		std::vector<InputRecord>        pending;
-		ImVec2                          mouse{ 0.0f, 0.0f };
+		bool                            resetImGui = false;  // set by Open, handled on the next frame
 	};
 
 	State& GetState()
@@ -160,18 +158,18 @@ namespace
 		switch (a_button.GetDevice()) {
 		case RE::INPUT_DEVICE::kKeyboard:
 			if (const auto key = ToImGuiKey(code); key != ImGuiKey_None && (a_button.IsDown() || a_button.IsUp())) {
-				a_out.push_back({ InputRecord::Kind::kKey, key, a_button.IsDown(), 0.0f, 0.0f });
+				a_out.push_back({ InputRecord::Kind::kKey, key, a_button.IsDown(), 0.0f });
 			}
 			break;
 		case RE::INPUT_DEVICE::kMouse:
 			if (code == MouseKey::kWheelUp || code == MouseKey::kWheelDown) {
 				if (a_button.IsDown()) {
-					a_out.push_back({ InputRecord::Kind::kMouseWheel, 0, true, 0.0f, code == MouseKey::kWheelUp ? 1.0f : -1.0f });
+					a_out.push_back({ InputRecord::Kind::kMouseWheel, 0, true, code == MouseKey::kWheelUp ? 1.0f : -1.0f });
 				}
 			} else if (code <= MouseKey::kMiddleButton && (a_button.IsDown() || !a_button.IsPressed())) {
 				// Any zero value is a release: IsUp() also needs a held time above
 				// zero, which a quick click may not have. ImGui drops repeated states.
-				a_out.push_back({ InputRecord::Kind::kMouseButton, static_cast<int>(code), a_button.IsDown(), 0.0f, 0.0f });
+				a_out.push_back({ InputRecord::Kind::kMouseButton, static_cast<int>(code), a_button.IsDown(), 0.0f });
 			}
 			break;
 		default:
@@ -179,12 +177,12 @@ namespace
 		}
 	}
 
-	// Contract: call after ImGui_ImplWin32_NewFrame. The Win32 backend queues the
-	// OS cursor position every frame because it never sees WM_MOUSEMOVE; the
-	// position sent first here overrides it before any button event of the frame.
+	// Contract: the cursor position comes only from the Win32 backend, which
+	// queues the OS cursor every frame (it never sees WM_MOUSEMOVE). A second
+	// source would win on click frames, since ImGui stops moving the cursor
+	// after a button change, and put the click away from the drawn cursor.
 	void FlushInput(State& a_state, ImGuiIO& a_io)
 	{
-		a_io.AddMousePosEvent(a_state.mouse.x, a_state.mouse.y);
 		for (const auto& record : a_state.pending) {
 			switch (record.kind) {
 			case InputRecord::Kind::kKey:
@@ -194,12 +192,7 @@ namespace
 				a_io.AddMouseButtonEvent(record.code, record.down);
 				break;
 			case InputRecord::Kind::kMouseWheel:
-				a_io.AddMouseWheelEvent(0.0f, record.y);
-				break;
-			case InputRecord::Kind::kMouseMove:
-				a_state.mouse.x = std::clamp(a_state.mouse.x + record.x, 0.0f, a_io.DisplaySize.x - 1.0f);
-				a_state.mouse.y = std::clamp(a_state.mouse.y + record.y, 0.0f, a_io.DisplaySize.y - 1.0f);
-				a_io.AddMousePosEvent(a_state.mouse.x, a_state.mouse.y);
+				a_io.AddMouseWheelEvent(0.0f, record.wheel);
 				break;
 			case InputRecord::Kind::kChar:
 				a_io.AddInputCharacter(static_cast<unsigned int>(record.code));
@@ -423,7 +416,7 @@ namespace CaptureWindow
 			state.pending.clear();
 			state.focusNameField = true;
 			state.status = Status::kEditing;
-			state.mouse = ImVec2(-1.0f, -1.0f);  // centred on the first frame
+			state.resetImGui = true;
 		}
 		g_open = true;
 		SetGameFrozen(true);
@@ -471,12 +464,10 @@ namespace CaptureWindow
 		for (auto* event = *a_events; event; event = event->next) {
 			if (const auto* button = event->AsButtonEvent()) {
 				RecordButton(state.pending, *button);
-			} else if (const auto* move = event->AsMouseMoveEvent()) {
-				state.pending.push_back({ InputRecord::Kind::kMouseMove, 0, false, static_cast<float>(move->mouseInputX), static_cast<float>(move->mouseInputY) });
 			} else if (const auto* chr = event->AsCharEvent()) {
 				// ASCII only: the game's char events carry the ANSI code page.
 				if (chr->keyCode >= 0x20 && chr->keyCode < 0x7F) {
-					state.pending.push_back({ InputRecord::Kind::kChar, static_cast<int>(chr->keyCode), true, 0.0f, 0.0f });
+					state.pending.push_back({ InputRecord::Kind::kChar, static_cast<int>(chr->keyCode), true, 0.0f });
 				}
 			}
 		}
@@ -493,9 +484,9 @@ namespace CaptureWindow
 		}
 
 		auto& io = ImGui::GetIO();
-		if (state.mouse.x < 0.0f) {  // first frame after Open
+		if (state.resetImGui) {
 			ResetImGuiState(io);
-			state.mouse = ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
+			state.resetImGui = false;
 		}
 		FlushInput(state, io);
 
