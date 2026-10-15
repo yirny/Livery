@@ -328,9 +328,13 @@ namespace
 			ImGui::SetKeyboardFocusHere();
 			a_state.focusNameField = false;
 		}
-		// The hint line carries no spacing of its own, so the name sits only one text line above Categories.
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+		// The hint line sits right under the field and only a small gap above Categories.
+		constexpr float kHintGap = 6.0f;  // pixels at 1080p, below the hint line
+		const float     spacingX = ImGui::GetStyle().ItemSpacing.x;
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, 0.0f));
 		const bool enter = ImGui::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+		ImGui::PopStyleVar();
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, kHintGap * Theme::Scale()));
 
 		const bool valid = !Trimmed(a_state.name.data()).empty();
 		if (!valid) {
@@ -359,8 +363,14 @@ namespace
 	// a_save is true when the name field already asked to save.
 	FormAction DrawButtons(State& a_state, bool a_save)
 	{
+		constexpr float kRuleMargin = 4.0f;  // pixels at 1080p, added above and below the rule
+
 		const auto& style = ImGui::GetStyle();
+		const float margin = kRuleMargin * Theme::Scale();
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + margin);
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, style.ItemSpacing.y + margin));
 		ImGui::Separator();
+		ImGui::PopStyleVar();
 		const float width = Theme::ButtonWidth("Save") + style.ItemSpacing.x + Theme::ButtonWidth("Cancel");
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
 		const bool valid = !Trimmed(a_state.name.data()).empty() && CountTickedPieces(a_state) > 0;
