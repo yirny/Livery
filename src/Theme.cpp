@@ -46,6 +46,9 @@ namespace
 	// Tailor's measured size adjustment for Poppins and Montserrat (its FontMetricScale).
 	constexpr float kFontMetricScale = 4.0f / 3.0f;
 
+	// How much closer a field label sits to its control than the item spacing (pixels at 1080p).
+	constexpr float kLabelGapTrim = 4.0f;
+
 	struct FontFile
 	{
 		const wchar_t* name;
@@ -555,12 +558,16 @@ namespace
 
 	// NORDIC UI's main-menu button: a frame with pointed ends, grey at rest,
 	// white with a grey fill when hovered, brighter while held.
+	float PointedButtonWidth(const char* a_label)
+	{
+		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f + ImGui::GetFrameHeight();
+	}
+
 	bool PointedButton(const char* a_label)
 	{
-		const auto&  style = ImGui::GetStyle();
 		const float  height = ImGui::GetFrameHeight();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		const ImVec2 size(text.x + style.FramePadding.x * 2.0f + height, height);
+		const ImVec2 size(PointedButtonWidth(a_label), height);
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 
 		const bool pressed = ImGui::InvisibleButton(a_label, size);
@@ -643,6 +650,7 @@ namespace Theme
 			style.FontSizeBase = files->body.size;  // also sizes the default font when the skin's is missing
 		}
 		g_scale = scale;
+		style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
 		style.ScaleAllSizes(scale);
 		style.FontScaleMain = scale;
 		ImGui::GetStyle() = style;  // Classic keeps FontSizeBase 0: NewFrame takes the default font's size
@@ -690,19 +698,36 @@ namespace Theme
 		}
 	}
 
+	float Scale()
+	{
+		return g_scale;
+	}
+
 	void LabelText(const char* a_text)
 	{
-		if (g_skin != Skin::kNordic) {
-			ImGui::TextUnformatted(a_text);
-			return;
+		// The gap below an item comes from the item spacing in force while it is laid out.
+		const auto& spacing = ImGui::GetStyle().ItemSpacing;
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - kLabelGapTrim * g_scale)));
+		if (g_skin == Skin::kNordic) {
+			ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);
 		}
-		ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);
 		ImGui::TextUnformatted(a_text);
-		ImGui::PopStyleColor();
+		if (g_skin == Skin::kNordic) {
+			ImGui::PopStyleColor();
+		}
+		ImGui::PopStyleVar();
 	}
 
 	bool Button(const char* a_label)
 	{
 		return g_skin == Skin::kNordic ? PointedButton(a_label) : ImGui::Button(a_label);
+	}
+
+	float ButtonWidth(const char* a_label)
+	{
+		if (g_skin == Skin::kNordic) {
+			return PointedButtonWidth(a_label);
+		}
+		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f;
 	}
 }
