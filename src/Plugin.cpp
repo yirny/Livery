@@ -396,7 +396,7 @@ namespace
 	}
 
 	// Starts the live preview for the window about to open and wires it in: ticks
-	// change kPreviewOutfit, the mouse over the game turns PreviewCamera (when it
+	// change kPreviewOutfit, input over the game moves PreviewCamera (when it
 	// could take the camera), and closing the window ends both. When the preview
 	// cannot start, the window says why.
 	// Contract: game thread; `armors` matches request.pieces index for index.
@@ -414,7 +414,7 @@ namespace
 		}
 		request.onPieceToggled = [armors](std::size_t index, bool on) { SetPreviewPiece(armors[index], on); };
 		if (PreviewCamera::Begin(actor)) {
-			request.onViewInput = PreviewCamera::Orbit;
+			request.onViewInput = PreviewCamera::Move;
 		}
 		request.onClose = [] {
 			PreviewCamera::End();

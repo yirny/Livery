@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants  - where the actor sits on screen, zoom steps and limits
+//   Constants  - speeds and sensitivities
 //   State      - what Begin changed, kept for End
-//   Helpers    - free camera fields, player hiding, movement hold, framing, placement
-//   API        - Begin / Orbit / End
+//   Helpers    - free camera fields, the toggle that keeps the control switches
+//   API        - Begin / Move / End
 //
-// Follows Tailor 3.0's own outfit preview (src/preview/TailorPreviewSession.cpp,
-// PreviewScene.cpp and PreviewSessionPolicy.h in its repository), without its
-// backdrop: other people and objects can still stand in the shot.
+// Entering and leaving the free camera follows Tailor 3.0's own outfit preview
+// (src/preview/TailorPreviewSession.cpp and PreviewSessionPolicy.h in its
+// repository); the movement is the plugin's own, driven by the window.
 #include "PCH.h"
 
 #include "PreviewCamera.h"
@@ -17,17 +17,18 @@
 #include <cmath>
 #include <cstdint>
 #include <numbers>
-#include <unordered_map>
 #include <utility>
 
 namespace
 {
 	// --- Constants ------------------------------------------------------------
 
-	constexpr float kActorScreenX = 0.45f;  // the actor's place right of the screen centre, in half screen widths
-	constexpr float kZoomPerStep = 0.9f;    // camera distance factor per wheel step in
-	constexpr float kMinZoom = 0.4f;        // of the distance that frames the whole body
-	constexpr float kMaxZoom = 2.0f;
+	constexpr float kMoveSpeed = 300.0f;            // game units per second with W / A / S / D
+	constexpr float kFastFactor = 3.0f;             // on kMoveSpeed while Shift is held
+	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag
+	constexpr float kPanUnitsPerPixel = 1.0f;       // of a right drag
+	constexpr float kZoomUnitsPerStep = 40.0f;      // forward per wheel step
+	constexpr float kMaxPitch = 89.0f * std::numbers::pi_v<float> / 180.0f;
 
 	// --- State ----------------------------------------------------------------
 
@@ -41,29 +42,13 @@ namespace
 		bool                 inputEnabled = false;
 	};
 
-	struct HiddenNode
-	{
-		RE::NiPointer<RE::NiAVObject> hold;  // keeps the node alive until its flag is put back
-		bool                          wasCulled;
-	};
-
 	// Everything Begin changed, so End can put it back.
 	struct Session
 	{
-		bool                                            active = false;
-		RE::ActorHandle                                 actor;
-		RE::BSTSmartPointer<RE::TESCameraState>         previousState;
-		FreeCameraFields                                freeFields;
-		bool                                            forcedThirdPerson = false;  // the player was in first person
-		bool                                            blockedMovement = false;    // Begin set the NPC's kMovementBlocked
-		bool                                            hidesPlayer = false;        // the actor is an NPC
-		std::unordered_map<RE::NiAVObject*, HiddenNode> hiddenPlayer;
-		RE::NiPoint3                                    pivot;             // the body's centre, which the camera turns around
-		float                                           frontHeading = 0;  // radians, from the actor towards their front
-		float                                           yaw = 0;           // radians, added by Orbit
-		float                                           distance = 0;      // game units that frame the whole body
-		float                                           zoom = 1;          // factor on distance
-		float                                           tanHalfFOV = 0;    // of the horizontal field of view
+		bool                                    active = false;
+		RE::BSTSmartPointer<RE::TESCameraState> previousState;
+		FreeCameraFields                        freeFields;
+		bool                                    forcedThirdPerson = false;  // the player was in first person
 	};
 
 	Session g_session;
@@ -107,113 +92,6 @@ namespace
 			controls->SetControlsState(enabled, stored);
 		}
 	}
-
-	// Culls the node and every node under it: room and portal rendering can draw
-	// a child whose parent is culled. Running it again culls nodes the game showed
-	// since and adds new ones; each keeps the flag it had when first seen.
-	void HideBranch(RE::NiAVObject* node, std::unordered_map<RE::NiAVObject*, HiddenNode>& hidden)
-	{
-		if (!node) {
-			return;
-		}
-		hidden.try_emplace(node, HiddenNode{ RE::NiPointer<RE::NiAVObject>(node), node->GetAppCulled() });
-		node->SetAppCulled(true);
-		if (auto* branch = node->AsNode()) {
-			for (auto& child : branch->GetChildren()) {
-				HideBranch(child.get(), hidden);
-			}
-		}
-	}
-
-	// Both of the player's bodies: which one the free camera draws depends on the view it started from.
-	void HidePlayer(Session& session)
-	{
-		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
-			HideBranch(player->Get3D(false), session.hiddenPlayer);
-			HideBranch(player->Get3D(true), session.hiddenPlayer);
-		}
-	}
-
-	void ShowPlayer(Session& session)
-	{
-		for (auto& [node, entry] : session.hiddenPlayer) {
-			node->SetAppCulled(entry.wasCulled);
-		}
-		session.hiddenPlayer.clear();
-	}
-
-	// Keeps the NPC where the camera frames them (Tailor's movement-only hold);
-	// their AI and animations keep running. Returns true when it set the flag.
-	bool HoldMovement(RE::Actor& actor)
-	{
-		auto&      flags = actor.GetActorRuntimeData().boolFlags;
-		const bool wasBlocked = flags.any(RE::Actor::BOOL_FLAGS::kMovementBlocked);
-		flags.set(RE::Actor::BOOL_FLAGS::kMovementBlocked);
-		if (auto* controller = actor.GetCharController()) {
-			controller->SetLinearVelocityImpl(RE::hkVector4(0.0f));
-		}
-		return !wasBlocked;
-	}
-
-	// Game units from the feet to the top of the head; the bounding sphere's
-	// diameter when the skeleton has no head node.
-	float BodyHeight(RE::Actor& actor, RE::NiAVObject& root)
-	{
-		constexpr float kHeadToTop = 1.08f;  // the head node sits at about 93% of a standing body
-
-		const float feet = actor.GetPosition().z;
-		if (const auto* head = root.GetObjectByName(RE::BSFixedString("NPC Head [Head]"))) {
-			if (const float height = (head->world.translate.z - feet) * kHeadToTop; height > 0.0f) {
-				return height;
-			}
-		}
-		return root.worldBound.radius * 2.0f;
-	}
-
-	// The distance at which the whole body fits the screen height, seen from the actor's front.
-	bool Frame(RE::Actor& actor, RE::PlayerCamera& camera, Session& session)
-	{
-		constexpr float kMargin = 1.15f;  // room around the body
-
-		auto*      root = actor.Get3D(false);
-		const auto screen = RE::BSGraphics::Renderer::GetScreenSize();
-		if (!root || screen.width == 0 || screen.height == 0) {
-			return false;
-		}
-		const float height = BodyHeight(actor, *root);
-		const auto  feet = actor.GetPosition();
-		// worldFOV taken as the horizontal field of view, as Tailor's own framing does.
-		const float degrees = camera.GetRuntimeData2().worldFOV;
-		session.tanHalfFOV = std::tan(degrees * 0.5f * std::numbers::pi_v<float> / 180.0f);
-		const float tanHalfVertical = session.tanHalfFOV * static_cast<float>(screen.height) / static_cast<float>(screen.width);
-		session.pivot = { feet.x, feet.y, feet.z + height * 0.5f };
-		session.distance = height * 0.5f * kMargin / tanHalfVertical;
-		session.frontHeading = actor.GetAngleZ();
-		return std::isfinite(session.distance) && session.distance > 0.0f;
-	}
-
-	// The camera faces the body's centre from the actor's front turned by yaw,
-	// shifted sideways so the actor shows kActorScreenX right of the screen centre.
-	void Place(const Session& session)
-	{
-		auto* camera = RE::PlayerCamera::GetSingleton();
-		auto* free = camera ? FreeState(*camera) : nullptr;
-		if (!free || camera->currentState.get() != free) {
-			return;
-		}
-		const float        heading = session.frontHeading + session.yaw;  // from the actor towards the camera
-		const float        distance = session.distance * session.zoom;
-		const float        shift = kActorScreenX * distance * session.tanHalfFOV;
-		const RE::NiPoint3 toCamera{ std::sin(heading), std::cos(heading), 0.0f };
-		const RE::NiPoint3 cameraRight{ -std::cos(heading), std::sin(heading), 0.0f };
-
-		free->translation = session.pivot + toCamera * distance - cameraRight * shift;
-		free->rotation = { 0.0f, std::atan2(-toCamera.x, -toCamera.y) };  // x: pitch, y: the heading it faces
-		free->zUpDown = {};
-		free->verticalDirection = 0;
-		free->lockToZPlane = false;
-		camera->Update();
-	}
 }
 
 namespace PreviewCamera
@@ -228,13 +106,7 @@ namespace PreviewCamera
 			return false;
 		}
 		Session session;
-		if (!Frame(actor, *camera, session)) {
-			return false;
-		}
-
-		// First person does not draw the player's third-person body, the one the preview shows.
-		const bool isPlayer = actor.IsPlayerRef();
-		if (isPlayer && camera->IsInFirstPerson()) {
+		if (actor.IsPlayerRef() && camera->IsInFirstPerson()) {
 			if (!camera->ForceThirdPerson() || !camera->IsInThirdPerson()) {
 				logger::warn("Preview camera: could not switch to third person");
 				if (!camera->IsInFirstPerson()) {
@@ -245,6 +117,7 @@ namespace PreviewCamera
 			session.forcedThirdPerson = true;
 		}
 
+		// The free camera starts where the camera is; its fields are kept only to put them back.
 		session.previousState = camera->currentState;
 		session.freeFields = ReadFields(*free);
 		ToggleFreeCamera(*camera);
@@ -259,32 +132,43 @@ namespace PreviewCamera
 			}
 			return false;
 		}
-		free->SetInputEventHandlingEnabled(false);
+		free->SetInputEventHandlingEnabled(false);  // the window drives it (Move)
+		free->zUpDown = {};
+		free->verticalDirection = 0;
+		free->lockToZPlane = false;
 
-		session.actor = actor.GetHandle();
-		if (!isPlayer) {
-			session.blockedMovement = HoldMovement(actor);
-			session.hidesPlayer = true;
-			HidePlayer(session);
-		}
 		session.active = true;
 		g_session = std::move(session);
-		Place(g_session);
 		logger::info("Preview camera on {:08X}", actor.GetFormID());
 		return true;
 	}
 
-	void Orbit(float turns, float wheelSteps)
+	// rotation.x is the pitch (positive looks down), rotation.y the heading the
+	// camera faces, in Skyrim's convention: heading 0 faces +Y, and turns clockwise
+	// seen from above. The engine reads the fields every frame, so nothing else
+	// needs an update.
+	void Move(const CaptureWindow::ViewInput& input)
 	{
-		if (!g_session.active) {
+		auto* camera = RE::PlayerCamera::GetSingleton();
+		auto* free = camera ? FreeState(*camera) : nullptr;
+		if (!g_session.active || !free || camera->currentState.get() != free) {
 			return;
 		}
-		g_session.yaw += turns * 2.0f * std::numbers::pi_v<float>;
-		g_session.zoom = std::clamp(g_session.zoom * std::pow(kZoomPerStep, wheelSteps), kMinZoom, kMaxZoom);
-		if (g_session.hidesPlayer) {
-			HidePlayer(g_session);  // the game can show culled nodes again as the view changes
-		}
-		Place(g_session);
+
+		free->rotation.y += input.lookX * kLookRadiansPerPixel;
+		free->rotation.x = std::clamp(free->rotation.x + input.lookY * kLookRadiansPerPixel, -kMaxPitch, kMaxPitch);
+		const float        yaw = free->rotation.y;
+		const float        pitch = free->rotation.x;
+		const RE::NiPoint3 forward{ std::sin(yaw) * std::cos(pitch), std::cos(yaw) * std::cos(pitch), -std::sin(pitch) };
+		const RE::NiPoint3 right{ std::cos(yaw), -std::sin(yaw), 0.0f };
+		const RE::NiPoint3 up{ 0.0f, 0.0f, 1.0f };
+
+		const float step = kMoveSpeed * (input.fast ? kFastFactor : 1.0f) * input.seconds;
+		auto        move = forward * (input.moveForward * step + input.zoomSteps * kZoomUnitsPerStep);
+		move += right * (input.moveRight * step);
+		// A right drag takes the view along with the mouse: the camera goes the other way.
+		move += right * (-input.panX * kPanUnitsPerPixel) + up * (input.panY * kPanUnitsPerPixel);
+		free->translation += move;
 	}
 
 	void End()
@@ -292,14 +176,7 @@ namespace PreviewCamera
 		if (!g_session.active) {
 			return;
 		}
-		auto session = std::exchange(g_session, Session{});
-		ShowPlayer(session);
-		if (session.blockedMovement) {
-			if (const auto actor = session.actor.get()) {
-				actor->GetActorRuntimeData().boolFlags.reset(RE::Actor::BOOL_FLAGS::kMovementBlocked);
-			}
-		}
-
+		auto  session = std::exchange(g_session, Session{});
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		auto* free = camera ? FreeState(*camera) : nullptr;
 		if (!free || camera->currentState.get() != free) {

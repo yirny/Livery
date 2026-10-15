@@ -3,10 +3,10 @@
 // FILE MAP
 //   State        - one mutex-guarded struct: request, name buffer, category ticks, status
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game, unless previewing)
-//   Input        - QueueInput translates engine events; FeedInput hands them and
-//                  the game's cursor position to ImGui
-//   Draw         - page switching, shared list and button-row helpers; mouse input
-//                  over the game goes to onViewInput
+//   Input        - QueueInput translates engine events and moves the game's cursor;
+//                  FeedInput hands them and the cursor position to ImGui
+//   Draw         - page switching, shared list and button-row helpers; mouse and
+//                  key input over the game goes to onViewInput
 //   Pieces page  - inventory pieces (first page), each tick handed to onPieceToggled;
 //                  Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
@@ -88,6 +88,9 @@ namespace
 		int                             selectedOutfit = -1;  // index into request.existingOutfits, -1 for none
 		int                             recentreFrames = 0;   // frames left to pin the window to its place
 		bool                            frozeGame = false;    // Open froze the game, so Close unfreezes it
+		int                             viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
+		float                           viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
+		float                           viewDragY = 0.0f;
 	};
 
 	State& GetState()
@@ -164,6 +167,12 @@ namespace
 			return ImGuiKey_A;
 		case Key::kC:
 			return ImGuiKey_C;
+		case Key::kD:
+			return ImGuiKey_D;
+		case Key::kS:
+			return ImGuiKey_S;
+		case Key::kW:
+			return ImGuiKey_W;
 		case Key::kV:
 			return ImGuiKey_V;
 		case Key::kX:
@@ -341,19 +350,49 @@ namespace
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
 	}
 
-	// A left-button drag or a wheel turn over the game rather than the window
-	// goes to onViewInput, in one SKSE task per frame that has any.
-	void ForwardViewInput(const State& a_state)
+	// Input over the game goes to onViewInput, in one SKSE task per frame that
+	// has any. A drag is a button held since a press the window did not own; the
+	// mouse moves of the frame it was held (collected by QueueInput) are a look
+	// for the left button and a pan for the right. Keys count while no item is
+	// active and no popup is open (WantCaptureKeyboard), the wheel while the
+	// cursor is over the game.
+	void ForwardViewInput(State& a_state)
 	{
 		const auto& onViewInput = a_state.request.onViewInput;
-		const auto& io = ImGui::GetIO();
-		if (!onViewInput || io.WantCaptureMouse || io.DisplaySize.x <= 0.0f) {
+		if (!onViewInput) {
 			return;
 		}
-		const float turns = ImGui::IsMouseDragging(ImGuiMouseButton_Left) ? io.MouseDelta.x / io.DisplaySize.x : 0.0f;
-		const float wheel = io.MouseWheel;
-		if (turns != 0.0f || wheel != 0.0f) {
-			SKSE::GetTaskInterface()->AddTask([onViewInput, turns, wheel] { onViewInput(turns, wheel); });
+		const auto&              io = ImGui::GetIO();
+		CaptureWindow::ViewInput input;
+		if (a_state.viewDragButton == ImGuiMouseButton_Left) {
+			input.lookX = a_state.viewDragX;
+			input.lookY = a_state.viewDragY;
+		} else if (a_state.viewDragButton == ImGuiMouseButton_Right) {
+			input.panX = a_state.viewDragX;
+			input.panY = a_state.viewDragY;
+		}
+		a_state.viewDragX = 0.0f;
+		a_state.viewDragY = 0.0f;
+		a_state.viewDragButton = -1;
+		for (const int button : { ImGuiMouseButton_Left, ImGuiMouseButton_Right }) {
+			if (ImGui::IsMouseDown(button) && !io.MouseDownOwned[button]) {
+				a_state.viewDragButton = button;
+				break;
+			}
+		}
+		if (!io.WantCaptureMouse) {
+			input.zoomSteps = io.MouseWheel;
+		}
+		if (!io.WantCaptureKeyboard) {
+			input.moveForward = (ImGui::IsKeyDown(ImGuiKey_W) ? 1.0f : 0.0f) - (ImGui::IsKeyDown(ImGuiKey_S) ? 1.0f : 0.0f);
+			input.moveRight = (ImGui::IsKeyDown(ImGuiKey_D) ? 1.0f : 0.0f) - (ImGui::IsKeyDown(ImGuiKey_A) ? 1.0f : 0.0f);
+			input.fast = io.KeyShift;
+		}
+		input.seconds = io.DeltaTime;
+		const bool any = input.lookX != 0.0f || input.lookY != 0.0f || input.panX != 0.0f || input.panY != 0.0f ||
+		                 input.moveForward != 0.0f || input.moveRight != 0.0f || input.zoomSteps != 0.0f;
+		if (any) {
+			SKSE::GetTaskInterface()->AddTask([onViewInput, input] { onViewInput(input); });
 		}
 	}
 
@@ -853,6 +892,9 @@ namespace CaptureWindow
 			state.page = Page::kPieces;
 			state.selectedOutfit = -1;
 			state.recentreFrames = 0;  // the first frame places the window anyway (ImGuiCond_Appearing)
+			state.viewDragButton = -1;
+			state.viewDragX = 0.0f;
+			state.viewDragY = 0.0f;
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.request.onPieceToggled;
@@ -911,10 +953,14 @@ namespace CaptureWindow
 
 	// --- Input (game thread) --------------------------------------------------
 
+	// Contract: the game sees none of these events (Hooks.cpp), so the Cursor
+	// Menu is handed the mouse moves here, as Photo Mode does; during a drag over
+	// the game they turn the camera instead and the cursor stays put.
 	void QueueInput(RE::InputEvent* const* a_events)
 	{
-		auto&                  state = GetState();
-		const std::scoped_lock lock(state.mutex);
+		auto&                    state = GetState();
+		const std::scoped_lock   lock(state.mutex);
+		RE::GPtr<RE::CursorMenu> cursorMenu;
 		for (auto* event = *a_events; event; event = event->next) {
 			if (const auto* button = event->AsButtonEvent()) {
 				RecordButton(state.pending, *button);
@@ -922,6 +968,20 @@ namespace CaptureWindow
 				// ASCII only: the game's char events carry the ANSI code page.
 				if (chr->keyCode >= 0x20 && chr->keyCode < 0x7F) {
 					state.pending.push_back({ InputRecord::Kind::kChar, static_cast<int>(chr->keyCode), true, 0.0f });
+				}
+			} else if (auto* move = event->AsMouseMoveEvent()) {
+				if (state.viewDragButton >= 0) {
+					state.viewDragX += static_cast<float>(move->mouseInputX);
+					state.viewDragY += static_cast<float>(move->mouseInputY);
+					continue;
+				}
+				if (!cursorMenu) {
+					if (auto* ui = RE::UI::GetSingleton()) {
+						cursorMenu = ui->GetMenu<RE::CursorMenu>();
+					}
+				}
+				if (cursorMenu) {
+					cursorMenu->AsMenuEventHandler()->ProcessMouseMove(move);  // via the accessor: the SE/AE/VR build has no static base
 				}
 			}
 		}
