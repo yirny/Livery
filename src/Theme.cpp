@@ -679,34 +679,57 @@ namespace Theme
 		DrawCornerKnot(draw, bottomRight, -1.0f, -1.0f);
 	}
 
-	void HeadingText(const char* a_text)
+	void HeadingText(const char* a_text, const char* a_subtitle)
 	{
 		const auto* files = FontFilesOf(g_skin);
 		const auto* loaded = LoadedFontsOf(g_skin);
 		const bool  ownFont = files && loaded->heading;
+		const bool  nordic = g_skin == Skin::kNordic;
+		const bool  subtitled = a_subtitle && *a_subtitle;
+		const auto  centre = [](float a_width) {
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - a_width) * 0.5f));
+		};
+		// The gap below an item comes from the item spacing in force while it is laid out:
+		// the subtitle sits close under the heading, and the wider gap follows only the
+		// last element (the rule in Nordic).
+		const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+		const ImVec2 wider(spacing.x, spacing.y + kHeadingGapExtra * g_scale);
+		const ImVec2 tight(spacing.x, (std::max)(0.0f, spacing.y - kLabelGapTrim * g_scale));
+		const ImVec2 afterLast = nordic ? spacing : wider;
+
 		if (ownFont) {
 			ImGui::PushFont(loaded->heading, files->heading.size);
 		}
-		// The gap below an item comes from the item spacing in force while it is laid out,
-		// so the wider spacing wraps only the heading's last element.
-		const auto&  spacing = ImGui::GetStyle().ItemSpacing;
-		const ImVec2 wider(spacing.x, spacing.y + kHeadingGapExtra * g_scale);
-		const bool   nordic = g_skin == Skin::kNordic;
 		if (nordic) {
-			const float width = ImGui::CalcTextSize(a_text).x;
-			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
-		} else {
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, wider);
+			centre(ImGui::CalcTextSize(a_text).x);
 		}
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, subtitled ? tight : afterLast);
 		ImGui::TextUnformatted(a_text);
+		ImGui::PopStyleVar();
 		if (ownFont) {
 			ImGui::PopFont();
 		}
+
+		if (subtitled) {
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, afterLast);
+			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			// Nordic centres a subtitle that fits on one line; a longer one wraps from the left.
+			const float width = ImGui::CalcTextSize(a_subtitle).x;
+			if (nordic && width <= ImGui::GetContentRegionAvail().x) {
+				centre(width);
+				ImGui::TextUnformatted(a_subtitle);
+			} else {
+				ImGui::TextWrapped("%s", a_subtitle);
+			}
+			ImGui::PopStyleColor();
+			ImGui::PopStyleVar();
+		}
+
 		if (nordic) {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, wider);
 			DrawHeadingRule();
+			ImGui::PopStyleVar();
 		}
-		ImGui::PopStyleVar();
 	}
 
 	float Scale()
