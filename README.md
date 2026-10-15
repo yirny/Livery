@@ -1,9 +1,10 @@
-# tailoroutfitcapture
+# Tailor Outfit Capture
 
-A starter template for Skyrim Special Edition / Anniversary Edition SKSE plugins using
-[CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMake](https://cmake.org), and [vcpkg](https://vcpkg.io).
+An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the armor an NPC is wearing as a new
+[Tailor](https://github.com/heathbrownkeyworks/Tailor) outfit, or puts it on an outfit Tailor already has. Aim at the
+NPC, press the hotkey, name the outfit in a small window, done.
 
-Supports building on **Linux** (cross-compilation via `clang-cl` + [xwin](https://github.com/Jake-Shadle/xwin)) and **Windows** (MSVC).
+Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMake](https://cmake.org) and [vcpkg](https://vcpkg.io).
 
 ---
 
@@ -12,26 +13,27 @@ Supports building on **Linux** (cross-compilation via `clang-cl` + [xwin](https:
 ## Requirements
 
 - [SKSE64](https://skse.silverlock.org/)
-- [Tailor](https://www.nexusmods.com/skyrimspecialedition) 3.0 or newer
+- [Tailor](https://github.com/heathbrownkeyworks/Tailor) 3.0 or newer (mod API 1.0)
 - [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) for SE and AE, or [VR Address Library for SKSEVR](https://www.nexusmods.com/skyrimspecialedition/mods/58101) for VR
+- Optional: SKSE Menu Framework, for changing the settings in game
 
 ## Installation
 
 **Mod manager (recommended):**
 
 1. Install the requirements above.
-2. Install tailoroutfitcapture via your mod manager.
+2. Install Tailor Outfit Capture via your mod manager.
 3. Launch Skyrim via SKSE.
 
 **Manual:**
 
 1. Install the requirements above.
-2. Copy `tailoroutfitcapture.dll` to `Data\SKSE\Plugins\`.
+2. Copy the `SKSE` folder from the archive into `Data\` (it holds `tailoroutfitcapture.dll` and the fonts and textures of the window skins).
 3. Launch Skyrim via SKSE.
 
 ## Compatibility
 
-- Compatible with Skyrim SE, AE, and VR.
+- Compatible with Skyrim SE, AE, and VR. On VR there is no capture window: the outfit is saved under an automatic name.
 - No ESP/ESL required.
 
 <!-- nexus:end -->
@@ -40,19 +42,48 @@ Supports building on **Linux** (cross-compilation via `clang-cl` + [xwin](https:
 
 ## What the Plugin Does
 
-TailorOutfitCapture captures the armor an NPC is currently wearing into a [Tailor](https://github.com/heathbrownkeyworks/Tailor) outfit. Requires **Tailor 3.0 or newer** (mod API 1.0).
-
 1. Load a save or start a new game.
-2. Aim the crosshair at an NPC (not the player, not a child).
-3. Press **F8**. The game pauses and a small window lists the worn pieces and asks for an outfit name (pre-filled with `Captured Outfit NNN`). Press Enter or **Save** to create the outfit; **Cancel** or Esc creates nothing.
+2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never the player, never a child).
+3. Press **F8** (configurable, see [Settings](#settings)). The game freezes and the capture window opens.
 
-The plugin creates the outfit in the custom category `Captured`, adds every worn armor piece, and shows the result as a HUD message. The window is drawn with Dear ImGui on Skyrim SE/AE; on Skyrim VR there is no window and the automatic name is used. Only ASCII names can be typed in this version.
+The window has three pages:
 
-The window offers Tailor's nine built-in categories (Clothing, Light Armor, Heavy Armor, Adventuring, Town, Home, Sleep, Swimming, Warm) in a multi-select dropdown, none ticked by default. Custom categories the player created in Tailor cannot be offered: Tailor's mod API 1.0 has no function that lists categories, only `DoesCategoryExist` for a name the caller already knows.
+- **Pieces** — the heading shows the NPC's name and, below it, where Tailor judges them to be and what they wear, for example `In Town, wearing "Jarl's Finery" with changes.` Under it every worn armor piece is listed with a checkbox, all ticked except wigs (pieces on the Hair slot only). **Create New** and **Update Existing** act on the ticked pieces, so both need at least one; **Cancel** or Esc closes the window and creates nothing.
+- **Name** (after Create New) — the outfit name, pre-filled with the first free `Captured Outfit NNN`; a category dropdown; and the outfit's gender. Press Enter or **Create** to save, **Back** to return to the pieces.
+- **Update Existing** — the outfits Tailor already has (left), with the selected one's categories and pieces (right). **Update** asks for confirmation, then replaces the outfit's pieces with the ticked ones and adds it to the categories you ticked. Its name, gender and existing categories stay as they are.
 
-Details go to `Documents/My Games/Skyrim Special Edition/SKSE/TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
+The result is shown as a HUD message. The plugin creates nothing until you confirm, and it never deletes or renames anything: Tailor's mod API 1.0 cannot delete an outfit or take one out of a category, so the window warns before every step that cannot be undone.
 
-Worn armor that the game created at runtime (for example, player-enchanted gear) is skipped, because Tailor refuses it and the API cannot delete an empty outfit.
+### Categories and gender
+
+The dropdown lists Tailor's built-in categories in two groups — armor class (Clothing, Light Armor, Heavy Armor) and situation (Adventuring, Town, Home, Sleep, Swimming, Warm) — followed by the custom categories you created in Tailor, read from its `library.json`. The armor class is detected from the worn pieces (body first, then head, hands, feet, circlet) and ticked for you; no situation is ever ticked by default, so a captured outfit never enters a situation pool unless you put it there.
+
+Gender is suggested the same way: **Female** when the deciding piece has only a female model, **Unisex** otherwise, and never Male unless you pick it. Tailor cannot change an outfit's gender later.
+
+### What gets captured
+
+Every worn armor piece from a plugin. Player-enchanted gear is saved as the plugin armor it was made from (Tailor refuses armor the game created at runtime); other runtime-created armor is left out. Pieces from plugins that are not loaded never show up.
+
+### Settings
+
+Settings live in `Data\SKSE\Plugins\TailorOutfitCapture.ini`, which the plugin creates with defaults on first start (keys a newer version adds are appended, so an update never resets your settings). They are read once when the game starts. With SKSE Menu Framework installed, the same settings are on its **Tailor Outfit Capture** page and take effect at once.
+
+| Section   | Key                            | Default  | Meaning                                                                                              |
+| --------- | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
+| `General` | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                             |
+| `UI`      | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla`, `Nordic` or `Classic`.                              |
+| `Hotkey`  | `Key`                          | `66`     | Capture key as a DirectInput scan code (`66` = F8). In game, click the hotkey button and press a key. |
+| `Hotkey`  | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).          |
+
+Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope; **Classic** is Dear ImGui's default dark style. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\TailorOutfitCapture\` with their licences.
+
+### Limits
+
+- Only ASCII can be typed into the name field (the game's text input carries the ANSI code page).
+- The window is drawn with Dear ImGui on Skyrim SE/AE only. On Skyrim VR the hotkey saves the outfit at once under the automatic name, with the detected armor class and gender and no situation.
+- Outfit names on the Update Existing page come from Tailor's `outfits.json`, checked against Tailor's library; an outfit Tailor has not written to disk yet is not listed.
+
+Details go to `Documents\My Games\Skyrim Special Edition\SKSE\TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
 
 ---
 
@@ -64,9 +95,13 @@ Worn armor that the game created at runtime (for example, player-enchanted gear)
 
 - [Git](https://git-scm.com/)
 - [CMake](https://cmake.org/download/) 3.21+
-- [vcpkg](https://vcpkg.io/en/getting-started) — set `VCPKG_ROOT` in your environment
+- The `vcpkg` and `CommonLibSSE-NG` submodules: clone with `--recurse-submodules`, or run `git submodule update --init --recursive`
 
-#### Linux
+#### Windows
+
+- [Visual Studio 2022 or newer](https://visualstudio.microsoft.com/) (or the standalone Build Tools) with **Desktop development with C++**, which provides MSVC, CMake, and Ninja
+
+#### Linux (cross-compilation)
 
 - LLVM/Clang (provides `clang-cl`, `lld-link`, `llvm-lib`, `llvm-rc`, `llvm-mt`)
 - [xwin](https://github.com/Jake-Shadle/xwin) — downloads the real Windows SDK and MSVC CRT headers/libs
@@ -93,102 +128,11 @@ xwin splat --output ~/.xwin
 > lld-link is case-sensitive but CommonLibSSE-NG references libs with mixed-case names.
 > The originals are untouched.
 
-#### Windows
-
-- [Visual Studio 2022 or newer](https://visualstudio.microsoft.com/) (or the standalone Build Tools) with **Desktop development with C++**, which provides MSVC, CMake, and Ninja
-
 ---
 
-### Getting Started
+### Build
 
-#### 1. Create your repo from the template
-
-With the GitHub CLI, create your own repo from the template and clone it with submodules:
-
-```bash
-# Pick visibility: --public (free GitHub Actions) or --private
-gh repo create your-org/your-mod --template codepuncher/CommonLibSSE-NG-template --public
-gh repo clone your-org/your-mod -- --recurse-submodules
-cd your-mod
-```
-
-Or click **"Use this template"** on GitHub, then clone your new repo with submodules:
-
-```bash
-git clone --recurse-submodules https://github.com/your-org/your-mod.git
-cd your-mod
-```
-
-The `--recurse-submodules` flag (or `-- --recurse-submodules` for `gh repo clone`) is required: the build needs the vcpkg and CommonLibSSE-NG submodules. If you cloned without it, run `git submodule update --init --recursive`.
-
-#### 2. Set your mod name and author
-
-For a repo created from the template, the **Template Setup** workflow (`setup.yml`) renames the `tailoroutfitcapture` and `LocalDeveloper` (author) placeholders, deriving them from the repo name and owner, commits the result, and removes itself. It can run automatically when the repo is created; if it hasn't, trigger it from the **Actions** tab ("Template Setup" > "Run workflow"). Once it has run, `git pull` to get the renamed sources.
-
-Prefer to rename locally, or cloned the template directly? Run the init script instead. It replaces the placeholders, initialises the submodules (CommonLibSSE-NG + vcpkg), bootstraps vcpkg, and copies `.env.example` to `.env`.
-
-**Linux** — run interactively or pass arguments directly:
-
-```bash
-./scripts/init.sh
-# or:
-./scripts/init.sh "AuthorName" "ModName"
-```
-
-**Windows (PowerShell)**:
-
-```powershell
-.\scripts\init.ps1
-# or:
-.\scripts\init.ps1 "AuthorName" "ModName"
-```
-
-#### 3. Configure deploy path
-
-Copy `.env.example` to `.env` if you don't have one yet (the init script does this for you), then set `SKYRIM_MODS_FOLDER` to your mod manager's staging folder:
-
-```bash
-# Vortex (Linux, Steam):
-SKYRIM_MODS_FOLDER=$HOME/.local/share/Steam/steamapps/common/Vortex Mods/skyrimse
-
-# MO2 (Linux):
-# SKYRIM_MODS_FOLDER=$HOME/MO2/mods
-```
-
-#### 4. Build
-
-```bash
-./scripts/build.sh
-# or directly:
-cmake --preset release-linux
-cmake --build --preset release-linux
-```
-
-The DLL lands in `build/release-linux/tailoroutfitcapture.dll`.
-
-##### Deploy to mod manager
-
-```bash
-./scripts/deploy.sh
-# or directly (deploy.sh sources .env for you; cmake does not):
-source .env && cmake --workflow --preset deploy
-```
-
-This configures, builds, and copies `tailoroutfitcapture.dll` + `tailoroutfitcapture.pdb` directly into:
-
-```
-$SKYRIM_MODS_FOLDER/tailoroutfitcapture/SKSE/Plugins/
-```
-
-Vortex will detect the new mod folder automatically. Enable it in Vortex, then launch Skyrim.
-
-On subsequent builds (no config change needed):
-
-```bash
-./scripts/deploy.sh
-```
-
-##### Windows (MSVC)
+#### Windows (MSVC)
 
 ```bash
 cmake --preset release-windows
@@ -199,17 +143,46 @@ cmake --build --preset release-windows
 
 The DLL lands in `build/msvc/tailoroutfitcapture.dll`.
 
-#### 5. Running tests
+In VS Code, `.vscode/tasks.json` runs the same commands inside the VS developer environment; the default build task (`Ctrl+Shift+B`) builds and deploys in one go.
+
+#### Linux (clang-cl + xwin)
+
+```bash
+./scripts/build.sh
+# or directly:
+cmake --preset release-linux
+cmake --build --preset release-linux
+```
+
+The DLL lands in `build/release-linux/tailoroutfitcapture.dll`.
+
+#### Deploy to a mod manager
+
+The `deploy` target copies `tailoroutfitcapture.dll`, its PDB and the `Data/SKSE/Plugins/TailorOutfitCapture` folder (skin fonts and textures) into `<deploy dir>/SKSE/Plugins/`. No INI is deployed; the plugin creates it on first start.
+
+The deploy directory is, in order: `-DDEPLOY_DIR_OVERRIDE=<path>` given at configure time; `$SKYRIM_MODS_FOLDER/tailoroutfitcapture` (your mod manager's staging folder); `$SKYRIM_FOLDER/Data`; else `build/<preset>/deploy/`. Copy `.env.example` to `.env` to set the environment variables.
+
+```bash
+# Windows: pin the destination once, then build the deploy target
+cmake --preset release-windows -DDEPLOY_DIR_OVERRIDE="C:/path/to/MO2/mods/Tailor Outfit Capture"
+cmake --build --preset release-windows --target deploy
+
+# Linux (deploy.sh sources .env for you; cmake does not):
+./scripts/deploy.sh
+# or: source .env && cmake --workflow --preset deploy
+```
+
+### Running tests
 
 Unit tests build without CommonLibSSE, so they run as a native executable. Two presets are available:
 
-- **Linux** (`test-linux`) uses the system Catch2 3 package. Install it with `sudo pacman -S catch2` on Arch/CachyOS, or your distribution's equivalent.
 - **Windows** (`test-windows`) uses Catch2 from vcpkg.
+- **Linux** (`test-linux`) uses the system Catch2 3 package. Install it with `sudo pacman -S catch2` on Arch/CachyOS, or your distribution's equivalent.
 
 ```bash
-cmake --preset test-linux
-cmake --build --preset test-linux
-ctest --preset test-linux
+cmake --preset test-windows
+cmake --build --preset test-windows
+ctest --preset test-windows
 ```
 
 Tests live in `test/` and use [Catch2](https://github.com/catchorg/Catch2). Only pure-logic code (no RE::/SKSE:: APIs) can be tested this way. See `src/Utils.h` and `test/ExampleTests.cpp` for the pattern.
@@ -260,6 +233,10 @@ The script pins the submodule to a release tag (`v*`) on the `ng` branch and sta
 git commit -m "chore(deps): update CommonLibSSE-NG to v10.1.0"
 ```
 
+### Tailor API header
+
+`src/TailorAPI.h` is Tailor's official header, kept identical to the upstream copy in Tailor's `docs/api/`. Replace it with a newer upstream copy instead of editing it.
+
 ---
 
 ### Nexus Mods Page
@@ -270,7 +247,7 @@ To update the Nexus page:
 
 1. Edit Requirements/Installation/Compatibility inside the `<!-- nexus:start/end -->` block in `README.md`.
 2. Edit overview, tagline, and credits directly in `docs/nexus-page.md`.
-   > **Do not edit** the `<!-- generated:start/end -->` block in `docs/nexus-page.md` — it is overwritten every time the script runs.
+   > **Do not edit** the `<!-- generated:start/end -->` block in `docs/nexus-page.md` — the script replaces it with the README block.
 3. Generate the combined BBCode output:
 
 ```bash
@@ -288,12 +265,13 @@ python3 scripts/generate-nexus-page.py --copy
 
 | Workflow           | Trigger                                                                                               | What it does                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `setup.yml`        | First push in a repo created from this template                                                       | Renames placeholders using the repo name, then self-deletes                                                                               |
 | `ci.yml`           | PRs to `main` touching `src/`, `test/`, `cmake/`, `vcpkg.json`, `CMakeLists.txt`, `CMakePresets.json` | `clang-format` (ubuntu) → `test-linux` and `build-linux` (ubuntu) and `test-windows` + `build-windows` + `clang-tidy` (windows, parallel) |
 | `release.yml`      | Push of a `v*` tag                                                                                    | Builds, packages via `scripts/package.sh`, publishes a GitHub Release with zip + PDB                                                      |
 | `nexus-upload.yml` | Auto-triggered via `workflow_run` once `release.yml` completes, or manual `workflow_dispatch`         | Downloads release zip, generates cliff release notes, uploads to Nexus Mods                                                               |
 | `lint.yml`         | PRs touching `scripts/`, `README.md`, or `docs/`                                                      | Runs shellcheck on shell scripts, plus dprint formatting and Vale prose checks on Markdown                                                |
 | `pr-title.yml`     | PR opened/edited/reopened/synchronize                                                                 | Checks PR title follows Conventional Commits (`feat`, `fix`, `chore`, `refactor`)                                                         |
+
+`setup.yml` is left over from the repository template; it only runs in a repo newly created from a template.
 
 #### Nexus Mods Upload
 
@@ -303,4 +281,4 @@ python3 scripts/generate-nexus-page.py --copy
 
 ## License
 
-Copyright (c) 2026 tailoroutfitcapture Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later, so mods built from this template are distributed under the same terms.
+Copyright (c) 2026 Tailor Outfit Capture Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later. The SKSE Menu Framework header in `extern/` is LGPL-2.1; the Barlow Condensed and Sovngarde fonts are under the SIL Open Font License; the Nordic skin's ornaments are NORDIC UI art by Dopesan, used under the permissions on its mod page.
