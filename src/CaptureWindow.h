@@ -15,8 +15,9 @@ namespace RE
 // Contract: Open, Close and SetError run on the game thread; FeedInput and
 // Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
 // the game thread from the input dispatch hook. All state is guarded by one
-// mutex. Nothing here calls Tailor: Save hands the typed name to
-// Request::onSave in an SKSE task.
+// mutex. Nothing here calls Tailor: Create New hands the typed name to
+// Request::onSave, and Update Existing the chosen outfit to Request::onUpdate,
+// in an SKSE task.
 namespace CaptureWindow
 {
 	struct CategoryOption
@@ -32,12 +33,21 @@ namespace CaptureWindow
 		bool        selected;  // initial state of its checkbox
 	};
 
+	// An outfit already in Tailor's library, shown read-only on the Update Existing page.
+	struct ExistingOutfit
+	{
+		std::string              name;
+		std::vector<std::string> categories;  // the known categories it is in
+		std::vector<std::string> pieces;      // display names of its loaded pieces
+	};
+
 	struct Request
 	{
-		std::string                 actorName;      // shown as the title line
-		std::vector<Piece>          pieces;         // shown as a checkbox list; Save needs at least one ticked
-		std::string                 suggestedName;  // initial text of the name field
-		std::vector<CategoryOption> categories;     // offered in the multi-select dropdown
+		std::string                 actorName;        // shown as the title line
+		std::vector<Piece>          pieces;           // shown as a checkbox list; both actions need at least one ticked
+		std::string                 suggestedName;    // initial text of the name field
+		std::vector<CategoryOption> categories;       // offered in the multi-select dropdown
+		std::vector<ExistingOutfit> existingOutfits;  // listed on the Update Existing page, in display order
 
 		// Runs on the game thread with the trimmed, non-empty name, the indices
 		// into `pieces` the user left ticked (ascending, never empty) and the
@@ -46,6 +56,11 @@ namespace CaptureWindow
 		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces,
 			const std::vector<std::string>& categories)>
 			onSave;
+
+		// Runs on the game thread once the user confirmed replacing the pieces of
+		// the outfit `name` (one of existingOutfits) with the ticked `pieces`
+		// (as in onSave). It must end by calling Close() or SetError().
+		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces)> onUpdate;
 	};
 
 	void Open(Request request);

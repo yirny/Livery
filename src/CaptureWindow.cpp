@@ -5,7 +5,10 @@
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game)
 //   Input        - QueueInput translates engine events; FeedInput hands them and
 //                  the game's cursor position to ImGui
-//   Draw         - the window itself
+//   Draw         - shared list and button-row helpers
+//   Create page  - name, categories, worn pieces; Create New / Update Existing / Cancel
+//   Update page  - library outfits and the chosen one's categories and pieces;
+//                  Update opens the confirm popup, whose Confirm hands over to onUpdate
 #include "PCH.h"
 
 #include "CaptureWindow.h"
@@ -20,18 +23,27 @@
 #include <array>
 #include <cstring>
 #include <format>
+#include <initializer_list>
 #include <memory>
 #include <mutex>
 
 namespace
 {
-	constexpr std::size_t kNameCapacity = 64;  // bytes, UTF-8, including the terminator
+	constexpr std::size_t kNameCapacity = 64;                 // bytes, UTF-8, including the terminator
+	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
+	constexpr const char* kConfirmPopup = "Replace pieces?";  // ID shared by OpenPopup and BeginPopupModal
 
 	enum class Status
 	{
 		kClosed,
 		kEditing,
-		kSaving  // Save pressed; waiting for onSave to Close() or SetError()
+		kSaving  // Create New or Confirm pressed; waiting for onSave / onUpdate to Close() or SetError()
+	};
+
+	enum class Page
+	{
+		kCreate,
+		kUpdate
 	};
 
 	struct InputRecord
@@ -63,6 +75,8 @@ namespace
 		bool                            focusNameField = false;
 		std::vector<InputRecord>        pending;
 		bool                            resetImGui = false;  // set by Open, handled on the next frame
+		Page                            page = Page::kCreate;
+		int                             selectedOutfit = -1;  // index into request.existingOutfits, -1 for none
 	};
 
 	State& GetState()
@@ -204,40 +218,114 @@ namespace
 	}
 
 	// No ImGui frame runs while the window is closed, so ImGui still holds what
-	// it had at closing time: queued events, held keys and buttons, open popups.
+	// it had at closing time: queued events, held keys and buttons, open popups
+	// (the confirm popup included).
 	// Contract: render thread, inside the frame (after ImGui::NewFrame).
 	void ResetImGuiState(ImGuiIO& a_io)
 	{
 		a_io.ClearEventsQueue();
 		a_io.ClearInputKeys();
 		a_io.ClearInputMouse();
-		ImGui::ClosePopupsExceptModals();
+		// ClosePopupToLevel needs at least one open popup.
+		if (ImGui::GetCurrentContext()->OpenPopupStack.Size > 0) {
+			ImGui::ClosePopupToLevel(0, false);
+		}
 	}
 
 	// --- Draw -----------------------------------------------------------------
 
-	std::size_t CountTickedPieces(const State& a_state)
+	std::vector<std::size_t> TickedPieces(const State& a_state)
 	{
-		std::size_t count = 0;
+		std::vector<std::size_t> ticked;
 		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
-			count += a_state.pieceTicked[i] ? 1 : 0;
+			if (a_state.pieceTicked[i]) {
+				ticked.push_back(i);
+			}
 		}
-		return count;
+		return ticked;
 	}
 
+	std::size_t CountTickedPieces(const State& a_state)
+	{
+		return TickedPieces(a_state).size();
+	}
+
+	// Height of a bordered list exactly as tall as its rows, so it does not
+	// scroll, capped so a long list cannot push the window off screen.
+	// An empty list keeps one row: a child of height zero would fill the window.
+	float ListHeight(std::size_t a_rows, float a_rowHeight)
+	{
+		const auto& style = ImGui::GetStyle();
+		const float rowsHeight = static_cast<float>((std::max)(a_rows, std::size_t{ 1 })) * a_rowHeight - style.ItemSpacing.y;
+		const float fullHeight = rowsHeight + (style.WindowPadding.y + style.ChildBorderSize) * 2.0f;
+		return (std::min)(fullHeight, ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio);
+	}
+
+	void DrawError(const std::string& a_message)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+		ImGui::TextWrapped("%s", a_message.c_str());
+		ImGui::PopStyleColor();
+	}
+
+	// A rule that spans the window, then the cursor placed so a row of buttons
+	// with these labels (Theme::Button, one item spacing apart) is centred.
+	void BeginButtonRow(std::initializer_list<const char*> a_labels)
+	{
+		constexpr float kRuleMargin = 4.0f;  // pixels at 1080p, added above and below the rule
+
+		const auto& style = ImGui::GetStyle();
+		const float margin = kRuleMargin * Theme::Scale();
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + margin);
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, style.ItemSpacing.y + margin));
+		ImGui::Separator();
+		ImGui::PopStyleVar();
+		float width = style.ItemSpacing.x * static_cast<float>(a_labels.size() - 1);
+		for (const auto* label : a_labels) {
+			width += Theme::ButtonWidth(label);
+		}
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
+	}
+
+	// A table hands the next cell the text baseline of the previous cell's last
+	// line (a frame's padding), which would push the cell's first label down.
+	void ResetCellBaseline()
+	{
+		ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
+	}
+
+	// The two-column layout both pages share. When it returns true, fill the
+	// cells and call EndColumns.
+	bool BeginColumns()
+	{
+		constexpr float kColumnGap = 24.0f;       // pixels at 1080p, between the columns
+		constexpr float kLeftWidthRatio = 0.45f;  // of the table width
+
+		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kColumnGap * 0.5f * Theme::Scale(), ImGui::GetStyle().CellPadding.y));
+		if (!ImGui::BeginTable("layout", 2, ImGuiTableFlags_SizingStretchProp)) {
+			ImGui::PopStyleVar();
+			return false;
+		}
+		ImGui::TableSetupColumn("left", ImGuiTableColumnFlags_WidthStretch, kLeftWidthRatio);
+		ImGui::TableSetupColumn("right", ImGuiTableColumnFlags_WidthStretch, 1.0f - kLeftWidthRatio);
+		return true;
+	}
+
+	void EndColumns()
+	{
+		ImGui::EndTable();
+		ImGui::PopStyleVar();
+	}
+
+	// --- Create page ----------------------------------------------------------
+
 	// Right column: a checkbox per worn piece; unticked pieces are left out of
-	// the outfit. The list is exactly as tall as its rows so it does not scroll,
-	// capped so a heavily dressed NPC cannot push the window off screen.
+	// the outfit.
 	void DrawPieceList(State& a_state)
 	{
-		constexpr float kMaxHeightRatio = 0.6f;  // of the screen height
-
 		const auto& pieces = a_state.request.pieces;
-		const auto& style = ImGui::GetStyle();
 		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), pieces.size()).c_str());
-		const float rowsHeight = static_cast<float>(pieces.size()) * ImGui::GetFrameHeightWithSpacing() - style.ItemSpacing.y;
-		const float fullHeight = rowsHeight + (style.WindowPadding.y + style.ChildBorderSize) * 2.0f;
-		const float listHeight = (std::min)(fullHeight, ImGui::GetIO().DisplaySize.y * kMaxHeightRatio);
+		const float listHeight = ListHeight(pieces.size(), ImGui::GetFrameHeightWithSpacing());
 		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
 			for (std::size_t i = 0; i < pieces.size(); ++i) {
 				ImGui::PushID(static_cast<int>(i));
@@ -342,9 +430,7 @@ namespace
 		} else if (CountTickedPieces(a_state) == 0) {
 			ImGui::TextDisabled("Tick at least one piece.");
 		} else if (!a_state.error.empty()) {
-			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
-			ImGui::TextWrapped("%s", a_state.error.c_str());
-			ImGui::PopStyleColor();
+			DrawError(a_state.error);
 		} else {
 			ImGui::NewLine();
 		}
@@ -356,26 +442,24 @@ namespace
 	{
 		kNone,
 		kSave,
+		kUpdatePage,
 		kCancel
 	};
 
-	// Save / Cancel centred under a rule that spans the window.
+	// Create New / Update Existing / Cancel centred under a rule.
 	// a_save is true when the name field already asked to save.
-	FormAction DrawButtons(State& a_state, bool a_save)
+	FormAction DrawCreateButtons(State& a_state, bool a_save)
 	{
-		constexpr float kRuleMargin = 4.0f;  // pixels at 1080p, added above and below the rule
-
-		const auto& style = ImGui::GetStyle();
-		const float margin = kRuleMargin * Theme::Scale();
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + margin);
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, style.ItemSpacing.y + margin));
-		ImGui::Separator();
-		ImGui::PopStyleVar();
-		const float width = Theme::ButtonWidth("Save") + style.ItemSpacing.x + Theme::ButtonWidth("Cancel");
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
-		const bool valid = !Trimmed(a_state.name.data()).empty() && CountTickedPieces(a_state) > 0;
+		BeginButtonRow({ "Create New", "Update Existing", "Cancel" });
+		const bool hasPieces = CountTickedPieces(a_state) > 0;
+		const bool valid = !Trimmed(a_state.name.data()).empty() && hasPieces;
 		ImGui::BeginDisabled(!valid);
-		const bool save = Theme::Button("Save") || a_save;
+		const bool save = Theme::Button("Create New") || a_save;
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		const bool canUpdate = hasPieces && !a_state.request.existingOutfits.empty();
+		ImGui::BeginDisabled(!canUpdate);
+		const bool update = Theme::Button("Update Existing");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
@@ -387,6 +471,9 @@ namespace
 		if (save && valid) {
 			return FormAction::kSave;
 		}
+		if (update && canUpdate) {
+			return FormAction::kUpdatePage;
+		}
 		return cancel ? FormAction::kCancel : FormAction::kNone;
 	}
 
@@ -395,12 +482,7 @@ namespace
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		const auto               name = Trimmed(a_state.name.data());
-		std::vector<std::size_t> pieces;
-		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
-			if (a_state.pieceTicked[i]) {
-				pieces.push_back(i);
-			}
-		}
+		const auto               pieces = TickedPieces(a_state);
 		std::vector<std::string> categories;
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
 			if (a_state.ticked[i]) {
@@ -414,6 +496,181 @@ namespace
 	void RequestCancel()
 	{
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
+	}
+
+	void DrawCreatePage(State& a_state)
+	{
+		bool save = false;
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		if (BeginColumns()) {
+			ImGui::TableNextColumn();
+			save = DrawNameField(a_state);
+			DrawCategoryField(a_state);
+			ImGui::TableNextColumn();
+			ResetCellBaseline();
+			DrawPieceList(a_state);
+			EndColumns();
+		}
+		const auto action = DrawCreateButtons(a_state, save);
+		ImGui::EndDisabled();
+
+		switch (action) {
+		case FormAction::kSave:
+			RequestSave(a_state);
+			break;
+		case FormAction::kUpdatePage:
+			a_state.page = Page::kUpdate;
+			a_state.error.clear();
+			break;
+		case FormAction::kCancel:
+			RequestCancel();
+			break;
+		case FormAction::kNone:
+			break;
+		}
+	}
+
+	// --- Update page ----------------------------------------------------------
+
+	// Left column: the library's outfits; clicking one selects it. Names are
+	// ImGui labels, so one containing "##" shows only up to it.
+	void DrawOutfitList(State& a_state)
+	{
+		const auto& outfits = a_state.request.existingOutfits;
+		Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
+		const float listHeight = ListHeight(outfits.size(), ImGui::GetTextLineHeightWithSpacing());
+		if (ImGui::BeginChild("outfits", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
+			for (std::size_t i = 0; i < outfits.size(); ++i) {
+				const int index = static_cast<int>(i);
+				ImGui::PushID(index);
+				if (ImGui::Selectable(outfits[i].name.c_str(), a_state.selectedOutfit == index)) {
+					a_state.selectedOutfit = index;
+				}
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndChild();
+	}
+
+	// Right column: the selected outfit as Tailor had it when the window opened.
+	void DrawOutfitDetails(const State& a_state)
+	{
+		Theme::LabelText("Categories");
+		if (a_state.selectedOutfit < 0) {
+			ImGui::TextDisabled("Select an outfit.");
+			return;
+		}
+		const auto& outfit = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)];
+		std::string categories;
+		for (const auto& category : outfit.categories) {
+			categories += categories.empty() ? "" : ", ";
+			categories += category;
+		}
+		ImGui::TextWrapped("%s", categories.empty() ? "None" : categories.c_str());
+
+		Theme::LabelText(std::format("{} piece(s)", outfit.pieces.size()).c_str());
+		const float listHeight = ListHeight(outfit.pieces.size(), ImGui::GetTextLineHeightWithSpacing());
+		if (ImGui::BeginChild("outfitPieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
+			for (const auto& piece : outfit.pieces) {
+				ImGui::TextUnformatted(piece.c_str());
+			}
+		}
+		ImGui::EndChild();
+	}
+
+	// Update / Cancel centred under a rule; Update only opens the confirm popup.
+	// Returns true when the user asked to go back to the Create page.
+	// Contract: called in the window's own ID scope, as DrawConfirmPopup is, so
+	// OpenPopup and BeginPopupModal name the same popup.
+	bool DrawUpdateButtons(State& a_state)
+	{
+		if (!a_state.error.empty()) {
+			DrawError(a_state.error);
+		}
+		BeginButtonRow({ "Update", "Cancel" });
+		ImGui::BeginDisabled(a_state.selectedOutfit < 0);
+		if (Theme::Button("Update")) {
+			ImGui::OpenPopup(kConfirmPopup);
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		// While the popup is open, Escape is its own Cancel.
+		const bool back = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kConfirmPopup));
+
+		if (a_state.status != Status::kEditing) {
+			ImGui::TextDisabled("Saving...");
+			return false;
+		}
+		return back;
+	}
+
+	// Returns true when the user confirmed replacing the selected outfit's pieces.
+	// Contract: called every frame on the Update page: a modal that is open but
+	// not submitted stays invisible and still blocks the window.
+	bool DrawConfirmPopup(const State& a_state)
+	{
+		const auto& io = ImGui::GetIO();
+		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+		auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
+		if (!Theme::HasTitleBar()) {
+			flags |= ImGuiWindowFlags_NoTitleBar;
+		}
+		if (!ImGui::BeginPopupModal(kConfirmPopup, nullptr, flags)) {
+			return false;
+		}
+		if (a_state.selectedOutfit < 0) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return false;
+		}
+		Theme::DecorateWindow();
+
+		const auto& outfit = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)];
+		ImGui::TextUnformatted(std::format("Replace the {} piece(s) of \"{}\"", outfit.pieces.size(), outfit.name).c_str());
+		ImGui::TextUnformatted(std::format("with the {} ticked piece(s)?", CountTickedPieces(a_state)).c_str());
+		ImGui::TextDisabled("Its categories stay as they are.");
+		BeginButtonRow({ "Confirm", "Cancel" });
+		const bool confirm = Theme::Button("Confirm");
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		if (confirm || cancel) {
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return confirm;
+	}
+
+	void RequestUpdate(State& a_state)
+	{
+		a_state.status = Status::kSaving;
+		a_state.error.clear();
+		const auto name = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)].name;
+		const auto pieces = TickedPieces(a_state);
+		auto       onUpdate = a_state.request.onUpdate;
+		SKSE::GetTaskInterface()->AddTask([onUpdate, name, pieces] { onUpdate(name, pieces); });
+	}
+
+	void DrawUpdatePage(State& a_state)
+	{
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		if (BeginColumns()) {
+			ImGui::TableNextColumn();
+			DrawOutfitList(a_state);
+			ImGui::TableNextColumn();
+			ResetCellBaseline();
+			DrawOutfitDetails(a_state);
+			EndColumns();
+		}
+		const bool back = DrawUpdateButtons(a_state);
+		ImGui::EndDisabled();
+
+		if (DrawConfirmPopup(a_state)) {
+			RequestUpdate(a_state);
+		} else if (back) {
+			a_state.page = Page::kCreate;
+			a_state.error.clear();
+			a_state.focusNameField = true;
+		}
 	}
 }
 
@@ -442,6 +699,8 @@ namespace CaptureWindow
 			state.focusNameField = true;
 			state.status = Status::kEditing;
 			state.resetImGui = true;
+			state.page = Page::kCreate;
+			state.selectedOutfit = -1;
 		}
 		g_open = true;
 		SetGameFrozen(true);
@@ -537,7 +796,6 @@ namespace CaptureWindow
 
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width
-		constexpr float kFormWidthRatio = 0.45f;    // left column, of the table width
 		// Width is fixed every frame; the height follows the content (a zero
 		// axis is left to AlwaysAutoResize), so the window never needs to scroll.
 		ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * kWindowWidthRatio, 0.0f), ImGuiCond_Always);
@@ -552,33 +810,10 @@ namespace CaptureWindow
 		Theme::DecorateWindow();
 
 		Theme::HeadingText(state.request.actorName.c_str());
-
-		constexpr float kColumnGap = 24.0f;  // pixels at 1080p, between the form and the piece list
-
-		bool save = false;
-		ImGui::BeginDisabled(state.status != Status::kEditing);
-		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kColumnGap * 0.5f * Theme::Scale(), ImGui::GetStyle().CellPadding.y));
-		if (ImGui::BeginTable("layout", 2, ImGuiTableFlags_SizingStretchProp)) {
-			ImGui::TableSetupColumn("form", ImGuiTableColumnFlags_WidthStretch, kFormWidthRatio);
-			ImGui::TableSetupColumn("pieces", ImGuiTableColumnFlags_WidthStretch, 1.0f - kFormWidthRatio);
-			ImGui::TableNextColumn();
-			save = DrawNameField(state);
-			DrawCategoryField(state);
-			ImGui::TableNextColumn();
-			// A table hands the next cell the text baseline of the previous cell's last
-			// line (the combo's frame padding), which would push this label down.
-			ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
-			DrawPieceList(state);
-			ImGui::EndTable();
-		}
-		ImGui::PopStyleVar();
-		const auto action = DrawButtons(state, save);
-		ImGui::EndDisabled();
-
-		if (action == FormAction::kSave) {
-			RequestSave(state);
-		} else if (action == FormAction::kCancel) {
-			RequestCancel();
+		if (state.page == Page::kCreate) {
+			DrawCreatePage(state);
+		} else {
+			DrawUpdatePage(state);
 		}
 		ImGui::End();
 	}
