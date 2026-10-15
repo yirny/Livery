@@ -3,8 +3,9 @@
 // FILE MAP
 //   Constants      - hotkey, Tailor's built-in categories
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories
-//   Capture        - F8 handler: check the target, collect worn armor, then open the name window
-//                    (or save under an automatic name where the overlay is unavailable)
+//   Capture        - F8 handler: check the target, collect worn armor, detect the armor class, then open
+//                    the name window with it ticked (or save under an automatic name with it where the
+//                    overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
 //   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, trampoline, hooks
@@ -189,12 +190,45 @@ namespace
 		return armor.HasPartOf(Slot::kHair) && !armor.HasPartOf(Slot::kHead);
 	}
 
+	// Tailor armor-type category of an outfit: the armor type of the first piece
+	// found on Body, then Head, Hands, Feet, Circlet; Clothing when none is.
+	// Body comes first because it sets how the outfit reads at a glance.
+	const char* DetectArmorClass(const std::vector<RE::TESObjectARMO*>& armors)
+	{
+		using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
+		using Type = RE::BGSBipedObjectForm::ArmorType;
+		constexpr std::array kSlotPriority{ Slot::kBody, Slot::kHead, Slot::kHands, Slot::kFeet, Slot::kCirclet };
+
+		for (const auto slot : kSlotPriority) {
+			for (const auto* armor : armors) {
+				if (!armor->HasPartOf(slot)) {
+					continue;
+				}
+				switch (armor->GetArmorType()) {
+				case Type::kLightArmor:
+					return "Light Armor";
+				case Type::kHeavyArmor:
+					return "Heavy Armor";
+				case Type::kClothing:
+					return "Clothing";
+				default:
+					break;  // out-of-range value from a broken record: try the next piece
+				}
+			}
+		}
+		return "Clothing";
+	}
+
 	void OpenNameWindow(const RE::Actor& actor, std::vector<RE::TESObjectARMO*> armors)
 	{
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
 		request.suggestedName = NextAutomaticName();
 		request.categories = AvailableCategories();
+		const auto* armorClass = DetectArmorClass(armors);
+		for (auto& category : request.categories) {
+			category.selected = category.name == armorClass;
+		}
 		for (const auto* armor : armors) {
 			request.pieces.push_back({ DisplayName(*armor), !LooksLikeWig(*armor) });
 		}
@@ -254,13 +288,18 @@ namespace
 			return;
 		}
 
-		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name, no category.
+		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name and the
+		// detected armor class. Never a situation pool: the user chose none here.
 		const auto name = NextAutomaticName();
 		if (name.empty()) {
 			Notify("Tailor Capture: no free outfit name.");
 			return;
 		}
-		if (const auto error = SaveOutfit(name, armors, {})) {
+		std::vector<std::string> categories;
+		if (const auto* armorClass = DetectArmorClass(armors); g_tailor->DoesCategoryExist(armorClass)) {
+			categories.emplace_back(armorClass);
+		}
+		if (const auto error = SaveOutfit(name, armors, categories)) {
 			Notify("Tailor Capture: " + *error);
 		}
 	}

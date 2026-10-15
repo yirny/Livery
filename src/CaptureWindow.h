@@ -21,8 +21,9 @@ namespace CaptureWindow
 {
 	struct CategoryOption
 	{
-		std::string group;  // small heading shown above the first option of each group
-		std::string name;   // the category's name as Tailor shows it
+		std::string group;             // small heading shown above the first option of each group
+		std::string name;              // the category's name as Tailor shows it
+		bool        selected = false;  // initial state of its tick
 	};
 
 	struct Piece
@@ -36,7 +37,7 @@ namespace CaptureWindow
 		std::string                 actorName;      // shown as the title line
 		std::vector<Piece>          pieces;         // shown as a checkbox list; Save needs at least one ticked
 		std::string                 suggestedName;  // initial text of the name field
-		std::vector<CategoryOption> categories;     // offered in the multi-select dropdown, none preselected
+		std::vector<CategoryOption> categories;     // offered in the multi-select dropdown
 
 		// Runs on the game thread with the trimmed, non-empty name, the indices
 		// into `pieces` the user left ticked (ascending, never empty) and the
