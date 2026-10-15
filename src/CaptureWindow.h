@@ -33,6 +33,21 @@ namespace CaptureWindow
 		bool        selected;  // initial state of its checkbox
 	};
 
+	// One frame of mouse and key input over the game rather than the window,
+	// for the preview camera.
+	struct ViewInput
+	{
+		float lookX = 0.0f;        // pixels of a left drag, right
+		float lookY = 0.0f;        // pixels of a left drag, down
+		float panX = 0.0f;         // pixels of a right drag, right
+		float panY = 0.0f;         // pixels of a right drag, down
+		float moveForward = 0.0f;  // -1, 0 or 1 from S / W
+		float moveRight = 0.0f;    // -1, 0 or 1 from A / D
+		float zoomSteps = 0.0f;    // wheel steps, positive towards the view
+		bool  fast = false;        // Shift held
+		float seconds = 0.0f;      // the frame's length
+	};
+
 	// An outfit already in Tailor's library, listed on the Update Existing page.
 	struct ExistingOutfit
 	{
@@ -76,11 +91,12 @@ namespace CaptureWindow
 		// the window freezes the game.
 		std::function<void(std::size_t index, bool ticked)> onPieceToggled;
 
-		// Runs on the game thread for each frame with a left-button drag or a
-		// wheel turn over the game rather than the window: the horizontal drag in
-		// screen widths (positive is right) and the wheel steps (positive is up).
-		// While it is set the window sits on the left of the screen. Empty for none.
-		std::function<void(float turns, float wheelSteps)> onViewInput;
+		// Runs on the game thread for each frame with input over the game rather
+		// than the window. Keys count only while no item of the window is active
+		// (a name being typed, a popup open); a drag only when it began over the
+		// game. While it is set the window sits on the left of the screen. Empty
+		// for none.
+		std::function<void(const ViewInput& input)> onViewInput;
 
 		// Runs on the game thread once the window has closed, whatever closed it:
 		// Cancel, the game hiding the menu, a load, or onSave / onUpdate calling
@@ -93,6 +109,9 @@ namespace CaptureWindow
 	void SetError(const std::string& message);
 	bool IsOpen();
 
+	// Also moves the game's cursor from the mouse moves, except during a drag
+	// over the game, whose moves go to onViewInput instead: the game itself sees
+	// no input while the window is open (Hooks.cpp).
 	void QueueInput(RE::InputEvent* const* events);
 
 	// Contract: after ImGui_ImplWin32_NewFrame and before ImGui::NewFrame.

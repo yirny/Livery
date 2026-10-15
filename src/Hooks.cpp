@@ -7,7 +7,7 @@
 //   Menu             - CaptureMenu: a movie-less game menu; the game shows its own
 //                      cursor over it, and its PostDisplay calls DrawFrame
 //   Input            - InputDispatchHook routes events to the window; while it is
-//                      open the game sees only mouse events
+//                      open the game sees no input at all
 //   Install          - writes the two trampoline calls (SE/AE only), registers the menu
 //
 // The IDs and offsets match two independent, widely used ImGui mods
@@ -33,8 +33,6 @@
 #include <atomic>
 #include <cstdint>
 #include <string_view>
-#include <utility>
-#include <vector>
 
 namespace
 {
@@ -200,11 +198,10 @@ namespace
 
 	// --- Input ----------------------------------------------------------------
 
-	// Contract: game thread. While the window is open the game sees only mouse
-	// events: its Cursor Menu moves the cursor from them, and CaptureMenu's menu
-	// context keeps them from player controls. Keys and characters reach ImGui only.
-	// The engine owns the event chain, so hidden events are unlinked for this
-	// call only and every link is restored afterwards.
+	// Contract: game thread. While the window is open every event goes to the
+	// window and none to the game, so the player cannot act (attack, draw, move);
+	// the window moves the game's cursor itself. The dispatch still runs, with an
+	// empty list, as it does for a batch with nothing to show.
 	void InputDispatchHook::thunk(RE::BSTEventSource<RE::InputEvent*>* a_dispatcher, RE::InputEvent* const* a_events)
 	{
 		if (!a_events || !*a_events || !CaptureWindow::IsOpen()) {
@@ -212,28 +209,8 @@ namespace
 			return;
 		}
 		CaptureWindow::QueueInput(a_events);
-
-		static std::vector<std::pair<RE::InputEvent*, RE::InputEvent*>> links;  // event, its original next
-		links.clear();
-		for (auto* event = *a_events; event; event = event->next) {
-			links.emplace_back(event, event->next);
-		}
-		RE::InputEvent* head = nullptr;
-		RE::InputEvent* tail = nullptr;
-		for (const auto& [event, next] : links) {
-			if (event->GetDevice() == RE::INPUT_DEVICE::kMouse) {
-				(tail ? tail->next : head) = event;
-				tail = event;
-			}
-		}
-		if (tail) {
-			tail->next = nullptr;
-		}
-		RE::InputEvent* const visible[] = { head };
-		func(a_dispatcher, visible);
-		for (const auto& [event, next] : links) {
-			event->next = next;
-		}
+		RE::InputEvent* const none[] = { nullptr };
+		func(a_dispatcher, none);
 	}
 
 	LRESULT WndProcHook::thunk(HWND a_hwnd, UINT a_msg, WPARAM a_wParam, LPARAM a_lParam)
