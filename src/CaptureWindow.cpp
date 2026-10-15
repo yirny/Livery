@@ -6,7 +6,8 @@
 //   Input        - QueueInput translates engine events; FeedInput hands them and
 //                  the game's cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers
-//   Pieces page  - inventory pieces (first page); Create New / Update Existing / Cancel
+//   Pieces page  - inventory pieces (first page), each tick handed to onPieceToggled;
+//                  Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Update page  - library outfits, the chosen one's categories (its own ones
 //                  locked, more can be ticked) and pieces; Update opens the
@@ -340,21 +341,29 @@ namespace
 	// --- Pieces page ----------------------------------------------------------
 
 	// A checkbox per inventory piece; unticked pieces are left out of the outfit.
+	// Each click goes to onPieceToggled (the live preview) in its own SKSE task,
+	// queued in click order.
 	void DrawPieceList(State& a_state)
 	{
 		const auto& pieces = a_state.request.pieces;
+		const auto& onToggled = a_state.request.onPieceToggled;
 		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), pieces.size()).c_str());
 		const float listHeight = ListHeight(pieces.size(), ImGui::GetFrameHeightWithSpacing());
 		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
 			for (std::size_t i = 0; i < pieces.size(); ++i) {
 				ImGui::PushID(static_cast<int>(i));
-				ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i]);
+				if (ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i]) && onToggled) {
+					SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_state.pieceTicked[i]] { onToggled(i, ticked); });
+				}
 				ImGui::PopID();
 			}
 		}
 		ImGui::EndChild();
 		if (CountTickedPieces(a_state) == 0) {
 			ImGui::TextDisabled("Tick at least one piece.");
+		}
+		if (!a_state.request.previewNote.empty()) {
+			ImGui::TextDisabled("%s", a_state.request.previewNote.c_str());
 		}
 	}
 
@@ -833,12 +842,14 @@ namespace CaptureWindow
 
 	void Close()
 	{
-		auto& state = GetState();
+		auto&                 state = GetState();
+		std::function<void()> onClose;
 		{
 			const std::scoped_lock lock(state.mutex);
 			if (state.status == Status::kClosed) {
 				return;
 			}
+			onClose = std::move(state.request.onClose);
 			state.status = Status::kClosed;
 			state.request = {};
 			state.ticked.reset();
@@ -849,6 +860,9 @@ namespace CaptureWindow
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
 		SetGameFrozen(false);
 		Hooks::HideMenu();
+		if (onClose) {
+			onClose();  // outside the lock: it calls Tailor
+		}
 	}
 
 	void SetError(const std::string& a_message)
