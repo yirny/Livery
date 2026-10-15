@@ -48,6 +48,8 @@ namespace
 
 	// How much closer a field label sits to its control than the item spacing (pixels at 1080p).
 	constexpr float kLabelGapTrim = 4.0f;
+	// Extra room under the heading (under its rule in Nordic) beyond the item spacing (pixels at 1080p).
+	constexpr float kHeadingGapExtra = 4.0f;
 
 	struct FontFile
 	{
@@ -685,17 +687,26 @@ namespace Theme
 		if (ownFont) {
 			ImGui::PushFont(loaded->heading, files->heading.size);
 		}
-		if (g_skin == Skin::kNordic) {
+		// The gap below an item comes from the item spacing in force while it is laid out,
+		// so the wider spacing wraps only the heading's last element.
+		const auto&  spacing = ImGui::GetStyle().ItemSpacing;
+		const ImVec2 wider(spacing.x, spacing.y + kHeadingGapExtra * g_scale);
+		const bool   nordic = g_skin == Skin::kNordic;
+		if (nordic) {
 			const float width = ImGui::CalcTextSize(a_text).x;
 			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
+		} else {
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, wider);
 		}
 		ImGui::TextUnformatted(a_text);
 		if (ownFont) {
 			ImGui::PopFont();
 		}
-		if (g_skin == Skin::kNordic) {
+		if (nordic) {
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, wider);
 			DrawHeadingRule();
 		}
+		ImGui::PopStyleVar();
 	}
 
 	float Scale()
