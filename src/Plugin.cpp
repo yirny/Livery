@@ -320,6 +320,9 @@ namespace
 	// armor (FormID 0xFF......), so player-enchanted gear is replaced by the plugin
 	// armor it was made from (templateArmor, TNAM) and counted in substituted;
 	// runtime-created armor without one is left out and counted in skipped.
+	// Non-playable armor is left out uncounted: body-mod parts such as the BHUNP /
+	// 3BA SMP objects (slot 48/50/51/60 per their MCM) are not clothing, and Tailor
+	// itself leaves non-playable armor on when it dresses the player.
 	std::vector<RE::TESObjectARMO*> CollectWornArmor(RE::Actor& actor, std::size_t& skipped, std::size_t& substituted)
 	{
 		const auto inventory = actor.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
@@ -335,7 +338,7 @@ namespace
 				continue;
 			}
 			auto* armor = object->As<RE::TESObjectARMO>();
-			if (!armor) {
+			if (!armor || armor->formFlags & RE::TESObjectARMO::RecordFlags::kNonPlayable) {
 				continue;
 			}
 			if (armor->IsDynamicForm()) {
