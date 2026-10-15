@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   State        - one mutex-guarded struct: request, name buffer, status
+//   State        - one mutex-guarded struct: request, name buffer, category ticks, status
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game)
 //   Input        - QueueInput translates engine events; Draw feeds them to ImGui
 //   Draw         - the window itself
@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <memory>
 #include <mutex>
 
 namespace
@@ -52,6 +53,7 @@ namespace
 		Status                          status = Status::kClosed;
 		CaptureWindow::Request          request;
 		std::array<char, kNameCapacity> name{};
+		std::unique_ptr<bool[]>         ticked;  // one per request.categories; bool[] because ImGui::Checkbox needs bool*
 		std::string                     error;
 		bool                            focusNameField = false;
 		std::vector<InputRecord>        pending;
@@ -212,6 +214,32 @@ namespace
 		ImGui::EndChild();
 	}
 
+	std::string CategoryPreview(const State& a_state)
+	{
+		std::string preview;
+		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
+			if (a_state.ticked[i]) {
+				preview += preview.empty() ? "" : ", ";
+				preview += a_state.request.categories[i];
+			}
+		}
+		return preview.empty() ? "None" : preview;
+	}
+
+	// Multi-select dropdown: checkboxes inside a combo, which keep the popup
+	// open while the user ticks several categories.
+	void DrawCategoryField(State& a_state)
+	{
+		ImGui::TextUnformatted("Categories");
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		if (ImGui::BeginCombo("##categories", CategoryPreview(a_state).c_str(), ImGuiComboFlags_HeightLargest)) {
+			for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
+				ImGui::Checkbox(a_state.request.categories[i].c_str(), &a_state.ticked[i]);
+			}
+			ImGui::EndCombo();
+		}
+	}
+
 	// Returns true when the user asked to save with a valid name.
 	bool DrawNameField(State& a_state)
 	{
@@ -238,9 +266,15 @@ namespace
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
-		const auto name = Trimmed(a_state.name.data());
-		auto       onSave = a_state.request.onSave;
-		SKSE::GetTaskInterface()->AddTask([onSave, name] { onSave(name); });
+		const auto               name = Trimmed(a_state.name.data());
+		std::vector<std::string> categories;
+		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
+			if (a_state.ticked[i]) {
+				categories.push_back(a_state.request.categories[i]);
+			}
+		}
+		auto onSave = a_state.request.onSave;
+		SKSE::GetTaskInterface()->AddTask([onSave, name, categories] { onSave(name, categories); });
 	}
 
 	void RequestCancel()
@@ -261,6 +295,7 @@ namespace CaptureWindow
 			state.request = std::move(a_request);
 			state.name.fill('\0');
 			std::strncpy(state.name.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
+			state.ticked = std::make_unique<bool[]>(state.request.categories.size());  // all false
 			state.error.clear();
 			state.pending.clear();
 			state.focusNameField = true;
@@ -281,6 +316,7 @@ namespace CaptureWindow
 			}
 			state.status = Status::kClosed;
 			state.request = {};
+			state.ticked.reset();
 			state.pending.clear();
 		}
 		g_open = false;
@@ -353,7 +389,9 @@ namespace CaptureWindow
 
 		const bool editing = state.status == Status::kEditing;
 		ImGui::BeginDisabled(!editing);
-		bool       save = DrawNameField(state);
+		bool save = DrawNameField(state);
+		DrawCategoryField(state);
+		ImGui::Spacing();
 		const bool valid = !Trimmed(state.name.data()).empty();
 		ImGui::BeginDisabled(!valid);
 		save = ImGui::Button("Save") || save;
