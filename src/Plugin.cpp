@@ -180,6 +180,15 @@ namespace
 		return name && *name ? name : std::format("{:08X}", armor.GetFormID());
 	}
 
+	// Wigs occupy the Hair slot without the Head slot (helmets and most hats
+	// cover both). They are offered unticked so a captured outfit does not
+	// replace another character's hair by default.
+	bool LooksLikeWig(const RE::TESObjectARMO& armor)
+	{
+		using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
+		return armor.HasPartOf(Slot::kHair) && !armor.HasPartOf(Slot::kHead);
+	}
+
 	void OpenNameWindow(const RE::Actor& actor, std::vector<RE::TESObjectARMO*> armors)
 	{
 		CaptureWindow::Request request;
@@ -187,10 +196,16 @@ namespace
 		request.suggestedName = NextAutomaticName();
 		request.categories = AvailableCategories();
 		for (const auto* armor : armors) {
-			request.pieceNames.push_back(DisplayName(*armor));
+			request.pieces.push_back({ DisplayName(*armor), !LooksLikeWig(*armor) });
 		}
-		request.onSave = [armors = std::move(armors)](const std::string& name, const std::vector<std::string>& categories) {
-			if (const auto error = SaveOutfit(name, armors, categories)) {
+		request.onSave = [armors = std::move(armors)](const std::string& name, const std::vector<std::size_t>& pieces,
+							 const std::vector<std::string>& categories) {
+			std::vector<RE::TESObjectARMO*> selected;
+			selected.reserve(pieces.size());
+			for (const auto index : pieces) {
+				selected.push_back(armors[index]);
+			}
+			if (const auto error = SaveOutfit(name, selected, categories)) {
 				CaptureWindow::SetError(*error);
 			} else {
 				CaptureWindow::Close();
