@@ -2,7 +2,7 @@
 //
 // FILE MAP
 //   State        - one mutex-guarded struct: request, name buffer, category ticks, status
-//   Game thread  - Open / Close / SetError (also freeze and unfreeze the game)
+//   Game thread  - Open / Close / SetError (also freeze and unfreeze the game, unless previewing)
 //   Input        - QueueInput translates engine events; FeedInput hands them and
 //                  the game's cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers
@@ -29,6 +29,7 @@
 #include <initializer_list>
 #include <memory>
 #include <mutex>
+#include <utility>
 
 namespace
 {
@@ -85,6 +86,7 @@ namespace
 		Page                            page = Page::kPieces;
 		int                             selectedOutfit = -1;  // index into request.existingOutfits, -1 for none
 		int                             recentreFrames = 0;   // frames left to pin the window to the screen centre
+		bool                            frozeGame = false;    // Open froze the game, so Close unfreezes it
 	};
 
 	State& GetState()
@@ -834,9 +836,14 @@ namespace CaptureWindow
 			state.page = Page::kPieces;
 			state.selectedOutfit = -1;
 			state.recentreFrames = 0;  // the first frame centres the window anyway (ImGuiCond_Appearing)
+			// A live preview needs the game running: the engine applies an NPC's
+			// queued equips in the actor update, which a frozen game skips.
+			state.frozeGame = !state.request.onPieceToggled;
 		}
 		g_open = true;
-		SetGameFrozen(true);
+		if (state.frozeGame) {
+			SetGameFrozen(true);
+		}
 		Hooks::ShowMenu();
 	}
 
@@ -844,12 +851,14 @@ namespace CaptureWindow
 	{
 		auto&                 state = GetState();
 		std::function<void()> onClose;
+		bool                  frozeGame = false;
 		{
 			const std::scoped_lock lock(state.mutex);
 			if (state.status == Status::kClosed) {
 				return;
 			}
 			onClose = std::move(state.request.onClose);
+			frozeGame = std::exchange(state.frozeGame, false);
 			state.status = Status::kClosed;
 			state.request = {};
 			state.ticked.reset();
@@ -858,7 +867,9 @@ namespace CaptureWindow
 			state.pending.clear();
 		}
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
-		SetGameFrozen(false);
+		if (frozeGame) {
+			SetGameFrozen(false);
+		}
 		Hooks::HideMenu();
 		if (onClose) {
 			onClose();  // outside the lock: it calls Tailor
