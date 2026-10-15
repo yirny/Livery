@@ -12,6 +12,7 @@
 #include "Theme.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>  // ClosePopupsExceptModals
 
 #include <algorithm>
 #include <array>
@@ -178,8 +179,12 @@ namespace
 		}
 	}
 
+	// Contract: call after ImGui_ImplWin32_NewFrame. The Win32 backend queues the
+	// OS cursor position every frame because it never sees WM_MOUSEMOVE; the
+	// position sent first here overrides it before any button event of the frame.
 	void FlushInput(State& a_state, ImGuiIO& a_io)
 	{
+		a_io.AddMousePosEvent(a_state.mouse.x, a_state.mouse.y);
 		for (const auto& record : a_state.pending) {
 			switch (record.kind) {
 			case InputRecord::Kind::kKey:
@@ -202,6 +207,17 @@ namespace
 			}
 		}
 		a_state.pending.clear();
+	}
+
+	// No ImGui frame runs while the window is closed, so ImGui still holds what
+	// it had at closing time: queued events, held keys and buttons, open popups.
+	// Contract: render thread, inside the frame (after ImGui::NewFrame).
+	void ResetImGuiState(ImGuiIO& a_io)
+	{
+		a_io.ClearEventsQueue();
+		a_io.ClearInputKeys();
+		a_io.ClearInputMouse();
+		ImGui::ClosePopupsExceptModals();
 	}
 
 	// --- Draw -----------------------------------------------------------------
@@ -477,9 +493,9 @@ namespace CaptureWindow
 		}
 
 		auto& io = ImGui::GetIO();
-		if (state.mouse.x < 0.0f) {
+		if (state.mouse.x < 0.0f) {  // first frame after Open
+			ResetImGuiState(io);
 			state.mouse = ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
-			io.AddMousePosEvent(state.mouse.x, state.mouse.y);
 		}
 		FlushInput(state, io);
 
