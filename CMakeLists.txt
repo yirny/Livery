@@ -43,6 +43,8 @@ else()
     find_package(directxtk CONFIG REQUIRED)
     # Dear ImGui with the Win32 + DX11 backends, drawn from a DXGI Present hook (src/Hooks.cpp).
     find_package(imgui CONFIG REQUIRED)
+    # Reads the player's custom categories from Tailor's library.json (src/Plugin.cpp).
+    find_package(nlohmann_json CONFIG REQUIRED)
     # rapidcsv must be in vcpkg.json (CommonLibSSE-NG unconditionally adds it as an include dir)
 
     # CommonLibSSE-NG
@@ -109,6 +111,7 @@ else()
     # imgui's vcpkg port does not link the system libraries its backends need.
     # windowscodecs (WIC) decodes the skin textures (src/Theme.cpp).
     target_link_libraries(${PROJECT_NAME} PRIVATE imgui::imgui d3d11 dwmapi imm32 windowscodecs)
+    target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
     target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
                                                        "${CMAKE_CURRENT_BINARY_DIR}/src")
