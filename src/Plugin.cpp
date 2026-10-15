@@ -4,8 +4,9 @@
 //   Constants      - Tailor's built-in categories
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
-//   Preview        - the captured actor wears kPreviewOutfit as an override that follows the piece ticks;
-//                    closing the window ends it, a save moves it to the saved outfit
+//   Preview        - the captured actor wears kPreviewOutfit as an override that follows the piece ticks,
+//                    seen through PreviewCamera; closing the window ends both, a save moves the override
+//                    to the saved outfit
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
 //                    armor, detect the armor class, list the library's outfits, then open the window with the
 //                    worn pieces ticked (or save those under an automatic name where the overlay is unavailable)
@@ -16,6 +17,7 @@
 
 #include "CaptureWindow.h"
 #include "Hooks.h"
+#include "PreviewCamera.h"
 #include "Settings.h"
 #include "TailorAPI.h"
 
@@ -394,8 +396,9 @@ namespace
 	}
 
 	// Starts the live preview for the window about to open and wires it in: ticks
-	// change kPreviewOutfit, and closing the window ends the override. When the
-	// preview cannot start, the window says why.
+	// change kPreviewOutfit, the mouse over the game turns PreviewCamera (when it
+	// could take the camera), and closing the window ends both. When the preview
+	// cannot start, the window says why.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachPreview(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
 	{
@@ -410,7 +413,13 @@ namespace
 			return;
 		}
 		request.onPieceToggled = [armors](std::size_t index, bool on) { SetPreviewPiece(armors[index], on); };
-		request.onClose = EndPreview;
+		if (PreviewCamera::Begin(actor)) {
+			request.onViewInput = PreviewCamera::Orbit;
+		}
+		request.onClose = [] {
+			PreviewCamera::End();
+			EndPreview();
+		};
 	}
 
 	// --- Capture --------------------------------------------------------------

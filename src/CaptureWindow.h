@@ -76,6 +76,12 @@ namespace CaptureWindow
 		// the window freezes the game.
 		std::function<void(std::size_t index, bool ticked)> onPieceToggled;
 
+		// Runs on the game thread for each frame with a left-button drag or a
+		// wheel turn over the game rather than the window: the horizontal drag in
+		// screen widths (positive is right) and the wheel steps (positive is up).
+		// While it is set the window sits on the left of the screen. Empty for none.
+		std::function<void(float turns, float wheelSteps)> onViewInput;
+
 		// Runs on the game thread once the window has closed, whatever closed it:
 		// Cancel, the game hiding the menu, a load, or onSave / onUpdate calling
 		// Close(). Empty for nothing to do.

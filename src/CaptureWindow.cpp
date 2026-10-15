@@ -5,7 +5,8 @@
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game, unless previewing)
 //   Input        - QueueInput translates engine events; FeedInput hands them and
 //                  the game's cursor position to ImGui
-//   Draw         - page switching, shared list and button-row helpers
+//   Draw         - page switching, shared list and button-row helpers; mouse input
+//                  over the game goes to onViewInput
 //   Pieces page  - inventory pieces (first page), each tick handed to onPieceToggled;
 //                  Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
@@ -85,7 +86,7 @@ namespace
 		bool                            resetImGui = false;  // set by Open, handled on the next frame
 		Page                            page = Page::kPieces;
 		int                             selectedOutfit = -1;  // index into request.existingOutfits, -1 for none
-		int                             recentreFrames = 0;   // frames left to pin the window to the screen centre
+		int                             recentreFrames = 0;   // frames left to pin the window to its place
 		bool                            frozeGame = false;    // Open froze the game, so Close unfreezes it
 	};
 
@@ -244,8 +245,8 @@ namespace
 
 	// --- Draw -----------------------------------------------------------------
 
-	// The window is pinned to the screen centre for a few frames, as the pages
-	// differ in size and an auto-resized window fits new content one frame late.
+	// The window is pinned to its place for a few frames, as the pages differ
+	// in size and an auto-resized window fits new content one frame late.
 	void GoToPage(State& a_state, Page a_page)
 	{
 		constexpr int kRecentreFrames = 2;  // the frame that draws the new page and the one that has fitted it
@@ -338,6 +339,22 @@ namespace
 	void RequestCancel()
 	{
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
+	}
+
+	// A left-button drag or a wheel turn over the game rather than the window
+	// goes to onViewInput, in one SKSE task per frame that has any.
+	void ForwardViewInput(const State& a_state)
+	{
+		const auto& onViewInput = a_state.request.onViewInput;
+		const auto& io = ImGui::GetIO();
+		if (!onViewInput || io.WantCaptureMouse || io.DisplaySize.x <= 0.0f) {
+			return;
+		}
+		const float turns = ImGui::IsMouseDragging(ImGuiMouseButton_Left) ? io.MouseDelta.x / io.DisplaySize.x : 0.0f;
+		const float wheel = io.MouseWheel;
+		if (turns != 0.0f || wheel != 0.0f) {
+			SKSE::GetTaskInterface()->AddTask([onViewInput, turns, wheel] { onViewInput(turns, wheel); });
+		}
 	}
 
 	// --- Pieces page ----------------------------------------------------------
@@ -835,7 +852,7 @@ namespace CaptureWindow
 			state.resetImGui = true;
 			state.page = Page::kPieces;
 			state.selectedOutfit = -1;
-			state.recentreFrames = 0;  // the first frame centres the window anyway (ImGuiCond_Appearing)
+			state.recentreFrames = 0;  // the first frame places the window anyway (ImGuiCond_Appearing)
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.request.onPieceToggled;
@@ -947,7 +964,11 @@ namespace CaptureWindow
 
 		const ImGuiCond posCondition = state.recentreFrames > 0 ? ImGuiCond_Always : ImGuiCond_Appearing;
 		state.recentreFrames = (std::max)(state.recentreFrames - 1, 0);
-		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), posCondition, ImVec2(0.5f, 0.5f));
+		// With a preview camera the window sits on the left, beside the actor it shows on the right.
+		constexpr float kSideMarginRatio = 0.03f;  // of the screen width, between its left edge and the window
+		const bool      aside = static_cast<bool>(state.request.onViewInput);
+		const float     x = aside ? io.DisplaySize.x * kSideMarginRatio : io.DisplaySize.x * 0.5f;
+		ImGui::SetNextWindowPos(ImVec2(x, io.DisplaySize.y * 0.5f), posCondition, ImVec2(aside ? 0.0f : 0.5f, 0.5f));
 		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width, for the two-column Update page
 		constexpr float kNarrowWidthRatio = 0.30f;  // of the screen width, for the one-column pages
 		const float     widthRatio = state.page == Page::kUpdate ? kWindowWidthRatio : kNarrowWidthRatio;
@@ -977,5 +998,6 @@ namespace CaptureWindow
 			break;
 		}
 		ImGui::End();
+		ForwardViewInput(state);
 	}
 }
