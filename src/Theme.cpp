@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants  - font files per skin, Tailor's palette
+//   Constants  - font files per skin, Tailor's and Nordic's palettes
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
 //   Styles     - one ImGuiStyle per skin and its resolution scale
-//   Theme      - LoadFonts / Apply / HeadingText
+//   Ornaments  - Nordic's corner knots, heading rule and pointed button frame
+//   Theme      - LoadFonts / Apply, then the skinned widgets
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
 // TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
@@ -77,6 +78,12 @@ namespace
 	constexpr ImU32 kFill2 = IM_COL32(244, 235, 216, 15);
 	constexpr ImU32 kFill3 = IM_COL32(244, 235, 216, 26);
 
+	// NORDIC UI's palette: white on smoked black, grey labels, rules and highlights.
+	constexpr ImU32 kNordicText = IM_COL32(240, 240, 240, 255);
+	constexpr ImU32 kNordicLabel = IM_COL32(165, 165, 165, 255);
+	constexpr ImU32 kNordicRule = IM_COL32(200, 200, 200, 90);
+	constexpr ImU32 kNordicOrnament = IM_COL32(150, 150, 150, 220);
+
 	struct LoadedFonts
 	{
 		ImFont* body = nullptr;     // nullptr when the file is missing
@@ -89,6 +96,7 @@ namespace
 	LoadedFonts g_vanillaFonts;
 	LoadedFonts g_nordicFonts;
 	Theme::Skin g_skin = Theme::Skin::kClassic;  // skin of the frame being built
+	float       g_scale = 1.0f;                  // its resolution scale, for hand-drawn ornaments
 
 	// nullptr for Classic, which draws with ImGui's default font.
 	const SkinFonts* FontFilesOf(Theme::Skin a_skin)
@@ -360,47 +368,115 @@ namespace
 		set(ImGuiCol_TextSelectedBg, kTint3);
 	}
 
-	// NORDIC UI: near-black panels, ivory text, thin gold rules and accents.
+	// NORDIC UI: smoked black panel with no outline (corner ornaments instead),
+	// white text, grey labels, grey highlights.
 	void SetNordicStyle(ImGuiStyle& a_style)
 	{
-		constexpr ImU32 kIvory = IM_COL32(226, 220, 205, 255);
-		constexpr ImU32 kDim = IM_COL32(140, 132, 118, 255);
-		constexpr ImU32 kGold = IM_COL32(214, 184, 120, 255);
-		constexpr ImU32 kRule = IM_COL32(200, 170, 110, 90);
-		constexpr ImU32 kGlow1 = IM_COL32(200, 170, 110, 40);
-		constexpr ImU32 kGlow2 = IM_COL32(200, 170, 110, 60);
-		constexpr ImU32 kGlow3 = IM_COL32(200, 170, 110, 90);
-		constexpr ImU32 kPanel = IM_COL32(12, 11, 10, 235);
+		constexpr ImU32 kGrey1 = IM_COL32(255, 255, 255, 15);
+		constexpr ImU32 kGrey2 = IM_COL32(255, 255, 255, 35);
+		constexpr ImU32 kGrey3 = IM_COL32(255, 255, 255, 60);
 
 		SetSquareFrames(a_style);
+		a_style.WindowBorderSize = 0.0f;
+		a_style.WindowPadding = ImVec2(28.0f, 22.0f);  // room for the corner ornaments
+
 		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
-		set(ImGuiCol_Text, kIvory);
-		set(ImGuiCol_TextDisabled, kDim);
-		set(ImGuiCol_WindowBg, IM_COL32(12, 11, 10, 218));
-		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, 60));
-		set(ImGuiCol_PopupBg, IM_COL32(14, 13, 11, 240));
-		set(ImGuiCol_TitleBg, kPanel);
-		set(ImGuiCol_TitleBgActive, IM_COL32(20, 18, 15, 240));
-		set(ImGuiCol_TitleBgCollapsed, kPanel);
-		set(ImGuiCol_Border, kRule);
-		set(ImGuiCol_FrameBg, IM_COL32(226, 220, 205, 12));
-		set(ImGuiCol_FrameBgHovered, kGlow1);
-		set(ImGuiCol_FrameBgActive, kGlow2);
+		set(ImGuiCol_Text, kNordicText);
+		set(ImGuiCol_TextDisabled, kNordicLabel);
+		set(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 190));
+		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, 0));
+		set(ImGuiCol_PopupBg, IM_COL32(10, 10, 10, 235));
+		set(ImGuiCol_Border, kNordicRule);
+		set(ImGuiCol_FrameBg, kGrey1);
+		set(ImGuiCol_FrameBgHovered, kGrey2);
+		set(ImGuiCol_FrameBgActive, kGrey3);
 		set(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_ButtonHovered, kGlow1);
-		set(ImGuiCol_ButtonActive, kGlow3);
-		set(ImGuiCol_Header, kGlow1);
-		set(ImGuiCol_HeaderHovered, kGlow2);
-		set(ImGuiCol_HeaderActive, kGlow3);
-		set(ImGuiCol_CheckMark, kGold);
-		set(ImGuiCol_Separator, kRule);
-		set(ImGuiCol_NavCursor, kGold);
-		set(ImGuiCol_InputTextCursor, kGold);
+		set(ImGuiCol_ButtonHovered, kGrey2);
+		set(ImGuiCol_ButtonActive, kGrey3);
+		set(ImGuiCol_Header, kGrey2);
+		set(ImGuiCol_HeaderHovered, kGrey2);
+		set(ImGuiCol_HeaderActive, kGrey3);
+		set(ImGuiCol_CheckMark, kNordicText);
+		set(ImGuiCol_Separator, kNordicRule);
+		set(ImGuiCol_NavCursor, kNordicText);
+		set(ImGuiCol_InputTextCursor, kNordicText);
 		set(ImGuiCol_ScrollbarBg, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_ScrollbarGrab, IM_COL32(226, 220, 205, 60));
-		set(ImGuiCol_ScrollbarGrabHovered, kGold);
-		set(ImGuiCol_ScrollbarGrabActive, kGold);
-		set(ImGuiCol_TextSelectedBg, kGlow3);
+		set(ImGuiCol_ScrollbarGrab, kGrey3);
+		set(ImGuiCol_ScrollbarGrabHovered, kNordicRule);
+		set(ImGuiCol_ScrollbarGrabActive, kNordicText);
+		set(ImGuiCol_TextSelectedBg, kGrey3);
+	}
+
+	// --- Ornaments ------------------------------------------------------------
+
+	// Line-drawn stand-in for NORDIC UI's knotwork corner: two nested L shapes
+	// and a small square in the corner. a_x / a_y (+1 or -1) point inwards.
+	void DrawCornerKnot(ImDrawList* a_draw, ImVec2 a_corner, float a_x, float a_y)
+	{
+		const float inset = 6.0f * g_scale;
+		const float outer = 16.0f * g_scale;
+		const float inner = 9.0f * g_scale;
+		const float gap = 4.0f * g_scale;
+		const float box = 3.0f * g_scale;
+		const float thick = (std::max)(1.0f, g_scale);
+		const auto  color = ImGui::GetColorU32(kNordicOrnament);
+		const auto  at = [&](float a_dx, float a_dy) { return ImVec2(a_corner.x + a_x * a_dx, a_corner.y + a_y * a_dy); };
+
+		const ImVec2 outerL[] = { at(inset + outer, inset), at(inset, inset), at(inset, inset + outer) };
+		a_draw->AddPolyline(outerL, 3, color, ImDrawFlags_None, thick);
+		const float  in = inset + gap;
+		const ImVec2 innerL[] = { at(in + inner, in), at(in, in), at(in, in + inner) };
+		a_draw->AddPolyline(innerL, 3, color, ImDrawFlags_None, thick);
+		const ImVec2 a = at(in + gap, in + gap);
+		const ImVec2 b = at(in + gap + box, in + gap + box);
+		a_draw->AddRectFilled(ImVec2((std::min)(a.x, b.x), (std::min)(a.y, b.y)), ImVec2((std::max)(a.x, b.x), (std::max)(a.y, b.y)), color);
+	}
+
+	// Thin rule under the heading with a small diamond at its centre.
+	void DrawHeadingRule()
+	{
+		const float half = ImGui::GetContentRegionAvail().x * 0.3f;
+		const float diamond = 3.5f * g_scale;
+		const float height = 8.0f * g_scale;
+		const auto  origin = ImGui::GetCursorScreenPos();
+		const float centreX = origin.x + ImGui::GetContentRegionAvail().x * 0.5f;
+		const float y = origin.y + height * 0.5f;
+		auto*       draw = ImGui::GetWindowDrawList();
+
+		draw->AddLine(ImVec2(centreX - half, y), ImVec2(centreX - diamond * 2.0f, y), ImGui::GetColorU32(kNordicRule));
+		draw->AddLine(ImVec2(centreX + diamond * 2.0f, y), ImVec2(centreX + half, y), ImGui::GetColorU32(kNordicRule));
+		draw->AddQuadFilled(ImVec2(centreX, y - diamond), ImVec2(centreX + diamond, y), ImVec2(centreX, y + diamond),
+			ImVec2(centreX - diamond, y), ImGui::GetColorU32(kNordicOrnament));
+		ImGui::Dummy(ImVec2(0.0f, height));
+	}
+
+	// NORDIC UI's main-menu button: a frame with pointed ends, grey at rest,
+	// white with a grey fill when hovered, brighter while held.
+	bool PointedButton(const char* a_label)
+	{
+		const auto&  style = ImGui::GetStyle();
+		const float  height = ImGui::GetFrameHeight();
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const ImVec2 size(text.x + style.FramePadding.x * 2.0f + height, height);
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+
+		const bool pressed = ImGui::InvisibleButton(a_label, size);
+		const bool hovered = ImGui::IsItemHovered();
+		const bool held = ImGui::IsItemActive();
+
+		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
+		const float  tip = height * 0.5f;
+		const ImVec2 frame[] = { { topLeft.x, midY }, { topLeft.x + tip, topLeft.y }, { bottomRight.x - tip, topLeft.y }, { bottomRight.x, midY },
+			{ bottomRight.x - tip, bottomRight.y }, { topLeft.x + tip, bottomRight.y } };
+		auto*        draw = ImGui::GetWindowDrawList();
+		if (hovered || held) {
+			draw->AddConvexPolyFilled(frame, 6, ImGui::GetColorU32(IM_COL32(255, 255, 255, held ? 60 : 30)));
+		}
+		const float thick = (std::max)(1.0f, g_scale) * (hovered ? 1.5f : 1.0f);
+		draw->AddPolyline(frame, 6, ImGui::GetColorU32(hovered ? kNordicText : kNordicOrnament), ImDrawFlags_Closed, thick);
+		draw->AddText(ImVec2(topLeft.x + (size.x - text.x) * 0.5f, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		return pressed;
 	}
 }
 
@@ -444,22 +520,67 @@ namespace Theme
 			scale = ResolutionScale(a_displayHeight);
 			style.FontSizeBase = files->body.size;  // also sizes the default font when the skin's is missing
 		}
+		g_scale = scale;
 		style.ScaleAllSizes(scale);
 		style.FontScaleMain = scale;
 		ImGui::GetStyle() = style;  // Classic keeps FontSizeBase 0: NewFrame takes the default font's size
 		ImGui::GetIO().FontDefault = font;
 	}
 
+	bool HasTitleBar()
+	{
+		return g_skin != Skin::kNordic;
+	}
+
+	void DecorateWindow()
+	{
+		if (g_skin != Skin::kNordic) {
+			return;
+		}
+		auto*        draw = ImGui::GetWindowDrawList();
+		const ImVec2 topLeft = ImGui::GetWindowPos();
+		const ImVec2 size = ImGui::GetWindowSize();
+		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+		DrawCornerKnot(draw, topLeft, 1.0f, 1.0f);
+		DrawCornerKnot(draw, ImVec2(bottomRight.x, topLeft.y), -1.0f, 1.0f);
+		DrawCornerKnot(draw, ImVec2(topLeft.x, bottomRight.y), 1.0f, -1.0f);
+		DrawCornerKnot(draw, bottomRight, -1.0f, -1.0f);
+	}
+
 	void HeadingText(const char* a_text)
 	{
 		const auto* files = FontFilesOf(g_skin);
 		const auto* loaded = LoadedFontsOf(g_skin);
-		if (!files || !loaded->heading) {
+		const bool  ownFont = files && loaded->heading;
+		if (ownFont) {
+			ImGui::PushFont(loaded->heading, files->heading.size);
+		}
+		if (g_skin == Skin::kNordic) {
+			const float width = ImGui::CalcTextSize(a_text).x;
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
+		}
+		ImGui::TextUnformatted(a_text);
+		if (ownFont) {
+			ImGui::PopFont();
+		}
+		if (g_skin == Skin::kNordic) {
+			DrawHeadingRule();
+		}
+	}
+
+	void LabelText(const char* a_text)
+	{
+		if (g_skin != Skin::kNordic) {
 			ImGui::TextUnformatted(a_text);
 			return;
 		}
-		ImGui::PushFont(loaded->heading, files->heading.size);
+		ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);
 		ImGui::TextUnformatted(a_text);
-		ImGui::PopFont();
+		ImGui::PopStyleColor();
+	}
+
+	bool Button(const char* a_label)
+	{
+		return g_skin == Skin::kNordic ? PointedButton(a_label) : ImGui::Button(a_label);
 	}
 }

@@ -21,6 +21,22 @@ namespace Theme
 	// for the skin and scales it to the back buffer height in pixels.
 	void Apply(Skin skin, float displayHeight);
 
-	// Draws one line in the active skin's heading font (between Apply and Render).
+	// The widgets below draw in the active skin, between Apply and Render.
+	// Nordic decorates them; the other skins draw plain ImGui widgets.
+
+	// False when the skin draws its window without a title bar (Nordic).
+	bool HasTitleBar();
+
+	// Call right after ImGui::Begin: corner ornaments (Nordic).
+	void DecorateWindow();
+
+	// One line in the heading font; Nordic centres it over an ornamented rule.
 	void HeadingText(const char* text);
+
+	// A field label: grey in Nordic, plain text elsewhere.
+	void LabelText(const char* text);
+
+	// Returns true when pressed. Nordic draws a pointed-end frame.
+	// Contract: the label is shown as is, so it must not use "##" IDs.
+	bool Button(const char* label);
 }
