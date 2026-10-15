@@ -278,6 +278,10 @@ namespace
 			logger::info("RestrictToFollowersAndSpouse = {} (SKSE Menu Framework)", value);
 		}
 
+		// Two Spacing() calls separate the settings; they scale with the framework's font.
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
 		// Takes effect the next time the capture window opens.
 		ImGuiMCP::Text("Window skin");
 		const auto skin = g_skin.load();
@@ -291,6 +295,9 @@ namespace
 				logger::info("Skin = {} (SKSE Menu Framework)", option.label);
 			}
 		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
 
 		// The next key press is taken by OnInput; "###" keeps the button's ID while its text changes.
 		ImGuiMCP::Text("Capture hotkey");
