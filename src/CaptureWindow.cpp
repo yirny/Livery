@@ -8,8 +8,9 @@
 //   Draw         - page switching, shared list and button-row helpers
 //   Pieces page  - worn pieces (first page); Create New / Update Existing / Cancel
 //   Name page    - name and categories of the new outfit; Create / Back
-//   Update page  - library outfits and the chosen one's categories and pieces;
-//                  Update opens the confirm popup, whose Confirm hands over to onUpdate
+//   Update page  - library outfits, the chosen one's categories (its own ones
+//                  locked, more can be ticked) and pieces; Update opens the
+//                  confirm popup, whose Confirm hands over to onUpdate
 #include "PCH.h"
 
 #include "CaptureWindow.h"
@@ -71,8 +72,10 @@ namespace
 		Status                          status = Status::kClosed;
 		CaptureWindow::Request          request;
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         pieceTicked;  // one per request.pieces; bool[] because ImGui::Checkbox needs bool*
-		std::unique_ptr<bool[]>         ticked;       // one per request.categories
+		std::unique_ptr<bool[]>         pieceTicked;   // one per request.pieces; bool[] because ImGui::Checkbox needs bool*
+		std::unique_ptr<bool[]>         ticked;        // one per request.categories
+		std::unique_ptr<bool[]>         updateTicked;  // one per request.categories, for the selected outfit
+		std::unique_ptr<bool[]>         updateLocked;  // one per request.categories: the selected outfit is already in it
 		std::string                     error;
 		bool                            focusNameField = false;
 		std::vector<InputRecord>        pending;
@@ -412,16 +415,25 @@ namespace
 
 	// --- Name page ------------------------------------------------------------
 
-	std::string CategoryPreview(const State& a_state)
+	std::string JoinNames(const std::vector<std::string>& a_names)
 	{
-		std::string preview;
+		std::string joined;
+		for (const auto& name : a_names) {
+			joined += joined.empty() ? "" : ", ";
+			joined += name;
+		}
+		return joined;
+	}
+
+	std::string CategoryPreview(const State& a_state, const bool* a_ticked)
+	{
+		std::vector<std::string> names;
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
-			if (a_state.ticked[i]) {
-				preview += preview.empty() ? "" : ", ";
-				preview += a_state.request.categories[i].name;
+			if (a_ticked[i]) {
+				names.push_back(a_state.request.categories[i].name);
 			}
 		}
-		return preview.empty() ? "None" : preview;
+		return names.empty() ? "None" : JoinNames(names);
 	}
 
 	// One full-width option row: hover fill, a highlighted fill and accent text
@@ -429,9 +441,12 @@ namespace
 	// close the combo popup, so the user can tick several rows in one go.
 	// The hit area also covers half the gap above and below the fill, so rows
 	// stacked with no item spacing leave no dead strip between them.
+	// A locked row is drawn greyed out (BeginDisabled scales every colour's
+	// alpha) and ignores clicks.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
-	void DrawCategoryRow(const char* a_label, bool& a_ticked)
+	void DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_locked)
 	{
+		ImGui::BeginDisabled(a_locked);
 		const auto&  style = ImGui::GetStyle();
 		const float  halfGap = style.ItemInnerSpacing.y * 0.5f;
 		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
@@ -457,14 +472,17 @@ namespace
 			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
 			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
 		}
+		ImGui::EndDisabled();
 	}
 
 	// Multi-select dropdown: a combo whose popup lists every category as a row.
-	void DrawCategoryField(State& a_state)
+	// a_ticked and a_locked (nullptr for none locked) hold one entry per
+	// request.categories.
+	void DrawCategoryField(const State& a_state, const char* a_id, bool* a_ticked, const bool* a_locked)
 	{
 		Theme::LabelText("Categories");
 		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::BeginCombo("##categories", CategoryPreview(a_state).c_str(), ImGuiComboFlags_HeightLargest)) {
+		if (ImGui::BeginCombo(a_id, CategoryPreview(a_state, a_ticked).c_str(), ImGuiComboFlags_HeightLargest)) {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
 			const auto& options = a_state.request.categories;
 			for (std::size_t i = 0; i < options.size(); ++i) {
@@ -475,7 +493,7 @@ namespace
 					ImGui::TextDisabled("%s", options[i].group.c_str());
 				}
 				ImGui::PushID(static_cast<int>(i));
-				DrawCategoryRow(options[i].name.c_str(), a_state.ticked[i]);
+				DrawCategoryRow(options[i].name.c_str(), a_ticked[i], a_locked && a_locked[i]);
 				ImGui::PopID();
 			}
 			ImGui::PopStyleVar();
@@ -563,7 +581,7 @@ namespace
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const bool save = DrawNameField(a_state);
-		DrawCategoryField(a_state);
+		DrawCategoryField(a_state, "##categories", a_state.ticked.get(), nullptr);
 		const auto action = DrawNameButtons(a_state, save);
 		ImGui::EndDisabled();
 
@@ -581,6 +599,35 @@ namespace
 
 	// --- Update page ----------------------------------------------------------
 
+	// Starts the category ticks from the outfit's own categories, which are
+	// locked: API 1.0 can add an outfit to a category but not take it out.
+	void SelectOutfit(State& a_state, int a_index)
+	{
+		if (a_state.selectedOutfit == a_index) {
+			return;  // keep the user's ticks
+		}
+		a_state.selectedOutfit = a_index;
+		const auto& joined = a_state.request.existingOutfits[static_cast<std::size_t>(a_index)].categories;
+		const auto& options = a_state.request.categories;
+		for (std::size_t i = 0; i < options.size(); ++i) {
+			const bool in = std::ranges::find(joined, options[i].name) != joined.end();
+			a_state.updateLocked[i] = in;
+			a_state.updateTicked[i] = in;
+		}
+	}
+
+	// The categories the user ticked that the selected outfit is not in yet.
+	std::vector<std::string> AddedCategories(const State& a_state)
+	{
+		std::vector<std::string> added;
+		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
+			if (a_state.updateTicked[i] && !a_state.updateLocked[i]) {
+				added.push_back(a_state.request.categories[i].name);
+			}
+		}
+		return added;
+	}
+
 	// Left column: the library's outfits; clicking one selects it. Names are
 	// ImGui labels, so one containing "##" shows only up to it.
 	void DrawOutfitList(State& a_state)
@@ -593,7 +640,7 @@ namespace
 				const int index = static_cast<int>(i);
 				ImGui::PushID(index);
 				if (ImGui::Selectable(outfits[i].name.c_str(), a_state.selectedOutfit == index)) {
-					a_state.selectedOutfit = index;
+					SelectOutfit(a_state, index);
 				}
 				ImGui::PopID();
 			}
@@ -601,21 +648,17 @@ namespace
 		ImGui::EndChild();
 	}
 
-	// Right column: the selected outfit as Tailor had it when the window opened.
-	void DrawOutfitDetails(const State& a_state)
+	// Right column: the selected outfit as Tailor had it when the window opened,
+	// with a dropdown to add it to more categories.
+	void DrawOutfitDetails(State& a_state)
 	{
-		Theme::LabelText("Categories");
 		if (a_state.selectedOutfit < 0) {
+			Theme::LabelText("Categories");
 			ImGui::TextDisabled("Select an outfit.");
 			return;
 		}
 		const auto& outfit = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)];
-		std::string categories;
-		for (const auto& category : outfit.categories) {
-			categories += categories.empty() ? "" : ", ";
-			categories += category;
-		}
-		ImGui::TextWrapped("%s", categories.empty() ? "None" : categories.c_str());
+		DrawCategoryField(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
 
 		Theme::LabelText(std::format("{} piece(s)", outfit.pieces.size()).c_str());
 		const float listHeight = ListHeight(outfit.pieces.size(), ImGui::GetTextLineHeightWithSpacing());
@@ -653,7 +696,8 @@ namespace
 		return back;
 	}
 
-	// Returns true when the user confirmed replacing the selected outfit's pieces.
+	// Returns true when the user confirmed replacing the selected outfit's pieces
+	// and adding it to the newly ticked categories.
 	// Contract: called every frame on the Update page: a modal that is open but
 	// not submitted stays invisible and still blocks the window.
 	bool DrawConfirmPopup(const State& a_state)
@@ -677,7 +721,12 @@ namespace
 		const auto& outfit = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)];
 		ImGui::TextUnformatted(std::format("Replace the {} piece(s) of \"{}\"", outfit.pieces.size(), outfit.name).c_str());
 		ImGui::TextUnformatted(std::format("with the {} ticked piece(s)?", CountTickedPieces(a_state)).c_str());
-		ImGui::TextDisabled("Its categories stay as they are.");
+		if (const auto added = AddedCategories(a_state); added.empty()) {
+			ImGui::TextDisabled("Its categories stay as they are.");
+		} else {
+			ImGui::TextUnformatted(std::format("Also add it to: {}.", JoinNames(added)).c_str());
+			ImGui::TextDisabled("Categories cannot be removed later.");
+		}
 		BeginButtonRow({ "Confirm", "Cancel" });
 		const bool confirm = Theme::Button("Confirm");
 		ImGui::SameLine();
@@ -695,8 +744,9 @@ namespace
 		a_state.error.clear();
 		const auto name = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)].name;
 		const auto pieces = TickedPieces(a_state);
+		const auto categories = AddedCategories(a_state);
 		auto       onUpdate = a_state.request.onUpdate;
-		SKSE::GetTaskInterface()->AddTask([onUpdate, name, pieces] { onUpdate(name, pieces); });
+		SKSE::GetTaskInterface()->AddTask([onUpdate, name, pieces, categories] { onUpdate(name, pieces, categories); });
 	}
 
 	void DrawUpdatePage(State& a_state)
@@ -741,6 +791,8 @@ namespace CaptureWindow
 			for (std::size_t i = 0; i < state.request.categories.size(); ++i) {
 				state.ticked[i] = state.request.categories[i].selected;
 			}
+			state.updateTicked = std::make_unique<bool[]>(state.request.categories.size());  // filled by SelectOutfit
+			state.updateLocked = std::make_unique<bool[]>(state.request.categories.size());
 			state.error.clear();
 			state.pending.clear();
 			state.focusNameField = false;
@@ -766,6 +818,8 @@ namespace CaptureWindow
 			state.status = Status::kClosed;
 			state.request = {};
 			state.ticked.reset();
+			state.updateTicked.reset();
+			state.updateLocked.reset();
 			state.pending.clear();
 		}
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
