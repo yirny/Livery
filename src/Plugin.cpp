@@ -364,13 +364,41 @@ namespace
 		return name && *name ? name : std::format("{:08X}", armor.GetFormID());
 	}
 
-	// Wigs occupy the Hair slot without the Head slot (helmets and most hats
-	// cover both). They are offered unticked so a captured outfit does not
-	// replace another character's hair by default.
+	// Wigs occupy the Hair slot, sometimes with Long Hair, and nothing else;
+	// vanilla helmets and hoods mostly add Circlet, Head or Body. The vanilla
+	// ones on Hair alone are listed by form. Wigs are offered unticked so a
+	// captured outfit does not replace another character's hair by default.
 	bool LooksLikeWig(const RE::TESObjectARMO& armor)
 	{
+		struct PluginForm
+		{
+			std::string_view plugin;
+			RE::FormID       localID;
+		};
+		constexpr std::array<PluginForm, 7> kHairOnlyHeadwear{ {
+			{ "Skyrim.esm", 0x1019CA },     // ArmorDraugrHelmetUnplayable
+			{ "Skyrim.esm", 0x04C3CB },     // ArmorFAlmerHelmet
+			{ "Skyrim.esm", 0x0DA750 },     // ArmorBoneCrown
+			{ "Skyrim.esm", 0x0D3EAA },     // ArmorPenitusHelmet
+			{ "Skyrim.esm", 0x0CF8B2 },     // ClothesExecutionerHood
+			{ "Skyrim.esm", 0x036A45 },     // ClothesRobesGreybeardHood
+			{ "Dawnguard.esm", 0x017E9B },  // DLC1VCClothesWarlockHoodUnplayable
+		} };
+
 		using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
-		return armor.HasPartOf(Slot::kHair) && !armor.HasPartOf(Slot::kHead);
+		auto others = armor.GetSlotMask();
+		others.reset(Slot::kHair, Slot::kLongHair);
+		if (!armor.HasPartOf(Slot::kHair) || others) {
+			return false;
+		}
+		auto* dataHandler = RE::TESDataHandler::GetSingleton();
+		if (!dataHandler) {
+			return true;
+		}
+		// LookupFormID returns 0 for a plugin that is not loaded, which matches no armor.
+		return std::ranges::none_of(kHairOnlyHeadwear, [&](const PluginForm& form) {
+			return dataHandler->LookupFormID(form.localID, form.plugin) == armor.GetFormID();
+		});
 	}
 
 	// Tailor armor-type category of an outfit: the armor type of the first piece
