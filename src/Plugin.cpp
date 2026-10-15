@@ -16,9 +16,13 @@
 #include "Settings.h"
 #include "TailorAPI.h"
 
+#include <nlohmann/json.hpp>
+
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <format>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -28,7 +32,8 @@ namespace
 	constexpr std::uint32_t kHotkey = 0x42;  // F8 (DirectInput scan code)
 
 	// Tailor's built-in categories (TailorAPI.h, "RULES EVERY FUNCTION SHARES").
-	// API 1.0 cannot list categories, so the player's custom ones cannot be offered.
+	// API 1.0 cannot list categories; the player's custom ones come from
+	// Tailor's library.json instead (ReadCustomCategoryNames).
 	struct BuiltInCategory
 	{
 		const char* group;
@@ -71,12 +76,59 @@ namespace
 		return {};
 	}
 
+	// Contract: library.json is Tailor's own file, not part of its API: read only,
+	// never written. It can lag behind Tailor's in-memory library, so callers keep
+	// only the names DoesCategoryExist confirms. Any surprise yields an empty list.
+	std::vector<std::string> ReadCustomCategoryNames()
+	{
+		constexpr auto kLibraryFile = L"Data/SKSE/Plugins/Tailor/library.json";
+		constexpr int  kKnownVersion = 2;  // the "version" field this reader was written against
+
+		const auto    path = std::filesystem::current_path() / kLibraryFile;
+		std::ifstream file{ path };
+		if (!file) {
+			logger::warn("Custom categories unavailable: cannot open Tailor's library.json");
+			return {};
+		}
+		const auto library = nlohmann::json::parse(file, nullptr, false);
+		if (library.is_discarded() || !library.is_object()) {
+			logger::warn("Custom categories unavailable: library.json is not valid JSON");
+			return {};
+		}
+		const auto version = library.find("version");
+		if (version == library.end() || !version->is_number_integer() || version->get<int>() != kKnownVersion) {
+			logger::warn("Custom categories unavailable: unknown library.json version");
+			return {};
+		}
+		const auto list = library.find("categories");
+		if (list == library.end() || !list->is_array()) {
+			logger::warn("Custom categories unavailable: library.json has no category list");
+			return {};
+		}
+
+		std::vector<std::string> names;
+		for (const auto& category : *list) {
+			const auto isDefault = category.find("isDefault");
+			const auto name = category.find("name");
+			if (isDefault != category.end() && isDefault->is_boolean() && !isDefault->get<bool>() &&
+				name != category.end() && name->is_string()) {
+				names.push_back(name->get<std::string>());
+			}
+		}
+		return names;
+	}
+
 	std::vector<CaptureWindow::CategoryOption> AvailableCategories()
 	{
 		std::vector<CaptureWindow::CategoryOption> categories;
 		for (const auto& category : kBuiltInCategories) {
 			if (g_tailor->DoesCategoryExist(category.name)) {
 				categories.push_back({ category.group, category.name });
+			}
+		}
+		for (auto& name : ReadCustomCategoryNames()) {
+			if (g_tailor->DoesCategoryExist(name.c_str())) {
+				categories.push_back({ "Custom", std::move(name) });
 			}
 		}
 		return categories;
