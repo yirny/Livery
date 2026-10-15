@@ -304,6 +304,12 @@ namespace
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
 			const auto& options = a_state.request.categories;
 			for (std::size_t i = 0; i < options.size(); ++i) {
+				if (i == 0 || options[i].group != options[i - 1].group) {
+					if (i > 0) {
+						ImGui::Dummy(ImVec2(0.0f, ImGui::GetStyle().ItemInnerSpacing.y));  // small gap before each later heading
+					}
+					ImGui::TextDisabled("%s", options[i].group.c_str());
+				}
 				ImGui::PushID(static_cast<int>(i));
 				DrawCategoryRow(options[i].name.c_str(), a_state.ticked[i]);
 				ImGui::PopID();
