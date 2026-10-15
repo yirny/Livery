@@ -318,15 +318,18 @@ namespace
 		return married && actor.IsInFaction(married);
 	}
 
-	// Worn, plugin-defined armor only. Runtime-created armor (FormID 0xFF......,
-	// e.g. player-enchanted gear) is always refused by AddArmorToOutfit.
-	std::vector<RE::TESObjectARMO*> CollectWornArmor(RE::Actor& actor, std::size_t& skipped)
+	// Worn armor as plugin-defined forms. AddArmorToOutfit refuses runtime-created
+	// armor (FormID 0xFF......), so player-enchanted gear is replaced by the plugin
+	// armor it was made from (templateArmor, TNAM) and counted in substituted;
+	// runtime-created armor without one is left out and counted in skipped.
+	std::vector<RE::TESObjectARMO*> CollectWornArmor(RE::Actor& actor, std::size_t& skipped, std::size_t& substituted)
 	{
 		const auto inventory = actor.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
 
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		skipped = 0;
+		substituted = 0;
 
 		for (const auto& [object, itemData] : inventory) {
 			const auto& [count, entry] = itemData;
@@ -338,11 +341,19 @@ namespace
 				continue;
 			}
 			if (armor->IsDynamicForm()) {
-				++skipped;
-				logger::info("Skipped runtime-created armor {:08X}", armor->GetFormID());
-				continue;
+				auto* base = armor->templateArmor;
+				if (!base || base->IsDynamicForm()) {
+					++skipped;
+					logger::info("Skipped runtime-created armor {:08X}", armor->GetFormID());
+					continue;
+				}
+				++substituted;
+				logger::info("Using base armor {:08X} for runtime-created armor {:08X}", base->GetFormID(), armor->GetFormID());
+				armor = base;
 			}
-			armors.push_back(armor);
+			if (std::ranges::find(armors, armor) == armors.end()) {
+				armors.push_back(armor);
+			}
 		}
 		return armors;
 	}
@@ -466,18 +477,20 @@ namespace
 
 	// Whether the worn armor is exactly the outfit's loaded pieces (e.g. not after
 	// the player handed the NPC better gear). Runtime-created armor never belongs
-	// to an outfit, so wearing any counts as a change.
+	// to an outfit, so wearing any counts as a change, even when its base armor
+	// matches a piece.
 	// Contract: game thread (reads the actor's inventory).
 	bool WearsOutfitAsIs(RE::Actor& actor, const std::string& outfit)
 	{
 		std::size_t skipped = 0;
-		auto        worn = CollectWornArmor(actor, skipped);
+		std::size_t substituted = 0;
+		auto        worn = CollectWornArmor(actor, skipped, substituted);
 		auto        pieces = OutfitArmors(outfit);
 		std::ranges::sort(worn);
 		std::ranges::sort(pieces);
 		const auto duplicates = std::ranges::unique(pieces);
 		pieces.erase(duplicates.begin(), duplicates.end());
-		return skipped == 0 && worn == pieces;
+		return skipped == 0 && substituted == 0 && worn == pieces;
 	}
 
 	// The line under the actor's name: where Tailor judges them to be and what it
@@ -589,7 +602,8 @@ namespace
 		}
 
 		std::size_t skipped = 0;
-		auto        armors = CollectWornArmor(*actor, skipped);
+		std::size_t substituted = 0;
+		auto        armors = CollectWornArmor(*actor, skipped, substituted);
 		if (armors.empty()) {
 			Notify(skipped ? "Tailor Capture: worn armor was created in-game and cannot be saved." :
 							 "Tailor Capture: no worn armor was found.");
