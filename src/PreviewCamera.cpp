@@ -51,6 +51,7 @@ namespace
 		FreeCameraFields                        freeFields;
 		bool                                    forcedThirdPerson = false;  // the player was in first person
 		RE::ActorHandle                         actor;                      // the previewed actor, which a left drag turns around
+		float                                   pitch = 0.0f;               // radians in -kMaxPitch..kMaxPitch, positive looks down
 	};
 
 	// Turns the camera's place around the actor by the angle the view just
@@ -160,6 +161,8 @@ namespace PreviewCamera
 		free->lockToZPlane = false;
 
 		session.actor = actor.GetHandle();
+		// Brought into -pi..pi once: the engine may keep the angle as 0..2pi.
+		session.pitch = std::clamp(std::remainder(free->rotation.x, 2.0f * std::numbers::pi_v<float>), -kMaxPitch, kMaxPitch);
 		session.active = true;
 		g_session = std::move(session);
 		logger::info("Preview camera on {:08X}", actor.GetFormID());
@@ -182,9 +185,13 @@ namespace PreviewCamera
 		const float turn = input.lookX * kLookRadiansPerPixel;
 		free->rotation.y += turn;
 		OrbitActor(*free, g_session.actor, turn);
-		free->rotation.x = std::clamp(free->rotation.x + input.lookY * kLookRadiansPerPixel, -kMaxPitch, kMaxPitch);
+		// The pitch is the session's own, never read back: the engine may store a
+		// look above the horizon as an angle near 2pi, which a clamp would turn
+		// into looking straight down.
+		g_session.pitch = std::clamp(g_session.pitch + input.lookY * kLookRadiansPerPixel, -kMaxPitch, kMaxPitch);
+		free->rotation.x = g_session.pitch;
 		const float        yaw = free->rotation.y;
-		const float        pitch = free->rotation.x;
+		const float        pitch = g_session.pitch;
 		const RE::NiPoint3 forward{ std::sin(yaw) * std::cos(pitch), std::cos(yaw) * std::cos(pitch), -std::sin(pitch) };
 		const RE::NiPoint3 right{ std::cos(yaw), -std::sin(yaw), 0.0f };
 		const RE::NiPoint3 up{ 0.0f, 0.0f, 1.0f };
