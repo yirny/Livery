@@ -89,6 +89,7 @@ else()
         src/Hooks.cpp
         src/Plugin.cpp
         src/Settings.cpp
+        src/Theme.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"
         USE_ADDRESS_LIBRARY)
 
