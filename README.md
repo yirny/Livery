@@ -1,8 +1,8 @@
 # Tailor Outfit Capture
 
-An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the armor an NPC is wearing as a new
+An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the armor an NPC, or you, are wearing as a new
 [Tailor](https://github.com/heathbrownkeyworks/Tailor) outfit, or puts it on an outfit Tailor already has. Aim at the
-NPC, press the hotkey, name the outfit in a small window, done.
+NPC (or at nothing, for yourself), press the hotkey, name the outfit in a small window, done.
 
 Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMake](https://cmake.org) and [vcpkg](https://vcpkg.io).
 
@@ -43,12 +43,12 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 ## What the Plugin Does
 
 1. Load a save or start a new game.
-2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never the player, never a child).
+2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never a child). With nothing under the crosshair the hotkey captures the player instead.
 3. Press **F8** (configurable, see [Settings](#settings)). The game freezes and the capture window opens.
 
 The window has three pages:
 
-- **Pieces** — the heading shows the NPC's name and, below it, where Tailor judges them to be and what they wear, for example `In Town, wearing "Jarl's Finery" with changes.` Under it every worn armor piece is listed with a checkbox, all ticked except wigs (pieces on the Hair slot only). **Create New** and **Update Existing** act on the ticked pieces, so both need at least one; **Cancel** or Esc closes the window and creates nothing.
+- **Pieces** — the heading shows the character's name and, below it, where Tailor judges them to be and what they wear, for example `In Town, wearing "Jarl's Finery" with changes.` Under it every worn armor piece is listed with a checkbox, all ticked except wigs (pieces on the Hair slot only). **Create New** and **Update Existing** act on the ticked pieces, so both need at least one; **Cancel** or Esc closes the window and creates nothing.
 - **Name** (after Create New) — the outfit name, pre-filled with the first free `Captured Outfit NNN`; a category dropdown; and the outfit's gender. Press Enter or **Create** to save, **Back** to return to the pieces.
 - **Update Existing** — the outfits Tailor already has (left), with the selected one's categories and pieces (right). **Update** asks for confirmation, then replaces the outfit's pieces with the ticked ones and adds it to the categories you ticked. Its name, gender and existing categories stay as they are.
 

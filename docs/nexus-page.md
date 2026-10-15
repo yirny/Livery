@@ -21,13 +21,13 @@ Aim at a follower, press a key, and the armor they wear becomes a Tailor outfit.
 
 ```bbcode
 [center][size=5][b]Tailor Outfit Capture[/b][/size]
-[i]Turn what an NPC wears into a Tailor outfit[/i][/center]
+[i]Turn what an NPC, or you, wear into a Tailor outfit[/i][/center]
 
 [line]
 
 [size=4][b][color=#B8953E]Overview[/color][/b][/size]
 
-Tailor builds outfits from pieces you pick one by one. This plugin skips that: aim the crosshair at a follower or your spouse, press [b]F8[/b], and a window lists every piece they wear. From there:
+Tailor builds outfits from pieces you pick one by one. This plugin skips that: aim the crosshair at a follower or your spouse (or at nothing, for yourself), press [b]F8[/b], and a window lists every piece they wear. From there:
 
 [list]
 [*][b]Create New[/b] saves the ticked pieces as a new outfit. The name is pre-filled ([font=Courier New]Captured Outfit 001[/font] and so on), the armor class (Clothing, Light Armor, Heavy Armor) is detected and ticked, the gender is suggested from the pieces, and Tailor's situations and your own custom categories are one click away.
