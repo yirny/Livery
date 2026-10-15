@@ -169,6 +169,23 @@ namespace
 		return categories;
 	}
 
+	// Adds the outfit to each category; returns the ones Tailor refused, joined
+	// for a HUD message ("" when none).
+	// Contract: game thread; call only once the outfit has pieces (an empty
+	// outfit in a situation pool can dress someone in nothing). API 1.0 cannot
+	// take an outfit out of a category again.
+	std::string AddCategories(const std::string& name, const std::vector<std::string>& categories)
+	{
+		std::string failed;
+		for (const auto& category : categories) {
+			if (!g_tailor->AddCategory(name.c_str(), category.c_str())) {
+				logger::warn("AddCategory({}, {}) failed", name, category);
+				failed += failed.empty() ? category : ", " + category;
+			}
+		}
+		return failed;
+	}
+
 	// Contract: game thread; Tailor 3.0 library already loaded (g_ready).
 	// API 1.0 cannot delete an outfit, so every refusal that can be checked up
 	// front is checked before CreateOutfit. Categories are added only after the
@@ -199,14 +216,7 @@ namespace
 			// Nothing can be undone here; tell the user what to clean up.
 			return "Tailor rejected every piece; delete the empty outfit in Tailor.";
 		}
-		std::string failed;
-		for (const auto& category : categories) {
-			if (!g_tailor->AddCategory(name.c_str(), category.c_str())) {
-				logger::warn("AddCategory({}, {}) failed", name, category);
-				failed += failed.empty() ? category : ", " + category;
-			}
-		}
-		if (!failed.empty()) {
+		if (const auto failed = AddCategories(name, categories); !failed.empty()) {
 			Notify(std::format("Tailor: saved {} ({} pieces), but could not add it to: {}.", name, added, failed));
 			return std::nullopt;
 		}
@@ -235,9 +245,11 @@ namespace
 	// Contract: game thread; Tailor 3.0 library already loaded (g_ready); the user
 	// confirmed replacing this outfit's pieces. New pieces go in before old ones
 	// come out, and nothing comes out unless one went in, so the outfit (which may
-	// sit in a situation pool) is never left empty. Its categories and gender stay.
+	// sit in a situation pool) is never left empty. The confirmed `categories`
+	// are added only after a piece went in; its other categories and gender stay.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> UpdateOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors)
+	std::optional<std::string> UpdateOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<std::string>& categories)
 	{
 		if (!g_ready || !g_tailor) {
 			return "Tailor 3.0+ is not ready.";
@@ -266,8 +278,15 @@ namespace
 				++stuck;
 			}
 		}
+		std::string problems;
 		if (stuck) {
-			Notify(std::format("Tailor: updated {} ({} pieces), but {} old piece(s) could not be removed.", name, accepted.size(), stuck));
+			problems = std::format("{} old piece(s) could not be removed", stuck);
+		}
+		if (const auto failed = AddCategories(name, categories); !failed.empty()) {
+			problems += (problems.empty() ? "" : "; ") + std::format("could not add it to: {}", failed);
+		}
+		if (!problems.empty()) {
+			Notify(std::format("Tailor: updated {} ({} pieces), but {}.", name, accepted.size(), problems));
 			return std::nullopt;
 		}
 
@@ -470,8 +489,9 @@ namespace
 				CaptureWindow::Close();
 			}
 		};
-		request.onUpdate = [armors = std::move(armors)](const std::string& name, const std::vector<std::size_t>& pieces) {
-			if (const auto error = UpdateOutfit(name, PickPieces(armors, pieces))) {
+		request.onUpdate = [armors = std::move(armors)](const std::string& name, const std::vector<std::size_t>& pieces,
+							   const std::vector<std::string>& categories) {
+			if (const auto error = UpdateOutfit(name, PickPieces(armors, pieces), categories)) {
 				CaptureWindow::SetError(*error);
 			} else {
 				CaptureWindow::Close();

@@ -40,7 +40,8 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 The Tailor library (outfits, categories) is shared by every save and character, and API 1.0 cannot delete outfits or categories: every building call is permanent for the user.
 
 - New outfit: an unused name (`DoesOutfitExist` first), its pieces, then its category (pieces before category).
-- Change an existing outfit's pieces only through Update Existing, after the user confirmed that outfit in the dialog: add the new pieces first, stop if none was accepted, then remove the old ones — never leave it empty. Never rename an existing outfit or change its gender or categories.
+- Change an existing outfit's pieces only through Update Existing, after the user confirmed that outfit in the dialog: add the new pieces first, stop if none was accepted, then remove the old ones — never leave it empty. Never rename an existing outfit or change its gender.
+- Add categories to an existing outfit only through Update Existing: the ones the user ticked in the dialog and confirmed, after its pieces were replaced. Categories it is already in are shown ticked and locked (API 1.0 cannot remove one); never tick a new one by default.
 - Put outfits into situation pools (Adventuring, Town, Home, Sleep, Swimming, Warm) only when the user ticked them in the window — never by default.
 - Validate inputs before `CreateOutfit` so a refusal cannot leave an empty outfit.
 - Building functions and functions taking `RE::Actor*`: game thread only (SKSE task).
@@ -90,6 +91,6 @@ Only when asked (引き継ぎ / handoff / session-end). Never auto. Read `.claud
 
 Report in **Japanese** plain text, never JSON: 要約 / 良い点 / 🔴🟡🟢 findings (`番号. 深刻度 — file:line — 一文要約`, next line 再現/影響) / 確認したいこと / テスト手順. If a tool such as `ReportFindings` is required, every field is Japanese.
 
-- **🔴 always:** edits to `lib/` submodules or `src/TailorAPI.h`; Tailor building or actor calls off the game thread; a call that can change or remove an existing Tailor outfit / category outside the confirmed Update Existing path (or in an order that can empty it), or add to a situation pool unticked; a path that can leave an empty outfit; hard-coded addresses / offsets; a hook added without approval.
+- **🔴 always:** edits to `lib/` submodules or `src/TailorAPI.h`; Tailor building or actor calls off the game thread; a call that can change or remove an existing Tailor outfit / category outside the confirmed Update Existing path (or in an order that can empty it), or add to a situation pool or category unticked; a path that can leave an empty outfit; hard-coded addresses / offsets; a hook added without approval.
 - **🟡:** allocation, Tailor library scans or info-level logging on per-frame / per-input paths; raw `RE::` pointers kept across frames (use handles); Tailor callback strings kept after the callback returns; unchecked engine singletons; changes to message-handler order.
 - **Test steps to require:** build passes and `dumpbin /exports` shows `SKSEPlugin_Load` / `SKSEPlugin_Query` / `SKSEPlugin_Version`; in game — log shows `TailorOutfitCapture loaded` and `Tailor interface found`; F8 on an adult NPC → HUD result, outfit visible in Tailor; both New Game and loading a save.

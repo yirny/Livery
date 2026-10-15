@@ -33,11 +33,11 @@ namespace CaptureWindow
 		bool        selected;  // initial state of its checkbox
 	};
 
-	// An outfit already in Tailor's library, shown read-only on the Update Existing page.
+	// An outfit already in Tailor's library, listed on the Update Existing page.
 	struct ExistingOutfit
 	{
 		std::string              name;
-		std::vector<std::string> categories;  // the known categories it is in
+		std::vector<std::string> categories;  // the known categories it is in; shown ticked and locked
 		std::vector<std::string> pieces;      // display names of its loaded pieces
 	};
 
@@ -60,8 +60,12 @@ namespace CaptureWindow
 
 		// Runs on the game thread once the user confirmed replacing the pieces of
 		// the outfit `name` (one of existingOutfits) with the ticked `pieces`
-		// (as in onSave). It must end by calling Close() or SetError().
-		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces)> onUpdate;
+		// (as in onSave) and adding it to `categories`: only those the user newly
+		// ticked, never one it is already in (in the order of `categories`, maybe
+		// empty). It must end by calling Close() or SetError().
+		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces,
+			const std::vector<std::string>& categories)>
+			onUpdate;
 	};
 
 	void Open(Request request);
