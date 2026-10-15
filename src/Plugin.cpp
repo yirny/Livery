@@ -4,9 +4,9 @@
 //   Constants      - Tailor's built-in categories
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
-//   Capture        - hotkey handler: check the target, collect worn armor, detect the armor class, list the
-//                    library's outfits, then open the window with it ticked (or save under an automatic
-//                    name with it where the overlay is unavailable)
+//   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect worn
+//                    armor, detect the armor class, list the library's outfits, then open the window with it
+//                    ticked (or save under an automatic name with it where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
 //   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, trampoline, hooks
@@ -611,18 +611,24 @@ namespace
 			return;
 		}
 
+		// Nothing (or something other than an actor) under the crosshair captures the player.
+		auto*      player = RE::PlayerCharacter::GetSingleton();
 		const auto ref = handle.get();
 		auto*      actor = ref ? ref->As<RE::Actor>() : nullptr;
-		if (!actor || actor == RE::PlayerCharacter::GetSingleton()) {
-			Notify("Tailor Capture: aim at an NPC.");
+		if (!actor) {
+			actor = player;
+		}
+		if (!actor) {
 			return;
 		}
+		const bool isPlayer = actor == player;
 		// Tailor never handles children (see TailorAPI.h).
 		if (actor->IsChild()) {
 			Notify("Tailor Capture: children's outfits cannot be captured.");
 			return;
 		}
-		if (Settings::FollowersAndSpouseOnly() && !IsFollowerOrSpouse(*actor)) {
+		// The follower restriction narrows which NPCs qualify; the player always does.
+		if (!isPlayer && Settings::FollowersAndSpouseOnly() && !IsFollowerOrSpouse(*actor)) {
 			Notify("Tailor Capture: only followers and your spouse can be captured.");
 			return;
 		}
