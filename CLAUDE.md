@@ -18,7 +18,7 @@ Build (Windows): run inside the VS developer environment (`.vscode/tasks.json` d
 
 ## 1. Pre-change confirmation (required)
 
-Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, (3) high-impact — prominent, labeled 「影響が大きい」, (4) new numeric constant placement + why (§3). Until approved: Read/Grep only. On send-back, re-present.
+Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, (3) high-impact — prominent, labeled 「影響が大きい」, (4) new numeric constant placement + why (§3). Ask this approval in a plain chat message and end the turn — never via `AskUserQuestion` — so the user can switch model before implementation. Until approved: Read/Grep only. On send-back, re-present.
 
 **A request ≠ approval.** Still confirm for: 「実装してください」「進めて」「お願いします」; settled/agreed approach; 1–2 files; 「ついでに」 follow-ons; tiny fix around a commit; contract comments / default-OFF debug logging only.
 
