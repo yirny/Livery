@@ -791,7 +791,9 @@ namespace
 		Theme::LabelText(group);
 		ImGui::PushID(group);
 		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::BeginCombo("##combo", CategoryPreview(a_state, a_ticked, a_begin, a_end).c_str(), ImGuiComboFlags_HeightLargest)) {
+		const std::string preview = CategoryPreview(a_state, a_ticked, a_begin, a_end);
+		const bool        open = Theme::BeginCombo("##combo", preview.c_str(), ImGuiComboFlags_HeightLargest);
+		if (open) {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
 			for (std::size_t i = a_begin; i < a_end; ++i) {
 				ImGui::PushID(static_cast<int>(i));
@@ -799,8 +801,8 @@ namespace
 				ImGui::PopID();
 			}
 			ImGui::PopStyleVar();
-			ImGui::EndCombo();
 		}
+		Theme::EndCombo(open, preview.c_str());
 		ImGui::PopID();
 	}
 
