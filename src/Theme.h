@@ -54,18 +54,38 @@ namespace Theme
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
 
+	// A list of rows between a rule above and a rule below, running the full
+	// width of the window (or of the table cell) past its padding; the rows'
+	// text keeps that padding as an indent. Used like BeginChild / EndChild:
+	// always call EndList. Rows go through TickRow, SelectRow or plain text.
+	bool BeginList(const char* id, float height);
+	void EndList();
+
+	// Pixels on the back buffer: the padding above and below a list's rows,
+	// and the gap between them. Tailor's tight values; the style's padding and
+	// the given gap otherwise.
+	float ListPaddingY();
+	float ListRowGap(float fallback);
+
 	// A row the user ticks on and off; returns true when toggled. While ticked,
 	// Tailor fills it faintly amber with an amber rule on its left edge, as
 	// Tailor 3.0 marks a selected row; Vanilla and Nordic draw it like a SkyUI
 	// inventory row: the skin's equipped mark and a white bar fading in from the
 	// left. Classic draws a checkbox.
-	// Contract: the label is shown as is and is the row's ImGui ID, so PushID
-	// around rows whose labels may repeat.
+	// Contract: inside BeginList; the label is shown as is and is the row's
+	// ImGui ID, so PushID around rows whose labels may repeat.
 	bool TickRow(const char* label, bool* ticked);
 
+	// A row of a single-choice list, one text line tall: filled while selected
+	// or hovered; returns true when clicked.
+	// Contract: inside BeginList; the label is shown as is and is the row's
+	// ImGui ID, so PushID around rows whose labels may repeat.
+	bool SelectRow(const char* label, bool selected);
+
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
-	// settings checkbox, the other skins (or a missing texture) ImGui's own.
-	// Faded and inert inside BeginDisabled, like ImGui::Checkbox.
+	// settings checkbox, Tailor a smaller rounded ImGui one, the other skins
+	// (or a missing texture) ImGui's own. Faded and inert inside BeginDisabled,
+	// like ImGui::Checkbox.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Checkbox(const char* label, bool* value);
 
@@ -77,9 +97,10 @@ namespace Theme
 
 	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
 	// fill the popup only when BeginCombo returned true, then call EndCombo
-	// with that result and the same preview. Vanilla and Nordic replace
-	// ImGui's arrow with the game's diamond stepper arrow (drawn, with the
-	// preview, by EndCombo); the other skins or a missing texture keep ImGui's.
+	// with that result and the same preview. Tailor replaces ImGui's arrow with
+	// a small amber chevron and tightens the popup's padding; Vanilla and
+	// Nordic replace it with the game's diamond stepper arrow (drawn, with the
+	// preview, by EndCombo). Classic, or a missing texture, keeps ImGui's.
 	// `flags` are ImGuiComboFlags.
 	bool BeginCombo(const char* id, const char* preview, int flags);
 	void EndCombo(bool open, const char* preview);
