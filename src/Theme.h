@@ -20,7 +20,7 @@ namespace Theme
 	void LoadFonts();
 
 	// Contract: render thread, once, on the game's D3D11 device. Loads the
-	// Nordic skin's ornament textures; they live as long as the process.
+	// Vanilla and Nordic skins' textures; they live as long as the process.
 	void LoadTextures(ID3D11Device* device);
 
 	// Contract: render thread, before ImGui::NewFrame. Rebuilds the whole style
@@ -53,4 +53,11 @@ namespace Theme
 
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
+
+	// A row the user ticks on and off; returns true when toggled. Vanilla and
+	// Nordic draw it like a SkyUI inventory row: the skin's equipped mark and a
+	// white bar fading in from the left while ticked. The other skins draw a checkbox.
+	// Contract: the label is shown as is and is the row's ImGui ID, so PushID
+	// around rows whose labels may repeat.
+	bool TickRow(const char* label, bool* ticked);
 }

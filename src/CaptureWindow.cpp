@@ -94,7 +94,7 @@ namespace
 		Status                          status = Status::kClosed;
 		CaptureWindow::Request          request;
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         pieceTicked;   // one per request.pieces; bool[] because ImGui::Checkbox needs bool*
+		std::unique_ptr<bool[]>         pieceTicked;   // one per request.pieces; bool[] because Theme::TickRow needs bool*
 		std::unique_ptr<bool[]>         ticked;        // one per request.categories
 		std::unique_ptr<bool[]>         updateTicked;  // one per request.categories, for the selected outfit
 		std::unique_ptr<bool[]>         updateLocked;  // one per request.categories: the selected outfit is already in it
@@ -528,7 +528,7 @@ namespace
 		}
 	}
 
-	// A checkbox per listed piece; unticked pieces are left out of the outfit.
+	// A tick row (Theme::TickRow) per listed piece; unticked pieces are left out of the outfit.
 	// Each click goes to onPieceToggled (the live preview) in its own SKSE task,
 	// queued in click order.
 	// Contract: a piece that is not listed is never ticked: only Load ticks a
@@ -546,7 +546,7 @@ namespace
 					continue;
 				}
 				ImGui::PushID(static_cast<int>(i));
-				if (ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i])) {
+				if (Theme::TickRow(pieces[i].name.c_str(), &a_state.pieceTicked[i])) {
 					QueueMenuSound(kFocusSound);
 					if (a_state.pieceTicked[i]) {
 						UntickSharingSlots(a_state, i);
