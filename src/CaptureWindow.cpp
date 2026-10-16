@@ -7,9 +7,14 @@
 //                  FeedInput hands them and the cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers; mouse and
 //                  key input over the game goes to onViewInput
-//   Pieces page  - inventory pieces (first page), each tick handed to onPieceToggled;
-//                  Create New / Update Existing / Cancel
+//   Pieces page  - inventory pieces (first page) plus the loaded outfit's, each tick
+//                  handed to onPieceToggled; Load Outfit / Create New / Update Existing /
+//                  Cancel, or Apply in place of the two saves while the ticks are
+//                  exactly the loaded outfit
 //   Name page    - name, categories and gender of the new outfit; Create / Back
+//   Outfit lists - the library outfit list and piece list both outfit pages share
+//   Load page    - library outfits, the selected one shown on the preview; Load ticks
+//                  its pieces and returns, Back restores the preview of the ticks
 //   Update page  - library outfits, the chosen one's categories (its own ones
 //                  locked, more can be ticked) and pieces; Update opens the
 //                  confirm popup, whose Confirm hands over to onUpdate
@@ -47,13 +52,14 @@ namespace
 	{
 		kClosed,
 		kEditing,
-		kSaving  // Create or Confirm pressed; waiting for onSave / onUpdate to Close() or SetError()
+		kSaving  // Create, Confirm or Apply pressed; waiting for onSave / onUpdate / onApply to Close() or SetError()
 	};
 
 	enum class Page
 	{
 		kPieces,
 		kName,
+		kLoad,
 		kUpdate
 	};
 
@@ -90,10 +96,12 @@ namespace
 		std::vector<InputRecord>        pending;
 		bool                            resetImGui = false;  // set by Open, handled on the next frame
 		Page                            page = Page::kPieces;
-		int                             selectedOutfit = -1;  // index into request.existingOutfits, -1 for none
-		int                             recentreFrames = 0;   // frames left to pin the window to its place
-		std::optional<ImVec2>           placeCentre;          // where a pinned window's centre goes; none for the start place
-		ImVec2                          windowPos{};          // of the window in the last frame drawn
+		int                             selectedOutfit = -1;   // index into request.existingOutfits, -1 for none
+		int                             previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
+		int                             loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
+		int                             recentreFrames = 0;    // frames left to pin the window to its place
+		std::optional<ImVec2>           placeCentre;           // where a pinned window's centre goes; none for the start place
+		ImVec2                          windowPos{};           // of the window in the last frame drawn
 		ImVec2                          windowSize{};
 		bool                            frozeGame = false;    // Open froze the game, so Close unfreezes it
 		int                             viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
@@ -313,6 +321,38 @@ namespace
 		return TickedPieces(a_state).size();
 	}
 
+	const CaptureWindow::ExistingOutfit& OutfitAt(const State& a_state, int a_index)
+	{
+		return a_state.request.existingOutfits[static_cast<std::size_t>(a_index)];
+	}
+
+	bool HasPiece(const CaptureWindow::ExistingOutfit& a_outfit, std::size_t a_piece)
+	{
+		return std::ranges::binary_search(a_outfit.pieces, a_piece);
+	}
+
+	// Pieces the actor carries, and those of the loaded outfit.
+	bool IsListed(const State& a_state, std::size_t a_piece)
+	{
+		return a_state.request.pieces[a_piece].owned || (a_state.loadedOutfit >= 0 && HasPiece(OutfitAt(a_state, a_state.loadedOutfit), a_piece));
+	}
+
+	std::size_t CountListedPieces(const State& a_state)
+	{
+		std::size_t listed = 0;
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			listed += IsListed(a_state, i) ? 1 : 0;
+		}
+		return listed;
+	}
+
+	void QueuePreview(const State& a_state, std::vector<std::size_t> a_pieces)
+	{
+		if (const auto& onPreview = a_state.request.onPreviewPieces) {
+			SKSE::GetTaskInterface()->AddTask([onPreview, pieces = std::move(a_pieces)] { onPreview(pieces); });
+		}
+	}
+
 	// Height of a bordered list exactly as tall as its rows, so it does not
 	// scroll, capped so a long list cannot push the window off screen.
 	// An empty list keeps one row: a child of height zero would fill the window.
@@ -331,18 +371,25 @@ namespace
 		ImGui::PopStyleColor();
 	}
 
-	// A gap, then the cursor placed so a row of buttons with these labels
-	// (Theme::Button, one item spacing apart) is centred.
+	// Width of a row of buttons with these labels (Theme::Button, one item
+	// spacing apart).
+	float ButtonRowWidth(std::initializer_list<const char*> a_labels)
+	{
+		float width = ImGui::GetStyle().ItemSpacing.x * static_cast<float>(a_labels.size() - 1);
+		for (const auto* label : a_labels) {
+			width += Theme::ButtonWidth(label);
+		}
+		return width;
+	}
+
+	// A gap, then the cursor placed so a row of buttons with these labels is centred.
 	void BeginButtonRow(std::initializer_list<const char*> a_labels)
 	{
 		constexpr float kGap = 17.0f;  // pixels at 1080p, on top of one extra item spacing
 
 		const auto& style = ImGui::GetStyle();
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.ItemSpacing.y + kGap * Theme::Scale());
-		float width = style.ItemSpacing.x * static_cast<float>(a_labels.size() - 1);
-		for (const auto* label : a_labels) {
-			width += Theme::ButtonWidth(label);
-		}
+		const float width = ButtonRowWidth(a_labels);
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
 	}
 
@@ -429,6 +476,8 @@ namespace
 
 	// --- Pieces page ----------------------------------------------------------
 
+	void SelectOutfit(State& a_state, int a_index);  // Update page
+
 	// Ticking a piece unticks the ticked ones sharing a body slot with it, as
 	// equipping it takes them off; their onPieceToggled tasks go first.
 	void UntickSharingSlots(State& a_state, std::size_t a_index)
@@ -446,17 +495,23 @@ namespace
 		}
 	}
 
-	// A checkbox per inventory piece; unticked pieces are left out of the outfit.
+	// A checkbox per listed piece; unticked pieces are left out of the outfit.
 	// Each click goes to onPieceToggled (the live preview) in its own SKSE task,
 	// queued in click order.
+	// Contract: a piece that is not listed is never ticked: only Load ticks a
+	// piece the actor does not carry, and the next Load sets every tick again.
 	void DrawPieceList(State& a_state)
 	{
 		const auto& pieces = a_state.request.pieces;
 		const auto& onToggled = a_state.request.onPieceToggled;
-		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), pieces.size()).c_str());
-		const float listHeight = ListHeight(pieces.size(), ImGui::GetFrameHeightWithSpacing());
+		const auto  listed = CountListedPieces(a_state);
+		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), listed).c_str());
+		const float listHeight = ListHeight(listed, ImGui::GetFrameHeightWithSpacing());
 		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
 			for (std::size_t i = 0; i < pieces.size(); ++i) {
+				if (!IsListed(a_state, i)) {
+					continue;
+				}
 				ImGui::PushID(static_cast<int>(i));
 				if (ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i])) {
 					if (a_state.pieceTicked[i]) {
@@ -465,6 +520,10 @@ namespace
 					if (onToggled) {
 						SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_state.pieceTicked[i]] { onToggled(i, ticked); });
 					}
+				}
+				if (!pieces[i].owned) {
+					ImGui::SameLine();
+					ImGui::TextDisabled("(not carried)");
 				}
 				ImGui::PopID();
 			}
@@ -478,49 +537,127 @@ namespace
 		}
 	}
 
+	// The widest button row of the Pieces page, which sets the page's least width.
+	float PiecesButtonsWidth()
+	{
+		return ButtonRowWidth({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
+	}
+
+	// Apply is offered while onApply is set (a live preview) and the ticks are
+	// exactly the loaded outfit's pieces: nothing added, nothing taken out.
+	bool CanApply(const State& a_state)
+	{
+		if (!a_state.request.onApply || a_state.loadedOutfit < 0) {
+			return false;
+		}
+		const auto& outfit = OutfitAt(a_state, a_state.loadedOutfit);
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			if (a_state.pieceTicked[i] != HasPiece(outfit, i)) {
+				return false;
+			}
+		}
+		return !outfit.pieces.empty();
+	}
+
 	enum class PiecesAction
 	{
 		kNone,
+		kLoadPage,
 		kNamePage,
 		kUpdatePage,
+		kApply,
 		kCancel
 	};
 
-	// Create New / Update Existing / Cancel centred below a gap. Both pages
-	// they open act on the ticked pieces, so both need at least one.
+	// Load Outfit / Create New / Update Existing / Cancel centred below a gap,
+	// or Load Outfit / Apply / Cancel while CanApply. The two save pages act on
+	// the ticked pieces, so both need at least one.
 	PiecesAction DrawPiecesButtons(const State& a_state)
 	{
-		BeginButtonRow({ "Create New", "Update Existing", "Cancel" });
-		const bool hasPieces = CountTickedPieces(a_state) > 0;
-		ImGui::BeginDisabled(!hasPieces);
-		const bool create = Theme::Button("Create New");
+		const bool apply = CanApply(a_state);
+		if (apply) {
+			BeginButtonRow({ "Load Outfit", "Apply", "Cancel" });
+		} else {
+			BeginButtonRow({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
+		}
+		const bool hasOutfits = !a_state.request.existingOutfits.empty();
+		ImGui::BeginDisabled(!hasOutfits);
+		const bool load = Theme::Button("Load Outfit");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		const bool canUpdate = hasPieces && !a_state.request.existingOutfits.empty();
-		ImGui::BeginDisabled(!canUpdate);
-		const bool update = Theme::Button("Update Existing");
-		ImGui::EndDisabled();
+
+		const bool hasPieces = CountTickedPieces(a_state) > 0;
+		bool       create = false;
+		bool       update = false;
+		bool       applied = false;
+		if (apply) {
+			applied = Theme::Button("Apply");
+		} else {
+			ImGui::BeginDisabled(!hasPieces);
+			create = Theme::Button("Create New");
+			ImGui::EndDisabled();
+			ImGui::SameLine();
+			ImGui::BeginDisabled(!hasPieces || !hasOutfits);
+			update = Theme::Button("Update Existing");
+			ImGui::EndDisabled();
+		}
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
+		if (a_state.status != Status::kEditing) {
+			ImGui::TextDisabled("Applying...");
+			return PiecesAction::kNone;
+		}
+		if (load && hasOutfits) {
+			return PiecesAction::kLoadPage;
+		}
+		if (applied) {
+			return PiecesAction::kApply;
+		}
 		if (create && hasPieces) {
 			return PiecesAction::kNamePage;
 		}
-		if (update && canUpdate) {
+		if (update && hasPieces && hasOutfits) {
 			return PiecesAction::kUpdatePage;
 		}
 		return cancel ? PiecesAction::kCancel : PiecesAction::kNone;
 	}
 
+	void RequestApply(State& a_state)
+	{
+		a_state.status = Status::kSaving;
+		a_state.error.clear();
+		auto onApply = a_state.request.onApply;
+		auto name = OutfitAt(a_state, a_state.loadedOutfit).name;
+		SKSE::GetTaskInterface()->AddTask([onApply, name = std::move(name)] { onApply(name); });
+	}
+
 	void DrawPiecesPage(State& a_state)
 	{
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		DrawPieceList(a_state);
-		switch (DrawPiecesButtons(a_state)) {
+		if (!a_state.error.empty()) {
+			DrawError(a_state.error);
+		}
+		const auto action = DrawPiecesButtons(a_state);
+		ImGui::EndDisabled();
+
+		switch (action) {
+		case PiecesAction::kLoadPage:
+			a_state.previewedOutfit = -1;
+			GoToPage(a_state, Page::kLoad);
+			break;
 		case PiecesAction::kNamePage:
 			GoToPage(a_state, Page::kName);
 			break;
 		case PiecesAction::kUpdatePage:
+			if (a_state.loadedOutfit >= 0) {
+				SelectOutfit(a_state, a_state.loadedOutfit);
+			}
 			GoToPage(a_state, Page::kUpdate);
+			break;
+		case PiecesAction::kApply:
+			RequestApply(a_state);
 			break;
 		case PiecesAction::kCancel:
 			RequestCancel();
@@ -740,6 +877,129 @@ namespace
 		}
 	}
 
+	// --- Outfit lists ---------------------------------------------------------
+
+	// Left column of the Load and Update pages: the library's outfits, `a_selected`
+	// highlighted. Returns the index of the one clicked, or -1. Names are ImGui
+	// labels, so one containing "##" shows only up to it.
+	int DrawOutfitList(const State& a_state, int a_selected)
+	{
+		const auto& outfits = a_state.request.existingOutfits;
+		Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
+		const float listHeight = ListHeight(outfits.size(), ImGui::GetTextLineHeightWithSpacing());
+		int         clicked = -1;
+		if (ImGui::BeginChild("outfits", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
+			for (std::size_t i = 0; i < outfits.size(); ++i) {
+				const int index = static_cast<int>(i);
+				ImGui::PushID(index);
+				if (ImGui::Selectable(outfits[i].name.c_str(), a_selected == index)) {
+					clicked = index;
+				}
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndChild();
+		return clicked;
+	}
+
+	// The outfit's pieces as Tailor had them when the window opened.
+	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
+	{
+		Theme::LabelText(std::format("{} piece(s)", a_outfit.pieces.size()).c_str());
+		const float listHeight = ListHeight(a_outfit.pieces.size(), ImGui::GetTextLineHeightWithSpacing());
+		if (ImGui::BeginChild("outfitPieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
+			for (const auto index : a_outfit.pieces) {
+				ImGui::TextUnformatted(a_state.request.pieces[index].name.c_str());
+			}
+		}
+		ImGui::EndChild();
+	}
+
+	// --- Load page ------------------------------------------------------------
+
+	// Right column: the previewed outfit's categories and pieces, read only.
+	void DrawLoadDetails(const State& a_state)
+	{
+		Theme::LabelText("Categories");
+		if (a_state.previewedOutfit < 0) {
+			ImGui::TextDisabled("Select an outfit.");
+			return;
+		}
+		const auto& outfit = OutfitAt(a_state, a_state.previewedOutfit);
+		const auto  categories = outfit.categories.empty() ? std::string("None") : JoinNames(outfit.categories);
+		ImGui::TextWrapped("%s", categories.c_str());
+		DrawOutfitPieces(a_state, outfit);
+	}
+
+	enum class LoadAction
+	{
+		kNone,
+		kLoad,
+		kBack
+	};
+
+	// Load / Back centred below a gap.
+	LoadAction DrawLoadButtons(const State& a_state)
+	{
+		BeginButtonRow({ "Load", "Back" });
+		const bool canLoad = a_state.previewedOutfit >= 0;
+		ImGui::BeginDisabled(!canLoad);
+		const bool load = Theme::Button("Load");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+
+		if (load && canLoad) {
+			return LoadAction::kLoad;
+		}
+		return back ? LoadAction::kBack : LoadAction::kNone;
+	}
+
+	// Ticks exactly the previewed outfit's pieces, which the preview already
+	// shows; those the actor does not carry stay listed while it is loaded.
+	void LoadOutfit(State& a_state)
+	{
+		const auto& outfit = OutfitAt(a_state, a_state.previewedOutfit);
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			a_state.pieceTicked[i] = HasPiece(outfit, i);
+		}
+		a_state.loadedOutfit = a_state.previewedOutfit;
+	}
+
+	// Selecting an outfit shows it on the preview; Back shows the ticks again.
+	// Nothing here changes the ticks until Load.
+	void DrawLoadPage(State& a_state)
+	{
+		int clicked = -1;
+		if (BeginColumns()) {
+			ImGui::TableNextColumn();
+			clicked = DrawOutfitList(a_state, a_state.previewedOutfit);
+			ImGui::TableNextColumn();
+			ResetCellBaseline();
+			DrawLoadDetails(a_state);
+			EndColumns();
+		}
+		if (clicked >= 0 && clicked != a_state.previewedOutfit) {
+			a_state.previewedOutfit = clicked;
+			QueuePreview(a_state, OutfitAt(a_state, clicked).pieces);
+		}
+
+		switch (DrawLoadButtons(a_state)) {
+		case LoadAction::kLoad:
+			LoadOutfit(a_state);
+			GoToPage(a_state, Page::kPieces);
+			break;
+		case LoadAction::kBack:
+			if (a_state.previewedOutfit >= 0) {
+				QueuePreview(a_state, TickedPieces(a_state));
+			}
+			GoToPage(a_state, Page::kPieces);
+			break;
+		case LoadAction::kNone:
+			break;
+		}
+	}
+
 	// --- Update page ----------------------------------------------------------
 
 	// Starts the category ticks from the outfit's own categories, which are
@@ -771,26 +1031,6 @@ namespace
 		return added;
 	}
 
-	// Left column: the library's outfits; clicking one selects it. Names are
-	// ImGui labels, so one containing "##" shows only up to it.
-	void DrawOutfitList(State& a_state)
-	{
-		const auto& outfits = a_state.request.existingOutfits;
-		Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
-		const float listHeight = ListHeight(outfits.size(), ImGui::GetTextLineHeightWithSpacing());
-		if (ImGui::BeginChild("outfits", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
-			for (std::size_t i = 0; i < outfits.size(); ++i) {
-				const int index = static_cast<int>(i);
-				ImGui::PushID(index);
-				if (ImGui::Selectable(outfits[i].name.c_str(), a_state.selectedOutfit == index)) {
-					SelectOutfit(a_state, index);
-				}
-				ImGui::PopID();
-			}
-		}
-		ImGui::EndChild();
-	}
-
 	// Right column: the selected outfit as Tailor had it when the window opened,
 	// with a dropdown to add it to more categories.
 	void DrawOutfitDetails(State& a_state)
@@ -800,17 +1040,8 @@ namespace
 			ImGui::TextDisabled("Select an outfit.");
 			return;
 		}
-		const auto& outfit = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)];
 		DrawCategoryField(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
-
-		Theme::LabelText(std::format("{} piece(s)", outfit.pieces.size()).c_str());
-		const float listHeight = ListHeight(outfit.pieces.size(), ImGui::GetTextLineHeightWithSpacing());
-		if (ImGui::BeginChild("outfitPieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
-			for (const auto& piece : outfit.pieces) {
-				ImGui::TextUnformatted(piece.c_str());
-			}
-		}
-		ImGui::EndChild();
+		DrawOutfitPieces(a_state, OutfitAt(a_state, a_state.selectedOutfit));
 	}
 
 	// Update / Back centred below a gap; Update only opens the confirm popup.
@@ -897,7 +1128,9 @@ namespace
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		if (BeginColumns()) {
 			ImGui::TableNextColumn();
-			DrawOutfitList(a_state);
+			if (const int clicked = DrawOutfitList(a_state, a_state.selectedOutfit); clicked >= 0) {
+				SelectOutfit(a_state, clicked);
+			}
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			DrawOutfitDetails(a_state);
@@ -944,6 +1177,8 @@ namespace CaptureWindow
 			state.resetImGui = true;
 			state.page = Page::kPieces;
 			state.selectedOutfit = -1;
+			state.previewedOutfit = -1;
+			state.loadedOutfit = -1;
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
 			state.viewDragButton = -1;
@@ -1076,9 +1311,13 @@ namespace CaptureWindow
 			state.resetImGui = false;
 		}
 
-		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width, for the two-column Update page
+		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width, for the two-column Load and Update pages
 		constexpr float kNarrowWidthRatio = 0.30f;  // of the screen width, for the one-column pages
-		const float     width = io.DisplaySize.x * (state.page == Page::kUpdate ? kWindowWidthRatio : kNarrowWidthRatio);
+		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kUpdate;
+		float           width = io.DisplaySize.x * (twoColumns ? kWindowWidthRatio : kNarrowWidthRatio);
+		if (state.page == Page::kPieces) {
+			width = (std::max)(width, PiecesButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
+		}
 		PlaceWindow(state, io, width);
 		// Width is fixed every frame; the height follows the content (a zero
 		// axis is left to AlwaysAutoResize), so the window never needs to scroll.
@@ -1102,6 +1341,9 @@ namespace CaptureWindow
 			break;
 		case Page::kName:
 			DrawNamePage(state);
+			break;
+		case Page::kLoad:
+			DrawLoadPage(state);
 			break;
 		case Page::kUpdate:
 			DrawUpdatePage(state);

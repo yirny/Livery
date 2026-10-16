@@ -17,8 +17,10 @@ namespace RE
 // Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
 // the game thread from the input dispatch hook. All state is guarded by one
 // mutex. Nothing here calls Tailor: Create New hands the typed name to
-// Request::onSave, Update Existing the chosen outfit to Request::onUpdate, and
-// each piece tick to Request::onPieceToggled, in an SKSE task.
+// Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
+// Apply the loaded outfit to Request::onApply, each piece tick to
+// Request::onPieceToggled and each outfit previewed on the Load page to
+// Request::onPreviewPieces, in an SKSE task.
 namespace CaptureWindow
 {
 	struct CategoryOption
@@ -30,9 +32,10 @@ namespace CaptureWindow
 
 	struct Piece
 	{
-		std::string   name;       // the armor's display name
-		bool          selected;   // initial state of its checkbox
-		std::uint32_t slots = 0;  // body slot mask; ticking the piece unticks others sharing a slot
+		std::string   name;          // the armor's display name
+		bool          selected;      // initial state of its checkbox
+		std::uint32_t slots = 0;     // body slot mask; ticking the piece unticks others sharing a slot
+		bool          owned = true;  // in the actor's inventory; one only a library outfit has is listed while that outfit is loaded
 	};
 
 	// One frame of mouse and key input over the game rather than the window,
@@ -50,12 +53,12 @@ namespace CaptureWindow
 		float seconds = 0.0f;      // the frame's length
 	};
 
-	// An outfit already in Tailor's library, listed on the Update Existing page.
+	// An outfit already in Tailor's library, listed on the Load and Update Existing pages.
 	struct ExistingOutfit
 	{
 		std::string              name;
 		std::vector<std::string> categories;  // the known categories it is in; shown ticked and locked
-		std::vector<std::string> pieces;      // display names of its loaded pieces
+		std::vector<std::size_t> pieces;      // indices into Request::pieces of its loaded pieces, ascending, no repeats
 	};
 
 	struct Request
@@ -92,6 +95,18 @@ namespace CaptureWindow
 		// While it is set the game keeps running behind the window; otherwise
 		// the window freezes the game.
 		std::function<void(std::size_t index, bool ticked)> onPieceToggled;
+
+		// Runs on the game thread when the live preview should show exactly these
+		// indices into `pieces` (ascending, maybe empty): an outfit selected on the
+		// Load page, then the ticked pieces again when the user goes back without
+		// loading. Empty for no live preview.
+		std::function<void(const std::vector<std::size_t>& pieces)> onPreviewPieces;
+
+		// Runs on the game thread once the user asked to dress the actor in the
+		// loaded outfit `name` (one of existingOutfits) as it is, its pieces ticked
+		// and no others. Apply is offered only while it is set. It must end by
+		// calling Close() or SetError().
+		std::function<void(const std::string& name)> onApply;
 
 		// Runs on the game thread for each frame with input over the game rather
 		// than the window. Keys count only while no item of the window is active
