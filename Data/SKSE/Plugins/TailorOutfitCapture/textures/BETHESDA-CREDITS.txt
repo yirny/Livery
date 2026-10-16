@@ -5,3 +5,9 @@ alpha mask; the plugin tints it at draw time.
 
 It is Bethesda Softworks' game material, redistributed here only as part of a
 free mod for use with The Elder Scrolls V: Skyrim, as the game's EULA allows.
+
+vanilla-checkbox.png and vanilla-checkmark.png are the box and tick mark of the
+game's settings checkbox (Skyrim - Interface.bsa, interface/quest_journal.swf,
+symbol SettingsOptionItem, child "checkBox"), rendered from their vector shapes
+in their own colours; the plugin draws them untinted. NORDIC UI uses the same
+art, so the Nordic skin shares them. Same terms as above.
