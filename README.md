@@ -44,15 +44,33 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 1. Load a save or start a new game.
 2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never a child). With nothing under the crosshair the hotkey captures the player instead.
-3. Press **F8** (configurable, see [Settings](#settings)). The game freezes and the capture window opens.
+3. Press **F8** (configurable, see [Settings](#settings)). The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden and the game cannot be saved.
 
-The window has three pages:
+The window has four pages:
 
-- **Pieces** — the heading shows the character's name and, below it, where Tailor judges them to be and what they wear, for example `In Town, wearing "Jarl's Finery" with changes.` Under it every worn armor piece is listed with a checkbox, all ticked except wigs (pieces on the Hair slot only). **Create New** and **Update Existing** act on the ticked pieces, so both need at least one; **Cancel** or Esc closes the window and creates nothing.
+- **Pieces** — the heading shows the character's name and, below it, where Tailor judges them to be and what they wear, for example `In Town, wearing "Jarl's Finery" with changes.` Under it every armor piece the character wears or carries is listed with a checkbox: worn pieces start ticked except wigs (pieces on the Hair slot only), carried ones unticked. Ticking a piece unticks the ticked ones that share a body slot with it. The **Live Preview** tick turns the preview on and off. **Create New** and **Update Existing** act on the ticked pieces, so both need at least one; **Cancel** or Esc closes the window and creates nothing.
+- **Load Outfit** — the outfits Tailor already has (left), with the selected one's categories and pieces (right). The selected outfit is shown on the live preview. **Load** ticks exactly its pieces and returns, adding those the character does not carry to the list; **Back** returns with the ticks unchanged.
 - **Name** (after Create New) — the outfit name, pre-filled with the first free `Captured Outfit NNN`; a category dropdown; and the outfit's gender. Press Enter or **Create** to save, **Back** to return to the pieces.
 - **Update Existing** — the outfits Tailor already has (left), with the selected one's categories and pieces (right). **Update** asks for confirmation, then replaces the outfit's pieces with the ticked ones and adds it to the categories you ticked. Its name, gender and existing categories stay as they are.
 
-The result is shown as a HUD message. The plugin creates nothing until you confirm, and it never deletes or renames anything: Tailor's mod API 1.0 cannot delete an outfit or take one out of a category, so the window warns before every step that cannot be undone.
+The result is shown as a HUD message. Apart from the preview's working outfit (see [Live Preview](#live-preview)), the plugin creates nothing until you confirm, and it never deletes or renames anything: Tailor's mod API 1.0 cannot delete an outfit or take one out of a category, so the window warns before every step that cannot be undone.
+
+### Live Preview
+
+While **Live Preview** is ticked, the game keeps running and the character wears the ticked pieces, or the outfit selected on the Load Outfit page, as a Tailor outfit override, seen through a free camera. With it off the game is paused and the view stays as it was. The window opens with the preview on or off as `LivePreview` says (see [Settings](#settings)); the tick switches it at any time.
+
+With the cursor over the game rather than the window:
+
+| Input         | Camera                                                                  |
+| ------------- | ----------------------------------------------------------------------- |
+| W / A / S / D | Moves; hold Shift for half speed. Ignored while a text field is active. |
+| Left drag     | Sideways turns the view around the character; up and down tilts it.     |
+| Right drag    | Pans.                                                                   |
+| Mouse wheel   | Zooms.                                                                  |
+
+`SpeedPercent` scales all four.
+
+The preview dresses the character in a working outfit named `Capture Preview`, kept in Tailor's library with no category, so Tailor never picks it at random. It is the only outfit the plugin changes before you confirm. Every close of the window, a save included, ends the override, and the character goes back to what Tailor would dress them in otherwise.
 
 ### Categories and gender
 
@@ -62,7 +80,7 @@ Gender is suggested the same way: **Female** when the deciding piece has only a 
 
 ### What gets captured
 
-Every worn armor piece from a plugin. Player-enchanted gear is saved as the plugin armor it was made from (Tailor refuses armor the game created at runtime); other runtime-created armor is left out. Pieces from plugins that are not loaded never show up.
+Every armor piece from a plugin that the character wears or carries. Non-playable armor, such as the physics objects of body mods, is left out. Player-enchanted gear is saved as the plugin armor it was made from (Tailor refuses armor the game created at runtime); other runtime-created armor is left out. Pieces from plugins that are not loaded never show up.
 
 ### Settings
 
@@ -71,9 +89,11 @@ Settings live in `Data\SKSE\Plugins\TailorOutfitCapture.ini`, which the plugin c
 | Section   | Key                            | Default  | Meaning                                                                                              |
 | --------- | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
 | `General` | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                             |
+| `General` | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.   |
 | `UI`      | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla`, `Nordic` or `Classic`.                              |
 | `Hotkey`  | `Key`                          | `66`     | Capture key as a DirectInput scan code (`66` = F8). In game, click the hotkey button and press a key. |
 | `Hotkey`  | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).          |
+| `Camera`  | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).            |
 
 Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope; **Classic** is Dear ImGui's default dark style. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\TailorOutfitCapture\` with their licences.
 
@@ -81,7 +101,10 @@ Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships
 
 - Only ASCII can be typed into the name field (the game's text input carries the ANSI code page).
 - The window is drawn with Dear ImGui on Skyrim SE/AE only. On Skyrim VR the hotkey saves the outfit at once under the automatic name, with the detected armor class and gender and no situation.
-- Outfit names on the Update Existing page come from Tailor's `outfits.json`, checked against Tailor's library; an outfit Tailor has not written to disk yet is not listed.
+- Outfit names on the Update Existing page come from Tailor's `outfits.json`, checked against Tailor's library; an outfit Tailor has not written to disk yet is not listed. The same holds for the Load Outfit page.
+- Live Preview is unavailable for a character another mod has set an outfit override on: the tick is greyed and its tooltip says why. The plugin never replaces another mod's override, because API 1.0 cannot read it back.
+- On the player, unticking the last ticked piece leaves the preview still wearing it: Tailor does not dress the player in an empty outfit. NPCs are undressed as expected, and the saved outfit follows the ticks either way.
+- `Capture Preview` stays in Tailor's library once the preview has run, because API 1.0 cannot delete an outfit. The Load Outfit and Update Existing pages leave it out. If you delete it in Tailor, the next preview creates it again.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
 
