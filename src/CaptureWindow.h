@@ -18,8 +18,9 @@ namespace RE
 // the game thread from the input dispatch hook. All state is guarded by one
 // mutex. Nothing here calls Tailor: Create New hands the typed name to
 // Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
-// each piece tick to Request::onPieceToggled and each outfit previewed on the
-// Load page to Request::onPreviewPieces, in an SKSE task.
+// each piece tick to Request::onPieceToggled, each outfit previewed on the
+// Load page to Request::onPreviewPieces and the Live Preview tick to
+// Request::onPreviewOn / onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
 	struct CategoryOption
@@ -65,7 +66,8 @@ namespace CaptureWindow
 		std::string                 actorName;             // shown as the title line
 		std::string                 actorSummary;          // shown greyed under the title line; "" for none
 		std::vector<Piece>          pieces;                // shown as a checkbox list; both actions need at least one ticked
-		std::string                 previewNote;           // shown greyed under the piece list; "" for none
+		bool                        previewOn = false;     // Live Preview is on as the window opens; off, the window freezes the game
+		std::string                 previewNote;           // why Live Preview cannot be on, shown over its greyed tick; "" when it can
 		std::string                 suggestedName;         // initial text of the name field
 		std::vector<CategoryOption> categories;            // offered in the multi-select dropdown
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Update Existing page, in display order
@@ -89,23 +91,31 @@ namespace CaptureWindow
 			const std::vector<std::string>& categories)>
 			onUpdate;
 
+		// Run on the game thread when the user ticks Live Preview: onPreviewOn
+		// with the ticked indices into `pieces` (ascending, maybe empty) returns
+		// "" once the preview is on, or why it cannot be (the tick then stays
+		// greyed for the rest of the window); onPreviewOff ends it. Set both or
+		// neither; neither greys the tick. The window keeps the game running while
+		// the preview is on and freezes it while it is off.
+		std::function<std::string(const std::vector<std::size_t>& pieces)> onPreviewOn;
+		std::function<void()>                                              onPreviewOff;
+
 		// Runs on the game thread each time the user ticks (true) or unticks
-		// (false) pieces[index], in click order. Empty for no live preview.
-		// While it is set the game keeps running behind the window; otherwise
-		// the window freezes the game.
+		// (false) pieces[index], in click order, Live Preview on or off. Empty
+		// for nothing to do.
 		std::function<void(std::size_t index, bool ticked)> onPieceToggled;
 
 		// Runs on the game thread when the live preview should show exactly these
 		// indices into `pieces` (ascending, maybe empty): an outfit selected on the
 		// Load page, then the ticked pieces again when the user goes back without
-		// loading. Empty for no live preview.
+		// loading, Live Preview on or off. Empty for nothing to do.
 		std::function<void(const std::vector<std::size_t>& pieces)> onPreviewPieces;
 
 		// Runs on the game thread for each frame with input over the game rather
 		// than the window. Keys count only while no item of the window is active
 		// (a name being typed, a popup open); a drag only when it began over the
-		// game. While it is set the window sits on the left of the screen. Empty
-		// for none.
+		// game. Only while Live Preview is on, when the window starts on the left
+		// of the screen. Empty for none.
 		std::function<void(const ViewInput& input)> onViewInput;
 
 		// Runs on the game thread once the window has closed, whatever closed it:

@@ -25,6 +25,7 @@ namespace
 {
 	constexpr auto kIniSection = L"General";
 	constexpr auto kRestrictKey = L"RestrictToFollowersAndSpouse";
+	constexpr auto kLivePreviewKey = L"LivePreview";
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kSkinKey = L"Skin";
 	constexpr auto kHotkeySection = L"Hotkey";
@@ -52,11 +53,15 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 5> kIniKeys{ {
+	constexpr std::array<IniKey, 6> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
 			L"Read once when the game starts." },
+		{ kIniSection, kLivePreviewKey, L"1",
+			L"1 = the capture window opens with Live Preview on: the game keeps running and the character wears the ticked pieces.\n"
+			L"0 = it opens with Live Preview off and the game paused; tick Live Preview in the window to turn it on.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kUiSection, kSkinKey, L"Tailor",
 			L"Skin of the capture window: Tailor, Vanilla, Nordic or Classic.\n"
 			L"Read once when the game starts." },
@@ -99,6 +104,7 @@ namespace
 	} };
 
 	std::atomic<bool>          g_followersAndSpouseOnly{ true };
+	std::atomic<bool>          g_livePreview{ true };
 	std::atomic<Theme::Skin>   g_skin{ kSkinOptions[0].skin };
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
 	std::atomic<std::uint32_t> g_modifier{ kNoModifier };  // left-hand code of a kModifiers entry, or kNoModifier
@@ -222,6 +228,13 @@ namespace
 		}
 	}
 
+	void SaveLivePreview(bool value)
+	{
+		if (!::WritePrivateProfileStringW(kIniSection, kLivePreviewKey, value ? L"1" : L"0", g_iniPath.c_str())) {
+			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+		}
+	}
+
 	void SaveMoveSpeed(float a_speed)
 	{
 		const auto value = std::format(L"{:.0f}", a_speed);
@@ -303,6 +316,17 @@ namespace
 		ImGuiMCP::Spacing();
 
 		// Takes effect the next time the capture window opens.
+		bool livePreview = g_livePreview.load();
+		if (ImGuiMCP::Checkbox("Live Preview on when the capture window opens", &livePreview)) {
+			g_livePreview = livePreview;
+			SaveLivePreview(livePreview);
+			logger::info("LivePreview = {} (SKSE Menu Framework)", livePreview);
+		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		// Takes effect the next time the capture window opens.
 		ImGuiMCP::Text("Window skin");
 		const auto skin = g_skin.load();
 		for (const auto& option : kSkinOptions) {
@@ -366,6 +390,12 @@ namespace Settings
 		g_followersAndSpouseOnly = std::wstring_view{ value } != L"0";
 		logger::info("RestrictToFollowersAndSpouse = {}", g_followersAndSpouseOnly.load());
 
+		// A missing key keeps the default (on).
+		::GetPrivateProfileStringW(kIniSection, kLivePreviewKey, L"1", value, static_cast<DWORD>(std::size(value)),
+			g_iniPath.c_str());
+		g_livePreview = std::wstring_view{ value } != L"0";
+		logger::info("LivePreview = {}", g_livePreview.load());
+
 		// A missing or unknown value keeps the default (Tailor).
 		wchar_t skin[16]{};
 		::GetPrivateProfileStringW(kUiSection, kSkinKey, L"", skin, static_cast<DWORD>(std::size(skin)), g_iniPath.c_str());
@@ -428,6 +458,11 @@ namespace Settings
 	bool FollowersAndSpouseOnly()
 	{
 		return g_followersAndSpouseOnly.load();
+	}
+
+	bool LivePreview()
+	{
+		return g_livePreview.load();
 	}
 
 	Theme::Skin Skin()
