@@ -5,7 +5,8 @@
 //   ImGui lifecycle  - OnD3DInit creates the context on the game's device/window
 //   Frame            - DrawFrame draws CaptureWindow once per frame while it is open
 //   Menu             - CaptureMenu: a movie-less game menu; the game shows its own
-//                      cursor over it, and its PostDisplay calls DrawFrame
+//                      cursor over it, and its PostDisplay calls DrawFrame;
+//                      the HUD is hidden while it is open
 //   Input            - InputDispatchHook routes events to the window; while it is
 //                      open the game sees no input at all
 //   Install          - writes the two trampoline calls (SE/AE only), registers the menu
@@ -147,6 +148,36 @@ namespace
 
 	// --- Menu -----------------------------------------------------------------
 
+	// The HUD movie hidden while the menu is open, and its visibility before.
+	// Contract: touched only from CaptureMenu::ProcessMessage (UI message
+	// processing, game thread); the GPtr keeps the movie alive until restored.
+	RE::GPtr<RE::GFxMovieView> g_hud;
+	bool                       g_hudVisible = false;
+
+	// Hides the HUD (compass, activate prompt, bars) as Tailor 3.0 does while its
+	// menu is open. A repeated show must not overwrite the saved visibility.
+	void HideHud()
+	{
+		if (g_hud) {
+			return;
+		}
+		auto* ui = RE::UI::GetSingleton();
+		auto  hud = ui ? ui->GetMenu(RE::HUDMenu::MENU_NAME) : nullptr;
+		if (hud && hud->uiMovie) {
+			g_hud = hud->uiMovie;
+			g_hudVisible = g_hud->GetVisible();
+			g_hud->SetVisible(false);
+		}
+	}
+
+	void RestoreHud()
+	{
+		if (g_hud) {
+			g_hud->SetVisible(g_hudVisible);
+			g_hud = nullptr;
+		}
+	}
+
 	// A game menu without a movie, flagged like Tailor 3.0's own ImGui menu.
 	// While it is open the game shows its cursor (Cursor Menu, depth 13, drawn
 	// above this one) and switches controls to menu mode, so mouse events move
@@ -170,8 +201,12 @@ namespace
 		RE::UI_MESSAGE_RESULTS ProcessMessage(RE::UIMessage& a_message) override
 		{
 			switch (*a_message.type) {
+			case RE::UI_MESSAGE_TYPE::kShow:
+				HideHud();
+				break;
 			case RE::UI_MESSAGE_TYPE::kHide:
 			case RE::UI_MESSAGE_TYPE::kForceHide:
+				RestoreHud();  // every way the menu closes passes here
 				// CaptureWindow::Close marks the window closed before it hides the menu,
 				// so an open window here means the game closed the menu on its own:
 				// close the window too, or time stays frozen with nothing on screen.
