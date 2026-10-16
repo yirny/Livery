@@ -295,7 +295,7 @@ namespace
 	// it was pinned this frame.
 	bool PlaceWindow(State& a_state, const ImGuiIO& a_io, float a_width)
 	{
-		constexpr float kPreviewGapRatio = 0.18f;  // of the screen height, from the screen's middle to the right edge of the window beside a preview
+		constexpr float kPreviewGapRatio = 0.20f;  // of the screen height, from the screen's middle to the right edge of the window beside a preview
 
 		if (a_state.recentreFrames == 0) {
 			return false;
