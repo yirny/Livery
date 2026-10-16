@@ -7,8 +7,8 @@
 //   Textures   - NORDIC UI's corner knot and heading rope (white alpha masks),
 //                the game's and NORDIC UI's equipped-item marks, the game's checkbox
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame;
-//                the SkyUI-style tick row and the game's checkbox of the
-//                Vanilla and Nordic skins
+//                Tailor's tick row; the SkyUI-style tick row and the game's
+//                checkbox of the Vanilla and Nordic skins
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
@@ -601,6 +601,40 @@ namespace
 		return pressed;
 	}
 
+	// Tailor 3.0's selected list row: while ticked, the whole row in the faint
+	// amber selection fill with an amber rule down its left edge; a faint tint
+	// while hovered.
+	bool TailorRow(const char* a_label, bool* a_ticked)
+	{
+		constexpr float kRuleWidth = 2.0f;  // pixels at 1080p
+
+		const auto&  style = ImGui::GetStyle();
+		const float  height = ImGui::GetFrameHeight();
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const ImVec2 size((std::max)(1.0f, ImGui::GetContentRegionAvail().x), height);
+
+		const bool pressed = ImGui::InvisibleButton(a_label, size);
+		if (pressed) {
+			*a_ticked = !*a_ticked;
+		}
+		const bool hovered = ImGui::IsItemHovered();
+
+		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+		auto*        draw = ImGui::GetWindowDrawList();
+		if (*a_ticked) {
+			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_Header));
+		}
+		if (hovered) {
+			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_FrameBgHovered));
+		}
+		if (*a_ticked) {
+			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + kRuleWidth * g_scale, bottomRight.y), ImGui::GetColorU32(kAmber));
+		}
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		draw->AddText(ImVec2(topLeft.x + style.FramePadding.x, topLeft.y + (height - text.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		return pressed;
+	}
+
 	// A SkyUI-style inventory row: while ticked, a white bar fading in from the
 	// left edge to the right and the skin's equipped mark at the left; a faint
 	// tint while hovered. The mark's column stays on unticked rows so the names
@@ -884,8 +918,15 @@ namespace Theme
 
 	bool TickRow(const char* a_label, bool* a_ticked)
 	{
-		const bool inventoryStyle = g_skin == Skin::kVanilla || g_skin == Skin::kNordic;
-		return inventoryStyle ? InventoryRow(a_label, a_ticked) : ImGui::Checkbox(a_label, a_ticked);
+		switch (g_skin) {
+		case Skin::kTailor:
+			return TailorRow(a_label, a_ticked);
+		case Skin::kVanilla:
+		case Skin::kNordic:
+			return InventoryRow(a_label, a_ticked);
+		default:
+			return ImGui::Checkbox(a_label, a_ticked);
+		}
 	}
 
 	bool Checkbox(const char* a_label, bool* a_value)
