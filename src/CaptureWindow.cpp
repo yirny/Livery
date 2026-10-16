@@ -9,8 +9,7 @@
 //                  key input over the game goes to onViewInput
 //   Pieces page  - inventory pieces (first page) plus the loaded outfit's, each tick
 //                  handed to onPieceToggled; Load Outfit / Create New / Update Existing /
-//                  Cancel, or Apply in place of the two saves while the ticks are
-//                  exactly the loaded outfit
+//                  Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit lists - the library outfit list and piece list both outfit pages share
 //   Load page    - library outfits, the selected one shown on the preview; Load ticks
@@ -52,7 +51,7 @@ namespace
 	{
 		kClosed,
 		kEditing,
-		kSaving  // Create, Confirm or Apply pressed; waiting for onSave / onUpdate / onApply to Close() or SetError()
+		kSaving  // Create or Confirm pressed; waiting for onSave / onUpdate to Close() or SetError()
 	};
 
 	enum class Page
@@ -539,43 +538,20 @@ namespace
 		return ButtonRowWidth({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
 	}
 
-	// Apply is offered while onApply is set (a live preview) and the ticks are
-	// exactly the loaded outfit's pieces: nothing added, nothing taken out.
-	bool CanApply(const State& a_state)
-	{
-		if (!a_state.request.onApply || a_state.loadedOutfit < 0) {
-			return false;
-		}
-		const auto& outfit = OutfitAt(a_state, a_state.loadedOutfit);
-		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
-			if (a_state.pieceTicked[i] != HasPiece(outfit, i)) {
-				return false;
-			}
-		}
-		return !outfit.pieces.empty();
-	}
-
 	enum class PiecesAction
 	{
 		kNone,
 		kLoadPage,
 		kNamePage,
 		kUpdatePage,
-		kApply,
 		kCancel
 	};
 
-	// Load Outfit / Create New / Update Existing / Cancel centred below a gap,
-	// or Load Outfit / Apply / Cancel while CanApply. The two save pages act on
-	// the ticked pieces, so both need at least one.
+	// Load Outfit / Create New / Update Existing / Cancel centred below a gap.
+	// The two save pages act on the ticked pieces, so both need at least one.
 	PiecesAction DrawPiecesButtons(const State& a_state)
 	{
-		const bool apply = CanApply(a_state);
-		if (apply) {
-			BeginButtonRow({ "Load Outfit", "Apply", "Cancel" });
-		} else {
-			BeginButtonRow({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
-		}
+		BeginButtonRow({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
 		const bool hasOutfits = !a_state.request.existingOutfits.empty();
 		ImGui::BeginDisabled(!hasOutfits);
 		const bool load = Theme::Button("Load Outfit");
@@ -583,20 +559,13 @@ namespace
 		ImGui::SameLine();
 
 		const bool hasPieces = CountTickedPieces(a_state) > 0;
-		bool       create = false;
-		bool       update = false;
-		bool       applied = false;
-		if (apply) {
-			applied = Theme::Button("Apply");
-		} else {
-			ImGui::BeginDisabled(!hasPieces);
-			create = Theme::Button("Create New");
-			ImGui::EndDisabled();
-			ImGui::SameLine();
-			ImGui::BeginDisabled(!hasPieces || !hasOutfits);
-			update = Theme::Button("Update Existing");
-			ImGui::EndDisabled();
-		}
+		ImGui::BeginDisabled(!hasPieces);
+		const bool create = Theme::Button("Create New");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!hasPieces || !hasOutfits);
+		const bool update = Theme::Button("Update Existing");
+		ImGui::EndDisabled();
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
@@ -607,9 +576,6 @@ namespace
 		if (load && hasOutfits) {
 			return PiecesAction::kLoadPage;
 		}
-		if (applied) {
-			return PiecesAction::kApply;
-		}
 		if (create && hasPieces) {
 			return PiecesAction::kNamePage;
 		}
@@ -617,15 +583,6 @@ namespace
 			return PiecesAction::kUpdatePage;
 		}
 		return cancel ? PiecesAction::kCancel : PiecesAction::kNone;
-	}
-
-	void RequestApply(State& a_state)
-	{
-		a_state.status = Status::kSaving;
-		a_state.error.clear();
-		auto onApply = a_state.request.onApply;
-		auto name = OutfitAt(a_state, a_state.loadedOutfit).name;
-		SKSE::GetTaskInterface()->AddTask([onApply, name = std::move(name)] { onApply(name); });
 	}
 
 	void DrawPiecesPage(State& a_state)
@@ -651,9 +608,6 @@ namespace
 				SelectOutfit(a_state, a_state.loadedOutfit);
 			}
 			GoToPage(a_state, Page::kUpdate);
-			break;
-		case PiecesAction::kApply:
-			RequestApply(a_state);
 			break;
 		case PiecesAction::kCancel:
 			RequestCancel();

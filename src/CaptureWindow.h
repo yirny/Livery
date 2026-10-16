@@ -18,9 +18,8 @@ namespace RE
 // the game thread from the input dispatch hook. All state is guarded by one
 // mutex. Nothing here calls Tailor: Create New hands the typed name to
 // Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
-// Apply the loaded outfit to Request::onApply, each piece tick to
-// Request::onPieceToggled and each outfit previewed on the Load page to
-// Request::onPreviewPieces, in an SKSE task.
+// each piece tick to Request::onPieceToggled and each outfit previewed on the
+// Load page to Request::onPreviewPieces, in an SKSE task.
 namespace CaptureWindow
 {
 	struct CategoryOption
@@ -101,12 +100,6 @@ namespace CaptureWindow
 		// Load page, then the ticked pieces again when the user goes back without
 		// loading. Empty for no live preview.
 		std::function<void(const std::vector<std::size_t>& pieces)> onPreviewPieces;
-
-		// Runs on the game thread once the user asked to dress the actor in the
-		// loaded outfit `name` (one of existingOutfits) as it is, its pieces ticked
-		// and no others. Apply is offered only while it is set. It must end by
-		// calling Close() or SetError().
-		std::function<void(const std::string& name)> onApply;
 
 		// Runs on the game thread for each frame with input over the game rather
 		// than the window. Keys count only while no item of the window is active
