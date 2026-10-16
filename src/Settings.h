@@ -26,7 +26,7 @@ namespace Settings
 	// Safe from any thread.
 	Theme::Skin Skin();
 
-	// Multiplier on the preview camera's movement and mouse drags; 1 is normal. Safe from any thread.
+	// Multiplier on the preview camera's movement, mouse drags and wheel zoom; 1 is normal. Safe from any thread.
 	float CameraSpeedScale();
 
 	// Whether a keyboard key going down (DirectInput scan code) is the capture hotkey:

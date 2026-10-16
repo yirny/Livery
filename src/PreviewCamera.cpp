@@ -25,7 +25,7 @@ namespace
 {
 	// --- Constants ------------------------------------------------------------
 
-	// The move, look and pan rates are at 100% camera speed; Settings::CameraSpeedScale scales them.
+	// The move, look, pan and zoom rates are at 100% camera speed; Settings::CameraSpeedScale scales them.
 	constexpr float kMoveUnitsPerSecond = 225.0f;   // with W / A / S / D
 	constexpr float kSlowFactor = 0.5f;             // on the move speed while Shift is held, as in tfc
 	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag
@@ -201,7 +201,7 @@ namespace PreviewCamera
 		const RE::NiPoint3 up{ 0.0f, 0.0f, 1.0f };
 
 		const float step = kMoveUnitsPerSecond * scale * (input.slow ? kSlowFactor : 1.0f) * input.seconds;
-		auto        move = forward * (input.moveForward * step + input.zoomSteps * kZoomUnitsPerStep);
+		auto        move = forward * (input.moveForward * step + input.zoomSteps * kZoomUnitsPerStep * scale);
 		move += right * (input.moveRight * step);
 		// A right drag takes the view along with the mouse: the camera goes the other way.
 		const float pan = kPanUnitsPerPixel * scale;

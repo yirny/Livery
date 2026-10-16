@@ -72,7 +72,7 @@ namespace
 			L"Key that must be held together with Key: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt.\n"
 			L"Left and right keys count the same. Read once when the game starts." },
 		{ kCameraSection, kSpeedPercentKey, L"100",
-			L"Speed of the preview camera: W / A / S / D movement and mouse drags, as a percentage (10 to 200, 100 = normal).\n"
+			L"Speed of the preview camera: W / A / S / D movement, mouse drags and wheel zoom, as a percentage (10 to 200, 100 = normal).\n"
 			L"Shift halves the movement while held. Easiest to change in game through SKSE Menu Framework." },
 	} };
 
