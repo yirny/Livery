@@ -5,3 +5,7 @@ alpha masks; the plugin tints them at draw time.
 
 Used under the author's permissions on that page:
 "Permissions are open to use my art as you wish."
+
+nordic-equipped.png is NORDIC UI's equipped-item mark (interface/skyui/inventorylists.swf,
+symbol EquipIcon, frame "Equipped"), rendered from its vector shape in its own
+colours; the plugin draws it untinted. Same author and permission as above.
