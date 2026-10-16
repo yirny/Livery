@@ -521,10 +521,6 @@ namespace
 						SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_state.pieceTicked[i]] { onToggled(i, ticked); });
 					}
 				}
-				if (!pieces[i].owned) {
-					ImGui::SameLine();
-					ImGui::TextDisabled("(not carried)");
-				}
 				ImGui::PopID();
 			}
 		}
