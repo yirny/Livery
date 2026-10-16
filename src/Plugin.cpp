@@ -4,12 +4,13 @@
 //   Constants      - Tailor's built-in categories
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
-//   Preview        - the captured actor wears kPreviewOutfit as an override that follows the piece ticks,
-//                    seen through PreviewCamera; closing the window ends both, a save moves the override
-//                    to the saved outfit
+//   Preview        - the captured actor wears kPreviewOutfit as an override that follows the piece ticks
+//                    and the outfit selected on the Load page, seen through PreviewCamera; closing the
+//                    window ends both, a save moves the override to the saved outfit, Apply to the loaded one
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
-//                    armor, detect the armor class, list the library's outfits, then open the window with the
-//                    worn pieces ticked (or save those under an automatic name where the overlay is unavailable)
+//                    armor, detect the armor class, list the library's outfits (adding their pieces the actor
+//                    does not carry), then open the window with the worn pieces ticked (or save those under
+//                    an automatic name where the overlay is unavailable)
 //   Event sinks    - crosshair target, hotkey
 //   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, trampoline, hooks
@@ -255,6 +256,16 @@ namespace
 		return armors;
 	}
 
+	std::vector<RE::TESObjectARMO*> PickPieces(const std::vector<RE::TESObjectARMO*>& armors, const std::vector<std::size_t>& indices)
+	{
+		std::vector<RE::TESObjectARMO*> picked;
+		picked.reserve(indices.size());
+		for (const auto index : indices) {
+			picked.push_back(armors[index]);
+		}
+		return picked;
+	}
+
 	// Contract: game thread; Tailor 3.0 library already loaded (g_ready); the user
 	// confirmed replacing this outfit's pieces. New pieces go in before old ones
 	// come out, and nothing comes out unless one went in, so the outfit (which may
@@ -395,6 +406,29 @@ namespace
 		}
 	}
 
+	// Moves the preview's override from kPreviewOutfit to the library outfit the
+	// user loaded and left as it is; it stays on until cleared in Tailor's
+	// screens. Changes no outfit. A refusal (gender, outfit gone) keeps the preview.
+	// Contract: game thread; only while the preview is on (onApply is set only then).
+	// Returns an error message, or nullopt on success (HUD message shown).
+	std::optional<std::string> ApplyOutfit(const std::string& name)
+	{
+		const auto actor = g_previewActor.get();
+		if (!actor) {
+			return "The preview has ended.";
+		}
+		if (!g_tailor->DoesOutfitExist(name.c_str())) {
+			return std::format("The outfit \"{}\" no longer exists.", name);
+		}
+		if (!g_tailor->OverrideWithOutfit(actor.get(), name.c_str())) {
+			return std::format("Tailor refused to dress them in \"{}\".", name);
+		}
+		g_previewActor = {};
+		const auto* actorName = actor->GetName();
+		Notify(std::format("Tailor: {} now wears {}.", actorName && *actorName ? actorName : "NPC", name));
+		return std::nullopt;
+	}
+
 	// Starts the live preview for the window about to open and wires it in: ticks
 	// change kPreviewOutfit, input over the game moves PreviewCamera (when it
 	// could take the camera), and closing the window ends both. When the preview
@@ -413,6 +447,18 @@ namespace
 			return;
 		}
 		request.onPieceToggled = [armors](std::size_t index, bool on) { SetPreviewPiece(armors[index], on); };
+		request.onPreviewPieces = [armors](const std::vector<std::size_t>& pieces) {
+			if (g_previewActor) {
+				SetPreviewPieces(PickPieces(armors, pieces));
+			}
+		};
+		request.onApply = [](const std::string& name) {
+			if (const auto error = ApplyOutfit(name)) {
+				CaptureWindow::SetError(*error);
+			} else {
+				CaptureWindow::Close();
+			}
+		};
 		if (PreviewCamera::Begin(actor)) {
 			request.onViewInput = PreviewCamera::Move;
 		}
@@ -616,10 +662,25 @@ namespace
 		return -1;
 	}
 
+	// Index of the armor in `armors`; armor not there yet is appended to both
+	// lists as a piece the actor does not carry, unticked.
+	std::size_t PieceIndex(RE::TESObjectARMO* armor, std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
+	{
+		if (const auto found = std::ranges::find(armors, armor); found != armors.end()) {
+			return static_cast<std::size_t>(found - armors.begin());
+		}
+		armors.push_back(armor);
+		pieces.push_back({ .name = DisplayName(*armor), .selected = false, .slots = armor->GetSlotMask().underlying(), .owned = false });
+		return armors.size() - 1;
+	}
+
 	// The library's outfits in case-insensitive name order, each with the known
-	// categories it is in and its loaded pieces. Outfit names come from
-	// outfits.json (API 1.0 cannot list every outfit), checked with DoesOutfitExist.
-	std::vector<CaptureWindow::ExistingOutfit> ExistingOutfits(const std::vector<CaptureWindow::CategoryOption>& categories)
+	// categories it is in and its loaded pieces as indices into `armors`, which
+	// gains the pieces the actor does not carry (`pieces` matches it index for
+	// index). Outfit names come from outfits.json (API 1.0 cannot list every
+	// outfit), checked with DoesOutfitExist.
+	std::vector<CaptureWindow::ExistingOutfit> ExistingOutfits(const std::vector<CaptureWindow::CategoryOption>& categories,
+		std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
 	{
 		auto names = ReadOutfitNames();
 		std::ranges::sort(names, [](const std::string& a, const std::string& b) { return _stricmp(a.c_str(), b.c_str()) < 0; });
@@ -635,22 +696,15 @@ namespace
 					outfit.categories.push_back(category.name);
 				}
 			}
-			for (const auto* armor : OutfitArmors(outfit.name)) {
-				outfit.pieces.push_back(DisplayName(*armor));
+			for (auto* armor : OutfitArmors(outfit.name)) {
+				outfit.pieces.push_back(PieceIndex(armor, armors, pieces));
 			}
+			std::ranges::sort(outfit.pieces);
+			const auto repeats = std::ranges::unique(outfit.pieces);
+			outfit.pieces.erase(repeats.begin(), repeats.end());
 			outfits.push_back(std::move(outfit));
 		}
 		return outfits;
-	}
-
-	std::vector<RE::TESObjectARMO*> PickPieces(const std::vector<RE::TESObjectARMO*>& armors, const std::vector<std::size_t>& indices)
-	{
-		std::vector<RE::TESObjectARMO*> picked;
-		picked.reserve(indices.size());
-		for (const auto index : indices) {
-			picked.push_back(armors[index]);
-		}
-		return picked;
 	}
 
 	void CopyTailorString(const char* value, void* context)
@@ -723,7 +777,8 @@ namespace
 	// Contract: game thread (Tailor queries that hand out armor forms run here,
 	// so the window itself never calls Tailor).
 	// Every inventory piece is listed; worn ones start ticked and decide the
-	// suggested armor class and gender.
+	// suggested armor class and gender. The library outfits' other pieces follow,
+	// for Load Outfit.
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
 		CaptureWindow::Request request;
@@ -731,7 +786,6 @@ namespace
 		request.actorSummary = DescribeActor(actor);
 		request.suggestedName = NextAutomaticName();
 		request.categories = AvailableCategories();
-		request.existingOutfits = ExistingOutfits(request.categories);
 		const auto  worn = WornArmors(inventory);
 		const auto* armorClass = DetectArmorClass(worn);
 		for (auto& category : request.categories) {
@@ -744,6 +798,7 @@ namespace
 			request.pieces.push_back({ DisplayName(*armor), isWorn && !LooksLikeWig(*armor), armor->GetSlotMask().underlying() });
 			armors.push_back(armor);
 		}
+		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
 		AttachPreview(request, actor, armors);
 		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories,
 							 int gender) {
