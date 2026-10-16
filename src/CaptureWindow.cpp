@@ -613,7 +613,7 @@ namespace
 		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
 		bool        on = a_state.previewOn;
 		ImGui::BeginDisabled(!available || a_state.previewBusy);
-		const bool clicked = ImGui::Checkbox("Live Preview", &on);
+		const bool clicked = Theme::Checkbox("Live Preview", &on);
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
@@ -743,7 +743,8 @@ namespace
 	}
 
 	// One full-width option row: hover fill, a highlighted fill and accent text
-	// with a check mark on the right when ticked. An InvisibleButton does not
+	// with the game's ticked checkbox (Theme::DrawTickedBox) or else a check
+	// mark on the right when ticked. An InvisibleButton does not
 	// close the combo popup, so the user can tick several rows in one go.
 	// The hit area also covers half the gap above and below the fill, so rows
 	// stacked with no item spacing leave no dead strip between them.
@@ -773,9 +774,9 @@ namespace
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
 		draw->AddText(ImVec2(topLeft.x + style.FramePadding.x, midY - text.y * 0.5f), textColour, a_label);
-		if (a_ticked) {
+		const float right = bottomRight.x - style.FramePadding.x;
+		if (a_ticked && !Theme::DrawTickedBox(right, midY)) {
 			const float  mark = ImGui::GetFontSize() * 0.3f;  // half width of the check mark
-			const float  right = bottomRight.x - style.FramePadding.x;
 			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
 			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
 		}

@@ -5,9 +5,10 @@
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
 //   Styles     - one ImGuiStyle per skin and its resolution scale
 //   Textures   - NORDIC UI's corner knot and heading rope (white alpha masks),
-//                the game's and NORDIC UI's equipped-item marks
+//                the game's and NORDIC UI's equipped-item marks, the game's checkbox
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame;
-//                the SkyUI-style tick row of the Vanilla and Nordic skins
+//                the SkyUI-style tick row and the game's checkbox of the
+//                Vanilla and Nordic skins
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
@@ -17,9 +18,10 @@
 // NORDIC UI with fonts this plugin ships (OFL): Barlow Condensed and Sovngarde.
 // Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
 // author's open permission, see textures/NORDIC-UI-CREDITS.txt); Vanilla's
-// equipped mark is the game's own (textures/BETHESDA-CREDITS.txt). A skin whose
-// font files are missing draws with ImGui's default font; missing textures fall
-// back to plain lines and triangles.
+// equipped mark and both skins' checkbox are the game's own
+// (textures/BETHESDA-CREDITS.txt). A skin whose font files are missing draws
+// with ImGui's default font; missing textures fall back to plain lines and
+// triangles, and the checkbox to ImGui's own.
 #include "PCH.h"
 
 #include "Theme.h"
@@ -127,6 +129,8 @@ namespace
 	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
 	Ornament    g_vanillaEquipped{ nullptr, ImVec2(20.0f, 20.0f) };  // the game's equipped mark, a white mask tinted on draw
 	Ornament    g_nordicEquipped{ nullptr, ImVec2(23.0f, 23.0f) };   // NORDIC UI's, in its own two colours
+	Ornament    g_checkBox{ nullptr, ImVec2(20.0f, 20.0f) };         // the game's checkbox, in its own colours
+	Ornament    g_checkMark{ nullptr, ImVec2(15.0f, 15.0f) };        // its tick, centred on the box (the game's ratio)
 
 	// nullptr for Classic, which draws with ImGui's default font.
 	const SkinFonts* FontFilesOf(Theme::Skin a_skin)
@@ -317,7 +321,7 @@ namespace
 		}
 		if (FAILED(hr)) {
 			a_out.view.Reset();
-			logger::warn("Could not load {} (HRESULT {:#x}); the skin draws a plain shape instead", path.string(), static_cast<unsigned>(hr));
+			logger::warn("Could not load {} (HRESULT {:#x}); the skin draws a plain stand-in instead", path.string(), static_cast<unsigned>(hr));
 		}
 	}
 
@@ -648,6 +652,57 @@ namespace
 		draw->AddText(ImVec2(markTopLeft.x + markSize.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return pressed;
 	}
+
+	// Vanilla and Nordic draw the game's checkbox when both of its textures loaded.
+	bool HasGameCheckbox()
+	{
+		return (g_skin == Theme::Skin::kVanilla || g_skin == Theme::Skin::kNordic) && g_checkBox.view && g_checkMark.view;
+	}
+
+	// The game's diamond box with its top-left at a_topLeft, and the tick
+	// centred on it when ticked. Untinted, but through the style alpha, so it
+	// fades inside BeginDisabled.
+	void DrawGameCheckbox(ImDrawList* a_draw, ImVec2 a_topLeft, bool a_ticked)
+	{
+		const ImU32  tint = ImGui::GetColorU32(IM_COL32_WHITE);
+		const ImVec2 box(g_checkBox.size.x * g_scale, g_checkBox.size.y * g_scale);
+		a_draw->AddImage(g_checkBox.Id(), a_topLeft, ImVec2(a_topLeft.x + box.x, a_topLeft.y + box.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+		if (!a_ticked) {
+			return;
+		}
+		const ImVec2 mark(g_checkMark.size.x * g_scale, g_checkMark.size.y * g_scale);
+		const ImVec2 markTopLeft(a_topLeft.x + (box.x - mark.x) * 0.5f, a_topLeft.y + (box.y - mark.y) * 0.5f);
+		a_draw->AddImage(g_checkMark.Id(), markTopLeft, ImVec2(markTopLeft.x + mark.x, markTopLeft.y + mark.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+	}
+
+	// The game's settings checkbox: the box, a faint diamond over it while
+	// hovered, then the label; the box and label are one click target.
+	bool GameCheckbox(const char* a_label, bool* a_value)
+	{
+		const auto&  style = ImGui::GetStyle();
+		const float  height = ImGui::GetFrameHeight();
+		const ImVec2 box(g_checkBox.size.x * g_scale, g_checkBox.size.y * g_scale);
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+
+		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(box.x + style.ItemInnerSpacing.x + text.x, height));
+		if (pressed) {
+			*a_value = !*a_value;
+		}
+		const bool hovered = ImGui::IsItemHovered();
+
+		auto*        draw = ImGui::GetWindowDrawList();
+		const float  midY = topLeft.y + height * 0.5f;
+		const ImVec2 boxTopLeft(topLeft.x, midY - box.y * 0.5f);
+		DrawGameCheckbox(draw, boxTopLeft, *a_value);
+		if (hovered) {
+			const float centreX = boxTopLeft.x + box.x * 0.5f;
+			draw->AddQuadFilled(ImVec2(centreX, boxTopLeft.y), ImVec2(boxTopLeft.x + box.x, midY), ImVec2(centreX, boxTopLeft.y + box.y),
+				ImVec2(boxTopLeft.x, midY), ImGui::GetColorU32(ImGuiCol_FrameBgHovered));
+		}
+		draw->AddText(ImVec2(boxTopLeft.x + box.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		return pressed;
+	}
 }
 
 namespace Theme
@@ -671,13 +726,15 @@ namespace Theme
 		Microsoft::WRL::ComPtr<IWICImagingFactory> wic;
 		const auto                                 hr = ::CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic));
 		if (FAILED(hr)) {
-			logger::warn("WIC unavailable (HRESULT {:#x}); the skins draw plain shapes instead", static_cast<unsigned>(hr));
+			logger::warn("WIC unavailable (HRESULT {:#x}); the skins draw plain stand-ins instead", static_cast<unsigned>(hr));
 		} else {
 			const auto folder = std::filesystem::current_path() / kTextureDir;
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-corner.png", g_cornerKnot);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-heading.png", g_headingRope);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-equipped.png", g_vanillaEquipped);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-equipped.png", g_nordicEquipped);
+			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkbox.png", g_checkBox);
+			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkmark.png", g_checkMark);
 		}
 		wic.Reset();
 		if (SUCCEEDED(init)) {
@@ -829,5 +886,20 @@ namespace Theme
 	{
 		const bool inventoryStyle = g_skin == Skin::kVanilla || g_skin == Skin::kNordic;
 		return inventoryStyle ? InventoryRow(a_label, a_ticked) : ImGui::Checkbox(a_label, a_ticked);
+	}
+
+	bool Checkbox(const char* a_label, bool* a_value)
+	{
+		return HasGameCheckbox() ? GameCheckbox(a_label, a_value) : ImGui::Checkbox(a_label, a_value);
+	}
+
+	bool DrawTickedBox(float a_right, float a_midY)
+	{
+		if (!HasGameCheckbox()) {
+			return false;
+		}
+		const ImVec2 box(g_checkBox.size.x * g_scale, g_checkBox.size.y * g_scale);
+		DrawGameCheckbox(ImGui::GetWindowDrawList(), ImVec2(a_right - box.x, a_midY - box.y * 0.5f), true);
+		return true;
 	}
 }

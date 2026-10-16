@@ -60,4 +60,16 @@ namespace Theme
 	// Contract: the label is shown as is and is the row's ImGui ID, so PushID
 	// around rows whose labels may repeat.
 	bool TickRow(const char* label, bool* ticked);
+
+	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
+	// settings checkbox, the other skins (or a missing texture) ImGui's own.
+	// Faded and inert inside BeginDisabled, like ImGui::Checkbox.
+	// Contract: the label is shown as is, so it must not use "##" IDs.
+	bool Checkbox(const char* label, bool* value);
+
+	// The game's ticked checkbox in the current window, its right edge at
+	// `right` and centred on `midY` (screen pixels). Returns false, drawing
+	// nothing, when the skin is not Vanilla or Nordic or the textures are
+	// missing, so the caller draws its own mark.
+	bool DrawTickedBox(float right, float midY);
 }
