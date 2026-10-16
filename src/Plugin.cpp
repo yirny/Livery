@@ -170,6 +170,32 @@ namespace
 		return names;
 	}
 
+	// How many pieces outfits.json lists for this outfit, loaded or not, or
+	// nullopt when the file or the outfit cannot be read.
+	// Contract: an estimate for warnings only; the file can lag behind Tailor's
+	// in-memory library, so never base a Tailor write on it.
+	std::optional<std::size_t> ReadOutfitItemCount(const std::string& a_name)
+	{
+		constexpr int kKnownVersion = 1;  // the "version" field this reader was written against
+
+		const auto outfits = ReadTailorFile("outfits.json", kKnownVersion);
+		if (outfits.is_discarded()) {
+			return std::nullopt;
+		}
+		const auto list = outfits.find("outfits");
+		if (list == outfits.end() || !list->is_array()) {
+			return std::nullopt;
+		}
+		for (const auto& outfit : *list) {
+			const auto name = outfit.find("name");
+			const auto items = outfit.find("items");
+			if (name != outfit.end() && name->is_string() && _stricmp(name->get<std::string>().c_str(), a_name.c_str()) == 0) {
+				return items != outfit.end() && items->is_array() ? std::make_optional(items->size()) : std::nullopt;
+			}
+		}
+		return std::nullopt;
+	}
+
 	std::vector<CaptureWindow::CategoryOption> AvailableCategories()
 	{
 		std::vector<CaptureWindow::CategoryOption> categories;
@@ -275,6 +301,8 @@ namespace
 	// come out, and nothing comes out unless one went in, so the outfit (which may
 	// sit in a situation pool) is never left empty. The confirmed `categories`
 	// are added only after a piece went in; its other categories and gender stay.
+	// API 1.0 can neither list nor remove pieces whose plugin is not loaded, so
+	// those stay in the outfit; the HUD message only reports them.
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> UpdateOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
 		const std::vector<std::string>& categories)
@@ -286,6 +314,9 @@ namespace
 			return std::format("The outfit \"{}\" no longer exists.", name);
 		}
 		const auto previous = OutfitArmors(name);
+		// Read before any AddArmorToOutfit: Tailor writes outfits.json on each change.
+		const auto stored = ReadOutfitItemCount(name);
+		const auto unloaded = stored && *stored > previous.size() ? *stored - previous.size() : 0;
 
 		std::vector<RE::TESObjectARMO*> accepted;
 		for (auto* armor : armors) {
@@ -309,6 +340,10 @@ namespace
 		std::string problems;
 		if (stuck) {
 			problems = std::format("{} old piece(s) could not be removed", stuck);
+		}
+		if (unloaded) {
+			logger::warn("{} piece(s) of {} come from plugins that are not loaded and were kept", unloaded, name);
+			problems += (problems.empty() ? "" : "; ") + std::format("{} piece(s) from unloaded plugins stay in it", unloaded);
 		}
 		if (const auto failed = AddCategories(name, categories); !failed.empty()) {
 			problems += (problems.empty() ? "" : "; ") + std::format("could not add it to: {}", failed);
