@@ -18,11 +18,13 @@
 //   Update page  - library outfits, the chosen one's categories (its own ones
 //                  locked, more can be ticked) and pieces; Update opens the
 //                  confirm popup, whose Confirm hands over to onUpdate
+//   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
 #include "CaptureWindow.h"
 
 #include "Hooks.h"
+#include "Settings.h"
 #include "Theme.h"
 
 #include <imgui.h>
@@ -47,6 +49,12 @@ namespace
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
 	constexpr int kRecentreFrames = 3;
+
+	// Sound descriptors in Skyrim.esm, whose load index is always 00.
+	constexpr RE::FormID kOpenSound = 0x0003F2BD;    // UIMenuBladeOpenSD
+	constexpr RE::FormID kOkSound = 0x0003C751;      // UIMenuOKSD
+	constexpr RE::FormID kCancelSound = 0x0003C752;  // UIMenuCancelSD
+	constexpr RE::FormID kFocusSound = 0x0003C759;   // UIMenuFocus
 
 	enum class Status
 	{
@@ -126,6 +134,19 @@ namespace
 		if (auto* main = RE::Main::GetSingleton()) {
 			main->GetRuntimeData().freezeTime = a_frozen;
 		}
+	}
+
+	// Contract: safe from any thread; the sound plays in an SKSE task on the game thread.
+	void QueueMenuSound(RE::FormID a_sound)
+	{
+		if (!Settings::MenuSounds()) {
+			return;
+		}
+		SKSE::GetTaskInterface()->AddTask([a_sound] {
+			if (auto* audio = RE::BSAudioManager::GetSingleton()) {
+				audio->Play(a_sound);
+			}
+		});
 	}
 
 	std::string Trimmed(const char* a_text)
@@ -526,6 +547,7 @@ namespace
 				}
 				ImGui::PushID(static_cast<int>(i));
 				if (ImGui::Checkbox(pieces[i].name.c_str(), &a_state.pieceTicked[i])) {
+					QueueMenuSound(kFocusSound);
 					if (a_state.pieceTicked[i]) {
 						UntickSharingSlots(a_state, i);
 					}
@@ -599,6 +621,7 @@ namespace
 			ImGui::SetTooltip("%s", note.c_str());
 		}
 		if (clicked && available && !a_state.previewBusy) {
+			QueueMenuSound(kFocusSound);
 			a_state.previewBusy = true;
 			SKSE::GetTaskInterface()->AddTask(
 				[session = a_state.session, on, pieces = TickedPieces(a_state)] { ApplyPreviewToggle(session, on, pieces); });
@@ -671,19 +694,23 @@ namespace
 
 		switch (action) {
 		case PiecesAction::kLoadPage:
+			QueueMenuSound(kOkSound);
 			a_state.previewedOutfit = -1;
 			GoToPage(a_state, Page::kLoad);
 			break;
 		case PiecesAction::kNamePage:
+			QueueMenuSound(kOkSound);
 			GoToPage(a_state, Page::kName);
 			break;
 		case PiecesAction::kUpdatePage:
+			QueueMenuSound(kOkSound);
 			if (a_state.loadedOutfit >= 0) {
 				SelectOutfit(a_state, a_state.loadedOutfit);
 			}
 			GoToPage(a_state, Page::kUpdate);
 			break;
 		case PiecesAction::kCancel:
+			QueueMenuSound(kCancelSound);
 			RequestCancel();
 			break;
 		case PiecesAction::kNone:
@@ -730,6 +757,7 @@ namespace
 		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
 		const ImVec2 hitTopLeft = ImGui::GetCursorScreenPos();
 		if (ImGui::InvisibleButton(a_label, size)) {
+			QueueMenuSound(kFocusSound);
 			a_ticked = !a_ticked;
 		}
 		const bool hovered = ImGui::IsItemHovered();
@@ -828,7 +856,9 @@ namespace
 			if (i > 0) {
 				ImGui::SameLine();
 			}
-			ImGui::RadioButton(kGenderOptions[i].label, &a_state.gender, kGenderOptions[i].value);
+			if (ImGui::RadioButton(kGenderOptions[i].label, &a_state.gender, kGenderOptions[i].value)) {
+				QueueMenuSound(kFocusSound);
+			}
 		}
 	}
 
@@ -891,9 +921,11 @@ namespace
 
 		switch (action) {
 		case NameAction::kSave:
+			QueueMenuSound(kOkSound);
 			RequestSave(a_state);
 			break;
 		case NameAction::kBack:
+			QueueMenuSound(kCancelSound);
 			GoToPage(a_state, Page::kPieces);
 			break;
 		case NameAction::kNone:
@@ -904,8 +936,9 @@ namespace
 	// --- Outfit lists ---------------------------------------------------------
 
 	// Left column of the Load and Update pages: the library's outfits, `a_selected`
-	// highlighted. Returns the index of the one clicked, or -1. Names are ImGui
-	// labels, so one containing "##" shows only up to it.
+	// highlighted. Returns the index of the one clicked, or -1; choosing another
+	// one plays the focus sound. Names are ImGui labels, so one containing "##"
+	// shows only up to it.
 	int DrawOutfitList(const State& a_state, int a_selected)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
@@ -923,6 +956,9 @@ namespace
 			}
 		}
 		ImGui::EndChild();
+		if (clicked >= 0 && clicked != a_selected) {
+			QueueMenuSound(kFocusSound);
+		}
 		return clicked;
 	}
 
@@ -1010,10 +1046,12 @@ namespace
 
 		switch (DrawLoadButtons(a_state)) {
 		case LoadAction::kLoad:
+			QueueMenuSound(kOkSound);
 			LoadOutfit(a_state);
 			GoToPage(a_state, Page::kPieces);
 			break;
 		case LoadAction::kBack:
+			QueueMenuSound(kCancelSound);
 			if (a_state.previewedOutfit >= 0) {
 				QueuePreview(a_state, TickedPieces(a_state));
 			}
@@ -1080,6 +1118,7 @@ namespace
 		BeginButtonRow({ "Update", "Back" });
 		ImGui::BeginDisabled(a_state.selectedOutfit < 0);
 		if (Theme::Button("Update")) {
+			QueueMenuSound(kOkSound);
 			ImGui::OpenPopup(kConfirmPopup);
 		}
 		ImGui::EndDisabled();
@@ -1130,6 +1169,7 @@ namespace
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		if (confirm || cancel) {
+			QueueMenuSound(confirm ? kOkSound : kCancelSound);
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();
@@ -1166,6 +1206,7 @@ namespace
 		if (DrawConfirmPopup(a_state)) {
 			RequestUpdate(a_state);
 		} else if (back) {
+			QueueMenuSound(kCancelSound);
 			GoToPage(a_state, Page::kPieces);
 		}
 	}
@@ -1221,6 +1262,7 @@ namespace CaptureWindow
 			SetGameFrozen(true);
 		}
 		Hooks::ShowMenu();
+		QueueMenuSound(kOpenSound);
 	}
 
 	void Close()
