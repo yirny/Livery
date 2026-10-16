@@ -54,9 +54,11 @@ namespace Theme
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
 
-	// A row the user ticks on and off; returns true when toggled. Vanilla and
-	// Nordic draw it like a SkyUI inventory row: the skin's equipped mark and a
-	// white bar fading in from the left while ticked. The other skins draw a checkbox.
+	// A row the user ticks on and off; returns true when toggled. While ticked,
+	// Tailor fills it faintly amber with an amber rule on its left edge, as
+	// Tailor 3.0 marks a selected row; Vanilla and Nordic draw it like a SkyUI
+	// inventory row: the skin's equipped mark and a white bar fading in from the
+	// left. Classic draws a checkbox.
 	// Contract: the label is shown as is and is the row's ImGui ID, so PushID
 	// around rows whose labels may repeat.
 	bool TickRow(const char* label, bool* ticked);
