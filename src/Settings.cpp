@@ -32,11 +32,11 @@ namespace
 	constexpr auto kHotkeyKeyKey = L"Key";
 	constexpr auto kHotkeyModifierKey = L"Modifier";
 	constexpr auto kCameraSection = L"Camera";
-	constexpr auto kMoveSpeedKey = L"MoveSpeed";
+	constexpr auto kSpeedPercentKey = L"SpeedPercent";
 
-	constexpr float kDefaultMoveSpeed = 225.0f;  // game units per second; keep in step with kIniKeys
-	constexpr float kMinMoveSpeed = 25.0f;
-	constexpr float kMaxMoveSpeed = 1000.0f;
+	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
+	constexpr float kMinSpeedPercent = 10.0f;
+	constexpr float kMaxSpeedPercent = 200.0f;
 
 	using Key = RE::BSKeyboardDevice::Keys::Key;
 	constexpr std::uint32_t kDefaultHotkey = Key::kF8;
@@ -71,9 +71,9 @@ namespace
 		{ kHotkeySection, kHotkeyModifierKey, L"0",
 			L"Key that must be held together with Key: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt.\n"
 			L"Left and right keys count the same. Read once when the game starts." },
-		{ kCameraSection, kMoveSpeedKey, L"225",
-			L"Speed of the preview camera with W / A / S / D, in game units per second (25 to 1000).\n"
-			L"Shift halves it while held. Easiest to change in game through SKSE Menu Framework." },
+		{ kCameraSection, kSpeedPercentKey, L"100",
+			L"Speed of the preview camera: W / A / S / D movement and mouse drags, as a percentage (10 to 200, 100 = normal).\n"
+			L"Shift halves the movement while held. Easiest to change in game through SKSE Menu Framework." },
 	} };
 
 	// A modifier is named by its left-hand code in the INI and the picker; either side counts.
@@ -109,7 +109,7 @@ namespace
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
 	std::atomic<std::uint32_t> g_modifier{ kNoModifier };  // left-hand code of a kModifiers entry, or kNoModifier
 	std::atomic<bool>          g_pickingHotkey{ false };   // the settings page waits for the next key
-	std::atomic<float>         g_moveSpeed{ kDefaultMoveSpeed };
+	std::atomic<float>         g_speedPercent{ kDefaultSpeedPercent };
 	std::filesystem::path      g_iniPath;  // set once by Load, read-only afterwards
 
 	const SkinOption& OptionOf(Theme::Skin a_skin)
@@ -235,10 +235,10 @@ namespace
 		}
 	}
 
-	void SaveMoveSpeed(float a_speed)
+	void SaveSpeedPercent(float a_percent)
 	{
-		const auto value = std::format(L"{:.0f}", a_speed);
-		if (!::WritePrivateProfileStringW(kCameraSection, kMoveSpeedKey, value.c_str(), g_iniPath.c_str())) {
+		const auto value = std::format(L"{:.0f}", a_percent);
+		if (!::WritePrivateProfileStringW(kCameraSection, kSpeedPercentKey, value.c_str(), g_iniPath.c_str())) {
 			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
 		}
 	}
@@ -356,13 +356,13 @@ namespace
 		ImGuiMCP::Spacing();
 
 		// Applies at once; the INI is written when the slider is let go.
-		float speed = g_moveSpeed.load();
-		if (ImGuiMCP::SliderFloat("Preview camera speed", &speed, kMinMoveSpeed, kMaxMoveSpeed, "%.0f")) {
-			g_moveSpeed = std::clamp(speed, kMinMoveSpeed, kMaxMoveSpeed);
+		float percent = g_speedPercent.load();
+		if (ImGuiMCP::SliderFloat("Preview camera speed", &percent, kMinSpeedPercent, kMaxSpeedPercent, "%.0f%%")) {
+			g_speedPercent = std::clamp(percent, kMinSpeedPercent, kMaxSpeedPercent);
 		}
 		if (ImGuiMCP::IsItemDeactivatedAfterEdit()) {
-			SaveMoveSpeed(g_moveSpeed.load());
-			logger::info("MoveSpeed = {:.0f} (SKSE Menu Framework)", g_moveSpeed.load());
+			SaveSpeedPercent(g_speedPercent.load());
+			logger::info("SpeedPercent = {:.0f} (SKSE Menu Framework)", g_speedPercent.load());
 		}
 	}
 }
@@ -418,14 +418,15 @@ namespace Settings
 		logger::info("Hotkey = {} ({}, modifier {})", HotkeyName(), g_hotkey.load(), g_modifier.load());
 
 		// A missing or unreadable value keeps the default; one out of range is brought into it.
-		wchar_t speed[16]{};
-		::GetPrivateProfileStringW(kCameraSection, kMoveSpeedKey, L"", speed, static_cast<DWORD>(std::size(speed)), g_iniPath.c_str());
+		wchar_t percent[16]{};
+		::GetPrivateProfileStringW(kCameraSection, kSpeedPercentKey, L"", percent, static_cast<DWORD>(std::size(percent)),
+			g_iniPath.c_str());
 		wchar_t*    end = nullptr;
-		const float read = std::wcstof(speed, &end);
-		if (end != speed) {
-			g_moveSpeed = std::clamp(read, kMinMoveSpeed, kMaxMoveSpeed);
+		const float read = std::wcstof(percent, &end);
+		if (end != percent) {
+			g_speedPercent = std::clamp(read, kMinSpeedPercent, kMaxSpeedPercent);
 		}
-		logger::info("MoveSpeed = {:.0f}", g_moveSpeed.load());
+		logger::info("SpeedPercent = {:.0f}", g_speedPercent.load());
 	}
 
 	void RegisterMenu()
@@ -470,8 +471,8 @@ namespace Settings
 		return g_skin.load();
 	}
 
-	float CameraMoveSpeed()
+	float CameraSpeedScale()
 	{
-		return g_moveSpeed.load();
+		return g_speedPercent.load() / 100.0f;
 	}
 }

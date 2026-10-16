@@ -25,6 +25,8 @@ namespace
 {
 	// --- Constants ------------------------------------------------------------
 
+	// The move, look and pan rates are at 100% camera speed; Settings::CameraSpeedScale scales them.
+	constexpr float kMoveUnitsPerSecond = 225.0f;   // with W / A / S / D
 	constexpr float kSlowFactor = 0.5f;             // on the move speed while Shift is held, as in tfc
 	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag
 	constexpr float kPanUnitsPerPixel = 1.0f;       // of a right drag
@@ -182,13 +184,15 @@ namespace PreviewCamera
 			return;
 		}
 
-		const float turn = input.lookX * kLookRadiansPerPixel;
+		const float scale = Settings::CameraSpeedScale();
+		const float look = kLookRadiansPerPixel * scale;
+		const float turn = input.lookX * look;
 		free->rotation.y += turn;
 		OrbitActor(*free, g_session.actor, turn);
 		// The pitch is the session's own, never read back: the engine may store a
 		// look above the horizon as an angle near 2pi, which a clamp would turn
 		// into looking straight down.
-		g_session.pitch = std::clamp(g_session.pitch + input.lookY * kLookRadiansPerPixel, -kMaxPitch, kMaxPitch);
+		g_session.pitch = std::clamp(g_session.pitch + input.lookY * look, -kMaxPitch, kMaxPitch);
 		free->rotation.x = g_session.pitch;
 		const float        yaw = free->rotation.y;
 		const float        pitch = g_session.pitch;
@@ -196,11 +200,12 @@ namespace PreviewCamera
 		const RE::NiPoint3 right{ std::cos(yaw), -std::sin(yaw), 0.0f };
 		const RE::NiPoint3 up{ 0.0f, 0.0f, 1.0f };
 
-		const float step = Settings::CameraMoveSpeed() * (input.slow ? kSlowFactor : 1.0f) * input.seconds;
+		const float step = kMoveUnitsPerSecond * scale * (input.slow ? kSlowFactor : 1.0f) * input.seconds;
 		auto        move = forward * (input.moveForward * step + input.zoomSteps * kZoomUnitsPerStep);
 		move += right * (input.moveRight * step);
 		// A right drag takes the view along with the mouse: the camera goes the other way.
-		move += right * (-input.panX * kPanUnitsPerPixel) + up * (input.panY * kPanUnitsPerPixel);
+		const float pan = kPanUnitsPerPixel * scale;
+		move += right * (-input.panX * pan) + up * (input.panY * pan);
 		free->translation += move;
 	}
 
