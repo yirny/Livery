@@ -286,14 +286,16 @@ namespace
 	}
 
 	// While pinned, centres the window on placeCentre, or on its start place:
-	// vertically centred, and on the left beside the live preview or else in
-	// the middle. The centre is kept so the page's width and the last frame's
+	// vertically centred, and beside the live preview with its right edge
+	// kPreviewGapRatio left of the screen's middle, or else in the middle.
+	// The gap follows the screen height, as the NPC in front does (the view
+	// widens sideways on a wider screen, so ultrawide keeps the same gap). The centre is kept so the page's width and the last frame's
 	// height fit the screen; one taller than the screen keeps its top edge on
 	// it. Unpinned, the window stays where the user left it. Returns whether
 	// it was pinned this frame.
 	bool PlaceWindow(State& a_state, const ImGuiIO& a_io, float a_width)
 	{
-		constexpr float kSideMarginRatio = 0.03f;  // of the screen width, between its left edge and the window beside a preview
+		constexpr float kPreviewGapRatio = 0.18f;  // of the screen height, from the screen's middle to the right edge of the window beside a preview
 
 		if (a_state.recentreFrames == 0) {
 			return false;
@@ -301,7 +303,7 @@ namespace
 		--a_state.recentreFrames;
 		const auto&  screen = a_io.DisplaySize;
 		const bool   aside = a_state.previewOn;
-		const ImVec2 start(aside ? screen.x * kSideMarginRatio + a_width * 0.5f : screen.x * 0.5f, screen.y * 0.5f);
+		const ImVec2 start(aside ? screen.x * 0.5f - screen.y * kPreviewGapRatio - a_width * 0.5f : screen.x * 0.5f, screen.y * 0.5f);
 		const ImVec2 centre = a_state.placeCentre.value_or(start);
 		const auto   inside = [](float a_centre, float a_extent, float a_limit) {
 			return (std::max)(a_extent * 0.5f, (std::min)(a_centre, a_limit - a_extent * 0.5f));
@@ -1337,10 +1339,11 @@ namespace CaptureWindow
 			state.resetImGui = false;
 		}
 
-		constexpr float kWindowWidthRatio = 0.45f;  // of the screen width, for the two-column Load and Update pages
-		constexpr float kNarrowWidthRatio = 0.30f;  // of the screen width, for the one-column pages
+		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
+		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load and Update pages
+		constexpr float kNarrowWidthRatio = 0.53f;  // of the screen height, for the one-column pages
 		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kUpdate;
-		float           width = io.DisplaySize.x * (twoColumns ? kWindowWidthRatio : kNarrowWidthRatio);
+		float           width = io.DisplaySize.y * (twoColumns ? kWindowWidthRatio : kNarrowWidthRatio);
 		if (state.page == Page::kPieces) {
 			width = (std::max)(width, PiecesButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
 		}
