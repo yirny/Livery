@@ -382,15 +382,23 @@ namespace
 		}
 	}
 
-	// Height of a bordered list exactly as tall as its rows, so it does not
-	// scroll, capped so a long list cannot push the window off screen.
+	// Height of a Theme::BeginList list exactly as tall as its rows, so it does
+	// not scroll, capped so a long list cannot push the window off screen.
 	// An empty list keeps one row: a child of height zero would fill the window.
+	// Contract: called with the item spacing the rows will be laid out with.
 	float ListHeight(std::size_t a_rows, float a_rowHeight)
 	{
 		const auto& style = ImGui::GetStyle();
 		const float rowsHeight = static_cast<float>((std::max)(a_rows, std::size_t{ 1 })) * a_rowHeight - style.ItemSpacing.y;
-		const float fullHeight = rowsHeight + (style.WindowPadding.y + style.ChildBorderSize) * 2.0f;
+		const float fullHeight = rowsHeight + Theme::ListPaddingY() * 2.0f;
 		return (std::min)(fullHeight, ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio);
+	}
+
+	// Item spacing for a list's rows: the skin's row gap below each one.
+	void PushListRowSpacing()
+	{
+		const auto& spacing = ImGui::GetStyle().ItemSpacing;
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, Theme::ListRowGap(spacing.y)));
 	}
 
 	void DrawError(const std::string& a_message)
@@ -539,8 +547,9 @@ namespace
 		const auto& onToggled = a_state.request.onPieceToggled;
 		const auto  listed = CountListedPieces(a_state);
 		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), listed).c_str());
+		PushListRowSpacing();  // popped before EndList, so the gap below the list is the normal one
 		const float listHeight = ListHeight(listed, ImGui::GetFrameHeightWithSpacing());
-		if (ImGui::BeginChild("pieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
+		if (Theme::BeginList("pieces", listHeight)) {
 			for (std::size_t i = 0; i < pieces.size(); ++i) {
 				if (!IsListed(a_state, i)) {
 					continue;
@@ -558,7 +567,8 @@ namespace
 				ImGui::PopID();
 			}
 		}
-		ImGui::EndChild();
+		ImGui::PopStyleVar();
+		Theme::EndList();
 		if (CountTickedPieces(a_state) == 0) {
 			ImGui::TextDisabled("Tick at least one piece.");
 		}
@@ -755,7 +765,7 @@ namespace
 	{
 		ImGui::BeginDisabled(a_locked);
 		const auto&  style = ImGui::GetStyle();
-		const float  halfGap = style.ItemInnerSpacing.y * 0.5f;
+		const float  halfGap = Theme::ListRowGap(style.ItemInnerSpacing.y) * 0.5f;
 		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
 		const ImVec2 hitTopLeft = ImGui::GetCursorScreenPos();
 		if (ImGui::InvisibleButton(a_label, size)) {
@@ -768,7 +778,7 @@ namespace
 		const ImVec2 bottomRight(hitTopLeft.x + size.x, hitTopLeft.y + size.y - halfGap);
 		auto*        draw = ImGui::GetWindowDrawList();
 		if (a_ticked || hovered) {
-			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(a_ticked ? ImGuiCol_Header : ImGuiCol_FrameBgHovered), style.FrameRounding);
+			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(a_ticked ? ImGuiCol_Header : ImGuiCol_HeaderHovered), style.FrameRounding);
 		}
 		const ImU32  textColour = ImGui::GetColorU32(a_ticked ? ImGuiCol_CheckMark : ImGuiCol_Text);
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -776,7 +786,7 @@ namespace
 		draw->AddText(ImVec2(topLeft.x + style.FramePadding.x, midY - text.y * 0.5f), textColour, a_label);
 		const float right = bottomRight.x - style.FramePadding.x;
 		if (a_ticked && !Theme::DrawTickedBox(right, midY)) {
-			const float  mark = ImGui::GetFontSize() * 0.3f;  // half width of the check mark
+			const float  mark = ImGui::GetFontSize() * 0.25f;  // half width of the check mark
 			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
 			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
 		}
@@ -950,25 +960,26 @@ namespace
 
 	// Left column of the Load and Update pages: the library's outfits, `a_selected`
 	// highlighted. Returns the index of the one clicked, or -1; choosing another
-	// one plays the focus sound. Names are ImGui labels, so one containing "##"
-	// shows only up to it.
+	// one plays the focus sound. Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(const State& a_state, int a_selected)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
+		PushListRowSpacing();
 		const float listHeight = ListHeight(outfits.size(), ImGui::GetTextLineHeightWithSpacing());
 		int         clicked = -1;
-		if (ImGui::BeginChild("outfits", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
+		if (Theme::BeginList("outfits", listHeight)) {
 			for (std::size_t i = 0; i < outfits.size(); ++i) {
 				const int index = static_cast<int>(i);
 				ImGui::PushID(index);
-				if (ImGui::Selectable(outfits[i].name.c_str(), a_selected == index)) {
+				if (Theme::SelectRow(outfits[i].name.c_str(), a_selected == index)) {
 					clicked = index;
 				}
 				ImGui::PopID();
 			}
 		}
-		ImGui::EndChild();
+		ImGui::PopStyleVar();
+		Theme::EndList();
 		if (clicked >= 0 && clicked != a_selected) {
 			QueueMenuSound(kFocusSound);
 		}
@@ -979,13 +990,15 @@ namespace
 	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
 	{
 		Theme::LabelText(std::format("{} piece(s)", a_outfit.pieces.size()).c_str());
+		PushListRowSpacing();
 		const float listHeight = ListHeight(a_outfit.pieces.size(), ImGui::GetTextLineHeightWithSpacing());
-		if (ImGui::BeginChild("outfitPieces", ImVec2(0.0f, listHeight), ImGuiChildFlags_Borders)) {
+		if (Theme::BeginList("outfitPieces", listHeight)) {
 			for (const auto index : a_outfit.pieces) {
 				ImGui::TextUnformatted(a_state.request.pieces[index].name.c_str());
 			}
 		}
-		ImGui::EndChild();
+		ImGui::PopStyleVar();
+		Theme::EndList();
 	}
 
 	// --- Load page ------------------------------------------------------------
