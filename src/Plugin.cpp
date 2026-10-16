@@ -873,9 +873,10 @@ namespace
 		std::size_t substituted = 0;
 		const auto  inventory = CollectArmor(*actor, skipped, substituted);
 		const auto  armors = WornArmors(inventory);
-		// The window also offers carried armor, so it opens with nothing worn.
+		// The window also offers carried armor and Load Outfit, so it opens even when
+		// the actor carries no armor; only the automatic save below needs worn armor.
 		const bool hasWindow = Hooks::IsRenderReady();
-		if (hasWindow ? inventory.empty() : armors.empty()) {
+		if (!hasWindow && armors.empty()) {
 			Notify(skipped ? "Tailor Capture: worn armor was created in-game and cannot be saved." :
 							 "Tailor Capture: no worn armor was found.");
 			return;
