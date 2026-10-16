@@ -48,9 +48,9 @@ namespace
 		const char* name;
 	};
 	constexpr std::array<BuiltInCategory, 9> kBuiltInCategories{ {
-		{ "Armor class", "Clothing" },
-		{ "Armor class", "Light Armor" },
-		{ "Armor class", "Heavy Armor" },
+		{ "Armor Type", "Clothing" },
+		{ "Armor Type", "Light Armor" },
+		{ "Armor Type", "Heavy Armor" },
 		{ "Situation", "Adventuring" },
 		{ "Situation", "Town" },
 		{ "Situation", "Home" },
@@ -206,7 +206,7 @@ namespace
 		}
 		for (auto& name : ReadCustomCategoryNames()) {
 			if (g_tailor->DoesCategoryExist(name.c_str())) {
-				categories.push_back({ "Custom", std::move(name) });
+				categories.push_back({ "Custom Category", std::move(name) });
 			}
 		}
 		return categories;

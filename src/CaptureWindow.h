@@ -25,7 +25,7 @@ namespace CaptureWindow
 {
 	struct CategoryOption
 	{
-		std::string group;             // small heading shown above the first option of each group
+		std::string group;             // label of the dropdown it is listed in
 		std::string name;              // the category's name as Tailor shows it
 		bool        selected = false;  // initial state of its tick
 	};
