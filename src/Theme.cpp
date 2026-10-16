@@ -4,8 +4,10 @@
 //   Constants  - font files per skin, Tailor's and Nordic's palettes
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
 //   Styles     - one ImGuiStyle per skin and its resolution scale
-//   Textures   - NORDIC UI's corner knot and heading rope (white alpha masks)
-//   Ornaments  - Nordic's corner knots, heading rule and pointed button frame
+//   Textures   - NORDIC UI's corner knot and heading rope (white alpha masks),
+//                the game's and NORDIC UI's equipped-item marks
+//   Ornaments  - Nordic's corner knots, heading rule and pointed button frame;
+//                the SkyUI-style tick row of the Vanilla and Nordic skins
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
@@ -13,9 +15,11 @@
 // and the resolution curve. Tailor ships its fonts; this plugin reads them from
 // Tailor's folder. The Vanilla and Nordic skins approximate the game's menus and
 // NORDIC UI with fonts this plugin ships (OFL): Barlow Condensed and Sovngarde.
-// Nordic's ornaments are NORDIC UI's own art (used with the author's open
-// permission, see textures/NORDIC-UI-CREDITS.txt). A skin whose font files are
-// missing draws with ImGui's default font; missing textures fall back to lines.
+// Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
+// author's open permission, see textures/NORDIC-UI-CREDITS.txt); Vanilla's
+// equipped mark is the game's own (textures/BETHESDA-CREDITS.txt). A skin whose
+// font files are missing draws with ImGui's default font; missing textures fall
+// back to plain lines and triangles.
 #include "PCH.h"
 
 #include "Theme.h"
@@ -97,7 +101,7 @@ namespace
 	constexpr ImU32 kNordicOrnament = IM_COL32(222, 222, 222, 255);  // NORDIC UI's #dedede
 
 	// A texture and the size it is drawn at, in pixels at 1080p before scaling
-	// (the PNGs are rendered at six times that from NORDIC UI's vector art).
+	// (the PNGs are rendered at six to eight times that from the UIs' vector art).
 	struct Ornament
 	{
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
@@ -121,6 +125,8 @@ namespace
 	float       g_scale = 1.0f;                  // its resolution scale, for hand-drawn ornaments
 	Ornament    g_cornerKnot{ nullptr, ImVec2(25.0f, 25.0f) };
 	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
+	Ornament    g_vanillaEquipped{ nullptr, ImVec2(20.0f, 20.0f) };  // the game's equipped mark, a white mask tinted on draw
+	Ornament    g_nordicEquipped{ nullptr, ImVec2(23.0f, 23.0f) };   // NORDIC UI's, in its own two colours
 
 	// nullptr for Classic, which draws with ImGui's default font.
 	const SkinFonts* FontFilesOf(Theme::Skin a_skin)
@@ -311,7 +317,7 @@ namespace
 		}
 		if (FAILED(hr)) {
 			a_out.view.Reset();
-			logger::warn("Could not load {} (HRESULT {:#x}); the Nordic skin draws lines instead", path.string(), static_cast<unsigned>(hr));
+			logger::warn("Could not load {} (HRESULT {:#x}); the skin draws a plain shape instead", path.string(), static_cast<unsigned>(hr));
 		}
 	}
 
@@ -590,6 +596,58 @@ namespace
 		draw->AddText(ImVec2(topLeft.x + (size.x - text.x) * 0.5f, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return pressed;
 	}
+
+	// A SkyUI-style inventory row: while ticked, a white bar fading in from the
+	// left edge to the right and the skin's equipped mark at the left; a faint
+	// tint while hovered. The mark's column stays on unticked rows so the names
+	// line up. Without the texture the mark is a small filled triangle.
+	bool InventoryRow(const char* a_label, bool* a_ticked)
+	{
+		constexpr ImU32 kVanillaMark = IM_COL32(204, 204, 204, 255);  // the game's #cccccc
+		constexpr int   kBarAlpha = 70;                               // of the bar's white right end
+
+		const auto&  style = ImGui::GetStyle();
+		const float  height = ImGui::GetFrameHeight();
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const ImVec2 size((std::max)(1.0f, ImGui::GetContentRegionAvail().x), height);
+
+		const bool pressed = ImGui::InvisibleButton(a_label, size);
+		if (pressed) {
+			*a_ticked = !*a_ticked;
+		}
+		const bool hovered = ImGui::IsItemHovered();
+
+		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
+		auto*        draw = ImGui::GetWindowDrawList();
+		if (*a_ticked) {
+			const ImU32 clear = IM_COL32(255, 255, 255, 0);
+			const ImU32 white = IM_COL32(255, 255, 255, kBarAlpha);
+			draw->AddRectFilledMultiColor(topLeft, bottomRight, clear, white, white, clear);
+		}
+		if (hovered) {
+			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_FrameBgHovered));
+		}
+
+		const bool      nordic = g_skin == Theme::Skin::kNordic;
+		const Ornament& mark = nordic ? g_nordicEquipped : g_vanillaEquipped;
+		const ImVec2    markSize(mark.size.x * g_scale, mark.size.y * g_scale);
+		const ImVec2    markTopLeft(topLeft.x + style.FramePadding.x, midY - markSize.y * 0.5f);
+		if (*a_ticked) {
+			if (mark.view) {
+				draw->AddImage(mark.Id(), markTopLeft, ImVec2(markTopLeft.x + markSize.x, markTopLeft.y + markSize.y),
+					ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), nordic ? IM_COL32_WHITE : kVanillaMark);
+			} else {
+				const float centreX = markTopLeft.x + markSize.x * 0.5f;
+				const float half = markSize.y * 0.3f;
+				draw->AddTriangleFilled(ImVec2(centreX - half * 0.6f, midY - half), ImVec2(centreX + half * 0.8f, midY),
+					ImVec2(centreX - half * 0.6f, midY + half), ImGui::GetColorU32(nordic ? kNordicOrnament : kVanillaMark));
+			}
+		}
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		draw->AddText(ImVec2(markTopLeft.x + markSize.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		return pressed;
+	}
 }
 
 namespace Theme
@@ -613,11 +671,13 @@ namespace Theme
 		Microsoft::WRL::ComPtr<IWICImagingFactory> wic;
 		const auto                                 hr = ::CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic));
 		if (FAILED(hr)) {
-			logger::warn("WIC unavailable (HRESULT {:#x}); the Nordic skin draws lines instead", static_cast<unsigned>(hr));
+			logger::warn("WIC unavailable (HRESULT {:#x}); the skins draw plain shapes instead", static_cast<unsigned>(hr));
 		} else {
 			const auto folder = std::filesystem::current_path() / kTextureDir;
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-corner.png", g_cornerKnot);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-heading.png", g_headingRope);
+			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-equipped.png", g_vanillaEquipped);
+			LoadOrnament(a_device, wic.Get(), folder, L"nordic-equipped.png", g_nordicEquipped);
 		}
 		wic.Reset();
 		if (SUCCEEDED(init)) {
@@ -763,5 +823,11 @@ namespace Theme
 			return PointedButtonWidth(a_label);
 		}
 		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+	}
+
+	bool TickRow(const char* a_label, bool* a_ticked)
+	{
+		const bool inventoryStyle = g_skin == Skin::kVanilla || g_skin == Skin::kNordic;
+		return inventoryStyle ? InventoryRow(a_label, a_ticked) : ImGui::Checkbox(a_label, a_ticked);
 	}
 }

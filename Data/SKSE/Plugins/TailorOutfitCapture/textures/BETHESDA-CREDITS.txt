@@ -1,0 +1,7 @@
+vanilla-equipped.png is the equipped-item mark of Skyrim Special Edition's own
+inventory (Skyrim - Interface.bsa, interface/inventory components/inventorylists.swf,
+symbol EquipIcon, frame "Equipped"), rendered from its vector shape as a white
+alpha mask; the plugin tints it at draw time.
+
+It is Bethesda Softworks' game material, redistributed here only as part of a
+free mod for use with The Elder Scrolls V: Skyrim, as the game's EULA allows.
