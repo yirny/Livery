@@ -5,8 +5,8 @@
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
 //   Preview        - the captured actor wears kPreviewOutfit as an override that follows the piece ticks
-//                    and the outfit selected on the Load page, seen through PreviewCamera; every close of
-//                    the window, a save included, ends both
+//                    and the outfit selected on the Load page, seen through PreviewCamera; saving is off
+//                    while it runs, and every close of the window, a save included, ends all three
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
 //                    armor, detect the armor class, list the library's outfits (adding their pieces the actor
 //                    does not carry), then open the window with the worn pieces ticked (or save those under
@@ -327,6 +327,9 @@ namespace
 	// override; empty when there is no live preview.
 	RE::ActorHandle g_previewActor{};
 
+	// The preview set the player's kDisableSaving flag, so only it clears the flag.
+	bool g_previewBlocksSaving = false;
+
 	// Gives kPreviewOutfit exactly these pieces, new ones in before old ones out.
 	// Contract: game thread (Tailor building calls).
 	void SetPreviewPieces(const std::vector<RE::TESObjectARMO*>& armors)
@@ -341,6 +344,34 @@ namespace
 			if (std::ranges::find(armors, armor) == armors.end() && !g_tailor->RemoveArmorFromOutfit(kPreviewOutfit, armor)) {
 				logger::warn("RemoveArmorFromOutfit({}, {:08X}) failed", kPreviewOutfit, armor->GetFormID());
 			}
+		}
+	}
+
+	// Contract: game thread. A save made now would keep the preview override and the free
+	// camera, and the engine refuses one silently while the window's menu is open, which
+	// autosave mods may retry every frame; the flag tells them not to ask (as Tailor's own
+	// preview does). A flag another mod set is left alone.
+	void BlockSaving()
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		if (!player) {
+			return;
+		}
+		auto& flags = player->GetGameStatsData().byCharGenFlag;
+		if (!flags.any(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving)) {
+			flags.set(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving);
+			g_previewBlocksSaving = true;
+		}
+	}
+
+	// Contract: game thread.
+	void AllowSaving()
+	{
+		if (!std::exchange(g_previewBlocksSaving, false)) {
+			return;
+		}
+		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
+			player->GetGameStatsData().byCharGenFlag.reset(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving);
 		}
 	}
 
@@ -364,6 +395,7 @@ namespace
 			return "Preview off: Tailor refused to dress them.";
 		}
 		g_previewActor = actor.GetHandle();
+		BlockSaving();
 		logger::info("Preview on {:08X}", actor.GetFormID());
 		return {};
 	}
@@ -381,14 +413,16 @@ namespace
 		}
 	}
 
-	// The actor goes back to what Tailor would dress them in without an override.
+	// The actor goes back to what Tailor would dress them in without an override,
+	// and saving comes back on.
 	// Contract: game thread; the window's onClose, so it runs on every close,
-	// a save included.
+	// a save and the close before a load included.
 	void EndPreview()
 	{
 		if (const auto actor = std::exchange(g_previewActor, {}).get()) {
 			g_tailor->ClearOutfitOverride(actor.get());
 		}
+		AllowSaving();
 	}
 
 	// Starts the live preview for the window about to open and wires it in: ticks
