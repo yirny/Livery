@@ -74,4 +74,13 @@ namespace Theme
 	// nothing, when the skin is not Vanilla or Nordic or the textures are
 	// missing, so the caller draws its own mark.
 	bool DrawTickedBox(float right, float midY);
+
+	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
+	// fill the popup only when BeginCombo returned true, then call EndCombo
+	// with that result and the same preview. Vanilla and Nordic replace
+	// ImGui's arrow with the game's diamond stepper arrow (drawn, with the
+	// preview, by EndCombo); the other skins or a missing texture keep ImGui's.
+	// `flags` are ImGuiComboFlags.
+	bool BeginCombo(const char* id, const char* preview, int flags);
+	void EndCombo(bool open, const char* preview);
 }

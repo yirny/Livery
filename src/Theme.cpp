@@ -5,10 +5,11 @@
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
 //   Styles     - one ImGuiStyle per skin and its resolution scale
 //   Textures   - NORDIC UI's corner knot and heading rope (white alpha masks),
-//                the game's and NORDIC UI's equipped-item marks, the game's checkbox
+//                the game's and NORDIC UI's equipped-item marks, the game's
+//                checkbox and dropdown arrow
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame;
-//                Tailor's tick row; the SkyUI-style tick row and the game's
-//                checkbox of the Vanilla and Nordic skins
+//                Tailor's tick row; the SkyUI-style tick row, the game's
+//                checkbox and dropdown arrow of the Vanilla and Nordic skins
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
@@ -34,6 +35,7 @@
 #include <wrl/client.h>
 
 #include <imgui.h>
+#include <imgui_internal.h>  // BeginComboPreview / EndComboPreview
 
 #include <algorithm>
 #include <array>
@@ -131,6 +133,7 @@ namespace
 	Ornament    g_nordicEquipped{ nullptr, ImVec2(23.0f, 23.0f) };   // NORDIC UI's, in its own two colours
 	Ornament    g_checkBox{ nullptr, ImVec2(20.0f, 20.0f) };         // the game's checkbox, in its own colours
 	Ornament    g_checkMark{ nullptr, ImVec2(15.0f, 15.0f) };        // its tick, centred on the box (the game's ratio)
+	Ornament    g_dropdownArrow{ nullptr, ImVec2(13.0f, 16.0f) };    // the game's option stepper arrow, turned to point down
 
 	// nullptr for Classic, which draws with ImGui's default font.
 	const SkinFonts* FontFilesOf(Theme::Skin a_skin)
@@ -693,6 +696,39 @@ namespace
 		return (g_skin == Theme::Skin::kVanilla || g_skin == Theme::Skin::kNordic) && g_checkBox.view && g_checkMark.view;
 	}
 
+	// Vanilla and Nordic draw the game's dropdown arrow when its texture loaded.
+	bool HasGameDropdownArrow()
+	{
+		return (g_skin == Theme::Skin::kVanilla || g_skin == Theme::Skin::kNordic) && g_dropdownArrow.view;
+	}
+
+	// The preview of a combo opened with ImGuiComboFlags_CustomPreview: the
+	// text clipped short of the arrow's column, then the game's arrow at the
+	// right edge of the frame, untinted but through the style alpha.
+	// Contract: called right after the combo's BeginCombo / EndCombo block,
+	// where the combo frame is still the last item (BeginComboPreview asserts it).
+	void DrawGameComboPreview(const char* a_preview)
+	{
+		const auto&  style = ImGui::GetStyle();
+		const ImVec2 frameMin = ImGui::GetItemRectMin();
+		const ImVec2 frameMax = ImGui::GetItemRectMax();
+		const ImVec2 arrow(g_dropdownArrow.size.x * g_scale, g_dropdownArrow.size.y * g_scale);
+		const float  arrowLeft = frameMax.x - style.FramePadding.x - arrow.x;
+
+		if (!ImGui::BeginComboPreview()) {
+			return;
+		}
+		ImGui::PushClipRect(frameMin, ImVec2(arrowLeft - style.ItemInnerSpacing.x, frameMax.y), true);
+		ImGui::TextUnformatted(a_preview);
+		ImGui::PopClipRect();
+		ImGui::EndComboPreview();
+
+		const float  midY = (frameMin.y + frameMax.y) * 0.5f;
+		const ImVec2 arrowTopLeft(arrowLeft, midY - arrow.y * 0.5f);
+		ImGui::GetWindowDrawList()->AddImage(g_dropdownArrow.Id(), arrowTopLeft, ImVec2(arrowTopLeft.x + arrow.x, arrowTopLeft.y + arrow.y),
+			ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(IM_COL32_WHITE));
+	}
+
 	// The game's diamond box with its top-left at a_topLeft, and the tick
 	// centred on it when ticked. Untinted, but through the style alpha, so it
 	// fades inside BeginDisabled.
@@ -769,6 +805,7 @@ namespace Theme
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-equipped.png", g_nordicEquipped);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkbox.png", g_checkBox);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkmark.png", g_checkMark);
+			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-dropdown.png", g_dropdownArrow);
 		}
 		wic.Reset();
 		if (SUCCEEDED(init)) {
@@ -942,5 +979,24 @@ namespace Theme
 		const ImVec2 box(g_checkBox.size.x * g_scale, g_checkBox.size.y * g_scale);
 		DrawGameCheckbox(ImGui::GetWindowDrawList(), ImVec2(a_right - box.x, a_midY - box.y * 0.5f), true);
 		return true;
+	}
+
+	bool BeginCombo(const char* a_id, const char* a_preview, int a_flags)
+	{
+		if (!HasGameDropdownArrow()) {
+			return ImGui::BeginCombo(a_id, a_preview, a_flags);
+		}
+		// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
+		return ImGui::BeginCombo(a_id, "", a_flags | ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_CustomPreview);
+	}
+
+	void EndCombo(bool a_open, const char* a_preview)
+	{
+		if (a_open) {
+			ImGui::EndCombo();
+		}
+		if (HasGameDropdownArrow()) {
+			DrawGameComboPreview(a_preview);
+		}
 	}
 }
