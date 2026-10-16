@@ -730,10 +730,11 @@ namespace
 		return joined;
 	}
 
-	std::string CategoryPreview(const State& a_state, const bool* a_ticked)
+	// The ticked names among request.categories[a_begin, a_end).
+	std::string CategoryPreview(const State& a_state, const bool* a_ticked, std::size_t a_begin, std::size_t a_end)
 	{
 		std::vector<std::string> names;
-		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
+		for (std::size_t i = a_begin; i < a_end; ++i) {
 			if (a_ticked[i]) {
 				names.push_back(a_state.request.categories[i].name);
 			}
@@ -781,30 +782,39 @@ namespace
 		ImGui::EndDisabled();
 	}
 
-	// Multi-select dropdown: a combo whose popup lists every category as a row.
-	// a_ticked and a_locked (nullptr for none locked) hold one entry per
-	// request.categories.
-	void DrawCategoryField(const State& a_state, const char* a_id, bool* a_ticked, const bool* a_locked)
+	// Multi-select dropdown labelled by its group: a combo whose popup lists
+	// request.categories[a_begin, a_end) as rows.
+	void DrawCategoryCombo(const State& a_state, std::size_t a_begin, std::size_t a_end, bool* a_ticked, const bool* a_locked)
 	{
-		Theme::LabelText("Categories");
+		const char* group = a_state.request.categories[a_begin].group.c_str();
+		Theme::LabelText(group);
+		ImGui::PushID(group);
 		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::BeginCombo(a_id, CategoryPreview(a_state, a_ticked).c_str(), ImGuiComboFlags_HeightLargest)) {
+		if (ImGui::BeginCombo("##combo", CategoryPreview(a_state, a_ticked, a_begin, a_end).c_str(), ImGuiComboFlags_HeightLargest)) {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
-			const auto& options = a_state.request.categories;
-			for (std::size_t i = 0; i < options.size(); ++i) {
-				if (i == 0 || options[i].group != options[i - 1].group) {
-					if (i > 0) {
-						ImGui::Dummy(ImVec2(0.0f, ImGui::GetStyle().ItemInnerSpacing.y));  // small gap before each later heading
-					}
-					ImGui::TextDisabled("%s", options[i].group.c_str());
-				}
+			for (std::size_t i = a_begin; i < a_end; ++i) {
 				ImGui::PushID(static_cast<int>(i));
-				DrawCategoryRow(options[i].name.c_str(), a_ticked[i], a_locked && a_locked[i]);
+				DrawCategoryRow(a_state.request.categories[i].name.c_str(), a_ticked[i], a_locked && a_locked[i]);
 				ImGui::PopID();
 			}
 			ImGui::PopStyleVar();
 			ImGui::EndCombo();
 		}
+		ImGui::PopID();
+	}
+
+	// One dropdown per run of request.categories sharing a group, so a group
+	// with no category (no custom ones) shows no dropdown. a_ticked and a_locked
+	// (nullptr for none locked) hold one entry per request.categories.
+	void DrawCategoryFields(const State& a_state, const char* a_id, bool* a_ticked, const bool* a_locked)
+	{
+		const auto& options = a_state.request.categories;
+		ImGui::PushID(a_id);
+		for (std::size_t begin = 0, end = 0; begin < options.size(); begin = end) {
+			for (end = begin + 1; end < options.size() && options[end].group == options[begin].group; ++end) {}
+			DrawCategoryCombo(a_state, begin, end, a_ticked, a_locked);
+		}
+		ImGui::PopID();
 	}
 
 	// Returns true when the user asked to save with a valid name.
@@ -914,7 +924,7 @@ namespace
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const bool save = DrawNameField(a_state);
-		DrawCategoryField(a_state, "##categories", a_state.ticked.get(), nullptr);
+		DrawCategoryFields(a_state, "##categories", a_state.ticked.get(), nullptr);
 		DrawGenderField(a_state);
 		const auto action = DrawNameButtons(a_state, save);
 		ImGui::EndDisabled();
@@ -1102,7 +1112,7 @@ namespace
 			ImGui::TextDisabled("Select an outfit.");
 			return;
 		}
-		DrawCategoryField(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
+		DrawCategoryFields(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
 		DrawOutfitPieces(a_state, OutfitAt(a_state, a_state.selectedOutfit));
 	}
 
