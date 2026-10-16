@@ -20,6 +20,9 @@ namespace Settings
 	// Safe from any thread.
 	bool FollowersAndSpouseOnly();
 
+	// Whether the capture window opens with Live Preview on. Safe from any thread.
+	bool LivePreview();
+
 	// Safe from any thread.
 	Theme::Skin Skin();
 

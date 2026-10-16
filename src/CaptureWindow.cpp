@@ -2,14 +2,15 @@
 //
 // FILE MAP
 //   State        - one mutex-guarded struct: request, name buffer, category ticks, status
-//   Game thread  - Open / Close / SetError (also freeze and unfreeze the game, unless previewing)
+//   Game thread  - Open / Close / SetError (also freeze and unfreeze the game while Live Preview is off)
 //   Input        - QueueInput translates engine events and moves the game's cursor;
 //                  FeedInput hands them and the cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers; mouse and
 //                  key input over the game goes to onViewInput
 //   Pieces page  - inventory pieces (first page) plus the loaded outfit's, each tick
-//                  handed to onPieceToggled; Load Outfit / Create New / Update Existing /
-//                  Cancel
+//                  handed to onPieceToggled; the Live Preview tick, handed to onPreviewOn /
+//                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
+//                  Load Outfit / Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit lists - the library outfit list and piece list both outfit pages share
 //   Load page    - library outfits, the selected one shown on the preview; Load ticks
@@ -102,7 +103,11 @@ namespace
 		std::optional<ImVec2>           placeCentre;           // where a pinned window's centre goes; none for the start place
 		ImVec2                          windowPos{};           // of the window in the last frame drawn
 		ImVec2                          windowSize{};
-		bool                            frozeGame = false;    // Open froze the game, so Close unfreezes it
+		bool                            userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
+		unsigned                        session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
+		bool                            previewOn = false;    // Live Preview is on
+		bool                            previewBusy = false;  // a Live Preview tick waits for its SKSE task
+		bool                            frozeGame = false;    // the window froze the game (Live Preview off), so Close unfreezes it
 		int                             viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
 		float                           viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
 		float                           viewDragY = 0.0f;
@@ -281,20 +286,21 @@ namespace
 	}
 
 	// While pinned, centres the window on placeCentre, or on its start place:
-	// vertically centred, and on the left beside a preview camera's view or
-	// else in the middle. The centre is kept so the page's width and the last
-	// frame's height fit the screen; one taller than the screen keeps its top
-	// edge on it. Unpinned, the window stays where the user left it.
-	void PlaceWindow(State& a_state, const ImGuiIO& a_io, float a_width)
+	// vertically centred, and on the left beside the live preview or else in
+	// the middle. The centre is kept so the page's width and the last frame's
+	// height fit the screen; one taller than the screen keeps its top edge on
+	// it. Unpinned, the window stays where the user left it. Returns whether
+	// it was pinned this frame.
+	bool PlaceWindow(State& a_state, const ImGuiIO& a_io, float a_width)
 	{
 		constexpr float kSideMarginRatio = 0.03f;  // of the screen width, between its left edge and the window beside a preview
 
 		if (a_state.recentreFrames == 0) {
-			return;
+			return false;
 		}
 		--a_state.recentreFrames;
 		const auto&  screen = a_io.DisplaySize;
-		const bool   aside = static_cast<bool>(a_state.request.onViewInput);
+		const bool   aside = a_state.previewOn;
 		const ImVec2 start(aside ? screen.x * kSideMarginRatio + a_width * 0.5f : screen.x * 0.5f, screen.y * 0.5f);
 		const ImVec2 centre = a_state.placeCentre.value_or(start);
 		const auto   inside = [](float a_centre, float a_extent, float a_limit) {
@@ -302,6 +308,7 @@ namespace
 		};
 		const ImVec2 fitted(inside(centre.x, a_width, screen.x), inside(centre.y, a_state.windowSize.y, screen.y));
 		ImGui::SetNextWindowPos(fitted, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+		return true;
 	}
 
 	std::vector<std::size_t> TickedPieces(const State& a_state)
@@ -432,11 +439,15 @@ namespace
 	// mouse moves of the frame it was held (collected by QueueInput) are a look
 	// for the left button and a pan for the right. Keys count while no item is
 	// active and no popup is open (WantCaptureKeyboard), the wheel while the
-	// cursor is over the game.
+	// cursor is over the game. None while Live Preview is off: a drag is
+	// dropped, so QueueInput moves the cursor again.
 	void ForwardViewInput(State& a_state)
 	{
 		const auto& onViewInput = a_state.request.onViewInput;
-		if (!onViewInput) {
+		if (!onViewInput || !a_state.previewOn) {
+			a_state.viewDragButton = -1;
+			a_state.viewDragX = 0.0f;
+			a_state.viewDragY = 0.0f;
 			return;
 		}
 		const auto&              io = ImGui::GetIO();
@@ -527,8 +538,68 @@ namespace
 		if (CountTickedPieces(a_state) == 0) {
 			ImGui::TextDisabled("Tick at least one piece.");
 		}
-		if (!a_state.request.previewNote.empty()) {
-			ImGui::TextDisabled("%s", a_state.request.previewNote.c_str());
+	}
+
+	// Turns the live preview on or off and the game's freeze the other way.
+	// Turning it on puts the window back on its start place beside the preview,
+	// unless the user moved it; a refusal greys the tick with the reason.
+	// Contract: game thread (SKSE task queued by DrawPreviewToggle). Open and
+	// Close run only there too, so the session cannot change between the two
+	// locks; the handlers run outside the lock, as they call Tailor.
+	void ApplyPreviewToggle(unsigned a_session, bool a_on, const std::vector<std::size_t>& a_pieces)
+	{
+		auto&                                                       state = GetState();
+		std::function<std::string(const std::vector<std::size_t>&)> onPreviewOn;
+		std::function<void()>                                       onPreviewOff;
+		{
+			const std::scoped_lock lock(state.mutex);
+			if (state.status == Status::kClosed || state.session != a_session) {
+				return;
+			}
+			onPreviewOn = state.request.onPreviewOn;
+			onPreviewOff = state.request.onPreviewOff;
+		}
+		std::string reason;
+		if (a_on) {
+			reason = onPreviewOn(a_pieces);
+		} else {
+			onPreviewOff();
+		}
+		const bool on = a_on && reason.empty();
+		{
+			const std::scoped_lock lock(state.mutex);
+			state.previewBusy = false;
+			state.previewOn = on;
+			state.request.previewNote = std::move(reason);
+			state.frozeGame = !on;
+			if (on && !state.userMoved) {
+				state.placeCentre.reset();  // the start place
+				state.recentreFrames = kRecentreFrames;
+			}
+		}
+		SetGameFrozen(!on);
+	}
+
+	// The Live Preview tick: greyed, with the reason on hover, when the preview
+	// cannot be on; each click queues ApplyPreviewToggle with the ticked pieces
+	// of that moment, so the piece clicks queued after it apply on top.
+	void DrawPreviewToggle(State& a_state)
+	{
+		const auto& note = a_state.request.previewNote;
+		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
+		bool        on = a_state.previewOn;
+		ImGui::BeginDisabled(!available || a_state.previewBusy);
+		const bool clicked = ImGui::Checkbox("Live Preview", &on);
+		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		ImGui::EndDisabled();
+		// After EndDisabled, so the tooltip is not drawn faded.
+		if (hovered && !note.empty()) {
+			ImGui::SetTooltip("%s", note.c_str());
+		}
+		if (clicked && available && !a_state.previewBusy) {
+			a_state.previewBusy = true;
+			SKSE::GetTaskInterface()->AddTask(
+				[session = a_state.session, on, pieces = TickedPieces(a_state)] { ApplyPreviewToggle(session, on, pieces); });
 		}
 	}
 
@@ -592,6 +663,7 @@ namespace
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
+		DrawPreviewToggle(a_state);
 		const auto action = DrawPiecesButtons(a_state);
 		ImGui::EndDisabled();
 
@@ -1131,12 +1203,16 @@ namespace CaptureWindow
 			state.loadedOutfit = -1;
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
+			state.userMoved = false;
+			++state.session;
+			state.previewOn = state.request.previewOn;
+			state.previewBusy = false;
 			state.viewDragButton = -1;
 			state.viewDragX = 0.0f;
 			state.viewDragY = 0.0f;
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
-			state.frozeGame = !state.request.onPieceToggled;
+			state.frozeGame = !state.previewOn;
 		}
 		g_open = true;
 		if (state.frozeGame) {
@@ -1268,7 +1344,7 @@ namespace CaptureWindow
 		if (state.page == Page::kPieces) {
 			width = (std::max)(width, PiecesButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
 		}
-		PlaceWindow(state, io, width);
+		const bool pinned = PlaceWindow(state, io, width);
 		// Width is fixed every frame; the height follows the content (a zero
 		// axis is left to AlwaysAutoResize), so the window never needs to scroll.
 		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
@@ -1280,7 +1356,12 @@ namespace CaptureWindow
 			ImGui::End();
 			return;
 		}
-		state.windowPos = ImGui::GetWindowPos();
+		// Unpinned, only a drag moves the window: auto-resize keeps its top-left corner.
+		const ImVec2 pos = ImGui::GetWindowPos();
+		if (!pinned && (pos.x != state.windowPos.x || pos.y != state.windowPos.y)) {
+			state.userMoved = true;
+		}
+		state.windowPos = pos;
 		state.windowSize = ImGui::GetWindowSize();
 		Theme::DecorateWindow();
 
