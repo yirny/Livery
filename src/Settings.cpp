@@ -28,6 +28,7 @@ namespace
 	constexpr auto kLivePreviewKey = L"LivePreview";
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kSkinKey = L"Skin";
+	constexpr auto kMenuSoundsKey = L"MenuSounds";
 	constexpr auto kHotkeySection = L"Hotkey";
 	constexpr auto kHotkeyKeyKey = L"Key";
 	constexpr auto kHotkeyModifierKey = L"Modifier";
@@ -53,7 +54,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 6> kIniKeys{ {
+	constexpr std::array<IniKey, 7> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -65,6 +66,10 @@ namespace
 		{ kUiSection, kSkinKey, L"Tailor",
 			L"Skin of the capture window: Tailor, Vanilla, Nordic or Classic.\n"
 			L"Read once when the game starts." },
+		{ kUiSection, kMenuSoundsKey, L"1",
+			L"1 = the capture window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
+			L"0 = it stays silent.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kHotkeySection, kHotkeyKeyKey, L"66",
 			L"Key that captures the NPC under the crosshair, or you when there is none, as a DirectInput scan code (66 = F8).\n"
 			L"Easiest to change in game through SKSE Menu Framework. Read once when the game starts." },
@@ -106,6 +111,7 @@ namespace
 	std::atomic<bool>          g_followersAndSpouseOnly{ true };
 	std::atomic<bool>          g_livePreview{ true };
 	std::atomic<Theme::Skin>   g_skin{ kSkinOptions[0].skin };
+	std::atomic<bool>          g_menuSounds{ true };
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
 	std::atomic<std::uint32_t> g_modifier{ kNoModifier };  // left-hand code of a kModifiers entry, or kNoModifier
 	std::atomic<bool>          g_pickingHotkey{ false };   // the settings page waits for the next key
@@ -235,6 +241,13 @@ namespace
 		}
 	}
 
+	void SaveMenuSounds(bool value)
+	{
+		if (!::WritePrivateProfileStringW(kUiSection, kMenuSoundsKey, value ? L"1" : L"0", g_iniPath.c_str())) {
+			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+		}
+	}
+
 	void SaveSpeedPercent(float a_percent)
 	{
 		const auto value = std::format(L"{:.0f}", a_percent);
@@ -343,6 +356,17 @@ namespace
 		ImGuiMCP::Spacing();
 		ImGuiMCP::Spacing();
 
+		// Applies at once.
+		bool menuSounds = g_menuSounds.load();
+		if (ImGuiMCP::Checkbox("Play menu sounds", &menuSounds)) {
+			g_menuSounds = menuSounds;
+			SaveMenuSounds(menuSounds);
+			logger::info("MenuSounds = {} (SKSE Menu Framework)", menuSounds);
+		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
 		// The next key press is taken by OnInput; "###" keeps the button's ID while its text changes.
 		ImGuiMCP::Text("Capture hotkey");
 		ImGuiMCP::SameLine();
@@ -405,6 +429,12 @@ namespace Settings
 			}
 		}
 		logger::info("Skin = {}", OptionOf(g_skin.load()).label);
+
+		// A missing key keeps the default (on).
+		::GetPrivateProfileStringW(kUiSection, kMenuSoundsKey, L"1", value, static_cast<DWORD>(std::size(value)),
+			g_iniPath.c_str());
+		g_menuSounds = std::wstring_view{ value } != L"0";
+		logger::info("MenuSounds = {}", g_menuSounds.load());
 
 		// An out-of-range key or an unknown modifier keeps the default (F8, no modifier).
 		const auto key = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyKeyKey, kDefaultHotkey, g_iniPath.c_str());
@@ -469,6 +499,11 @@ namespace Settings
 	Theme::Skin Skin()
 	{
 		return g_skin.load();
+	}
+
+	bool MenuSounds()
+	{
+		return g_menuSounds.load();
 	}
 
 	float CameraSpeedScale()

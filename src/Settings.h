@@ -26,6 +26,9 @@ namespace Settings
 	// Safe from any thread.
 	Theme::Skin Skin();
 
+	// Whether the capture window plays the game's menu sounds. Safe from any thread.
+	bool MenuSounds();
+
 	// Multiplier on the preview camera's movement, mouse drags and wheel zoom; 1 is normal. Safe from any thread.
 	float CameraSpeedScale();
 
