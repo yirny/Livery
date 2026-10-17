@@ -45,6 +45,11 @@ namespace
 	constexpr std::size_t kNameCapacity = 64;                 // bytes, UTF-8, including the terminator
 	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // ID shared by OpenPopup and BeginPopupModal
+	// Reasons a button is greyed out, shown on hover (and in the empty name field).
+	constexpr const char* kNeedName = "Enter a name.";
+	constexpr const char* kNeedPiece = "Tick at least one piece.";
+	constexpr const char* kNeedOutfit = "Select an outfit.";
+	constexpr const char* kNoOutfits = "No outfits in Tailor.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -403,9 +408,24 @@ namespace
 
 	void DrawError(const std::string& a_message)
 	{
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Text, Theme::ErrorColor());
 		ImGui::TextWrapped("%s", a_message.c_str());
 		ImGui::PopStyleColor();
+	}
+
+	// A button greyed out while `a_reason` is set, which shows on hover; a plain
+	// Theme::Button otherwise. Returns true when clicked while enabled.
+	bool ReasonButton(const char* a_label, const char* a_reason)
+	{
+		ImGui::BeginDisabled(a_reason != nullptr);
+		const bool clicked = Theme::Button(a_label);
+		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		ImGui::EndDisabled();
+		// After EndDisabled, so the tooltip is not drawn faded.
+		if (a_reason && hovered) {
+			ImGui::SetTooltip("%s", a_reason);
+		}
+		return clicked && !a_reason;
 	}
 
 	// Width of a row of buttons with these labels (Theme::Button, one item
@@ -581,7 +601,7 @@ namespace
 		ImGui::PopStyleVar();
 		Theme::EndList();
 		if (CountTickedPieces(a_state) == 0) {
-			ImGui::TextDisabled("Tick at least one piece.");
+			ImGui::TextDisabled(kNeedPiece);
 		}
 	}
 
@@ -670,20 +690,13 @@ namespace
 	PiecesAction DrawPiecesButtons(const State& a_state)
 	{
 		BeginButtonRow({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
-		const bool hasOutfits = !a_state.request.existingOutfits.empty();
-		ImGui::BeginDisabled(!hasOutfits);
-		const bool load = Theme::Button("Load Outfit");
-		ImGui::EndDisabled();
+		const char* noOutfits = a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr;
+		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
+		const bool  load = ReasonButton("Load Outfit", noOutfits);
 		ImGui::SameLine();
-
-		const bool hasPieces = CountTickedPieces(a_state) > 0;
-		ImGui::BeginDisabled(!hasPieces);
-		const bool create = Theme::Button("Create New");
-		ImGui::EndDisabled();
+		const bool create = ReasonButton("Create New", noPiece);
 		ImGui::SameLine();
-		ImGui::BeginDisabled(!hasPieces || !hasOutfits);
-		const bool update = Theme::Button("Update Existing");
-		ImGui::EndDisabled();
+		const bool update = ReasonButton("Update Existing", noPiece ? noPiece : noOutfits);
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
@@ -691,13 +704,13 @@ namespace
 			ImGui::TextDisabled("Applying...");
 			return PiecesAction::kNone;
 		}
-		if (load && hasOutfits) {
+		if (load) {
 			return PiecesAction::kLoadPage;
 		}
-		if (create && hasPieces) {
+		if (create) {
 			return PiecesAction::kNamePage;
 		}
-		if (update && hasPieces && hasOutfits) {
+		if (update) {
 			return PiecesAction::kUpdatePage;
 		}
 		return cancel ? PiecesAction::kCancel : PiecesAction::kNone;
@@ -843,7 +856,9 @@ namespace
 		ImGui::PopID();
 	}
 
-	// Returns true when the user asked to save with a valid name.
+	// Returns true when the user asked to save with a valid name. The empty field
+	// shows kNeedName; a failed save turns it red with the message on hover, until
+	// the name is edited.
 	bool DrawNameField(State& a_state)
 	{
 		Theme::LabelText("Outfit name");
@@ -852,24 +867,16 @@ namespace
 			ImGui::SetKeyboardFocusHere();
 			a_state.focusNameField = false;
 		}
-		// The hint line sits right under the field and only a small gap above Categories.
-		constexpr float kHintGap = 6.0f;  // pixels at 1080p, below the hint line
-		const float     spacingX = ImGui::GetStyle().ItemSpacing.x;
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, 0.0f));
-		const bool enter = Theme::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue);
-		ImGui::PopStyleVar();
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, kHintGap * Theme::Scale()));
-
-		const bool valid = !Trimmed(a_state.name.data()).empty();
-		if (!valid) {
-			ImGui::TextDisabled("Enter a name.");
-		} else if (!a_state.error.empty()) {
-			DrawError(a_state.error);
-		} else {
-			ImGui::NewLine();
+		const bool failed = !a_state.error.empty();
+		const bool enter = Theme::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue, kNeedName, failed);
+		if (failed) {
+			if (ImGui::IsItemEdited()) {
+				a_state.error.clear();
+			} else if (ImGui::IsItemHovered()) {
+				ImGui::SetTooltip("%s", a_state.error.c_str());
+			}
 		}
-		ImGui::PopStyleVar();
-		return enter && valid;
+		return enter && !Trimmed(a_state.name.data()).empty();
 	}
 
 	// Tailor's gender values as one row of radio buttons. API 1.0 cannot change
@@ -912,9 +919,7 @@ namespace
 	{
 		BeginButtonRow({ "Create", "Back" });
 		const bool valid = !Trimmed(a_state.name.data()).empty();
-		ImGui::BeginDisabled(!valid);
-		const bool save = Theme::Button("Create") || a_save;
-		ImGui::EndDisabled();
+		const bool save = ReasonButton("Create", valid ? nullptr : kNeedName) || a_save;
 		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
@@ -1024,7 +1029,7 @@ namespace
 	{
 		Theme::LabelText("Categories");
 		if (a_state.previewedOutfit < 0) {
-			ImGui::TextDisabled("Select an outfit.");
+			ImGui::TextDisabled(kNeedOutfit);
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.previewedOutfit);
@@ -1044,14 +1049,11 @@ namespace
 	LoadAction DrawLoadButtons(const State& a_state)
 	{
 		BeginButtonRow({ "Load", "Back" });
-		const bool canLoad = a_state.previewedOutfit >= 0;
-		ImGui::BeginDisabled(!canLoad);
-		const bool load = Theme::Button("Load");
-		ImGui::EndDisabled();
+		const bool load = ReasonButton("Load", a_state.previewedOutfit >= 0 ? nullptr : kNeedOutfit);
 		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
-		if (load && canLoad) {
+		if (load) {
 			return LoadAction::kLoad;
 		}
 		return back ? LoadAction::kBack : LoadAction::kNone;
@@ -1143,7 +1145,7 @@ namespace
 	{
 		if (a_state.selectedOutfit < 0) {
 			Theme::LabelText("Categories");
-			ImGui::TextDisabled("Select an outfit.");
+			ImGui::TextDisabled(kNeedOutfit);
 			return;
 		}
 		DrawCategoryFields(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
@@ -1160,12 +1162,10 @@ namespace
 			DrawError(a_state.error);
 		}
 		BeginButtonRow({ "Update", "Back" });
-		ImGui::BeginDisabled(a_state.selectedOutfit < 0);
-		if (Theme::Button("Update")) {
+		if (ReasonButton("Update", a_state.selectedOutfit >= 0 ? nullptr : kNeedOutfit)) {
 			QueueMenuSound(kOkSound);
 			ImGui::OpenPopup(kConfirmPopup);
 		}
-		ImGui::EndDisabled();
 		ImGui::SameLine();
 		// While the popup is open, Escape is its own Cancel.
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kConfirmPopup));

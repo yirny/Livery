@@ -111,8 +111,13 @@ namespace Theme
 	bool RadioButton(const char* label, bool active);
 
 	// ImGui::InputText with the skin's field border (fainter in Vanilla and
-	// Nordic, as dropdowns). `flags` are ImGuiInputTextFlags.
-	bool InputText(const char* id, char* buffer, std::size_t size, int flags);
+	// Nordic, as dropdowns). `flags` are ImGuiInputTextFlags. `hint` is shown
+	// faded inside the empty field; `error` draws the border and the text in
+	// ErrorColor instead of the skin's.
+	bool InputText(const char* id, char* buffer, std::size_t size, int flags, const char* hint = nullptr, bool error = false);
+
+	// The red of error text and fields, packed as ImGui's ImU32.
+	unsigned ErrorColor();
 
 	// The game's ticked checkbox in the current window, its right edge at
 	// `right` and centred on `midY` (screen pixels). Returns false, drawing
