@@ -13,7 +13,7 @@
 //                checkbox of the Vanilla and Nordic skins; the fainter field
 //                border; the selected single-choice row's mark
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
-//                and the edge-to-edge lists (BeginList / EndList)
+//                and the lists between rules (BeginList / EndList)
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
 // TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
@@ -73,6 +73,9 @@ namespace
 	constexpr float kTailorRuleWidth = 2.0f;
 	// Room above and below the text of a single-choice list row; its fill covers it (pixels at 1080p).
 	constexpr float kSelectRowPadY = 4.0f;
+	// How far right of the list's indent the text of a row marked on its fill's
+	// left edge sits: Tailor's tick rows and every single-choice row (pixels at 1080p).
+	constexpr float kRowTextShift = 4.0f;
 
 	struct FontFile
 	{
@@ -613,13 +616,16 @@ namespace
 	}
 
 	// One row of a Theme::BeginList list, laid out as an invisible button that
-	// runs edge to edge of the list; the text starts `inset` in, on the list's
-	// indent, so it lines up with the content around the list.
+	// runs edge to edge of the list; its fills span only the rules' width
+	// (EndList). The text starts `inset` in, on the list's indent, so it lines
+	// up with the content around the list.
 	// Contract: the current window is a BeginList child (no horizontal padding).
 	struct ListRow
 	{
-		ImVec2 min;  // screen rect, edge to edge
+		ImVec2 min;  // screen rect of the click area, edge to edge
 		ImVec2 max;
+		ImVec2 fillMin;  // screen rect of the fills, between the rules' ends
+		ImVec2 fillMax;
 		float  inset;  // from min.x to where the text starts
 		bool   pressed;
 		bool   hovered;
@@ -630,16 +636,20 @@ namespace
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		const float  left = ImGui::GetWindowPos().x;
 		const float  right = cursor.x + ImGui::GetContentRegionAvail().x;
+		const float  bottom = cursor.y + a_height;
+		// The rules' ends, as EndList draws them, kept clear of a scrollbar.
+		const float fillLeft = left + g_listReach.x;
+		const float fillRight = (std::min)(right, left + ImGui::GetWindowWidth() - g_listReach.y);
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
-		ListRow row{ ImVec2(left, cursor.y), ImVec2(right, cursor.y + a_height), cursor.x - left, false, false };
+		ListRow row{ ImVec2(left, cursor.y), ImVec2(right, bottom), ImVec2(fillLeft, cursor.y), ImVec2(fillRight, bottom), cursor.x - left, false, false };
 		row.pressed = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, right - left), a_height));
 		row.hovered = ImGui::IsItemHovered();
 		return row;
 	}
 
-	// Tailor 3.0's selected list row: while ticked, the whole row in the faint
-	// amber selection fill with an amber rule down its left edge; the muted
-	// brown hover fill while hovered.
+	// Tailor 3.0's selected list row: while ticked, the row's fill in the faint
+	// amber selection colour with an amber rule down its left edge; the muted
+	// brown hover fill while hovered. The text sits clear of the rule.
 	bool TailorRow(const char* a_label, bool* a_ticked)
 	{
 		const float   height = ImGui::GetFrameHeight();
@@ -650,16 +660,16 @@ namespace
 
 		auto* draw = ImGui::GetWindowDrawList();
 		if (*a_ticked) {
-			draw->AddRectFilled(row.min, row.max, ImGui::GetColorU32(ImGuiCol_Header));
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_Header));
 		}
 		if (row.hovered) {
-			draw->AddRectFilled(row.min, row.max, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
 		}
 		if (*a_ticked) {
-			draw->AddRectFilled(row.min, ImVec2(row.min.x + kTailorRuleWidth * g_scale, row.max.y), ImGui::GetColorU32(kAmber));
+			draw->AddRectFilled(row.fillMin, ImVec2(row.fillMin.x + kTailorRuleWidth * g_scale, row.fillMax.y), ImGui::GetColorU32(kAmber));
 		}
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		draw->AddText(ImVec2(row.min.x + row.inset, row.min.y + (height - text.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		draw->AddText(ImVec2(row.min.x + row.inset + kRowTextShift * g_scale, row.min.y + (height - text.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
 	}
 
@@ -686,10 +696,10 @@ namespace
 		if (*a_ticked) {
 			const ImU32 clear = IM_COL32(255, 255, 255, 0);
 			const ImU32 white = IM_COL32(255, 255, 255, kBarAlpha);
-			draw->AddRectFilledMultiColor(topLeft, bottomRight, clear, white, white, clear);
+			draw->AddRectFilledMultiColor(row.fillMin, row.fillMax, clear, white, white, clear);
 		}
 		if (row.hovered) {
-			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
 		}
 
 		const bool      nordic = g_skin == Theme::Skin::kNordic;
@@ -845,17 +855,17 @@ namespace
 
 	// The mark left of a selected single-choice row's text: NORDIC UI's MCM
 	// page arrow in Vanilla and Nordic (a small triangle without the texture),
-	// Tailor's amber rule on the row's left edge.
-	void DrawSelectMark(ImDrawList* a_draw, ImVec2 a_rowMin, ImVec2 a_rowMax, float a_textX)
+	// Tailor's amber rule on the fill's left edge.
+	void DrawSelectMark(ImDrawList* a_draw, const ListRow& a_row, float a_textX)
 	{
 		if (g_skin == Theme::Skin::kTailor) {
-			a_draw->AddRectFilled(a_rowMin, ImVec2(a_rowMin.x + kTailorRuleWidth * g_scale, a_rowMax.y), ImGui::GetColorU32(kAmber));
+			a_draw->AddRectFilled(a_row.fillMin, ImVec2(a_row.fillMin.x + kTailorRuleWidth * g_scale, a_row.fillMax.y), ImGui::GetColorU32(kAmber));
 			return;
 		}
-		// Centred in the indent between the row's left edge and its text.
+		// Centred in the indent between the list's left edge and the text.
 		const ImU32  tint = ImGui::GetColorU32(g_skin == Theme::Skin::kNordic ? kNordicOrnament : IM_COL32_WHITE);
 		const ImVec2 size(g_selectArrow.size.x * g_scale, g_selectArrow.size.y * g_scale);
-		const ImVec2 centre((a_rowMin.x + a_textX) * 0.5f, (a_rowMin.y + a_rowMax.y) * 0.5f);
+		const ImVec2 centre((a_row.min.x + a_textX) * 0.5f, (a_row.min.y + a_row.max.y) * 0.5f);
 		const ImVec2 topLeft(centre.x - size.x * 0.5f, centre.y - size.y * 0.5f);
 		if (g_selectArrow.view) {
 			a_draw->AddImage(g_selectArrow.Id(), topLeft, ImVec2(topLeft.x + size.x, topLeft.y + size.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
@@ -1192,7 +1202,7 @@ namespace Theme
 	void EndList()
 	{
 		ImGui::EndChild();
-		// The rules span the content only; the rows run on past it.
+		// The rules span the content only, as the rows' fills do (LayOutListRow).
 		const ImVec2 min = ImGui::GetItemRectMin();
 		const ImVec2 max = ImGui::GetItemRectMax();
 		const float  left = min.x + g_listReach.x;
@@ -1216,16 +1226,14 @@ namespace Theme
 
 	bool SelectRow(const char* a_label, bool a_selected)
 	{
-		constexpr float kTextShift = 4.0f;  // pixels at 1080p, right of the list's indent
-
 		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
-		const float   textX = row.min.x + row.inset + kTextShift * g_scale;
+		const float   textX = row.min.x + row.inset + kRowTextShift * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
 		if (a_selected || row.hovered) {
-			draw->AddRectFilled(row.min, row.max, ImGui::GetColorU32(a_selected ? ImGuiCol_Header : ImGuiCol_HeaderHovered));
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(a_selected ? ImGuiCol_Header : ImGuiCol_HeaderHovered));
 		}
 		if (a_selected) {
-			DrawSelectMark(draw, row.min, row.max, textX);
+			DrawSelectMark(draw, row, textX);
 		}
 		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
