@@ -8,6 +8,8 @@
 //                    and the outfit selected on the Load page, seen through PreviewCamera, while the
 //                    window's Live Preview tick is on; saving is off while the window is open, and
 //                    every close of the window, a save included, ends all three
+//   Own armor      - an NPC's own armor copies, noted as the window opens and given back (and put on
+//                    again) a little after it closes: the engine's outfit swap removes them
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
 //                    armor, detect the armor class, list the library's outfits (adding their pieces the actor
 //                    does not carry), then open the window with the worn pieces ticked (or save those under
@@ -27,6 +29,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -34,6 +37,7 @@
 #include <fstream>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -522,6 +526,153 @@ namespace
 		}
 	}
 
+	// --- Own armor ------------------------------------------------------------
+	//
+	// Tailor dresses an NPC by swapping the engine's outfit, and the engine takes
+	// the old outfit off by removing every copy of its pieces' forms, the NPC's own
+	// ones too (armor the player gave them, say). The preview, its close and an
+	// update of the outfit they wear all swap it, so the NPC's own copies are noted
+	// as the window opens and given back after it closes.
+
+	// One form of armor an actor carries.
+	struct OwnArmor
+	{
+		RE::FormID   formID;
+		std::int32_t count;    // copies without the outfit-item mark
+		bool         ownWorn;  // one of those copies is worn
+		bool         anyWorn;  // a copy of the form is worn, marked or not
+	};
+
+	// An NPC's own armor as the window opened.
+	struct ArmorSnapshot
+	{
+		RE::ActorHandle       actor;
+		std::vector<OwnArmor> armors;  // count above 0 only
+	};
+
+	// Contract: game thread only, both; the thread that waits out the delay only
+	// carries a generation. g_pendingArmor holds the closed window's snapshot until
+	// it is given back; the generation counts scheduled restores, so a superseded one does nothing.
+	ArmorSnapshot g_pendingArmor{};
+	unsigned      g_armorGeneration = 0;
+
+	// The actor's playable armor by form. Copies with the outfit-item mark
+	// (ExtraOutfitItem) belong to the outfit the engine dresses them in, which
+	// adds them back itself, so only the others count.
+	// Contract: game thread (reads the actor's inventory); the extra lists are the
+	// engine's own, read only during this call.
+	std::vector<OwnArmor> ReadOwnArmor(RE::Actor& actor)
+	{
+		const auto inventory = actor.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
+
+		std::vector<OwnArmor> armors;
+		armors.reserve(inventory.size());
+		for (const auto& [object, itemData] : inventory) {
+			const auto& [count, entry] = itemData;
+			if (object->formFlags & RE::TESObjectARMO::RecordFlags::kNonPlayable) {
+				continue;
+			}
+			std::int32_t marked = 0;
+			bool         ownWorn = false;
+			if (entry && entry->extraLists) {
+				for (const auto* list : *entry->extraLists) {
+					if (!list) {
+						continue;
+					}
+					if (list->HasType<RE::ExtraOutfitItem>()) {
+						marked += list->GetCount();
+					} else {
+						ownWorn = ownWorn || list->GetWorn();
+					}
+				}
+			}
+			armors.push_back({ object->GetFormID(), count - marked, ownWorn, entry && entry->IsWorn() });
+		}
+		return armors;
+	}
+
+	// Contract: game thread; before the window changes anything (AttachPreview).
+	ArmorSnapshot NoteOwnArmor(RE::Actor& actor)
+	{
+		ArmorSnapshot snapshot{ .actor = actor.GetHandle() };
+		for (const auto& armor : ReadOwnArmor(actor)) {
+			if (armor.count > 0) {
+				snapshot.armors.push_back(armor);
+			}
+		}
+		return snapshot;
+	}
+
+	// Adds back the snapshot's own copies that are gone and puts on again a form
+	// the actor wore of their own when no copy of it is worn now. A copy comes
+	// back plain, a tempered one untempered: CommonLibSSE-NG cannot build the
+	// extra data that holds tempering (ExtraDataList has no constructor).
+	// Contract: game thread (SKSE task); the snapshot is from this game session
+	// (kPreLoadGame drops a pending one).
+	void RestoreOwnArmor(const ArmorSnapshot& snapshot)
+	{
+		const auto actor = snapshot.actor.get();
+		auto*      equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!actor || !equipManager) {
+			return;
+		}
+		const auto   now = ReadOwnArmor(*actor);
+		std::int32_t added = 0;
+		std::size_t  equipped = 0;
+		for (const auto& owned : snapshot.armors) {
+			auto* armor = RE::TESForm::LookupByID<RE::TESObjectARMO>(owned.formID);
+			if (!armor) {
+				continue;
+			}
+			const auto current = std::ranges::find(now, owned.formID, &OwnArmor::formID);
+			const bool carried = current != now.end();
+			if (const auto missing = owned.count - (carried ? current->count : 0); missing > 0) {
+				actor->AddObjectToContainer(armor, nullptr, missing, nullptr);
+				added += missing;
+			}
+			if (owned.ownWorn && !(carried && current->anyWorn)) {
+				equipManager->EquipObject(actor.get(), armor, nullptr, 1, nullptr, true, false, false);
+				++equipped;
+			}
+		}
+		if (added || equipped) {
+			logger::info("Restored {} own armor piece(s) to {:08X}, put {} back on", added, actor->GetFormID(), equipped);
+		}
+	}
+
+	// Gives the pending snapshot back now, if there is one.
+	// Contract: game thread.
+	void FlushOwnArmor()
+	{
+		if (const auto snapshot = std::exchange(g_pendingArmor, {}); snapshot.actor) {
+			RestoreOwnArmor(snapshot);
+		}
+	}
+
+	// Gives the snapshot back a little after the close: Tailor redresses the
+	// actor from the next frame on, and its own equipment check runs about 1 s later.
+	// Contract: game thread, from the window's onClose. Nothing during a load
+	// (g_ready false): the snapshot's world is being replaced.
+	void ScheduleOwnArmorRestore(ArmorSnapshot snapshot)
+	{
+		constexpr auto kRestoreDelay = std::chrono::seconds(2);  // after Tailor's equipment check
+
+		if (!g_ready || !snapshot.actor) {
+			return;
+		}
+		FlushOwnArmor();  // none expected: each opening of the window gives the last one back
+		g_pendingArmor = std::move(snapshot);
+		const auto generation = ++g_armorGeneration;
+		std::thread([generation, delay = kRestoreDelay] {
+			std::this_thread::sleep_for(delay);
+			SKSE::GetTaskInterface()->AddTask([generation] {
+				if (generation == g_armorGeneration && g_ready) {
+					FlushOwnArmor();
+				}
+			});
+		}).detach();
+	}
+
 	// --- Capture --------------------------------------------------------------
 
 	// Followers via the teammate flag; spouses via Skyrim.esm's PlayerMarriedFaction.
@@ -841,6 +992,11 @@ namespace
 	// for Load Outfit.
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
+		// Noted before anything changes the actor's outfit; the player is left out:
+		// Tailor dresses the player through the inventory, never removing their own copies.
+		FlushOwnArmor();  // a window closed moments ago: give that back before noting this one
+		auto ownArmor = actor.IsPlayerRef() ? ArmorSnapshot{} : NoteOwnArmor(actor);
+
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
 		request.actorSummary = DescribeActor(actor);
@@ -860,11 +1016,13 @@ namespace
 		}
 		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
 		AttachPreview(request, actor, armors);
-		// Every close, whatever closed the window, ends the preview and lets saving back on.
-		request.onClose = [] {
+		// Every close, whatever closed the window, ends the preview, lets saving back on
+		// and gives the actor's own armor back once Tailor has redressed them.
+		request.onClose = [ownArmor = std::move(ownArmor)] {
 			PreviewCamera::End();
 			EndPreview();
 			AllowSaving();
+			ScheduleOwnArmorRestore(ownArmor);
 		};
 		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories,
 							 int gender) {
@@ -1025,6 +1183,9 @@ namespace
 			// replaced, and Tailor keeps overrides per save, so the save loading has none of it.
 			g_previewActor = {};
 			CaptureWindow::Close();  // discard a pending capture; its actor is going away
+			// The loading save has its own inventories: never give it this world's armor.
+			g_pendingArmor = {};
+			++g_armorGeneration;
 			break;
 
 		case SKSE::MessagingInterface::kPostLoadGame:
