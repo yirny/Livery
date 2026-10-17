@@ -132,7 +132,7 @@ namespace Theme
 	enum class FieldShape
 	{
 		kBoxed,       // the skin's frame (fainter in Vanilla and Nordic)
-		kUnderlined,  // no fill or frame: one rule under the text, coloured as the frame would be
+		kUnderlined,  // no frame: one rule under the text, coloured as the frame would be; filled only while highlighted
 		kBare         // no fill, frame or rule, and as tall as the text
 	};
 

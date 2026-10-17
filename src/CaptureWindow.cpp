@@ -1175,6 +1175,8 @@ namespace
 	// the list only when one of them changed.
 	BrowserControls DrawBrowserControls(State& a_state)
 	{
+		constexpr float kGapBelowRow = 4.0f;  // pixels at 1080p, under the row on top of the item spacing
+
 		const float top = ImGui::GetCursorPosY();
 		Theme::SectionGap();  // the heading leaves its last gap to the page's first field (Theme::HeadingText)
 		BrowserInput input;
@@ -1190,6 +1192,7 @@ namespace
 		}
 		Theme::PopSmallFont();
 		ImGui::PopID();
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kGapBelowRow * Theme::Scale());
 		if (input.changed) {
 			OutfitBrowser::Refresh(a_state.browser, a_state.request);
 		}
@@ -1224,10 +1227,11 @@ namespace
 		return changed;
 	}
 
-	// "Sort by <key>" and the skin's arrow, bare and in the small font, at the
-	// right end of the label just drawn with its text's bottom on the label's.
-	// Its width fits the longest key, so switching keys does not move it. It
-	// leaves the cursor where the label did, so the list below does not move.
+	// "Sort by <key>" and the skin's arrow, bare, in the small font and greyed
+	// as the fields' hints are, at the right end of the label just drawn with
+	// its text's bottom on the label's. Its width fits the longest key, so
+	// switching keys does not move it. It leaves the cursor where the label
+	// did, so the list below does not move.
 	// Returns true when the key changed.
 	bool DrawSortCombo(State& a_state)
 	{
@@ -1237,7 +1241,7 @@ namespace
 		const auto   preview = [](const SortOption& a_option) { return std::format("Sort by {}", a_option.label); };
 
 		Theme::PushSmallFont();
-		constexpr Theme::FieldStyle style{ .shape = Theme::FieldShape::kBare };
+		constexpr Theme::FieldStyle style{ .shape = Theme::FieldShape::kBare, .previewIsHint = true };
 		float                       width = 0.0f;
 		std::string                 current;
 		for (const auto& option : kSortOptions) {
@@ -1299,15 +1303,15 @@ namespace
 		return clicked;
 	}
 
-	// Top of the right column, so the selection stays named while the browser
-	// hides it from the list. Returns false when none is selected.
+	// Top of the right column, level with the list's label: the selected
+	// outfit's name, so the selection stays named while the browser hides it
+	// from the list. Draws nothing and returns false when none is selected.
 	bool DrawSelectedName(const State& a_state, int a_selected)
 	{
-		Theme::LabelText("Selected outfit");
 		if (a_selected < 0) {
-			ImGui::TextDisabled(kNeedOutfit);
 			return false;
 		}
+		Theme::SectionGap();  // as the label beside it opens (Theme::LabelText)
 		ImGui::TextWrapped("%s", OutfitAt(a_state, a_selected).name.c_str());
 		return true;
 	}
