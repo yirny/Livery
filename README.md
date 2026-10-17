@@ -90,12 +90,12 @@ Settings live in `Data\SKSE\Plugins\TailorOutfitCapture.ini`, which the plugin c
 | --------- | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
 | `General` | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                             |
 | `General` | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.   |
-| `UI`      | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla`, `Nordic` or `Classic`.                              |
+| `UI`      | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla` or `Nordic`.                                         |
 | `Hotkey`  | `Key`                          | `66`     | Capture key as a DirectInput scan code (`66` = F8). In game, click the hotkey button and press a key. |
 | `Hotkey`  | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).          |
 | `Camera`  | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).            |
 
-Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope; **Classic** is Dear ImGui's default dark style. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\TailorOutfitCapture\` with their licences.
+Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\TailorOutfitCapture\` with their licences.
 
 ### Limits
 
