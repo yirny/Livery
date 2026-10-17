@@ -64,7 +64,7 @@ namespace
 			L"0 = it opens with Live Preview off and the game paused; tick Live Preview in the window to turn it on.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kUiSection, kSkinKey, L"Tailor",
-			L"Skin of the capture window: Tailor, Vanilla, Nordic or Classic.\n"
+			L"Skin of the capture window: Tailor, Vanilla or Nordic.\n"
 			L"Read once when the game starts." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = the capture window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
@@ -101,11 +101,10 @@ namespace
 	};
 
 	// In SKSE Menu Framework order; the first is the default.
-	constexpr std::array<SkinOption, 4> kSkinOptions{ {
+	constexpr std::array<SkinOption, 3> kSkinOptions{ {
 		{ Theme::Skin::kTailor, "Tailor", L"Tailor" },
 		{ Theme::Skin::kVanilla, "Vanilla", L"Vanilla" },
 		{ Theme::Skin::kNordic, "Nordic", L"Nordic" },
-		{ Theme::Skin::kClassic, "Classic", L"Classic" },
 	} };
 
 	std::atomic<bool>          g_followersAndSpouseOnly{ true };

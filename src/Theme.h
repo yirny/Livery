@@ -10,7 +10,6 @@ namespace Theme
 	enum class Skin
 	{
 		kTailor,   // Tailor 3.0's colours, spacing and fonts
-		kClassic,  // Dear ImGui's default dark style
 		kVanilla,  // the game's own menus
 		kNordic    // NORDIC UI
 	};
@@ -71,7 +70,7 @@ namespace Theme
 	// Tailor fills it faintly amber with an amber rule on its left edge, as
 	// Tailor 3.0 marks a selected row; Vanilla and Nordic draw it like a SkyUI
 	// inventory row: the skin's equipped mark and a white bar fading in from the
-	// left. Classic draws a checkbox.
+	// left.
 	// Contract: inside BeginList; the label is shown as is and is the row's
 	// ImGui ID, so PushID around rows whose labels may repeat.
 	bool TickRow(const char* label, bool* ticked);
@@ -83,9 +82,9 @@ namespace Theme
 	bool SelectRow(const char* label, bool selected);
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
-	// settings checkbox, Tailor a smaller rounded ImGui one, the other skins
-	// (or a missing texture) ImGui's own. Faded and inert inside BeginDisabled,
-	// like ImGui::Checkbox.
+	// settings checkbox (ImGui's own when its texture is missing), Tailor a
+	// smaller rounded ImGui one. Faded and inert inside BeginDisabled, like
+	// ImGui::Checkbox.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Checkbox(const char* label, bool* value);
 
@@ -100,7 +99,7 @@ namespace Theme
 	// with that result and the same preview. Tailor replaces ImGui's arrow with
 	// a small amber chevron and tightens the popup's padding; Vanilla and
 	// Nordic replace it with the game's diamond stepper arrow (drawn, with the
-	// preview, by EndCombo). Classic, or a missing texture, keeps ImGui's.
+	// preview, by EndCombo), or keep ImGui's when its texture is missing.
 	// `flags` are ImGuiComboFlags.
 	bool BeginCombo(const char* id, const char* preview, int flags);
 	void EndCombo(bool open, const char* preview);
