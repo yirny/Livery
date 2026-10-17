@@ -119,9 +119,9 @@ namespace Theme
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool RadioButton(const char* label, bool active);
 
-	// How a field's frame stands out: kHighlighted draws its border in the
-	// skin's accent (the tick's colour) while it narrows a list; kError draws
-	// the border and the text in ErrorColor.
+	// How a field's frame or rule stands out: kHighlighted draws it in the
+	// skin's accent (the tick's colour) while the field narrows a list; kError
+	// draws it and the text in ErrorColor.
 	enum class FieldLook
 	{
 		kNormal,
@@ -129,10 +129,35 @@ namespace Theme
 		kError
 	};
 
-	// ImGui::InputText with the skin's field border (fainter in Vanilla and
-	// Nordic, as dropdowns) unless `look` says otherwise. `flags` are
-	// ImGuiInputTextFlags. `hint` is shown faded inside the empty field.
-	bool InputText(const char* id, char* buffer, std::size_t size, int flags, const char* hint = nullptr, FieldLook look = FieldLook::kNormal);
+	enum class FieldShape
+	{
+		kBoxed,       // the skin's frame (fainter in Vanilla and Nordic)
+		kUnderlined,  // no fill or frame: one rule under the text, coloured as the frame would be
+		kBare         // no fill, frame or rule, and as tall as the text
+	};
+
+	// A mark drawn left of a field's text, which moves the text right.
+	enum class FieldIcon
+	{
+		kNone,
+		kSearch,  // a magnifying glass
+		kFilter   // a funnel
+	};
+
+	struct FieldStyle
+	{
+		FieldLook  look = FieldLook::kNormal;
+		FieldShape shape = FieldShape::kBoxed;
+		FieldIcon  icon = FieldIcon::kNone;
+		bool       previewIsHint = false;  // dropdowns: the preview is greyed, as an empty text field's hint
+	};
+
+	// Height of a field of this style in the current font (pixels on the back buffer).
+	float FieldHeight(const FieldStyle& style);
+
+	// ImGui::InputText drawn in `style`. `flags` are ImGuiInputTextFlags.
+	// `hint` is shown faded inside the empty field.
+	bool InputText(const char* id, char* buffer, std::size_t size, int flags, const char* hint = nullptr, const FieldStyle& style = {});
 
 	// The red of error text and fields, packed as ImGui's ImU32.
 	unsigned ErrorColor();
@@ -145,19 +170,27 @@ namespace Theme
 
 	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
 	// fill the popup only when BeginCombo returned true, then call EndCombo
-	// with that result and the same preview. Every skin gives the popup its own
-	// padding. Tailor replaces ImGui's arrow with a small amber chevron; Vanilla
-	// and Nordic replace it with the game's diamond stepper arrow (drawn, with
-	// the preview, by EndCombo), or keep ImGui's when its texture is missing,
-	// and draw the frame's and popup's border fainter.
-	// `flags` are ImGuiComboFlags. `highlighted` draws the frame's border as
-	// FieldLook::kHighlighted does.
-	bool BeginCombo(const char* id, const char* preview, int flags, bool highlighted = false);
-	void EndCombo(bool open, const char* preview);
+	// with that result, the preview and the same style; EndCombo draws the
+	// preview. Every skin gives the popup its own padding. Tailor replaces
+	// ImGui's arrow with a small amber chevron; Vanilla and Nordic replace it
+	// with the game's diamond stepper arrow, or keep ImGui's when its texture
+	// is missing, and draw the frame's and popup's border fainter.
+	// `flags` are ImGuiComboFlags.
+	bool BeginCombo(const char* id, int flags, const FieldStyle& style = {});
+	void EndCombo(bool open, const char* preview, const FieldStyle& style = {});
 
-	// A frame-high square button drawn as a cross, grey until hovered; returns
-	// true when clicked. Faded and inert inside BeginDisabled. Lay it over the
-	// right end of a field submitted with ImGui::SetNextItemAllowOverlap, or
-	// beside one.
-	bool ClearButton(const char* id);
+	// Width a dropdown of this style needs to show `preview` whole, in the current font.
+	float ComboWidth(const char* preview, const FieldStyle& style);
+
+	// A square button `side` pixels across drawn as a cross, grey until
+	// hovered; returns true when clicked. Faded and inert inside BeginDisabled.
+	// Lay it over the right end of a field submitted with
+	// ImGui::SetNextItemAllowOverlap, or beside one, as tall as the field.
+	bool ClearButton(const char* id, float side);
+
+	// The body font at a smaller size, for controls that sit beside others
+	// (the outfit browser's). Pair them in the same window: ImGui checks that a
+	// window ends with the font stack it began with.
+	void PushSmallFont();
+	void PopSmallFont();
 }

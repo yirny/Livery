@@ -12,11 +12,10 @@
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
 //                  Load Outfit / Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
-//   Outfit browser - Search / Filter / Sort over both outfit pages' list (OutfitBrowser.cpp
-//                  narrows and orders it) in a lightened band between two full-width
-//                  rules; Escape first clears the search
-//   Outfit lists - the library outfit list, the selected outfit's name and its piece
-//                  list, which both outfit pages share
+//   Outfit browser - Search | Filter above both outfit pages' list, in the small font
+//                  (OutfitBrowser.cpp narrows and orders it); Escape first clears the search
+//   Outfit lists - the library outfit list with its Sort dropdown, the selected
+//                  outfit's name and its piece list, which both outfit pages share
 //   Load page    - library outfits, the selected one shown on the preview; Load ticks
 //                  its pieces and returns, Back restores the preview of the ticks
 //   Update page  - library outfits, the chosen one's categories (its own ones
@@ -60,6 +59,18 @@ namespace
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
 	constexpr int kRecentreFrames = 3;
+
+	// The outfit lists' Sort dropdown, in its order.
+	struct SortOption
+	{
+		const char*            label;
+		OutfitBrowser::SortKey key;
+	};
+	constexpr std::array<SortOption, 3> kSortOptions{ {
+		{ "Name", OutfitBrowser::SortKey::kName },
+		{ "Armor Type", OutfitBrowser::SortKey::kArmorType },
+		{ "Situation", OutfitBrowser::SortKey::kSituation },
+	} };
 
 	// Sound descriptors in Skyrim.esm, whose load index is always 00.
 	constexpr RE::FormID kOpenSound = 0x0003F2BD;    // UIMenuBladeOpenSD
@@ -879,7 +890,7 @@ namespace
 		ImGui::PushID(group);
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		const std::string preview = CategoryPreview(a_state, a_ticked, a_begin, a_end);
-		const bool        open = Theme::BeginCombo("##combo", preview.c_str(), ImGuiComboFlags_HeightLargest);
+		const bool        open = Theme::BeginCombo("##combo", ImGuiComboFlags_HeightLargest);
 		if (open) {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
 			for (std::size_t i = a_begin; i < a_end; ++i) {
@@ -947,9 +958,9 @@ namespace
 			ImGui::SetKeyboardFocusHere();
 			a_state.focusNameField = false;
 		}
-		const bool failed = !a_state.error.empty();
-		const auto look = failed ? Theme::FieldLook::kError : Theme::FieldLook::kNormal;
-		const bool enter = Theme::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue, kNeedName, look);
+		const bool              failed = !a_state.error.empty();
+		const Theme::FieldStyle style{ .look = failed ? Theme::FieldLook::kError : Theme::FieldLook::kNormal };
+		const bool              enter = Theme::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue, kNeedName, style);
 		if (failed) {
 			if (ImGui::IsItemEdited()) {
 				a_state.error.clear();
@@ -1065,25 +1076,30 @@ namespace
 		bool escapeTaken = false;  // Escape cleared the search, so it is not also Back
 	};
 
-	// Left of the top row. Escape with text typed clears it, the field active
-	// or not (EscapeClearsAll does it while active); with none typed it is Back.
+	// Left of the top row: an underlined field with a magnifying glass, its rule
+	// in the accent while text is typed. Escape with text typed clears it, the
+	// field active or not (EscapeClearsAll does it while active); with none
+	// typed it is Back.
 	void DrawSearchField(State& a_state, BrowserInput& a_input)
 	{
 		auto& browser = a_state.browser;
 		a_input.escapeTaken = OutfitBrowser::IsSearching(browser) && ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
 		                      !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 
-		Theme::LabelText("Search");
+		const Theme::FieldStyle style{ .look = OutfitBrowser::IsSearching(browser) ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal,
+			.shape = Theme::FieldShape::kUnderlined,
+			.icon = Theme::FieldIcon::kSearch };
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		ImGui::SetNextItemAllowOverlap();  // the clear button sits on its right end
-		const auto look = OutfitBrowser::IsSearching(browser) ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal;
 		a_input.changed |= Theme::InputText("##search", browser.search.data(), browser.search.size(), ImGuiInputTextFlags_EscapeClearsAll,
-			"Search by outfit name", look);
+			"Search by outfit name", style);
 		bool clear = a_input.escapeTaken;
 		if (OutfitBrowser::IsSearching(browser)) {
+			const ImVec2 fieldMin = ImGui::GetItemRectMin();
 			const ImVec2 fieldMax = ImGui::GetItemRectMax();
-			ImGui::SetCursorScreenPos(ImVec2(fieldMax.x - ImGui::GetFrameHeight(), ImGui::GetItemRectMin().y));
-			if (Theme::ClearButton("##clearSearch")) {
+			const float  side = fieldMax.y - fieldMin.y;
+			ImGui::SetCursorScreenPos(ImVec2(fieldMax.x - side, fieldMin.y));
+			if (Theme::ClearButton("##clearSearch", side)) {
 				QueueMenuSound(kFocusSound);
 				clear = true;
 			}
@@ -1117,59 +1133,36 @@ namespace
 		ImGui::PopStyleVar();
 	}
 
-	// Right of the top row: a multi-select dropdown narrowed by the clear
-	// button beside it, so the button keeps clear of the skin's arrow. The
-	// button is greyed out while nothing is ticked.
+	// Right of the top row: an underlined multi-select dropdown with a funnel,
+	// its rule in the accent while a row is ticked, narrowed by the clear
+	// button beside it so the button keeps clear of the skin's arrow. With
+	// nothing ticked it shows a greyed hint and the button is greyed out.
 	void DrawFilterField(State& a_state, BrowserInput& a_input)
 	{
-		auto& browser = a_state.browser;
-		Theme::LabelText("Filter");
-		const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
-		ImGui::SetNextItemWidth((std::max)(0.0f, ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight() - gap));
-		const bool        filtering = OutfitBrowser::IsFiltering(browser);
-		const std::string preview = OutfitBrowser::FilterPreview(browser);
-		const bool        open = Theme::BeginCombo("##filter", preview.c_str(), ImGuiComboFlags_HeightLargest, filtering);
+		auto&                   browser = a_state.browser;
+		const bool              filtering = OutfitBrowser::IsFiltering(browser);
+		const Theme::FieldStyle style{ .look = filtering ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal,
+			.shape = Theme::FieldShape::kUnderlined,
+			.icon = Theme::FieldIcon::kFilter,
+			.previewIsHint = !filtering };
+		const float             side = Theme::FieldHeight(style);
+		const float             gap = ImGui::GetStyle().ItemInnerSpacing.x;
+		ImGui::SetNextItemWidth((std::max)(0.0f, ImGui::GetContentRegionAvail().x - side - gap));
+		const std::string preview = filtering ? OutfitBrowser::FilterPreview(browser) : "Filter by category";
+		const bool        open = Theme::BeginCombo("##filter", ImGuiComboFlags_HeightLargest, style);
 		if (open) {
 			DrawFilterRows(a_state, a_input);
 		}
-		Theme::EndCombo(open, preview.c_str());
+		Theme::EndCombo(open, preview.c_str(), style);
 
 		ImGui::SameLine(0.0f, gap);
 		ImGui::BeginDisabled(!filtering);
-		if (Theme::ClearButton("##clearFilter")) {
+		if (Theme::ClearButton("##clearFilter", side)) {
 			QueueMenuSound(kFocusSound);
 			OutfitBrowser::ClearFilter(browser);
 			a_input.changed = true;
 		}
 		ImGui::EndDisabled();
-	}
-
-	// One row of radio buttons across both columns.
-	void DrawSortField(State& a_state, BrowserInput& a_input)
-	{
-		struct SortOption
-		{
-			const char*            label;
-			OutfitBrowser::SortKey key;
-		};
-		constexpr std::array<SortOption, 3> kSortOptions{ {
-			{ "Name", OutfitBrowser::SortKey::kName },
-			{ "Armor Type", OutfitBrowser::SortKey::kArmorType },
-			{ "Situation", OutfitBrowser::SortKey::kSituation },
-		} };
-
-		Theme::LabelText("Sort by");
-		for (std::size_t i = 0; i < kSortOptions.size(); ++i) {
-			if (i > 0) {
-				ImGui::SameLine();
-			}
-			const auto key = kSortOptions[i].key;
-			if (Theme::RadioButton(kSortOptions[i].label, a_state.browser.sort == key) && a_state.browser.sort != key) {
-				a_state.browser.sort = key;
-				QueueMenuSound(kFocusSound);
-				a_input.changed = true;
-			}
-		}
 	}
 
 	struct BrowserControls
@@ -1178,47 +1171,15 @@ namespace
 		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
 	};
 
-	// The browser's band between screen heights a_top and a_bottom: the window
-	// background lightened, with a rule on each edge, all across the window
-	// inside its border (past the padding the other rules keep).
-	// Contract: drawn on the bottom channel of a splitter whose top channel
-	// holds the controls, so it stays behind them.
-	void DrawBrowserBand(float a_top, float a_bottom)
-	{
-		constexpr ImU32 kLighten = IM_COL32(255, 255, 255, 8);  // white laid over the window background
-
-		const ImVec2 pos = ImGui::GetWindowPos();
-		const ImVec2 size = ImGui::GetWindowSize();
-		const float  border = ImGui::GetStyle().WindowBorderSize;
-		const float  left = pos.x + border;
-		const float  right = pos.x + size.x - border;
-		auto*        draw = ImGui::GetWindowDrawList();
-		// The window clips its content short of its edges (half its padding).
-		draw->PushClipRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), false);
-		draw->AddRectFilled(ImVec2(left, a_top), ImVec2(right, a_bottom), kLighten);
-		const ImU32 rule = ImGui::GetColorU32(ImGuiCol_Border);
-		draw->AddLine(ImVec2(left, a_top + 0.5f), ImVec2(right, a_top + 0.5f), rule);
-		draw->AddLine(ImVec2(left, a_bottom - 0.5f), ImVec2(right, a_bottom - 0.5f), rule);
-		draw->PopClipRect();
-	}
-
-	// Search | Filter, Sort under both, in a band (DrawBrowserBand); refreshes
+	// Search | Filter in one row, in the small font, with no labels; refreshes
 	// the list only when one of them changed.
 	BrowserControls DrawBrowserControls(State& a_state)
 	{
-		constexpr float kBandPadding = 8.0f;  // pixels at 1080p, inside the band above and below the controls
-
-		const float pad = kBandPadding * Theme::Scale();
-		const float top = ImGui::GetCursorScreenPos().y;
-		auto*       draw = ImGui::GetWindowDrawList();
-		// Its own splitter: the tables inside split the draw list with theirs.
-		ImDrawListSplitter splitter;
-		splitter.Split(draw, 2);
-		splitter.SetCurrentChannel(draw, 1);
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + pad);
-
+		const float top = ImGui::GetCursorPosY();
+		Theme::SectionGap();  // the heading leaves its last gap to the page's first field (Theme::HeadingText)
 		BrowserInput input;
 		ImGui::PushID("browser");
+		Theme::PushSmallFont();
 		if (BeginColumns("browserTop")) {
 			ImGui::TableNextColumn();
 			DrawSearchField(a_state, input);
@@ -1227,38 +1188,92 @@ namespace
 			DrawFilterField(a_state, input);
 			EndColumns();
 		}
-		DrawSortField(a_state, input);
+		Theme::PopSmallFont();
 		ImGui::PopID();
-
-		const float bottom = ImGui::GetItemRectMax().y + pad;
-		splitter.SetCurrentChannel(draw, 0);
-		DrawBrowserBand(top, bottom);
-		splitter.Merge(draw);
-		ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, bottom));
-		ImGui::Dummy(ImVec2(0.0f, 0.0f));  // ends the band with the item spacing below it
-
 		if (input.changed) {
 			OutfitBrowser::Refresh(a_state.browser, a_state.request);
 		}
-		return { input.escapeTaken, ImGui::GetCursorScreenPos().y - top };
+		return { input.escapeTaken, ImGui::GetCursorPosY() - top };
 	}
 
 	// --- Outfit lists ---------------------------------------------------------
 
+	// The Sort dropdown's rows, the current key ticked; choosing one closes the
+	// popup. A zero-high spacer as wide as the widest row keeps the popup,
+	// which starts as narrow as its frame, from crowding a row's tick onto its
+	// label. Returns true when the key changed.
+	bool DrawSortRows(State& a_state)
+	{
+		const auto& style = ImGui::GetStyle();
+		float       widest = 0.0f;
+		for (const auto& option : kSortOptions) {
+			widest = (std::max)(widest, ImGui::CalcTextSize(option.label).x);
+		}
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));  // rows carry their own gap
+		ImGui::Dummy(ImVec2(widest + style.FramePadding.x * 2.0f + style.ItemInnerSpacing.x + ImGui::GetFrameHeight(), 0.0f));
+		bool changed = false;
+		for (const auto& option : kSortOptions) {
+			bool ticked = a_state.browser.sort == option.key;
+			if (DrawCategoryRow(option.label, ticked, false)) {
+				changed = a_state.browser.sort != option.key;
+				a_state.browser.sort = option.key;
+				ImGui::CloseCurrentPopup();
+			}
+		}
+		ImGui::PopStyleVar();
+		return changed;
+	}
+
+	// "Sort by <key>" and the skin's arrow, bare and in the small font, at the
+	// right end of the label just drawn with its text's bottom on the label's.
+	// Its width fits the longest key, so switching keys does not move it. It
+	// leaves the cursor where the label did, so the list below does not move.
+	// Returns true when the key changed.
+	bool DrawSortCombo(State& a_state)
+	{
+		const ImVec2 labelMax = ImGui::GetItemRectMax();
+		const ImVec2 after = ImGui::GetCursorScreenPos();
+		const float  right = after.x + ImGui::GetContentRegionAvail().x;
+		const auto   preview = [](const SortOption& a_option) { return std::format("Sort by {}", a_option.label); };
+
+		Theme::PushSmallFont();
+		constexpr Theme::FieldStyle style{ .shape = Theme::FieldShape::kBare };
+		float                       width = 0.0f;
+		std::string                 current;
+		for (const auto& option : kSortOptions) {
+			width = (std::max)(width, Theme::ComboWidth(preview(option).c_str(), style));
+			if (option.key == a_state.browser.sort) {
+				current = preview(option);
+			}
+		}
+		ImGui::SetCursorScreenPos(ImVec2(right - width, labelMax.y - Theme::FieldHeight(style)));
+		ImGui::SetNextItemWidth(width);
+		const bool open = Theme::BeginCombo("##sort", ImGuiComboFlags_None, style);
+		const bool changed = open && DrawSortRows(a_state);
+		Theme::EndCombo(open, current.c_str(), style);
+		Theme::PopSmallFont();
+		ImGui::SetCursorScreenPos(after);
+		return changed;
+	}
+
 	// Left column of the Load and Update pages: the library's outfits that pass
-	// the browser, in its order, `a_selected` highlighted. The list stays as
-	// tall as the whole library, so narrowing it does not move the buttons;
-	// `a_reserved` is the browser's height (ListHeight). Returns the index into
-	// request.existingOutfits of the one clicked, or -1; choosing another one
-	// plays the focus sound. Names are shown as they are (Theme::SelectRow).
-	int DrawOutfitList(const State& a_state, int a_selected, float a_reserved)
+	// the browser, in its order, `a_selected` highlighted, under a label with
+	// the Sort dropdown. The list stays as tall as the whole library, so
+	// narrowing it does not move the buttons; `a_reserved` is the browser's
+	// height (ListHeight). Returns the index into request.existingOutfits of
+	// the one clicked, or -1; choosing another one plays the focus sound.
+	// Names are shown as they are (Theme::SelectRow).
+	int DrawOutfitList(State& a_state, int a_selected, float a_reserved)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto& visible = a_state.browser.visible;
 		if (visible.size() == outfits.size()) {
 			Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
 		} else {
-			Theme::LabelText(std::format("{} of {} outfit(s) in Tailor", visible.size(), outfits.size()).c_str());
+			Theme::LabelText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
+		}
+		if (DrawSortCombo(a_state)) {
+			OutfitBrowser::Refresh(a_state.browser, a_state.request);
 		}
 		const float gap = Theme::SelectRowGap();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));

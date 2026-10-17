@@ -78,6 +78,10 @@ namespace
 	// How far right of the list's indent a list row's text sits in Vanilla and
 	// Nordic (pixels at 1080p); Tailor clears its rule instead (RowTextShift).
 	constexpr float kRowTextShift = 4.0f;
+	// Room above and below an underlined field's text, between it and its rule (pixels at 1080p).
+	constexpr float kUnderlinedPadY = 4.0f;
+	// Width (and height) of a field's icon, of the font size.
+	constexpr float kFieldIconRatio = 0.9f;
 
 	struct FontFile
 	{
@@ -777,29 +781,168 @@ namespace
 		return HasOwnDropdownArrow() || HasGameDropdownArrow();
 	}
 
-	// The preview of a combo opened with ImGuiComboFlags_CustomPreview: the
-	// text clipped short of the arrow's column, then the skin's arrow at the
-	// right edge of the frame.
+	// --- Fields ---------------------------------------------------------------
+
+	// The colour a field's frame or rule is drawn in: Vanilla and Nordic draw
+	// a normal one fainter than the lists' and window's rules.
+	ImVec4 FieldBorderColor(Theme::FieldLook a_look)
+	{
+		constexpr float kFieldBorderAlpha = 0.5f;  // of the skin's border colour
+
+		switch (a_look) {
+		case Theme::FieldLook::kHighlighted:
+			return ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
+		case Theme::FieldLook::kError:
+			return ImGui::ColorConvertU32ToFloat4(kErrorText);
+		default:
+			break;
+		}
+		ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Border);
+		if (g_skin != Theme::Skin::kTailor) {
+			color.w *= kFieldBorderAlpha;
+		}
+		return color;
+	}
+
+	float FieldPadY(Theme::FieldShape a_shape)
+	{
+		switch (a_shape) {
+		case Theme::FieldShape::kUnderlined:
+			return kUnderlinedPadY * g_scale;
+		case Theme::FieldShape::kBare:
+			return 0.0f;
+		default:
+			return ImGui::GetStyle().FramePadding.y;
+		}
+	}
+
+	// Room between a field's left edge and its text: a boxed field's frame
+	// padding, then the icon and a gap after it.
+	// Contract: called with the skin's frame padding in force (not PushFieldStyle's).
+	float FieldTextInset(const Theme::FieldStyle& a_style)
+	{
+		const auto& style = ImGui::GetStyle();
+		float       inset = a_style.shape == Theme::FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
+		if (a_style.icon != Theme::FieldIcon::kNone) {
+			inset += ImGui::GetFontSize() * kFieldIconRatio + style.ItemInnerSpacing.x;
+		}
+		return inset;
+	}
+
+	struct PushedStyle
+	{
+		int colors = 0;
+		int vars = 0;
+	};
+
+	// What a field of this style is laid out and drawn with; the border colour
+	// is also the one its dropdown popup opens with. Undo with PopFieldStyle.
+	PushedStyle PushFieldStyle(const Theme::FieldStyle& a_style)
+	{
+		const bool  boxed = a_style.shape == Theme::FieldShape::kBoxed;
+		PushedStyle pushed;
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(FieldTextInset(a_style), FieldPadY(a_style.shape)));
+		ImGui::PushStyleColor(ImGuiCol_Border, FieldBorderColor(boxed ? a_style.look : Theme::FieldLook::kNormal));
+		pushed = { 1, 1 };
+		if (!boxed) {
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+			for (const auto col : { ImGuiCol_FrameBg, ImGuiCol_FrameBgHovered, ImGuiCol_FrameBgActive }) {
+				ImGui::PushStyleColor(col, IM_COL32(0, 0, 0, 0));
+			}
+			pushed.vars += 1;
+			pushed.colors += 3;
+		}
+		if (a_style.look == Theme::FieldLook::kError) {
+			ImGui::PushStyleColor(ImGuiCol_Text, kErrorText);
+			++pushed.colors;
+		}
+		return pushed;
+	}
+
+	void PopFieldStyle(PushedStyle a_pushed)
+	{
+		ImGui::PopStyleColor(a_pushed.colors);
+		ImGui::PopStyleVar(a_pushed.vars);
+	}
+
+	// An underlined field's rule along the bottom of its rect (screen pixels).
+	void DrawFieldRule(const Theme::FieldStyle& a_style, ImVec2 a_min, ImVec2 a_max)
+	{
+		if (a_style.shape != Theme::FieldShape::kUnderlined) {
+			return;
+		}
+		const ImU32 color = ImGui::GetColorU32(FieldBorderColor(a_style.look));
+		ImGui::GetWindowDrawList()->AddLine(ImVec2(a_min.x, a_max.y - 0.5f), ImVec2(a_max.x, a_max.y - 0.5f), color);
+	}
+
+	// The field's icon in grey, at the start of its text inset and centred on
+	// its rect (screen pixels). The shapes are laid out in fractions of the
+	// icon's size.
+	// Contract: called with the skin's frame padding in force (not PushFieldStyle's).
+	void DrawFieldIcon(const Theme::FieldStyle& a_style, ImVec2 a_min, ImVec2 a_max)
+	{
+		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the clear button's cross
+
+		if (a_style.icon == Theme::FieldIcon::kNone) {
+			return;
+		}
+		const float size = ImGui::GetFontSize() * kFieldIconRatio;
+		const float left = a_min.x + (a_style.shape == Theme::FieldShape::kBoxed ? ImGui::GetStyle().FramePadding.x : 0.0f);
+		const float top = (a_min.y + a_max.y - size) * 0.5f;
+		const auto  at = [&](float a_x, float a_y) { return ImVec2(left + size * a_x, top + size * a_y); };
+		const ImU32 color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+		const float thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
+		auto*       draw = ImGui::GetWindowDrawList();
+		if (a_style.icon == Theme::FieldIcon::kSearch) {
+			const ImVec2 centre = at(0.42f, 0.42f);
+			const float  radius = size * 0.3f;
+			const float  rim = radius * 0.7071f;  // the lens's rim towards the handle, at 45 degrees
+			draw->AddCircle(centre, radius, color, 0, thickness);
+			draw->AddLine(ImVec2(centre.x + rim, centre.y + rim), at(0.9f, 0.9f), color, thickness);
+			return;
+		}
+		const ImVec2 funnel[] = { at(0.1f, 0.15f), at(0.9f, 0.15f), at(0.58f, 0.52f), at(0.58f, 0.85f), at(0.42f, 0.95f), at(0.42f, 0.52f) };
+		draw->AddPolyline(funnel, 6, color, ImDrawFlags_Closed, thickness);
+	}
+
+	// A combo's preview, drawn for every skin (ImGuiComboFlags_CustomPreview):
+	// the field's rule and icon, the text clipped short of the arrow's column
+	// (greyed as a hint when the style says so), then the skin's own arrow, if
+	// it has one, at the right edge.
 	// Contract: called right after the combo's BeginCombo / EndCombo block,
 	// where the combo frame is still the last item (BeginComboPreview asserts it).
-	void DrawCustomComboPreview(const char* a_preview)
+	void DrawComboPreview(const char* a_preview, const Theme::FieldStyle& a_style)
 	{
 		const auto&  style = ImGui::GetStyle();
 		const ImVec2 frameMin = ImGui::GetItemRectMin();
 		const ImVec2 frameMax = ImGui::GetItemRectMax();
+		const bool   ownArrow = HasCustomDropdownArrow();
 		const ImVec2 arrow = DropdownArrowSize();
-		const float  arrowLeft = frameMax.x - style.FramePadding.x - arrow.x;
+		const float  arrowLeft = frameMax.x - (a_style.shape == Theme::FieldShape::kBoxed ? style.FramePadding.x : 0.0f) - arrow.x;
+		// Without its own arrow, ImGui's arrow button already lies outside the preview's rect.
+		const float textRight = ownArrow ? arrowLeft - style.ItemInnerSpacing.x : frameMax.x;
+		DrawFieldRule(a_style, frameMin, frameMax);
+		DrawFieldIcon(a_style, frameMin, frameMax);
 
-		if (!ImGui::BeginComboPreview()) {
-			return;
+		const auto pushed = PushFieldStyle(a_style);  // BeginComboPreview places the text by the frame padding
+		if (a_style.previewIsHint) {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 		}
-		ImGui::PushClipRect(frameMin, ImVec2(arrowLeft - style.ItemInnerSpacing.x, frameMax.y), true);
-		ImGui::TextUnformatted(a_preview);
-		ImGui::PopClipRect();
-		ImGui::EndComboPreview();
+		if (ImGui::BeginComboPreview()) {
+			ImGui::PushClipRect(frameMin, ImVec2(textRight, frameMax.y), true);
+			ImGui::TextUnformatted(a_preview);
+			ImGui::PopClipRect();
+			ImGui::EndComboPreview();
+		}
+		if (a_style.previewIsHint) {
+			ImGui::PopStyleColor();
+		}
+		PopFieldStyle(pushed);
 
-		const float midY = (frameMin.y + frameMax.y) * 0.5f;
-		DrawDropdownArrow(ImGui::GetWindowDrawList(), ImVec2(arrowLeft, midY - arrow.y * 0.5f), arrow);
+		if (ownArrow) {
+			const float midY = (frameMin.y + frameMax.y) * 0.5f;
+			DrawDropdownArrow(ImGui::GetWindowDrawList(), ImVec2(arrowLeft, midY - arrow.y * 0.5f), arrow);
+		}
 	}
 
 	// The game's diamond box with its top-left at a_topLeft, and the tick
@@ -848,26 +991,6 @@ namespace
 		}
 		draw->AddText(ImVec2(boxTopLeft.x + box.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return pressed;
-	}
-
-	// Vanilla and Nordic frame dropdowns and text fields with a fainter rule
-	// than the lists' and window's; a highlighted field takes the tick's colour
-	// in every skin. Returns true when it pushed a colour.
-	bool PushFieldBorder(bool a_highlighted)
-	{
-		constexpr float kFieldBorderAlpha = 0.5f;  // of the skin's border colour
-
-		if (a_highlighted) {
-			ImGui::PushStyleColor(ImGuiCol_Border, ImGui::GetStyleColorVec4(ImGuiCol_CheckMark));
-			return true;
-		}
-		if (g_skin == Theme::Skin::kTailor) {
-			return false;
-		}
-		ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Border);
-		color.w *= kFieldBorderAlpha;
-		ImGui::PushStyleColor(ImGuiCol_Border, color);
-		return true;
 	}
 
 	// The mark left of a selected single-choice row's text: NORDIC UI's MCM
@@ -1115,22 +1238,19 @@ namespace Theme
 		return HasGameCheckbox() ? GameCheckbox(a_label, a_active, true) : ImGui::RadioButton(a_label, a_active);
 	}
 
-	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags, const char* a_hint, FieldLook a_look)
+	float FieldHeight(const FieldStyle& a_style)
 	{
-		int pushed = 0;
-		if (a_look == FieldLook::kError) {
-			// Full-strength red in place of the skin's fainter field border.
-			ImGui::PushStyleColor(ImGuiCol_Border, kErrorText);
-			ImGui::PushStyleColor(ImGuiCol_Text, kErrorText);
-			pushed = 2;
-		} else if (PushFieldBorder(a_look == FieldLook::kHighlighted)) {
-			pushed = 1;
-		}
+		return ImGui::GetFontSize() + FieldPadY(a_style.shape) * 2.0f;
+	}
+
+	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags, const char* a_hint, const FieldStyle& a_style)
+	{
+		const auto pushed = PushFieldStyle(a_style);
 		const bool result = a_hint ? ImGui::InputTextWithHint(a_id, a_hint, a_buffer, a_size, a_flags) :
 		                             ImGui::InputText(a_id, a_buffer, a_size, a_flags);
-		if (pushed > 0) {
-			ImGui::PopStyleColor(pushed);
-		}
+		PopFieldStyle(pushed);
+		DrawFieldRule(a_style, ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+		DrawFieldIcon(a_style, ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 		return result;
 	}
 
@@ -1149,52 +1269,66 @@ namespace Theme
 		return true;
 	}
 
-	bool BeginCombo(const char* a_id, const char* a_preview, int a_flags, bool a_highlighted)
+	bool BeginCombo(const char* a_id, int a_flags, const FieldStyle& a_style)
 	{
 		// The popup takes the window padding and border colour in force as BeginCombo opens it.
 		const ImVec2 padding = g_skin == Skin::kTailor ? kTailorDropdownPadding : kSquareDropdownPadding;
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding.x * g_scale, padding.y * g_scale));
-		const bool pushedBorder = PushFieldBorder(a_highlighted);
-		bool       open = false;
-		if (HasCustomDropdownArrow()) {
-			// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
-			open = ImGui::BeginCombo(a_id, "", a_flags | ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_CustomPreview);
-		} else {
-			open = ImGui::BeginCombo(a_id, a_preview, a_flags);
-		}
-		if (pushedBorder) {
-			ImGui::PopStyleColor();
-		}
+		const auto pushed = PushFieldStyle(a_style);
+		// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
+		const int  flags = a_flags | ImGuiComboFlags_CustomPreview | (HasCustomDropdownArrow() ? ImGuiComboFlags_NoArrowButton : 0);
+		const bool open = ImGui::BeginCombo(a_id, "", flags);
+		PopFieldStyle(pushed);
 		ImGui::PopStyleVar();
 		return open;
 	}
 
-	void EndCombo(bool a_open, const char* a_preview)
+	void EndCombo(bool a_open, const char* a_preview, const FieldStyle& a_style)
 	{
 		if (a_open) {
 			ImGui::EndCombo();
 		}
-		if (HasCustomDropdownArrow()) {
-			DrawCustomComboPreview(a_preview);
-		}
+		DrawComboPreview(a_preview, a_style);
 	}
 
-	bool ClearButton(const char* a_id)
+	float ComboWidth(const char* a_preview, const FieldStyle& a_style)
+	{
+		const auto& style = ImGui::GetStyle();
+		const float text = FieldTextInset(a_style) + ImGui::CalcTextSize(a_preview).x;
+		if (!HasCustomDropdownArrow()) {
+			return text + FieldHeight(a_style);  // ImGui's square arrow button
+		}
+		const float right = a_style.shape == FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
+		return text + style.ItemInnerSpacing.x + DropdownArrowSize().x + right;
+	}
+
+	bool ClearButton(const char* a_id, float a_side)
 	{
 		constexpr float kCrossRatio = 0.22f;      // half the cross's width, of the font size
 		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the category rows' check mark
 
-		const float  side = ImGui::GetFrameHeight();
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(side, side));
+		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(a_side, a_side));
 		const ImU32  color = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled);
 		const float  half = ImGui::GetFontSize() * kCrossRatio;
 		const float  thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
-		const ImVec2 centre(topLeft.x + side * 0.5f, topLeft.y + side * 0.5f);
+		const ImVec2 centre(topLeft.x + a_side * 0.5f, topLeft.y + a_side * 0.5f);
 		auto*        draw = ImGui::GetWindowDrawList();
 		draw->AddLine(ImVec2(centre.x - half, centre.y - half), ImVec2(centre.x + half, centre.y + half), color, thickness);
 		draw->AddLine(ImVec2(centre.x - half, centre.y + half), ImVec2(centre.x + half, centre.y - half), color, thickness);
 		return clicked;
+	}
+
+	void PushSmallFont()
+	{
+		constexpr float kSmallFontRatio = 0.85f;  // of the body font's size
+
+		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * kSmallFontRatio);
+	}
+
+	void PopSmallFont()
+	{
+		ImGui::PopFont();
 	}
 
 	float ListPaddingY()
