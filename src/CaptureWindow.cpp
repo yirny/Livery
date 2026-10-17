@@ -10,8 +10,8 @@
 //   Pieces page  - inventory pieces (first page) plus the loaded outfit's, each tick
 //                  handed to onPieceToggled; the Live Preview tick, handed to onPreviewOn /
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
-//                  Load Outfit... at the count line's right end (only while Tailor
-//                  has outfits); Create New / Update Existing / Cancel
+//                  Load Outfit... at the count line's right end (greyed while Tailor
+//                  has no outfits); Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit browser - Search | Filter above both outfit pages' list, in the small font
 //                  (OutfitBrowser.cpp narrows and orders it); Escape first clears the search
@@ -600,8 +600,8 @@ namespace
 	// A tick row (Theme::TickRow) per listed piece; unticked pieces are left out of the outfit.
 	// Each click goes to onPieceToggled (the live preview) in its own SKSE task,
 	// queued in click order.
-	// The count line ends with Load Outfit..., shown only while Tailor has
-	// outfits; returns true when it is clicked.
+	// The count line ends with Load Outfit..., greyed with the reason on hover
+	// while Tailor has no outfits; returns true when it is clicked.
 	// Contract: a piece that is not listed is never ticked: only Load ticks a
 	// piece the actor does not carry, and the next Load sets every tick again.
 	bool DrawPieceList(State& a_state)
@@ -610,7 +610,15 @@ namespace
 		const auto& onToggled = a_state.request.onPieceToggled;
 		const auto  listed = CountListedPieces(a_state);
 		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), listed).c_str());
-		const bool load = !a_state.request.existingOutfits.empty() && Theme::LabelLink("Load Outfit...");
+		const bool noOutfits = a_state.request.existingOutfits.empty();
+		ImGui::BeginDisabled(noOutfits);
+		const bool load = Theme::LabelLink("Load Outfit...") && !noOutfits;
+		const bool loadHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		ImGui::EndDisabled();
+		// After EndDisabled, so the tooltip is not drawn faded.
+		if (noOutfits && loadHovered) {
+			ImGui::SetTooltip("%s", kNoOutfits);
+		}
 		PushListRowSpacing();  // popped before EndList, so the gap below the list is the normal one
 		const float listHeight = ListHeight(listed, ImGui::GetFrameHeightWithSpacing());
 		if (Theme::BeginList("pieces", listHeight)) {

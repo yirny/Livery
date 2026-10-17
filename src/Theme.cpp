@@ -1035,8 +1035,10 @@ namespace
 
 	// A filled square `a_side` pixels across, its corners rounded, with a plus
 	// cut out of its middle so the window shows through. ImGui cannot cut a
-	// hole, so four rotated copies of one quarter are filled; each overlaps its
-	// neighbours a little to hide the seams, which shows only in a translucent colour.
+	// hole, so four rotated copies of one piece are filled: a corner square and
+	// the strip beyond one plus tip. They never overlap, so a translucent colour
+	// stays even, and they meet on whole pixels, where ImGui's anti-aliasing
+	// fringe (half a pixel each way) leaves no seam.
 	void DrawPlusSquare(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color)
 	{
 		constexpr float kRounding = 4.0f;         // pixels at 1080p
@@ -1052,24 +1054,24 @@ namespace
 		const float armLo = (s - arm) * 0.5f;  // the arms' edges
 		const float armHi = (s + arm) * 0.5f;
 		const float tip = std::round(s * kTipMarginRatio);
-		const float r = (std::min)(kRounding * g_scale, armLo);
+		const float r = (std::min)(kRounding * g_scale, armLo - 1.0f);  // short of the corner square's side, so no point repeats
 
-		// The top-left quarter, clockwise (ImGui's fill and fringe need it):
-		// the rounded corner, then around the plus's top-left notch.
-		std::array<ImVec2, kArcSegments + 1 + 7> quarter{};
+		// The top-left piece, clockwise (ImGui's fill and fringe need it): the
+		// rounded corner, along the top past the upper arm's tip strip, then
+		// back left under the corner square.
+		std::array<ImVec2, kArcSegments + 1 + 5> piece{};
 		std::size_t                              n = 0;
 		for (int i = 0; i <= kArcSegments; ++i) {
 			const float a = IM_PI + IM_PI * 0.5f * static_cast<float>(i) / kArcSegments;
-			quarter[n++] = ImVec2(r + std::cos(a) * r, r + std::sin(a) * r);
+			piece[n++] = ImVec2(r + std::cos(a) * r, r + std::sin(a) * r);
 		}
-		for (const ImVec2 p : { ImVec2(armHi, 0.0f), ImVec2(armHi, tip), ImVec2(armLo, tip), ImVec2(armLo, armLo), ImVec2(tip, armLo),
-				 ImVec2(tip, armHi), ImVec2(0.0f, armHi) }) {
-			quarter[n++] = p;
+		for (const ImVec2 p : { ImVec2(armHi, 0.0f), ImVec2(armHi, tip), ImVec2(armLo, tip), ImVec2(armLo, armLo), ImVec2(0.0f, armLo) }) {
+			piece[n++] = p;
 		}
 
 		const ImVec2 origin(std::floor(a_topLeft.x), std::floor(a_topLeft.y));
 		for (int turn = 0; turn < 4; ++turn) {
-			for (auto p : quarter) {
+			for (auto p : piece) {
 				for (int k = 0; k < turn; ++k) {
 					p = ImVec2(s - p.y, p.x);  // a quarter turn clockwise about the centre
 				}
