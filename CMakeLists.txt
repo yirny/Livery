@@ -89,6 +89,7 @@ else()
         SOURCES
         src/CaptureWindow.cpp
         src/Hooks.cpp
+        src/MovementHold.cpp
         src/OutfitBrowser.cpp
         src/Plugin.cpp
         src/PreviewCamera.cpp
