@@ -98,6 +98,12 @@ namespace Theme
 	float SelectRowHeight();
 	float SelectRowGap();
 
+	// A read-only row laid out as SelectRow lays out its text, with no fill or
+	// click, so a plain list lines up with a single-choice one beside it.
+	// Lay rows out SelectRowGap apart.
+	// Contract: inside BeginList.
+	void TextRow(const char* label);
+
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Tailor a
 	// smaller rounded ImGui one. Faded and inert inside BeginDisabled, like

@@ -1264,4 +1264,12 @@ namespace Theme
 		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
 	}
+
+	void TextRow(const char* a_label)
+	{
+		const ImVec2 cursor = ImGui::GetCursorScreenPos();
+		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
+		const ImVec2 text(cursor.x + kRowTextShift * g_scale, cursor.y + kSelectRowPadY * g_scale);
+		ImGui::GetWindowDrawList()->AddText(text, ImGui::GetColorU32(ImGuiCol_Text), a_label);
+	}
 }
