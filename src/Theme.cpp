@@ -4,13 +4,14 @@
 //   Constants  - font files per skin, Tailor's and Nordic's palettes
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
 //   Styles     - one ImGuiStyle per skin and its resolution scale
-//   Textures   - NORDIC UI's corner knot and heading rope (white alpha masks),
-//                the game's and NORDIC UI's equipped-item marks, the game's
-//                checkbox and dropdown arrow
+//   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow (white
+//                alpha masks), the game's and NORDIC UI's equipped-item marks,
+//                the game's checkbox and dropdown arrow
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame;
 //                list rows (Tailor's tick row, the SkyUI-style tick row of the
 //                Vanilla and Nordic skins); the dropdown arrows; the game's
-//                checkbox of the Vanilla and Nordic skins
+//                checkbox of the Vanilla and Nordic skins; the fainter field
+//                border; the selected single-choice row's mark
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
 //                and the edge-to-edge lists (BeginList / EndList)
 //
@@ -56,16 +57,22 @@ namespace
 	// Tailor's measured size adjustment for Poppins and Montserrat (its FontMetricScale).
 	constexpr float kFontMetricScale = 4.0f / 3.0f;
 
-	// How much closer a field label sits to its control than the item spacing (pixels at 1080p).
-	constexpr float kLabelGapTrim = 4.0f;
 	// Extra room under the heading (under its rule in Nordic) beyond the item spacing (pixels at 1080p).
-	constexpr float kHeadingGapExtra = 4.0f;
+	constexpr float kHeadingGapExtra = 12.0f;
+	// Extra room above each field (label and control) beyond the item spacing (pixels at 1080p).
+	constexpr float kSectionGap = 2.0f;
 
-	// Tailor 3.0's tight lists: the padding above and below a list's rows, the
-	// gap between rows, and the dropdown popup's padding (pixels at 1080p).
-	constexpr float  kTailorListPaddingY = 10.0f;
+	// Tailor 3.0's tight lists: the gap between rows, and the dropdown popup's
+	// padding (pixels at 1080p).
 	constexpr float  kTailorListRowGap = 2.0f;
 	constexpr ImVec2 kTailorDropdownPadding{ 14.0f, 10.0f };
+	// The dropdown popup's padding in Vanilla and Nordic, which would otherwise
+	// take the window's (Nordic's is wider for its corner ornaments; pixels at 1080p).
+	constexpr ImVec2 kSquareDropdownPadding{ 20.0f, 12.0f };
+	// Width of Tailor's amber rule on a selected row's left edge (pixels at 1080p).
+	constexpr float kTailorRuleWidth = 2.0f;
+	// Room above and below the text of a single-choice list row; its fill covers it (pixels at 1080p).
+	constexpr float kSelectRowPadY = 4.0f;
 
 	struct FontFile
 	{
@@ -135,13 +142,16 @@ namespace
 	LoadedFonts g_nordicFonts;
 	Theme::Skin g_skin = Theme::Skin::kTailor;  // skin of the frame being built
 	float       g_scale = 1.0f;                 // its resolution scale, for hand-drawn ornaments
+	float       g_itemSpacingY = 0.0f;          // its item spacing on the back buffer, before any push
+	ImVec2      g_listReach{};                  // how far the open BeginList list runs past the content, left and right
 	Ornament    g_cornerKnot{ nullptr, ImVec2(25.0f, 25.0f) };
 	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
 	Ornament    g_vanillaEquipped{ nullptr, ImVec2(20.0f, 20.0f) };  // the game's equipped mark, a white mask tinted on draw
 	Ornament    g_nordicEquipped{ nullptr, ImVec2(23.0f, 23.0f) };   // NORDIC UI's, in its own two colours
-	Ornament    g_checkBox{ nullptr, ImVec2(20.0f, 20.0f) };         // the game's checkbox, in its own colours
-	Ornament    g_checkMark{ nullptr, ImVec2(15.0f, 15.0f) };        // its tick, centred on the box (the game's ratio)
+	Ornament    g_checkBox{ nullptr, ImVec2(22.0f, 22.0f) };         // the game's checkbox, in its own colours
+	Ornament    g_checkMark{ nullptr, ImVec2(16.5f, 16.5f) };        // its tick, centred on the box (the game's ratio)
 	Ornament    g_dropdownArrow{ nullptr, ImVec2(13.0f, 16.0f) };    // the game's option stepper arrow, turned to point down
+	Ornament    g_selectArrow{ nullptr, ImVec2(15.0f, 16.0f) };      // NORDIC UI's MCM page arrow, a white mask tinted on draw
 
 	const SkinFonts& FontFilesOf(Theme::Skin a_skin)
 	{
@@ -630,8 +640,6 @@ namespace
 	// brown hover fill while hovered.
 	bool TailorRow(const char* a_label, bool* a_ticked)
 	{
-		constexpr float kRuleWidth = 2.0f;  // pixels at 1080p
-
 		const float   height = ImGui::GetFrameHeight();
 		const ListRow row = LayOutListRow(a_label, height);
 		if (row.pressed) {
@@ -646,7 +654,7 @@ namespace
 			draw->AddRectFilled(row.min, row.max, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
 		}
 		if (*a_ticked) {
-			draw->AddRectFilled(row.min, ImVec2(row.min.x + kRuleWidth * g_scale, row.max.y), ImGui::GetColorU32(kAmber));
+			draw->AddRectFilled(row.min, ImVec2(row.min.x + kTailorRuleWidth * g_scale, row.max.y), ImGui::GetColorU32(kAmber));
 		}
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 		draw->AddText(ImVec2(row.min.x + row.inset, row.min.y + (height - text.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
@@ -791,7 +799,9 @@ namespace
 
 	// The game's settings checkbox: the box, a faint diamond over it while
 	// hovered, then the label; the box and label are one click target.
-	bool GameCheckbox(const char* a_label, bool* a_value)
+	// Returns true when pressed; the caller changes the value. Drawn as it
+	// will be after the press: a checkbox turns over, a radio button turns on.
+	bool GameCheckbox(const char* a_label, bool a_ticked, bool a_radio)
 	{
 		const auto&  style = ImGui::GetStyle();
 		const float  height = ImGui::GetFrameHeight();
@@ -800,15 +810,13 @@ namespace
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 
 		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(box.x + style.ItemInnerSpacing.x + text.x, height));
-		if (pressed) {
-			*a_value = !*a_value;
-		}
 		const bool hovered = ImGui::IsItemHovered();
+		const bool ticked = pressed ? (a_radio || !a_ticked) : a_ticked;
 
 		auto*        draw = ImGui::GetWindowDrawList();
 		const float  midY = topLeft.y + height * 0.5f;
 		const ImVec2 boxTopLeft(topLeft.x, midY - box.y * 0.5f);
-		DrawGameCheckbox(draw, boxTopLeft, *a_value);
+		DrawGameCheckbox(draw, boxTopLeft, ticked);
 		if (hovered) {
 			const float centreX = boxTopLeft.x + box.x * 0.5f;
 			draw->AddQuadFilled(ImVec2(centreX, boxTopLeft.y), ImVec2(boxTopLeft.x + box.x, midY), ImVec2(centreX, boxTopLeft.y + box.y),
@@ -816,6 +824,44 @@ namespace
 		}
 		draw->AddText(ImVec2(boxTopLeft.x + box.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return pressed;
+	}
+
+	// Vanilla and Nordic frame dropdowns and text fields with a fainter rule
+	// than the lists' and window's. Returns true when it pushed a colour.
+	bool PushFieldBorder()
+	{
+		constexpr float kFieldBorderAlpha = 0.5f;  // of the skin's border colour
+
+		if (g_skin == Theme::Skin::kTailor) {
+			return false;
+		}
+		ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Border);
+		color.w *= kFieldBorderAlpha;
+		ImGui::PushStyleColor(ImGuiCol_Border, color);
+		return true;
+	}
+
+	// The mark left of a selected single-choice row's text: NORDIC UI's MCM
+	// page arrow in Vanilla and Nordic (a small triangle without the texture),
+	// Tailor's amber rule on the row's left edge.
+	void DrawSelectMark(ImDrawList* a_draw, ImVec2 a_rowMin, ImVec2 a_rowMax, float a_textX)
+	{
+		if (g_skin == Theme::Skin::kTailor) {
+			a_draw->AddRectFilled(a_rowMin, ImVec2(a_rowMin.x + kTailorRuleWidth * g_scale, a_rowMax.y), ImGui::GetColorU32(kAmber));
+			return;
+		}
+		// Centred in the indent between the row's left edge and its text.
+		const ImU32  tint = ImGui::GetColorU32(g_skin == Theme::Skin::kNordic ? kNordicOrnament : IM_COL32_WHITE);
+		const ImVec2 size(g_selectArrow.size.x * g_scale, g_selectArrow.size.y * g_scale);
+		const ImVec2 centre((a_rowMin.x + a_textX) * 0.5f, (a_rowMin.y + a_rowMax.y) * 0.5f);
+		const ImVec2 topLeft(centre.x - size.x * 0.5f, centre.y - size.y * 0.5f);
+		if (g_selectArrow.view) {
+			a_draw->AddImage(g_selectArrow.Id(), topLeft, ImVec2(topLeft.x + size.x, topLeft.y + size.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+			return;
+		}
+		const float half = size.y * 0.3f;
+		a_draw->AddTriangleFilled(ImVec2(centre.x - half * 0.6f, centre.y - half), ImVec2(centre.x + half * 0.8f, centre.y),
+			ImVec2(centre.x - half * 0.6f, centre.y + half), tint);
 	}
 }
 
@@ -850,6 +896,7 @@ namespace Theme
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkbox.png", g_checkBox);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkmark.png", g_checkMark);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-dropdown.png", g_dropdownArrow);
+			LoadOrnament(a_device, wic.Get(), folder, L"nordic-select-arrow.png", g_selectArrow);
 		}
 		wic.Reset();
 		if (SUCCEEDED(init)) {
@@ -880,6 +927,7 @@ namespace Theme
 		style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
 		style.ScaleAllSizes(scale);
 		style.FontScaleMain = scale;
+		g_itemSpacingY = style.ItemSpacing.y;
 		ImGui::GetStyle() = style;
 		ImGui::GetIO().FontDefault = loaded.body ? loaded.body : g_defaultFont;
 	}
@@ -914,13 +962,19 @@ namespace Theme
 		const auto  centre = [](float a_width) {
 			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - a_width) * 0.5f));
 		};
+		constexpr float kSubtitleGapTrim = 4.0f;  // how much closer the subtitle sits under the heading than the item spacing (pixels at 1080p)
+		constexpr float kRuleGapExtra = 4.0f;     // Nordic: extra room above the rule beyond the item spacing (pixels at 1080p)
+
 		// The gap below an item comes from the item spacing in force while it is laid out:
 		// the subtitle sits close under the heading, and the wider gap follows only the
 		// last element (the rule in Nordic).
+		// Contract: every page's body opens with a LabelText, whose section gap
+		// completes the heading's gap; the heading leaves that much out.
 		const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
-		const ImVec2 wider(spacing.x, spacing.y + kHeadingGapExtra * g_scale);
-		const ImVec2 tight(spacing.x, (std::max)(0.0f, spacing.y - kLabelGapTrim * g_scale));
-		const ImVec2 afterLast = nordic ? spacing : wider;
+		const ImVec2 wider(spacing.x, spacing.y + (kHeadingGapExtra - kSectionGap) * g_scale);
+		const ImVec2 tight(spacing.x, (std::max)(0.0f, spacing.y - kSubtitleGapTrim * g_scale));
+		const ImVec2 aboveRule(spacing.x, spacing.y + kRuleGapExtra * g_scale);
+		const ImVec2 afterLast = nordic ? aboveRule : wider;
 
 		if (ownFont) {
 			ImGui::PushFont(loaded.heading, files.heading.size);
@@ -962,8 +1016,16 @@ namespace Theme
 		return g_scale;
 	}
 
+	void SectionGap()
+	{
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kSectionGap * g_scale);
+	}
+
 	void LabelText(const char* a_text)
 	{
+		constexpr float kLabelGapTrim = 2.0f;  // how much closer the label sits to its control than the item spacing (pixels at 1080p)
+
+		SectionGap();
 		// The gap below an item comes from the item spacing in force while it is laid out.
 		const auto& spacing = ImGui::GetStyle().ItemSpacing;
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - kLabelGapTrim * g_scale)));
@@ -998,7 +1060,11 @@ namespace Theme
 	bool Checkbox(const char* a_label, bool* a_value)
 	{
 		if (HasGameCheckbox()) {
-			return GameCheckbox(a_label, a_value);
+			const bool pressed = GameCheckbox(a_label, *a_value, false);
+			if (pressed) {
+				*a_value = !*a_value;
+			}
+			return pressed;
 		}
 		if (g_skin != Skin::kTailor) {
 			return ImGui::Checkbox(a_label, a_value);
@@ -1015,6 +1081,21 @@ namespace Theme
 		return toggled;
 	}
 
+	bool RadioButton(const char* a_label, bool a_active)
+	{
+		return HasGameCheckbox() ? GameCheckbox(a_label, a_active, true) : ImGui::RadioButton(a_label, a_active);
+	}
+
+	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags)
+	{
+		const bool pushed = PushFieldBorder();
+		const bool result = ImGui::InputText(a_id, a_buffer, a_size, a_flags);
+		if (pushed) {
+			ImGui::PopStyleColor();
+		}
+		return result;
+	}
+
 	bool DrawTickedBox(float a_right, float a_midY)
 	{
 		if (!HasGameCheckbox()) {
@@ -1027,21 +1108,21 @@ namespace Theme
 
 	bool BeginCombo(const char* a_id, const char* a_preview, int a_flags)
 	{
-		// The popup takes the window padding in force as BeginCombo opens it.
-		const bool tailor = g_skin == Skin::kTailor;
-		if (tailor) {
-			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(kTailorDropdownPadding.x * g_scale, kTailorDropdownPadding.y * g_scale));
-		}
-		bool open = false;
+		// The popup takes the window padding and border colour in force as BeginCombo opens it.
+		const ImVec2 padding = g_skin == Skin::kTailor ? kTailorDropdownPadding : kSquareDropdownPadding;
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding.x * g_scale, padding.y * g_scale));
+		const bool pushedBorder = PushFieldBorder();
+		bool       open = false;
 		if (HasCustomDropdownArrow()) {
 			// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
 			open = ImGui::BeginCombo(a_id, "", a_flags | ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_CustomPreview);
 		} else {
 			open = ImGui::BeginCombo(a_id, a_preview, a_flags);
 		}
-		if (tailor) {
-			ImGui::PopStyleVar();
+		if (pushedBorder) {
+			ImGui::PopStyleColor();
 		}
+		ImGui::PopStyleVar();
 		return open;
 	}
 
@@ -1057,7 +1138,8 @@ namespace Theme
 
 	float ListPaddingY()
 	{
-		return g_skin == Skin::kTailor ? kTailorListPaddingY * g_scale : ImGui::GetStyle().WindowPadding.y;
+		// The piece list's row gap, whatever item spacing a list's rows push.
+		return ListRowGap(g_itemSpacingY);
 	}
 
 	float ListRowGap(float a_fallback)
@@ -1067,17 +1149,26 @@ namespace Theme
 
 	bool BeginList(const char* a_id, float a_height)
 	{
-		// Past the content on both sides: the window's padding, or the cell's in a table.
-		const auto& style = ImGui::GetStyle();
-		const float reach = ImGui::GetCurrentTable() ? style.CellPadding.x : style.WindowPadding.x;
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() - reach);
-		const float width = ImGui::GetContentRegionAvail().x + reach;
+		// Past the content across the window's padding to its edges; in a table,
+		// only on the table's outer sides, so the gap between columns stays clear.
+		const float padding = ImGui::GetStyle().WindowPadding.x;
+		float       left = padding;
+		float       right = padding;
+		if (ImGui::GetCurrentTable()) {
+			const int column = ImGui::TableGetColumnIndex();
+			left = column == 0 ? padding : 0.0f;
+			right = column == ImGui::TableGetColumnCount() - 1 ? padding : 0.0f;
+		}
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() - left);
+		const float width = ImGui::GetContentRegionAvail().x + right;
+		g_listReach = ImVec2(left, right);
 
+		// A child without a border drops its padding unless told to keep it.
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, ListPaddingY()));
-		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, a_height), ImGuiChildFlags_None);
+		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, a_height), ImGuiChildFlags_AlwaysUseWindowPadding);
 		ImGui::PopStyleVar();
-		if (visible) {
-			ImGui::Indent(reach);  // the rows' text lines up with the content around the list
+		if (visible && left > 0.0f) {
+			ImGui::Indent(left);  // the rows' text lines up with the content around the list (0 would mean the default indent)
 		}
 		return visible;
 	}
@@ -1085,23 +1176,42 @@ namespace Theme
 	void EndList()
 	{
 		ImGui::EndChild();
+		// The rules span the content only; the rows run on past it.
 		const ImVec2 min = ImGui::GetItemRectMin();
 		const ImVec2 max = ImGui::GetItemRectMax();
+		const float  left = min.x + g_listReach.x;
+		const float  right = max.x - g_listReach.y;
 		auto*        draw = ImGui::GetWindowDrawList();
 		const ImU32  color = ImGui::GetColorU32(ImGuiCol_Border);
-		draw->AddLine(ImVec2(min.x, min.y + 0.5f), ImVec2(max.x, min.y + 0.5f), color);
-		draw->AddLine(ImVec2(min.x, max.y - 0.5f), ImVec2(max.x, max.y - 0.5f), color);
+		draw->AddLine(ImVec2(left, min.y + 0.5f), ImVec2(right, min.y + 0.5f), color);
+		draw->AddLine(ImVec2(left, max.y - 0.5f), ImVec2(right, max.y - 0.5f), color);
+	}
+
+	float SelectRowHeight()
+	{
+		return ImGui::GetTextLineHeight() + kSelectRowPadY * 2.0f * g_scale;
+	}
+
+	float SelectRowGap()
+	{
+		constexpr float kSelectRowGap = 2.0f;  // pixels at 1080p, between two rows' fills
+		return kSelectRowGap * g_scale;
 	}
 
 	bool SelectRow(const char* a_label, bool a_selected)
 	{
-		const float   height = ImGui::GetTextLineHeight();
-		const ListRow row = LayOutListRow(a_label, height);
+		constexpr float kTextShift = 4.0f;  // pixels at 1080p, right of the list's indent
+
+		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
+		const float   textX = row.min.x + row.inset + kTextShift * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
 		if (a_selected || row.hovered) {
 			draw->AddRectFilled(row.min, row.max, ImGui::GetColorU32(a_selected ? ImGuiCol_Header : ImGuiCol_HeaderHovered));
 		}
-		draw->AddText(ImVec2(row.min.x + row.inset, row.min.y), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		if (a_selected) {
+			DrawSelectMark(draw, row.min, row.max, textX);
+		}
+		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
 	}
 }
