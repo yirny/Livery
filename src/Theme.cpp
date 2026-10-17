@@ -113,6 +113,8 @@ namespace
 	constexpr ImU32 kFill2 = IM_COL32(244, 235, 216, 15);
 	constexpr ImU32 kFill3 = IM_COL32(244, 235, 216, 26);
 
+	constexpr ImU32 kErrorText = IM_COL32(255, 102, 102, 255);  // every skin's error red
+
 	// NORDIC UI's palette: white on smoked black, grey labels, rules and highlights.
 	constexpr ImU32 kNordicText = IM_COL32(240, 240, 240, 255);
 	constexpr ImU32 kNordicLabel = IM_COL32(165, 165, 165, 255);
@@ -1086,14 +1088,28 @@ namespace Theme
 		return HasGameCheckbox() ? GameCheckbox(a_label, a_active, true) : ImGui::RadioButton(a_label, a_active);
 	}
 
-	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags)
+	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags, const char* a_hint, bool a_error)
 	{
-		const bool pushed = PushFieldBorder();
-		const bool result = ImGui::InputText(a_id, a_buffer, a_size, a_flags);
-		if (pushed) {
-			ImGui::PopStyleColor();
+		int pushed = 0;
+		if (a_error) {
+			// Full-strength red in place of the skin's fainter field border.
+			ImGui::PushStyleColor(ImGuiCol_Border, kErrorText);
+			ImGui::PushStyleColor(ImGuiCol_Text, kErrorText);
+			pushed = 2;
+		} else if (PushFieldBorder()) {
+			pushed = 1;
+		}
+		const bool result = a_hint ? ImGui::InputTextWithHint(a_id, a_hint, a_buffer, a_size, a_flags) :
+		                             ImGui::InputText(a_id, a_buffer, a_size, a_flags);
+		if (pushed > 0) {
+			ImGui::PopStyleColor(pushed);
 		}
 		return result;
+	}
+
+	unsigned ErrorColor()
+	{
+		return kErrorText;
 	}
 
 	bool DrawTickedBox(float a_right, float a_midY)
