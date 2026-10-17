@@ -15,9 +15,11 @@
 //   Outfit browser - Search | Filter above both outfit pages' list, in the small font
 //                  (OutfitBrowser.cpp narrows and orders it); Escape first clears the search
 //   Outfit lists - the library outfit list with its Sort dropdown, the selected
-//                  outfit's name and its piece list, which both outfit pages share
-//   Load page    - library outfits, the selected one shown on the preview; Load ticks
-//                  its pieces and returns, Back restores the preview of the ticks
+//                  outfit's name and its piece list, which both outfit pages share;
+//                  on both, the selected outfit is on the preview, and a second
+//                  click on it, or Back, shows the ticks again
+//   Load page    - library outfits and the selected one's details; Load ticks its
+//                  pieces and returns
 //   Update page  - library outfits, the chosen one's categories (its own ones
 //                  locked, more can be ticked) and pieces; Update opens the
 //                  confirm popup, whose Confirm hands over to onUpdate
@@ -403,6 +405,13 @@ namespace
 		if (const auto& onPreview = a_state.request.onPreviewPieces) {
 			SKSE::GetTaskInterface()->AddTask([onPreview, pieces = std::move(a_pieces)] { onPreview(pieces); });
 		}
+	}
+
+	// The outfit pages keep their selected outfit (index into
+	// request.existingOutfits) on the preview, and the ticks while none is selected.
+	void PreviewOutfitOrTicks(const State& a_state, int a_outfit)
+	{
+		QueuePreview(a_state, a_outfit >= 0 ? OutfitAt(a_state, a_outfit).pieces : TickedPieces(a_state));
 	}
 
 	// Height of a Theme::BeginList list exactly as tall as its rows, so it does
@@ -796,6 +805,9 @@ namespace
 			QueueMenuSound(kOkSound);
 			if (a_state.loadedOutfit >= 0) {
 				SelectOutfit(a_state, a_state.loadedOutfit);
+			}
+			if (a_state.selectedOutfit >= 0) {
+				PreviewOutfitOrTicks(a_state, a_state.selectedOutfit);
 			}
 			GoToPage(a_state, Page::kUpdate);
 			break;
@@ -1265,7 +1277,7 @@ namespace
 	// the Sort dropdown. The list stays as tall as the whole library, so
 	// narrowing it does not move the buttons; `a_reserved` is the browser's
 	// height (ListHeight). Returns the index into request.existingOutfits of
-	// the one clicked, or -1; choosing another one plays the focus sound.
+	// the one clicked, or -1; a click plays the focus sound.
 	// Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(State& a_state, int a_selected, float a_reserved)
 	{
@@ -1297,7 +1309,7 @@ namespace
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
-		if (clicked >= 0 && clicked != a_selected) {
+		if (clicked >= 0) {
 			QueueMenuSound(kFocusSound);
 		}
 		return clicked;
@@ -1381,8 +1393,8 @@ namespace
 		a_state.loadedOutfit = a_state.previewedOutfit;
 	}
 
-	// Selecting an outfit shows it on the preview; Back shows the ticks again.
-	// Nothing here changes the ticks until Load.
+	// Selecting an outfit shows it on the preview; a second click on it, or Back,
+	// shows the ticks again. Nothing here changes the ticks until Load.
 	void DrawLoadPage(State& a_state)
 	{
 		const auto controls = DrawBrowserControls(a_state);
@@ -1395,9 +1407,9 @@ namespace
 			DrawLoadDetails(a_state);
 			EndColumns();
 		}
-		if (clicked >= 0 && clicked != a_state.previewedOutfit) {
-			a_state.previewedOutfit = clicked;
-			QueuePreview(a_state, OutfitAt(a_state, clicked).pieces);
+		if (clicked >= 0) {
+			a_state.previewedOutfit = clicked == a_state.previewedOutfit ? -1 : clicked;
+			PreviewOutfitOrTicks(a_state, a_state.previewedOutfit);
 		}
 
 		const auto action = DrawLoadButtons(a_state, controls.escapeTaken);
@@ -1543,6 +1555,8 @@ namespace
 		SKSE::GetTaskInterface()->AddTask([onUpdate, name, pieces, categories] { onUpdate(name, pieces, categories); });
 	}
 
+	// Selecting an outfit shows it on the preview; a second click on it, or Back,
+	// shows the ticks again.
 	void DrawUpdatePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -1550,7 +1564,12 @@ namespace
 		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
 			if (const int clicked = DrawOutfitList(a_state, a_state.selectedOutfit, controls.height); clicked >= 0) {
-				SelectOutfit(a_state, clicked);
+				if (clicked == a_state.selectedOutfit) {
+					a_state.selectedOutfit = -1;
+				} else {
+					SelectOutfit(a_state, clicked);
+				}
+				PreviewOutfitOrTicks(a_state, a_state.selectedOutfit);
 			}
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
@@ -1565,6 +1584,9 @@ namespace
 			RequestUpdate(a_state);
 		} else if (back) {
 			QueueMenuSound(kCancelSound);
+			if (a_state.selectedOutfit >= 0) {
+				QueuePreview(a_state, TickedPieces(a_state));
+			}
 			GoToPage(a_state, Page::kPieces);
 		}
 	}
