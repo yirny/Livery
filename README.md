@@ -76,6 +76,8 @@ With the cursor over the game rather than the window:
 
 The preview dresses the character in a working outfit named `Preview Outfit (used by Capture Outfit add-on)`, kept in Tailor's library with no category, so Tailor never picks it at random. It is the only outfit the plugin changes before you confirm. Every close of the window, a save included, ends the override, and the character goes back to what Tailor would dress them in otherwise.
 
+Each time Tailor changes an NPC's outfit, the game removes every copy of the old outfit's pieces from their inventory, including copies that are their own, such as armor you gave them. The plugin notes an NPC's own armor as the window opens. About 2 seconds after the window closes, it adds back any copies that are gone and puts back on what they wore of their own.
+
 ### Categories and gender
 
 Tailor's armor classes (Clothing, Light Armor, Heavy Armor) are checkboxes; its situations (Adventuring, Town, Home, Sleep, Swimming, Warm) and the custom categories you created in Tailor, read from its `library.json`, are dropdowns. On the Update Existing page, the categories the outfit is already in are ticked and greyed out, and say why on hover. The armor class is detected from the worn pieces (body first, then head, hands, feet, circlet) and ticked for you; no situation is ever ticked by default, so a captured outfit never enters a situation pool unless you put it there.
@@ -109,6 +111,7 @@ Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships
 - Pieces from plugins that are not loaded cannot be listed or removed through Tailor's API 1.0, so Update Existing leaves them in the outfit. Remove them in Tailor with those plugins loaded.
 - Live Preview is unavailable for a character another mod has set an outfit override on: the tick is greyed and its tooltip says why. The plugin never replaces another mod's override, because API 1.0 cannot read it back.
 - On the player, unticking the last ticked piece leaves the preview still wearing it: Tailor does not dress the player in an empty outfit. NPCs are undressed as expected, and the saved outfit follows the ticks either way.
+- An NPC's own armor that the plugin gives back comes back plain: tempering and a custom name are lost, because the plugin cannot create that item data.
 - `Preview Outfit (used by Capture Outfit add-on)` stays in Tailor's library once the preview has run, because API 1.0 cannot delete an outfit. The Load Outfit and Update Existing pages leave it out. If you delete it in Tailor, the next preview creates it again.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
