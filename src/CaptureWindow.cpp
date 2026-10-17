@@ -659,8 +659,8 @@ namespace
 			"Mouse wheel - zooms",
 			"W / A / S / D - moves (hold Shift for half speed)",
 		};
-		constexpr float kLineGap = 1.0f;     // pixels at 1080p, between lines
-		constexpr float kSummaryGap = 4.0f;  // pixels at 1080p, between the summary and the controls
+		constexpr float kLineGap = 2.0f;     // pixels at 1080p, between lines
+		constexpr float kSummaryGap = 8.0f;  // pixels at 1080p, between the summary and the controls
 
 		ImGui::BeginTooltip();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, kLineGap * Theme::Scale()));
