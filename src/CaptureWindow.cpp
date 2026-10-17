@@ -430,6 +430,16 @@ namespace
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
 	}
 
+	// Room between the last button row (and any status line under it) and the
+	// window's bottom edge, on top of the window padding. The item spacing
+	// below the last item already counts toward it.
+	void EndButtonRow()
+	{
+		constexpr float kBottomGap = 12.0f;  // pixels at 1080p
+
+		ImGui::Dummy(ImVec2(0.0f, (std::max)(0.0f, kBottomGap * Theme::Scale() - ImGui::GetStyle().ItemSpacing.y)));
+	}
+
 	// A table hands the next cell the text baseline of the previous cell's last
 	// line (a frame's padding), which would push the cell's first label down.
 	void ResetCellBaseline()
@@ -441,11 +451,12 @@ namespace
 	// cells and call EndColumns.
 	bool BeginColumns()
 	{
-		constexpr float kColumnGap = 24.0f;       // pixels at 1080p, between the columns
+		constexpr float kColumnGap = 48.0f;       // pixels at 1080p, between the columns
 		constexpr float kLeftWidthRatio = 0.45f;  // of the table width
 
 		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kColumnGap * 0.5f * Theme::Scale(), ImGui::GetStyle().CellPadding.y));
-		if (!ImGui::BeginTable("layout", 2, ImGuiTableFlags_SizingStretchProp)) {
+		// NoClip lets the lists reach the window's edges (Theme::BeginList).
+		if (!ImGui::BeginTable("layout", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoClip)) {
 			ImGui::PopStyleVar();
 			return false;
 		}
@@ -623,6 +634,7 @@ namespace
 		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
 		bool        on = a_state.previewOn;
 		ImGui::BeginDisabled(!available || a_state.previewBusy);
+		Theme::SectionGap();  // a field of its own, with no label
 		const bool clicked = Theme::Checkbox("Live Preview", &on);
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
@@ -700,6 +712,7 @@ namespace
 		}
 		DrawPreviewToggle(a_state);
 		const auto action = DrawPiecesButtons(a_state);
+		EndButtonRow();
 		ImGui::EndDisabled();
 
 		switch (action) {
@@ -843,7 +856,7 @@ namespace
 		constexpr float kHintGap = 6.0f;  // pixels at 1080p, below the hint line
 		const float     spacingX = ImGui::GetStyle().ItemSpacing.x;
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, 0.0f));
-		const bool enter = ImGui::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+		const bool enter = Theme::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue);
 		ImGui::PopStyleVar();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, kHintGap * Theme::Scale()));
 
@@ -879,7 +892,8 @@ namespace
 			if (i > 0) {
 				ImGui::SameLine();
 			}
-			if (ImGui::RadioButton(kGenderOptions[i].label, &a_state.gender, kGenderOptions[i].value)) {
+			if (Theme::RadioButton(kGenderOptions[i].label, a_state.gender == kGenderOptions[i].value)) {
+				a_state.gender = kGenderOptions[i].value;
 				QueueMenuSound(kFocusSound);
 			}
 		}
@@ -940,6 +954,7 @@ namespace
 		DrawCategoryFields(a_state, "##categories", a_state.ticked.get(), nullptr);
 		DrawGenderField(a_state);
 		const auto action = DrawNameButtons(a_state, save);
+		EndButtonRow();
 		ImGui::EndDisabled();
 
 		switch (action) {
@@ -965,8 +980,9 @@ namespace
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
-		PushListRowSpacing();
-		const float listHeight = ListHeight(outfits.size(), ImGui::GetTextLineHeightWithSpacing());
+		const float gap = Theme::SelectRowGap();
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));
+		const float listHeight = ListHeight(outfits.size(), Theme::SelectRowHeight() + gap);
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
 			for (std::size_t i = 0; i < outfits.size(); ++i) {
@@ -1070,7 +1086,9 @@ namespace
 			QueuePreview(a_state, OutfitAt(a_state, clicked).pieces);
 		}
 
-		switch (DrawLoadButtons(a_state)) {
+		const auto action = DrawLoadButtons(a_state);
+		EndButtonRow();
+		switch (action) {
 		case LoadAction::kLoad:
 			QueueMenuSound(kOkSound);
 			LoadOutfit(a_state);
@@ -1194,6 +1212,7 @@ namespace
 		const bool confirm = Theme::Button("Confirm");
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
 		if (confirm || cancel) {
 			QueueMenuSound(confirm ? kOkSound : kCancelSound);
 			ImGui::CloseCurrentPopup();
@@ -1227,6 +1246,7 @@ namespace
 			EndColumns();
 		}
 		const bool back = DrawUpdateButtons(a_state);
+		EndButtonRow();
 		ImGui::EndDisabled();
 
 		if (DrawConfirmPopup(a_state)) {

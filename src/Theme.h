@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <cstddef>
+
 struct ID3D11Device;
 
 // Look of the capture window (see Theme.cpp). Keep imgui.h out of this header:
@@ -42,9 +44,14 @@ namespace Theme
 	// Pixels at 1080p to pixels on the current back buffer.
 	float Scale();
 
-	// A field label: grey in Nordic, plain text elsewhere. Sits a little closer
-	// to the control below it than the item spacing would.
+	// A field label: grey in Nordic, plain text elsewhere. Opens a field with
+	// SectionGap and sits a little closer to the control below it than the
+	// item spacing would.
 	void LabelText(const char* text);
+
+	// Extra room above a field, on top of the item spacing; LabelText adds it
+	// itself, so call it only before a field that has no label.
+	void SectionGap();
 
 	// Returns true when pressed. Nordic draws a pointed-end frame.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
@@ -53,16 +60,20 @@ namespace Theme
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
 
-	// A list of rows between a rule above and a rule below, running the full
-	// width of the window (or of the table cell) past its padding; the rows'
-	// text keeps that padding as an indent. Used like BeginChild / EndChild:
-	// always call EndList. Rows go through TickRow, SelectRow or plain text.
+	// A list of rows between a rule above and a rule below. The rules span the
+	// content; the rows run on past the window's padding to its edges (in a
+	// table cell, only on the table's outer sides, never into the gap between
+	// columns), and their text keeps that padding as an indent. Used like
+	// BeginChild / EndChild: always call EndList, before the next BeginList.
+	// Rows go through TickRow, SelectRow or plain text.
+	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
+	// columns clip the outer sides short of the window's edges.
 	bool BeginList(const char* id, float height);
 	void EndList();
 
-	// Pixels on the back buffer: the padding above and below a list's rows,
-	// and the gap between them. Tailor's tight values; the style's padding and
-	// the given gap otherwise.
+	// Pixels on the back buffer: the padding between a list's rules and its
+	// rows, and the gap between rows. The padding is the piece list's row gap
+	// in every list; the gap is Tailor's tight one, or the given one otherwise.
 	float ListPaddingY();
 	float ListRowGap(float fallback);
 
@@ -75,11 +86,16 @@ namespace Theme
 	// ImGui ID, so PushID around rows whose labels may repeat.
 	bool TickRow(const char* label, bool* ticked);
 
-	// A row of a single-choice list, one text line tall: filled while selected
-	// or hovered; returns true when clicked.
+	// A row of a single-choice list, SelectRowHeight tall: filled while selected
+	// or hovered, its text a little right of the list's indent; returns true
+	// when clicked. A selected row is marked left of its text: NORDIC UI's MCM
+	// page arrow in Vanilla and Nordic, Tailor's amber rule on its left edge.
+	// Lay rows out SelectRowGap apart (pixels on the back buffer).
 	// Contract: inside BeginList; the label is shown as is and is the row's
 	// ImGui ID, so PushID around rows whose labels may repeat.
-	bool SelectRow(const char* label, bool selected);
+	bool  SelectRow(const char* label, bool selected);
+	float SelectRowHeight();
+	float SelectRowGap();
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Tailor a
@@ -87,6 +103,16 @@ namespace Theme
 	// ImGui::Checkbox.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Checkbox(const char* label, bool* value);
+
+	// A radio button; returns true when pressed, and the caller selects it.
+	// Vanilla and Nordic draw it as their checkbox, Tailor (or a missing
+	// texture) as ImGui's own.
+	// Contract: the label is shown as is, so it must not use "##" IDs.
+	bool RadioButton(const char* label, bool active);
+
+	// ImGui::InputText with the skin's field border (fainter in Vanilla and
+	// Nordic, as dropdowns). `flags` are ImGuiInputTextFlags.
+	bool InputText(const char* id, char* buffer, std::size_t size, int flags);
 
 	// The game's ticked checkbox in the current window, its right edge at
 	// `right` and centred on `midY` (screen pixels). Returns false, drawing
@@ -96,10 +122,11 @@ namespace Theme
 
 	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
 	// fill the popup only when BeginCombo returned true, then call EndCombo
-	// with that result and the same preview. Tailor replaces ImGui's arrow with
-	// a small amber chevron and tightens the popup's padding; Vanilla and
-	// Nordic replace it with the game's diamond stepper arrow (drawn, with the
-	// preview, by EndCombo), or keep ImGui's when its texture is missing.
+	// with that result and the same preview. Every skin gives the popup its own
+	// padding. Tailor replaces ImGui's arrow with a small amber chevron; Vanilla
+	// and Nordic replace it with the game's diamond stepper arrow (drawn, with
+	// the preview, by EndCombo), or keep ImGui's when its texture is missing,
+	// and draw the frame's and popup's border fainter.
 	// `flags` are ImGuiComboFlags.
 	bool BeginCombo(const char* id, const char* preview, int flags);
 	void EndCombo(bool open, const char* preview);

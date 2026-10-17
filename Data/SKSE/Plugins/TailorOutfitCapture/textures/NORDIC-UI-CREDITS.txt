@@ -9,3 +9,7 @@ Used under the author's permissions on that page:
 nordic-equipped.png is NORDIC UI's equipped-item mark (interface/skyui/inventorylists.swf,
 symbol EquipIcon, frame "Equipped"), rendered from its vector shape in its own
 colours; the plugin draws it untinted. Same author and permission as above.
+
+nordic-select-arrow.png is NORDIC UI's MCM selected-page arrow (interface/skyui/configpanel.swf,
+symbol SubListEntry, child activeIndicator), rendered from its vector shape as a
+white alpha mask; the plugin tints it at draw time. Same author and permission as above.
