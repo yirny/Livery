@@ -836,7 +836,9 @@ namespace
 	};
 
 	// What a field of this style is laid out and drawn with; the border colour
-	// is also the one its dropdown popup opens with. Undo with PopFieldStyle.
+	// is also the one its dropdown popup opens with. A field without a frame
+	// has square corners and no fill, except the selected rows' fill while
+	// highlighted. Undo with PopFieldStyle.
 	PushedStyle PushFieldStyle(const Theme::FieldStyle& a_style)
 	{
 		const bool  boxed = a_style.shape == Theme::FieldShape::kBoxed;
@@ -846,10 +848,12 @@ namespace
 		pushed = { 1, 1 };
 		if (!boxed) {
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+			const ImVec4 fill = a_style.look == Theme::FieldLook::kHighlighted ? ImGui::GetStyleColorVec4(ImGuiCol_Header) : ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
 			for (const auto col : { ImGuiCol_FrameBg, ImGuiCol_FrameBgHovered, ImGuiCol_FrameBgActive }) {
-				ImGui::PushStyleColor(col, IM_COL32(0, 0, 0, 0));
+				ImGui::PushStyleColor(col, fill);
 			}
-			pushed.vars += 1;
+			pushed.vars += 2;
 			pushed.colors += 3;
 		}
 		if (a_style.look == Theme::FieldLook::kError) {
