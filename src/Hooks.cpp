@@ -6,6 +6,7 @@
 //   Frame            - DrawFrame draws CaptureWindow once per frame while it is open
 //   Menu             - CaptureMenu: a movie-less game menu; the game shows its own
 //                      cursor over it, and its PostDisplay calls DrawFrame;
+//                      its AdvanceMovie keeps the captured NPC held (MovementHold);
 //                      the HUD is hidden while it is open
 //   Input            - InputDispatchHook routes events to the window; while it is
 //                      open the game sees no input at all
@@ -18,6 +19,7 @@
 #include "Hooks.h"
 
 #include "CaptureWindow.h"
+#include "MovementHold.h"
 #include "Settings.h"
 #include "Theme.h"
 
@@ -197,6 +199,14 @@ namespace
 		static RE::IMenu* Create() { return new CaptureMenu(); }
 
 		void PostDisplay() override { DrawFrame(); }
+
+		// Contract: the engine advances every open menu once a frame on the game
+		// thread; Tailor 3.0 holds its preview target from CursorMenu's AdvanceMovie.
+		void AdvanceMovie(float a_interval, std::uint32_t a_currentTime) override
+		{
+			MovementHold::Enforce();
+			RE::IMenu::AdvanceMovie(a_interval, a_currentTime);
+		}
 
 		RE::UI_MESSAGE_RESULTS ProcessMessage(RE::UIMessage& a_message) override
 		{

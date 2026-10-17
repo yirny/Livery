@@ -6,8 +6,9 @@
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
 //   Preview        - the captured actor wears kPreviewOutfit as an override that follows the piece ticks
 //                    and the outfit selected on the Load page, seen through PreviewCamera, while the
-//                    window's Live Preview tick is on; saving is off while the window is open, and
-//                    every close of the window, a save included, ends all three
+//                    window's Live Preview tick is on; saving is off and an NPC is held where they
+//                    stand (MovementHold) while the window is open, and every close of the window,
+//                    a save included, ends them all
 //   Own armor      - an NPC's own armor copies, noted as the window opens and given back (and put on
 //                    again) a little after it closes: the engine's outfit swap removes them
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
@@ -21,6 +22,7 @@
 
 #include "CaptureWindow.h"
 #include "Hooks.h"
+#include "MovementHold.h"
 #include "PreviewCamera.h"
 #include "Settings.h"
 #include "TailorAPI.h"
@@ -1016,12 +1018,13 @@ namespace
 		}
 		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
 		AttachPreview(request, actor, armors);
-		// Every close, whatever closed the window, ends the preview, lets saving back on
-		// and gives the actor's own armor back once Tailor has redressed them.
+		// Every close, whatever closed the window, ends the preview, lets saving back on,
+		// lets an NPC walk again and gives their own armor back once Tailor has redressed them.
 		request.onClose = [ownArmor = std::move(ownArmor)] {
 			PreviewCamera::End();
 			EndPreview();
 			AllowSaving();
+			MovementHold::End();
 			ScheduleOwnArmorRestore(ownArmor);
 		};
 		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories,
@@ -1041,6 +1044,7 @@ namespace
 			}
 		};
 		BlockSaving();
+		MovementHold::Begin(actor);
 		CaptureWindow::Open(std::move(request));
 	}
 
