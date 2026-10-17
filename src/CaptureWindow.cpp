@@ -50,6 +50,7 @@ namespace
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kNoOutfits = "No outfits in Tailor.";
+	constexpr const char* kLockedCategory = "Already in this category. Tailor's API cannot take an outfit out of one.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -645,20 +646,39 @@ namespace
 		SetGameFrozen(!on);
 	}
 
+	// The Live Preview help on hover of its "(?)": what the preview does, then
+	// the camera controls. One item per line, so the gaps between lines can be
+	// set: a newline inside one text keeps the font's own line height.
+	void DrawPreviewHelpTooltip()
+	{
+		constexpr const char*                kSummary = "Keeps the game running and dresses the character in the ticked pieces.";
+		constexpr std::array<const char*, 5> kControls{
+			"With the cursor over the game:",
+			"Left drag - turns around the character",
+			"Right drag - pans",
+			"Mouse wheel - zooms",
+			"W / A / S / D - moves (hold Shift for half speed)",
+		};
+		constexpr float kLineGap = 1.0f;     // pixels at 1080p, between lines
+		constexpr float kSummaryGap = 4.0f;  // pixels at 1080p, between the summary and the controls
+
+		ImGui::BeginTooltip();
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, kLineGap * Theme::Scale()));
+		ImGui::TextUnformatted(kSummary);
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (kSummaryGap - kLineGap) * Theme::Scale());
+		for (const char* line : kControls) {
+			ImGui::TextUnformatted(line);
+		}
+		ImGui::PopStyleVar();
+		ImGui::EndTooltip();
+	}
+
 	// The Live Preview tick: greyed, with the reason on hover, when the preview
 	// cannot be on; each click queues ApplyPreviewToggle with the ticked pieces
 	// of that moment, so the piece clicks queued after it apply on top. A "(?)"
 	// beside it explains the preview and its camera controls on hover.
 	void DrawPreviewToggle(State& a_state)
 	{
-		constexpr const char* kPreviewHelp =
-			"Keeps the game running and dresses the character in the ticked pieces.\n"
-			"With the cursor over the game:\n"
-			"Left drag - turns around the character\n"
-			"Right drag - pans\n"
-			"Mouse wheel - zooms\n"
-			"W / A / S / D - moves (hold Shift for half speed)";
-
 		const auto& note = a_state.request.previewNote;
 		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
 		bool        on = a_state.previewOn;
@@ -675,7 +695,7 @@ namespace
 		ImGui::SameLine();
 		ImGui::TextDisabled("(?)");
 		if (ImGui::IsItemHovered()) {
-			ImGui::SetTooltip("%s", kPreviewHelp);
+			DrawPreviewHelpTooltip();
 		}
 		if (clicked && available && !a_state.previewBusy) {
 			QueueMenuSound(kFocusSound);
@@ -800,7 +820,7 @@ namespace
 	// The hit area also covers half the gap above and below the fill, so rows
 	// stacked with no item spacing leave no dead strip between them.
 	// A locked row is drawn greyed out (BeginDisabled scales every colour's
-	// alpha) and ignores clicks.
+	// alpha), ignores clicks and shows kLockedCategory on hover.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	void DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_locked)
 	{
@@ -831,7 +851,12 @@ namespace
 			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
 			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
 		}
+		const bool lockedHovered = a_locked && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
+		// After EndDisabled, so the tooltip is not drawn faded.
+		if (lockedHovered) {
+			ImGui::SetTooltip("%s", kLockedCategory);
+		}
 	}
 
 	// Multi-select dropdown labelled by its group: a combo whose popup lists
@@ -857,16 +882,45 @@ namespace
 		ImGui::PopID();
 	}
 
-	// One dropdown per run of request.categories sharing a group, so a group
-	// with no category (no custom ones) shows no dropdown. a_ticked and a_locked
-	// (nullptr for none locked) hold one entry per request.categories.
+	// The armor-type group as one row of checkboxes labelled by its group:
+	// request.categories[a_begin, a_end). A locked one is greyed out and shows
+	// kLockedCategory on hover.
+	void DrawArmorTypeField(const State& a_state, std::size_t a_begin, std::size_t a_end, bool* a_ticked, const bool* a_locked)
+	{
+		Theme::LabelText(CaptureWindow::kArmorTypeGroup);
+		for (std::size_t i = a_begin; i < a_end; ++i) {
+			if (i > a_begin) {
+				ImGui::SameLine();
+			}
+			const bool locked = a_locked && a_locked[i];
+			ImGui::BeginDisabled(locked);
+			if (Theme::Checkbox(a_state.request.categories[i].name.c_str(), &a_ticked[i])) {
+				QueueMenuSound(kFocusSound);
+			}
+			const bool hovered = locked && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			ImGui::EndDisabled();
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (hovered) {
+				ImGui::SetTooltip("%s", kLockedCategory);
+			}
+		}
+	}
+
+	// One field per run of request.categories sharing a group, so a group with
+	// no category (no custom ones) shows no field: checkboxes for the armor
+	// types, a dropdown for every other group. a_ticked and a_locked (nullptr
+	// for none locked) hold one entry per request.categories.
 	void DrawCategoryFields(const State& a_state, const char* a_id, bool* a_ticked, const bool* a_locked)
 	{
 		const auto& options = a_state.request.categories;
 		ImGui::PushID(a_id);
 		for (std::size_t begin = 0, end = 0; begin < options.size(); begin = end) {
 			for (end = begin + 1; end < options.size() && options[end].group == options[begin].group; ++end) {}
-			DrawCategoryCombo(a_state, begin, end, a_ticked, a_locked);
+			if (options[begin].group == CaptureWindow::kArmorTypeGroup) {
+				DrawArmorTypeField(a_state, begin, end, a_ticked, a_locked);
+			} else {
+				DrawCategoryCombo(a_state, begin, end, a_ticked, a_locked);
+			}
 		}
 		ImGui::PopID();
 	}
@@ -1155,7 +1209,7 @@ namespace
 	}
 
 	// Right column: the selected outfit as Tailor had it when the window opened,
-	// with a dropdown to add it to more categories.
+	// with the category fields to add it to more categories.
 	void DrawOutfitDetails(State& a_state)
 	{
 		if (a_state.selectedOutfit < 0) {
