@@ -71,10 +71,12 @@ namespace
 	constexpr ImVec2 kSquareDropdownPadding{ 20.0f, 12.0f };
 	// Width of Tailor's amber rule on a selected row's left edge (pixels at 1080p).
 	constexpr float kTailorRuleWidth = 2.0f;
+	// Clear room between that rule and the row's text (pixels at 1080p).
+	constexpr float kTailorRuleGap = 8.0f;
 	// Room above and below the text of a single-choice list row; its fill covers it (pixels at 1080p).
 	constexpr float kSelectRowPadY = 4.0f;
-	// How far right of the list's indent the text of a row marked on its fill's
-	// left edge sits: Tailor's tick rows and every single-choice row (pixels at 1080p).
+	// How far right of the list's indent a list row's text sits in Vanilla and
+	// Nordic (pixels at 1080p); Tailor clears its rule instead (RowTextShift).
 	constexpr float kRowTextShift = 4.0f;
 
 	struct FontFile
@@ -615,6 +617,13 @@ namespace
 		return pressed;
 	}
 
+	// How far right of the list's indent a list row's text sits: in Tailor, clear
+	// of the amber rule a selected row draws on its left edge.
+	float RowTextShift()
+	{
+		return (g_skin == Theme::Skin::kTailor ? kTailorRuleWidth + kTailorRuleGap : kRowTextShift) * g_scale;
+	}
+
 	// One row of a Theme::BeginList list, laid out as an invisible button that
 	// runs edge to edge of the list; its fills span only the rules' width
 	// (EndList). The text starts `inset` in, on the list's indent, so it lines
@@ -669,7 +678,7 @@ namespace
 			draw->AddRectFilled(row.fillMin, ImVec2(row.fillMin.x + kTailorRuleWidth * g_scale, row.fillMax.y), ImGui::GetColorU32(kAmber));
 		}
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		draw->AddText(ImVec2(row.min.x + row.inset + kRowTextShift * g_scale, row.min.y + (height - text.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		draw->AddText(ImVec2(row.min.x + row.inset + RowTextShift(), row.min.y + (height - text.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
 	}
 
@@ -1253,7 +1262,7 @@ namespace Theme
 	bool SelectRow(const char* a_label, bool a_selected)
 	{
 		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
-		const float   textX = row.min.x + row.inset + kRowTextShift * g_scale;
+		const float   textX = row.min.x + row.inset + RowTextShift();
 		auto*         draw = ImGui::GetWindowDrawList();
 		if (a_selected || row.hovered) {
 			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(a_selected ? ImGuiCol_Header : ImGuiCol_HeaderHovered));
@@ -1269,7 +1278,7 @@ namespace Theme
 	{
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
-		const ImVec2 text(cursor.x + kRowTextShift * g_scale, cursor.y + kSelectRowPadY * g_scale);
+		const ImVec2 text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
 		ImGui::GetWindowDrawList()->AddText(text, ImGui::GetColorU32(ImGuiCol_Text), a_label);
 	}
 }
