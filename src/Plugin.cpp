@@ -48,9 +48,9 @@ namespace
 		const char* name;
 	};
 	constexpr std::array<BuiltInCategory, 9> kBuiltInCategories{ {
-		{ "Armor Type", "Clothing" },
-		{ "Armor Type", "Light Armor" },
-		{ "Armor Type", "Heavy Armor" },
+		{ CaptureWindow::kArmorTypeGroup, "Clothing" },
+		{ CaptureWindow::kArmorTypeGroup, "Light Armor" },
+		{ CaptureWindow::kArmorTypeGroup, "Heavy Armor" },
 		{ "Situation", "Adventuring" },
 		{ "Situation", "Town" },
 		{ "Situation", "Home" },

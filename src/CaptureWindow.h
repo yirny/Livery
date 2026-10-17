@@ -23,9 +23,13 @@ namespace RE
 // Request::onPreviewOn / onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
+	// Group of Tailor's armor-type categories, shown as a row of checkboxes
+	// rather than a dropdown.
+	constexpr const char* kArmorTypeGroup = "Armor Type";
+
 	struct CategoryOption
 	{
-		std::string group;             // label of the dropdown it is listed in
+		std::string group;             // label of the field it is listed in
 		std::string name;              // the category's name as Tailor shows it
 		bool        selected = false;  // initial state of its tick
 	};
