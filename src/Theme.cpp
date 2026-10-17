@@ -813,6 +813,8 @@ namespace
 	// hovered, then the label; the box and label are one click target.
 	// Returns true when pressed; the caller changes the value. Drawn as it
 	// will be after the press: a checkbox turns over, a radio button turns on.
+	// Like ImGui::Checkbox, it reports the label's baseline (frame padding below
+	// the top), so text put on the same line lines up with the label.
 	bool GameCheckbox(const char* a_label, bool a_ticked, bool a_radio)
 	{
 		const auto&  style = ImGui::GetStyle();
@@ -821,6 +823,7 @@ namespace
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 
+		ImGui::AlignTextToFramePadding();
 		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(box.x + style.ItemInnerSpacing.x + text.x, height));
 		const bool hovered = ImGui::IsItemHovered();
 		const bool ticked = pressed ? (a_radio || !a_ticked) : a_ticked;
