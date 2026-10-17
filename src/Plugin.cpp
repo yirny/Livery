@@ -66,7 +66,7 @@ namespace
 
 	// The Tailor outfit the live preview dresses the captured actor in. Created
 	// once and reused (API 1.0 cannot delete it); never offered as an outfit to update.
-	constexpr const char* kPreviewOutfit = "Capture Preview";
+	constexpr const char* kPreviewOutfit = "Preview Outfit (used by Capture Outfit add-on)";
 
 	// Why the live preview stays off for an actor whose override another mod set.
 	constexpr const char* kOverrideSetNote = "Preview off: an outfit override is set.";
