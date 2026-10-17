@@ -12,7 +12,10 @@
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
 //                  Load Outfit / Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
-//   Outfit lists - the library outfit list and piece list both outfit pages share
+//   Outfit browser - Search / Filter / Sort over both outfit pages' list (OutfitBrowser.cpp
+//                  narrows and orders it); Escape first clears the search
+//   Outfit lists - the library outfit list, the selected outfit's name and its piece
+//                  list, which both outfit pages share
 //   Load page    - library outfits, the selected one shown on the preview; Load ticks
 //                  its pieces and returns, Back restores the preview of the ticks
 //   Update page  - library outfits, the chosen one's categories (its own ones
@@ -24,6 +27,7 @@
 #include "CaptureWindow.h"
 
 #include "Hooks.h"
+#include "OutfitBrowser.h"
 #include "Settings.h"
 #include "Theme.h"
 
@@ -113,6 +117,7 @@ namespace
 		int                             selectedOutfit = -1;   // index into request.existingOutfits, -1 for none
 		int                             previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
 		int                             loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
+		OutfitBrowser::State            browser;               // search, filter and sort of the Load and Update pages' outfit list
 		int                             recentreFrames = 0;    // frames left to pin the window to its place
 		std::optional<ImVec2>           placeCentre;           // where a pinned window's centre goes; none for the start place
 		ImVec2                          windowPos{};           // of the window in the last frame drawn
@@ -389,15 +394,17 @@ namespace
 	}
 
 	// Height of a Theme::BeginList list exactly as tall as its rows, so it does
-	// not scroll, capped so a long list cannot push the window off screen.
+	// not scroll, capped so a long list cannot push the window off screen; the
+	// cap also covers `a_reserved` pixels of other content stacked above it.
 	// An empty list keeps one row: a child of height zero would fill the window.
 	// Contract: called with the item spacing the rows will be laid out with.
-	float ListHeight(std::size_t a_rows, float a_rowHeight)
+	float ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f)
 	{
 		const auto& style = ImGui::GetStyle();
 		const float rowsHeight = static_cast<float>((std::max)(a_rows, std::size_t{ 1 })) * a_rowHeight - style.ItemSpacing.y;
 		const float fullHeight = rowsHeight + Theme::ListPaddingY() * 2.0f;
-		return (std::min)(fullHeight, ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio);
+		const float cap = ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio - a_reserved;
+		return (std::max)(a_rowHeight, (std::min)(fullHeight, cap));
 	}
 
 	// Item spacing for a list's rows: the skin's row gap below each one.
@@ -468,21 +475,21 @@ namespace
 		ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
 	}
 
-	// The Update page's two-column layout. When it returns true, fill the
+	// The Load and Update pages' two equal columns; every table of them on a
+	// page lines up, each with its own `a_id`. When it returns true, fill the
 	// cells and call EndColumns.
-	bool BeginColumns()
+	bool BeginColumns(const char* a_id)
 	{
-		constexpr float kColumnGap = 36.0f;       // pixels at 1080p, between the columns
-		constexpr float kLeftWidthRatio = 0.45f;  // of the table width
+		constexpr float kColumnGap = 36.0f;  // pixels at 1080p, between the columns
 
 		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kColumnGap * 0.5f * Theme::Scale(), ImGui::GetStyle().CellPadding.y));
 		// NoClip lets the lists reach the window's edges (Theme::BeginList).
-		if (!ImGui::BeginTable("layout", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoClip)) {
+		if (!ImGui::BeginTable(a_id, 2, ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_NoClip)) {
 			ImGui::PopStyleVar();
 			return false;
 		}
-		ImGui::TableSetupColumn("left", ImGuiTableColumnFlags_WidthStretch, kLeftWidthRatio);
-		ImGui::TableSetupColumn("right", ImGuiTableColumnFlags_WidthStretch, 1.0f - kLeftWidthRatio);
+		ImGui::TableSetupColumn("left", ImGuiTableColumnFlags_WidthStretch);
+		ImGui::TableSetupColumn("right", ImGuiTableColumnFlags_WidthStretch);
 		return true;
 	}
 
@@ -820,16 +827,18 @@ namespace
 	// The hit area also covers half the gap above and below the fill, so rows
 	// stacked with no item spacing leave no dead strip between them.
 	// A locked row is drawn greyed out (BeginDisabled scales every colour's
-	// alpha), ignores clicks and shows kLockedCategory on hover.
+	// alpha), ignores clicks and shows kLockedCategory on hover. Returns true
+	// when toggled.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
-	void DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_locked)
+	bool DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_locked)
 	{
 		ImGui::BeginDisabled(a_locked);
 		const auto&  style = ImGui::GetStyle();
 		const float  halfGap = Theme::ListRowGap(style.ItemInnerSpacing.y) * 0.5f;
 		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
 		const ImVec2 hitTopLeft = ImGui::GetCursorScreenPos();
-		if (ImGui::InvisibleButton(a_label, size)) {
+		const bool   toggled = ImGui::InvisibleButton(a_label, size);
+		if (toggled) {
 			QueueMenuSound(kFocusSound);
 			a_ticked = !a_ticked;
 		}
@@ -857,6 +866,7 @@ namespace
 		if (lockedHovered) {
 			ImGui::SetTooltip("%s", kLockedCategory);
 		}
+		return toggled;
 	}
 
 	// Multi-select dropdown labelled by its group: a combo whose popup lists
@@ -937,7 +947,8 @@ namespace
 			a_state.focusNameField = false;
 		}
 		const bool failed = !a_state.error.empty();
-		const bool enter = Theme::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue, kNeedName, failed);
+		const auto look = failed ? Theme::FieldLook::kError : Theme::FieldLook::kNormal;
+		const bool enter = Theme::InputText("##name", a_state.name.data(), a_state.name.size(), ImGuiInputTextFlags_EnterReturnsTrue, kNeedName, look);
 		if (failed) {
 			if (ImGui::IsItemEdited()) {
 				a_state.error.clear();
@@ -1045,24 +1056,179 @@ namespace
 		}
 	}
 
+	// --- Outfit browser -------------------------------------------------------
+
+	struct BrowserInput
+	{
+		bool changed = false;      // the search, a filter tick or the sort changed: refresh the list
+		bool escapeTaken = false;  // Escape cleared the search, so it is not also Back
+	};
+
+	// Left of the top row. Escape with text typed clears it, the field active
+	// or not (EscapeClearsAll does it while active); with none typed it is Back.
+	void DrawSearchField(State& a_state, BrowserInput& a_input)
+	{
+		auto& browser = a_state.browser;
+		a_input.escapeTaken = OutfitBrowser::IsSearching(browser) && ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
+		                      !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+
+		Theme::LabelText("Search");
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		ImGui::SetNextItemAllowOverlap();  // the clear button sits on its right end
+		const auto look = OutfitBrowser::IsSearching(browser) ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal;
+		a_input.changed |= Theme::InputText("##search", browser.search.data(), browser.search.size(), ImGuiInputTextFlags_EscapeClearsAll,
+			"Search by outfit name", look);
+		bool clear = a_input.escapeTaken;
+		if (OutfitBrowser::IsSearching(browser)) {
+			const ImVec2 fieldMax = ImGui::GetItemRectMax();
+			ImGui::SetCursorScreenPos(ImVec2(fieldMax.x - ImGui::GetFrameHeight(), ImGui::GetItemRectMin().y));
+			if (Theme::ClearButton("##clearSearch")) {
+				QueueMenuSound(kFocusSound);
+				clear = true;
+			}
+		}
+		if (clear) {
+			OutfitBrowser::ClearSearch(browser);
+			a_input.changed = true;
+		}
+	}
+
+	// The Filter dropdown's rows under a grey heading per group, lined up with
+	// the rows' text.
+	void DrawFilterRows(State& a_state, BrowserInput& a_input)
+	{
+		auto&       browser = a_state.browser;
+		const auto& style = ImGui::GetStyle();
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));  // rows carry their own gap
+		for (std::size_t i = 0; i < browser.filter.size(); ++i) {
+			const auto& row = browser.filter[i];
+			if (i == 0 || row.group != browser.filter[i - 1].group) {
+				if (i > 0) {
+					ImGui::Dummy(ImVec2(0.0f, style.ItemInnerSpacing.y));
+				}
+				ImGui::SetCursorPosX(ImGui::GetCursorPosX() + style.FramePadding.x);
+				ImGui::TextDisabled("%s", row.group.c_str());
+			}
+			ImGui::PushID(static_cast<int>(i));
+			a_input.changed |= DrawCategoryRow(row.label.c_str(), browser.filterTicked[i], false);
+			ImGui::PopID();
+		}
+		ImGui::PopStyleVar();
+	}
+
+	// Right of the top row: a multi-select dropdown narrowed by the clear
+	// button beside it, so the button keeps clear of the skin's arrow. The
+	// button is greyed out while nothing is ticked.
+	void DrawFilterField(State& a_state, BrowserInput& a_input)
+	{
+		auto& browser = a_state.browser;
+		Theme::LabelText("Filter");
+		const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+		ImGui::SetNextItemWidth((std::max)(0.0f, ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight() - gap));
+		const bool        filtering = OutfitBrowser::IsFiltering(browser);
+		const std::string preview = OutfitBrowser::FilterPreview(browser);
+		const bool        open = Theme::BeginCombo("##filter", preview.c_str(), ImGuiComboFlags_HeightLargest, filtering);
+		if (open) {
+			DrawFilterRows(a_state, a_input);
+		}
+		Theme::EndCombo(open, preview.c_str());
+
+		ImGui::SameLine(0.0f, gap);
+		ImGui::BeginDisabled(!filtering);
+		if (Theme::ClearButton("##clearFilter")) {
+			QueueMenuSound(kFocusSound);
+			OutfitBrowser::ClearFilter(browser);
+			a_input.changed = true;
+		}
+		ImGui::EndDisabled();
+	}
+
+	// One row of radio buttons across both columns.
+	void DrawSortField(State& a_state, BrowserInput& a_input)
+	{
+		struct SortOption
+		{
+			const char*            label;
+			OutfitBrowser::SortKey key;
+		};
+		constexpr std::array<SortOption, 3> kSortOptions{ {
+			{ "Name", OutfitBrowser::SortKey::kName },
+			{ "Armor Type", OutfitBrowser::SortKey::kArmorType },
+			{ "Situation", OutfitBrowser::SortKey::kSituation },
+		} };
+
+		Theme::LabelText("Sort by");
+		for (std::size_t i = 0; i < kSortOptions.size(); ++i) {
+			if (i > 0) {
+				ImGui::SameLine();
+			}
+			const auto key = kSortOptions[i].key;
+			if (Theme::RadioButton(kSortOptions[i].label, a_state.browser.sort == key) && a_state.browser.sort != key) {
+				a_state.browser.sort = key;
+				QueueMenuSound(kFocusSound);
+				a_input.changed = true;
+			}
+		}
+	}
+
+	struct BrowserControls
+	{
+		bool  escapeTaken = false;  // Escape cleared the search, so it is not also Back
+		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
+	};
+
+	// Search | Filter, Sort under both, then a rule; refreshes the list only
+	// when one of them changed.
+	BrowserControls DrawBrowserControls(State& a_state)
+	{
+		const float  top = ImGui::GetCursorPosY();
+		BrowserInput input;
+		ImGui::PushID("browser");
+		if (BeginColumns("browserTop")) {
+			ImGui::TableNextColumn();
+			DrawSearchField(a_state, input);
+			ImGui::TableNextColumn();
+			ResetCellBaseline();
+			DrawFilterField(a_state, input);
+			EndColumns();
+		}
+		DrawSortField(a_state, input);
+		ImGui::Separator();
+		ImGui::PopID();
+		if (input.changed) {
+			OutfitBrowser::Refresh(a_state.browser, a_state.request);
+		}
+		return { input.escapeTaken, ImGui::GetCursorPosY() - top };
+	}
+
 	// --- Outfit lists ---------------------------------------------------------
 
-	// Left column of the Load and Update pages: the library's outfits, `a_selected`
-	// highlighted. Returns the index of the one clicked, or -1; choosing another
-	// one plays the focus sound. Names are shown as they are (Theme::SelectRow).
-	int DrawOutfitList(const State& a_state, int a_selected)
+	// Left column of the Load and Update pages: the library's outfits that pass
+	// the browser, in its order, `a_selected` highlighted. The list stays as
+	// tall as the whole library, so narrowing it does not move the buttons;
+	// `a_reserved` is the browser's height (ListHeight). Returns the index into
+	// request.existingOutfits of the one clicked, or -1; choosing another one
+	// plays the focus sound. Names are shown as they are (Theme::SelectRow).
+	int DrawOutfitList(const State& a_state, int a_selected, float a_reserved)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
-		Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
+		const auto& visible = a_state.browser.visible;
+		if (visible.size() == outfits.size()) {
+			Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
+		} else {
+			Theme::LabelText(std::format("{} of {} outfit(s) in Tailor", visible.size(), outfits.size()).c_str());
+		}
 		const float gap = Theme::SelectRowGap();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));
-		const float listHeight = ListHeight(outfits.size(), Theme::SelectRowHeight() + gap);
+		const float listHeight = ListHeight(outfits.size(), Theme::SelectRowHeight() + gap, a_reserved);
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
-			for (std::size_t i = 0; i < outfits.size(); ++i) {
-				const int index = static_cast<int>(i);
+			if (visible.empty()) {
+				ImGui::TextDisabled("No outfit matches.");
+			}
+			for (const int index : visible) {
 				ImGui::PushID(index);
-				if (Theme::SelectRow(outfits[i].name.c_str(), a_selected == index)) {
+				if (Theme::SelectRow(OutfitAt(a_state, index).name.c_str(), a_selected == index)) {
 					clicked = index;
 				}
 				ImGui::PopID();
@@ -1074,6 +1240,19 @@ namespace
 			QueueMenuSound(kFocusSound);
 		}
 		return clicked;
+	}
+
+	// Top of the right column, so the selection stays named while the browser
+	// hides it from the list. Returns false when none is selected.
+	bool DrawSelectedName(const State& a_state, int a_selected)
+	{
+		Theme::LabelText("Selected outfit");
+		if (a_selected < 0) {
+			ImGui::TextDisabled(kNeedOutfit);
+			return false;
+		}
+		ImGui::TextWrapped("%s", OutfitAt(a_state, a_selected).name.c_str());
+		return true;
 	}
 
 	// The outfit's pieces as Tailor had them when the window opened.
@@ -1093,14 +1272,13 @@ namespace
 
 	// --- Load page ------------------------------------------------------------
 
-	// Right column: the previewed outfit's categories and pieces, read only.
+	// Right column: the previewed outfit's name, categories and pieces, read only.
 	void DrawLoadDetails(const State& a_state)
 	{
-		Theme::LabelText("Categories");
-		if (a_state.previewedOutfit < 0) {
-			ImGui::TextDisabled(kNeedOutfit);
+		if (!DrawSelectedName(a_state, a_state.previewedOutfit)) {
 			return;
 		}
+		Theme::LabelText("Categories");
 		const auto& outfit = OutfitAt(a_state, a_state.previewedOutfit);
 		const auto  categories = outfit.categories.empty() ? std::string("None") : JoinNames(outfit.categories);
 		ImGui::TextWrapped("%s", categories.c_str());
@@ -1114,13 +1292,14 @@ namespace
 		kBack
 	};
 
-	// Load / Back centred below a gap.
-	LoadAction DrawLoadButtons(const State& a_state)
+	// Load / Back centred below a gap. a_escapeTaken: the browser used this
+	// frame's Escape.
+	LoadAction DrawLoadButtons(const State& a_state, bool a_escapeTaken)
 	{
 		BeginButtonRow({ "Load", "Back" });
 		const bool load = ReasonButton("Load", a_state.previewedOutfit >= 0 ? nullptr : kNeedOutfit);
 		ImGui::SameLine();
-		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken);
 
 		if (load) {
 			return LoadAction::kLoad;
@@ -1143,10 +1322,11 @@ namespace
 	// Nothing here changes the ticks until Load.
 	void DrawLoadPage(State& a_state)
 	{
-		int clicked = -1;
-		if (BeginColumns()) {
+		const auto controls = DrawBrowserControls(a_state);
+		int        clicked = -1;
+		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
-			clicked = DrawOutfitList(a_state, a_state.previewedOutfit);
+			clicked = DrawOutfitList(a_state, a_state.previewedOutfit, controls.height);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			DrawLoadDetails(a_state);
@@ -1157,7 +1337,7 @@ namespace
 			QueuePreview(a_state, OutfitAt(a_state, clicked).pieces);
 		}
 
-		const auto action = DrawLoadButtons(a_state);
+		const auto action = DrawLoadButtons(a_state, controls.escapeTaken);
 		EndButtonRow();
 		switch (action) {
 		case LoadAction::kLoad:
@@ -1212,9 +1392,7 @@ namespace
 	// with the category fields to add it to more categories.
 	void DrawOutfitDetails(State& a_state)
 	{
-		if (a_state.selectedOutfit < 0) {
-			Theme::LabelText("Categories");
-			ImGui::TextDisabled(kNeedOutfit);
+		if (!DrawSelectedName(a_state, a_state.selectedOutfit)) {
 			return;
 		}
 		DrawCategoryFields(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
@@ -1223,9 +1401,10 @@ namespace
 
 	// Update / Back centred below a gap; Update only opens the confirm popup.
 	// Returns true when the user asked to go back to the Pieces page.
+	// a_escapeTaken: the browser used this frame's Escape.
 	// Contract: called in the window's own ID scope, as DrawConfirmPopup is, so
 	// OpenPopup and BeginPopupModal name the same popup.
-	bool DrawUpdateButtons(State& a_state)
+	bool DrawUpdateButtons(State& a_state, bool a_escapeTaken)
 	{
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
@@ -1237,7 +1416,7 @@ namespace
 		}
 		ImGui::SameLine();
 		// While the popup is open, Escape is its own Cancel.
-		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kConfirmPopup));
+		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen(kConfirmPopup));
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Saving...");
@@ -1304,9 +1483,10 @@ namespace
 	void DrawUpdatePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
-		if (BeginColumns()) {
+		const auto controls = DrawBrowserControls(a_state);
+		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
-			if (const int clicked = DrawOutfitList(a_state, a_state.selectedOutfit); clicked >= 0) {
+			if (const int clicked = DrawOutfitList(a_state, a_state.selectedOutfit, controls.height); clicked >= 0) {
 				SelectOutfit(a_state, clicked);
 			}
 			ImGui::TableNextColumn();
@@ -1314,7 +1494,7 @@ namespace
 			DrawOutfitDetails(a_state);
 			EndColumns();
 		}
-		const bool back = DrawUpdateButtons(a_state);
+		const bool back = DrawUpdateButtons(a_state, controls.escapeTaken);
 		EndButtonRow();
 		ImGui::EndDisabled();
 
@@ -1359,6 +1539,7 @@ namespace CaptureWindow
 			state.selectedOutfit = -1;
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
+			OutfitBrowser::Reset(state.browser, state.request);
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
 			state.userMoved = false;
