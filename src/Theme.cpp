@@ -133,8 +133,8 @@ namespace
 	LoadedFonts g_tailorFonts;
 	LoadedFonts g_vanillaFonts;
 	LoadedFonts g_nordicFonts;
-	Theme::Skin g_skin = Theme::Skin::kClassic;  // skin of the frame being built
-	float       g_scale = 1.0f;                  // its resolution scale, for hand-drawn ornaments
+	Theme::Skin g_skin = Theme::Skin::kTailor;  // skin of the frame being built
+	float       g_scale = 1.0f;                 // its resolution scale, for hand-drawn ornaments
 	Ornament    g_cornerKnot{ nullptr, ImVec2(25.0f, 25.0f) };
 	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
 	Ornament    g_vanillaEquipped{ nullptr, ImVec2(20.0f, 20.0f) };  // the game's equipped mark, a white mask tinted on draw
@@ -143,33 +143,27 @@ namespace
 	Ornament    g_checkMark{ nullptr, ImVec2(15.0f, 15.0f) };        // its tick, centred on the box (the game's ratio)
 	Ornament    g_dropdownArrow{ nullptr, ImVec2(13.0f, 16.0f) };    // the game's option stepper arrow, turned to point down
 
-	// nullptr for Classic, which draws with ImGui's default font.
-	const SkinFonts* FontFilesOf(Theme::Skin a_skin)
+	const SkinFonts& FontFilesOf(Theme::Skin a_skin)
 	{
 		switch (a_skin) {
-		case Theme::Skin::kTailor:
-			return &kTailorFonts;
 		case Theme::Skin::kVanilla:
-			return &kVanillaFonts;
+			return kVanillaFonts;
 		case Theme::Skin::kNordic:
-			return &kNordicFonts;
+			return kNordicFonts;
 		default:
-			return nullptr;
+			return kTailorFonts;
 		}
 	}
 
-	// nullptr for Classic.
-	LoadedFonts* LoadedFontsOf(Theme::Skin a_skin)
+	LoadedFonts& LoadedFontsOf(Theme::Skin a_skin)
 	{
 		switch (a_skin) {
-		case Theme::Skin::kTailor:
-			return &g_tailorFonts;
 		case Theme::Skin::kVanilla:
-			return &g_vanillaFonts;
+			return g_vanillaFonts;
 		case Theme::Skin::kNordic:
-			return &g_nordicFonts;
+			return g_nordicFonts;
 		default:
-			return nullptr;
+			return g_tailorFonts;
 		}
 	}
 
@@ -257,8 +251,8 @@ namespace
 
 	void LoadSkinFonts(Theme::Skin a_skin)
 	{
-		const auto& files = *FontFilesOf(a_skin);
-		auto&       loaded = *LoadedFontsOf(a_skin);
+		const auto& files = FontFilesOf(a_skin);
+		auto&       loaded = LoadedFontsOf(a_skin);
 		const auto  folder = std::filesystem::current_path() / files.folder;
 		loaded.body = LoadFont(folder, files.body);
 		loaded.heading = LoadFont(folder, files.heading);
@@ -338,14 +332,8 @@ namespace
 
 	// --- Styles ---------------------------------------------------------------
 
-	// Readable at 1440p/4K with ImGui's default font.
-	float ClassicScale(float a_height)
-	{
-		return (std::max)(1.0f, a_height / 1080.0f * 1.5f);
-	}
-
-	// Tailor's own curve, shared by every skin with its own fonts: 1 up to
-	// 1080p, growing to 1.75 at 2160p.
+	// Tailor's own curve, shared by every skin: 1 up to 1080p, growing to 1.75
+	// at 2160p.
 	float ResolutionScale(float a_height)
 	{
 		if (a_height <= 1080.0f) {
@@ -872,11 +860,8 @@ namespace Theme
 	void Apply(Skin a_skin, float a_displayHeight)
 	{
 		g_skin = a_skin;
-		ImGuiStyle style;  // Dear ImGui's default dark style, used as is by Classic
+		ImGuiStyle style;
 		switch (a_skin) {
-		case Skin::kTailor:
-			SetTailorStyle(style);
-			break;
 		case Skin::kVanilla:
 			SetVanillaStyle(style);
 			break;
@@ -884,23 +869,19 @@ namespace Theme
 			SetNordicStyle(style);
 			break;
 		default:
+			SetTailorStyle(style);
 			break;
 		}
 
-		ImFont* font = g_defaultFont;
-		float   scale = ClassicScale(a_displayHeight);
-		if (const auto* files = FontFilesOf(a_skin)) {
-			const auto& loaded = *LoadedFontsOf(a_skin);
-			font = loaded.body ? loaded.body : g_defaultFont;
-			scale = ResolutionScale(a_displayHeight);
-			style.FontSizeBase = files->body.size;  // also sizes the default font when the skin's is missing
-		}
+		const auto& loaded = LoadedFontsOf(a_skin);
+		const float scale = ResolutionScale(a_displayHeight);
 		g_scale = scale;
+		style.FontSizeBase = FontFilesOf(a_skin).body.size;  // also sizes the default font when the skin's is missing
 		style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
 		style.ScaleAllSizes(scale);
 		style.FontScaleMain = scale;
-		ImGui::GetStyle() = style;  // Classic keeps FontSizeBase 0: NewFrame takes the default font's size
-		ImGui::GetIO().FontDefault = font;
+		ImGui::GetStyle() = style;
+		ImGui::GetIO().FontDefault = loaded.body ? loaded.body : g_defaultFont;
 	}
 
 	bool HasTitleBar()
@@ -925,9 +906,9 @@ namespace Theme
 
 	void HeadingText(const char* a_text, const char* a_subtitle)
 	{
-		const auto* files = FontFilesOf(g_skin);
-		const auto* loaded = LoadedFontsOf(g_skin);
-		const bool  ownFont = files && loaded->heading;
+		const auto& files = FontFilesOf(g_skin);
+		const auto& loaded = LoadedFontsOf(g_skin);
+		const bool  ownFont = loaded.heading != nullptr;
 		const bool  nordic = g_skin == Skin::kNordic;
 		const bool  subtitled = a_subtitle && *a_subtitle;
 		const auto  centre = [](float a_width) {
@@ -942,7 +923,7 @@ namespace Theme
 		const ImVec2 afterLast = nordic ? spacing : wider;
 
 		if (ownFont) {
-			ImGui::PushFont(loaded->heading, files->heading.size);
+			ImGui::PushFont(loaded.heading, files.heading.size);
 		}
 		if (nordic) {
 			centre(ImGui::CalcTextSize(a_text).x);
@@ -1011,15 +992,7 @@ namespace Theme
 
 	bool TickRow(const char* a_label, bool* a_ticked)
 	{
-		switch (g_skin) {
-		case Skin::kTailor:
-			return TailorRow(a_label, a_ticked);
-		case Skin::kVanilla:
-		case Skin::kNordic:
-			return InventoryRow(a_label, a_ticked);
-		default:
-			return ImGui::Checkbox(a_label, a_ticked);
-		}
+		return g_skin == Skin::kTailor ? TailorRow(a_label, a_ticked) : InventoryRow(a_label, a_ticked);
 	}
 
 	bool Checkbox(const char* a_label, bool* a_value)
