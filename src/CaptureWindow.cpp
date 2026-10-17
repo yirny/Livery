@@ -647,9 +647,18 @@ namespace
 
 	// The Live Preview tick: greyed, with the reason on hover, when the preview
 	// cannot be on; each click queues ApplyPreviewToggle with the ticked pieces
-	// of that moment, so the piece clicks queued after it apply on top.
+	// of that moment, so the piece clicks queued after it apply on top. A "(?)"
+	// beside it explains the preview and its camera controls on hover.
 	void DrawPreviewToggle(State& a_state)
 	{
+		constexpr const char* kPreviewHelp =
+			"Keeps the game running and dresses the character in the ticked pieces.\n"
+			"With the cursor over the game:\n"
+			"Left drag - turns around the character\n"
+			"Right drag - pans\n"
+			"Mouse wheel - zooms\n"
+			"W / A / S / D - moves (hold Shift for half speed)";
+
 		const auto& note = a_state.request.previewNote;
 		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
 		bool        on = a_state.previewOn;
@@ -661,6 +670,12 @@ namespace
 		// After EndDisabled, so the tooltip is not drawn faded.
 		if (hovered && !note.empty()) {
 			ImGui::SetTooltip("%s", note.c_str());
+		}
+		// Outside BeginDisabled, so the help stays readable while the tick is greyed.
+		ImGui::SameLine();
+		ImGui::TextDisabled("(?)");
+		if (ImGui::IsItemHovered()) {
+			ImGui::SetTooltip("%s", kPreviewHelp);
 		}
 		if (clicked && available && !a_state.previewBusy) {
 			QueueMenuSound(kFocusSound);
