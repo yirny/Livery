@@ -13,10 +13,12 @@
 //                  Load Outfit... at the count line's right end (greyed while Tailor
 //                  has no outfits); Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
-//   Outfit browser - Search | Filter above both outfit pages' list, in the small font
-//                  (OutfitBrowser.cpp narrows and orders it); Escape first clears the search
+//   Outfit browser - Search over Filter, above both outfit pages' list in its column, in
+//                  the small font (OutfitBrowser.cpp narrows and orders it); Escape first
+//                  clears the search
 //   Outfit lists - the library outfit list with its Sort dropdown, the selected
-//                  outfit's name and its piece list, which both outfit pages share;
+//                  outfit's name (or a hint while none is) and its piece list, which
+//                  both outfit pages share;
 //                  on both, the selected outfit is on the preview, and a second
 //                  click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
@@ -1100,7 +1102,7 @@ namespace
 		bool escapeTaken = false;  // Escape cleared the search, so it is not also Back
 	};
 
-	// Left of the top row: an underlined field with a magnifying glass, its rule
+	// Top of the browser: an underlined field with a magnifying glass, its rule
 	// in the accent while text is typed. Escape with text typed clears it, the
 	// field active or not (EscapeClearsAll does it while active); with none
 	// typed it is Back.
@@ -1157,7 +1159,7 @@ namespace
 		ImGui::PopStyleVar();
 	}
 
-	// Right of the top row: an underlined multi-select dropdown with a funnel,
+	// Under the search: an underlined multi-select dropdown with a funnel,
 	// its rule in the accent while a row is ticked, narrowed by the clear
 	// button beside it so the button keeps clear of the skin's arrow. With
 	// nothing ticked it shows a greyed hint and the button is greyed out.
@@ -1195,8 +1197,8 @@ namespace
 		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
 	};
 
-	// Search | Filter in one row, in the small font, with no labels; refreshes
-	// the list only when one of them changed.
+	// Search over Filter, in the small font, with no labels, at the top of the
+	// outfit list's column; refreshes the list only when one of them changed.
 	BrowserControls DrawBrowserControls(State& a_state)
 	{
 		constexpr float kGapBelowRow = 4.0f;  // pixels at 1080p, under the row on top of the item spacing
@@ -1206,14 +1208,8 @@ namespace
 		BrowserInput input;
 		ImGui::PushID("browser");
 		Theme::PushSmallFont();
-		if (BeginColumns("browserTop")) {
-			ImGui::TableNextColumn();
-			DrawSearchField(a_state, input);
-			ImGui::TableNextColumn();
-			ResetCellBaseline();
-			DrawFilterField(a_state, input);
-			EndColumns();
-		}
+		DrawSearchField(a_state, input);
+		DrawFilterField(a_state, input);
 		Theme::PopSmallFont();
 		ImGui::PopID();
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kGapBelowRow * Theme::Scale());
@@ -1327,12 +1323,14 @@ namespace
 		return clicked;
 	}
 
-	// Top of the right column, level with the list's label: the selected
+	// Top of the right column, level with the search field: the selected
 	// outfit's name, so the selection stays named while the browser hides it
-	// from the list. Draws nothing and returns false when none is selected.
-	bool DrawSelectedName(const State& a_state, int a_selected)
+	// from the list. With none selected it shows `a_hint` as a field label and
+	// returns false.
+	bool DrawSelectedName(const State& a_state, int a_selected, const char* a_hint)
 	{
 		if (a_selected < 0) {
+			Theme::LabelText(a_hint);
 			return false;
 		}
 		Theme::SectionGap();  // as the label beside it opens (Theme::LabelText)
@@ -1362,7 +1360,7 @@ namespace
 	// Right column: the previewed outfit's name, categories and pieces, read only.
 	void DrawLoadDetails(const State& a_state)
 	{
-		if (!DrawSelectedName(a_state, a_state.previewedOutfit)) {
+		if (!DrawSelectedName(a_state, a_state.previewedOutfit, "Select an outfit to load")) {
 			return;
 		}
 		Theme::LabelText("Categories");
@@ -1409,10 +1407,11 @@ namespace
 	// shows the ticks again. Nothing here changes the ticks until Load.
 	void DrawLoadPage(State& a_state)
 	{
-		const auto controls = DrawBrowserControls(a_state);
-		int        clicked = -1;
+		BrowserControls controls;
+		int             clicked = -1;
 		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
+			controls = DrawBrowserControls(a_state);
 			clicked = DrawOutfitList(a_state, a_state.previewedOutfit, controls.height);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
@@ -1479,7 +1478,7 @@ namespace
 	// with the category fields to add it to more categories.
 	void DrawOutfitDetails(State& a_state)
 	{
-		if (!DrawSelectedName(a_state, a_state.selectedOutfit)) {
+		if (!DrawSelectedName(a_state, a_state.selectedOutfit, "Select an outfit to update")) {
 			return;
 		}
 		DrawCategoryFields(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
@@ -1572,9 +1571,10 @@ namespace
 	void DrawUpdatePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
-		const auto controls = DrawBrowserControls(a_state);
+		BrowserControls controls;
 		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
+			controls = DrawBrowserControls(a_state);
 			if (const int clicked = DrawOutfitList(a_state, a_state.selectedOutfit, controls.height); clicked >= 0) {
 				if (clicked == a_state.selectedOutfit) {
 					a_state.selectedOutfit = -1;
