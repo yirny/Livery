@@ -451,7 +451,7 @@ namespace
 	// cells and call EndColumns.
 	bool BeginColumns()
 	{
-		constexpr float kColumnGap = 48.0f;       // pixels at 1080p, between the columns
+		constexpr float kColumnGap = 36.0f;       // pixels at 1080p, between the columns
 		constexpr float kLeftWidthRatio = 0.45f;  // of the table width
 
 		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kColumnGap * 0.5f * Theme::Scale(), ImGui::GetStyle().CellPadding.y));

@@ -58,9 +58,9 @@ namespace
 	constexpr float kFontMetricScale = 4.0f / 3.0f;
 
 	// Extra room under the heading (under its rule in Nordic) beyond the item spacing (pixels at 1080p).
-	constexpr float kHeadingGapExtra = 12.0f;
+	constexpr float kHeadingGapExtra = 16.0f;
 	// Extra room above each field (label and control) beyond the item spacing (pixels at 1080p).
-	constexpr float kSectionGap = 2.0f;
+	constexpr float kSectionGap = 6.0f;
 
 	// Tailor 3.0's tight lists: the gap between rows, and the dropdown popup's
 	// padding (pixels at 1080p).
