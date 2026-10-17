@@ -77,6 +77,9 @@ namespace
 	// Why the live preview stays off for an actor whose override another mod set.
 	constexpr const char* kOverrideSetNote = "Preview off: an outfit override is set.";
 
+	// Why the live preview stays off for a leveled actor (guards, soldiers, bandits).
+	constexpr const char* kLeveledActorNote = "Preview off: Tailor cannot give a leveled character their own outfit back.";
+
 	TailorAPI::ITailorInterface1* g_tailor = nullptr;
 	RE::ObjectRefHandle           g_target{};
 	bool                          g_ready = false;
@@ -490,6 +493,13 @@ namespace
 		// Checked before any start too, so the tick is greyed even when the window opens with Live Preview off.
 		if (g_tailor->HasOutfitOverride(&actor)) {
 			request.previewNote = kOverrideSetNote;
+			return;
+		}
+		// Contract: a leveled actor's base is built at runtime (a dynamic form). Tailor 3.0.1's
+		// ClearOutfitOverride then dresses them in the leaf template's outfit, not the one they wore
+		// (a Whiterun guard ends up in Imperial armor), so the preview's override is never set on one.
+		if (const auto* base = actor.GetActorBase(); base && base->IsDynamicForm()) {
+			request.previewNote = kLeveledActorNote;
 			return;
 		}
 		request.onPreviewOn = [handle = actor.GetHandle(), armors](const std::vector<std::size_t>& pieces) -> std::string {
