@@ -55,6 +55,7 @@ namespace Theme
 	// right after LabelText): a filled rounded square with a plus cut out of
 	// it, then `label`, both in LabelText's font and colour, lit while hovered
 	// (white in Vanilla and Nordic, amber in Tailor). Returns true when clicked.
+	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
 	bool LabelLink(const char* label);
 
