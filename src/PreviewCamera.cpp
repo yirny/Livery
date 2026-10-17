@@ -31,7 +31,7 @@ namespace
 	constexpr float kMoveUnitsPerSecond = 225.0f;   // with W / A / S / D
 	constexpr float kSlowFactor = 0.5f;             // on the move speed while Shift is held, as in tfc
 	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag, only when the game's settings cannot be read
-	constexpr float kPanUnitsPerPixel = 1.0f;       // of a right drag
+	constexpr float kPanUnitsPerPixel = 0.5f;       // of a right drag
 	constexpr float kZoomUnitsPerStep = 40.0f;      // forward per wheel step
 	constexpr float kMaxPitch = 89.0f * std::numbers::pi_v<float> / 180.0f;
 
