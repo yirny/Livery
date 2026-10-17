@@ -111,11 +111,20 @@ namespace Theme
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool RadioButton(const char* label, bool active);
 
+	// How a field's frame stands out: kHighlighted draws its border in the
+	// skin's accent (the tick's colour) while it narrows a list; kError draws
+	// the border and the text in ErrorColor.
+	enum class FieldLook
+	{
+		kNormal,
+		kHighlighted,
+		kError
+	};
+
 	// ImGui::InputText with the skin's field border (fainter in Vanilla and
-	// Nordic, as dropdowns). `flags` are ImGuiInputTextFlags. `hint` is shown
-	// faded inside the empty field; `error` draws the border and the text in
-	// ErrorColor instead of the skin's.
-	bool InputText(const char* id, char* buffer, std::size_t size, int flags, const char* hint = nullptr, bool error = false);
+	// Nordic, as dropdowns) unless `look` says otherwise. `flags` are
+	// ImGuiInputTextFlags. `hint` is shown faded inside the empty field.
+	bool InputText(const char* id, char* buffer, std::size_t size, int flags, const char* hint = nullptr, FieldLook look = FieldLook::kNormal);
 
 	// The red of error text and fields, packed as ImGui's ImU32.
 	unsigned ErrorColor();
@@ -133,7 +142,14 @@ namespace Theme
 	// and Nordic replace it with the game's diamond stepper arrow (drawn, with
 	// the preview, by EndCombo), or keep ImGui's when its texture is missing,
 	// and draw the frame's and popup's border fainter.
-	// `flags` are ImGuiComboFlags.
-	bool BeginCombo(const char* id, const char* preview, int flags);
+	// `flags` are ImGuiComboFlags. `highlighted` draws the frame's border as
+	// FieldLook::kHighlighted does.
+	bool BeginCombo(const char* id, const char* preview, int flags, bool highlighted = false);
 	void EndCombo(bool open, const char* preview);
+
+	// A frame-high square button drawn as a cross, grey until hovered; returns
+	// true when clicked. Faded and inert inside BeginDisabled. Lay it over the
+	// right end of a field submitted with ImGui::SetNextItemAllowOverlap, or
+	// beside one.
+	bool ClearButton(const char* id);
 }
