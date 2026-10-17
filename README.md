@@ -44,7 +44,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 1. Load a save or start a new game.
 2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never a child). With nothing under the crosshair the hotkey captures the player instead.
-3. Press **F8** (configurable, see [Settings](#settings)). The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden and the game cannot be saved.
+3. Press **F8** (configurable, see [Settings](#settings)). The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden, the game cannot be saved, and an NPC stays where they stand.
 
 The window has four pages:
 
