@@ -51,6 +51,13 @@ namespace Theme
 	// ("2 of 5 piece(s) selected", "12 outfit(s) in Tailor") included.
 	void LabelText(const char* text);
 
+	// A clickable label at the right end of the line just laid out (call it
+	// right after LabelText): a filled rounded square with a plus cut out of
+	// it, then `label`, both in LabelText's font and colour, lit while hovered
+	// (white in Vanilla and Nordic, amber in Tailor). Returns true when clicked.
+	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
+	bool LabelLink(const char* label);
+
 	// Extra room above a field, on top of the item spacing; LabelText adds it
 	// itself, so call it only before a field that has no label.
 	void SectionGap();
