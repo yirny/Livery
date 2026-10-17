@@ -1179,17 +1179,20 @@ namespace Theme
 
 	void LabelText(const char* a_text)
 	{
-		constexpr float kLabelGapTrim = 2.0f;  // how much closer the label sits to its control than the item spacing (pixels at 1080p)
+		constexpr float kLabelGapTrim = 3.0f;  // how much closer the label sits to its control than the item spacing (pixels at 1080p)
 
 		SectionGap();
 		// The gap below an item comes from the item spacing in force while it is laid out.
 		const auto& spacing = ImGui::GetStyle().ItemSpacing;
+		const bool  grey = g_skin != Skin::kTailor;
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - kLabelGapTrim * g_scale)));
-		if (g_skin == Skin::kNordic) {
-			ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);
+		if (grey) {
+			ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);  // NORDIC UI's label grey, in Vanilla too
 		}
+		PushSmallFont();
 		ImGui::TextUnformatted(a_text);
-		if (g_skin == Skin::kNordic) {
+		PopSmallFont();
+		if (grey) {
 			ImGui::PopStyleColor();
 		}
 		ImGui::PopStyleVar();

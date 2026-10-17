@@ -44,9 +44,11 @@ namespace Theme
 	// Pixels at 1080p to pixels on the current back buffer.
 	float Scale();
 
-	// A field label: grey in Nordic, plain text elsewhere. Opens a field with
-	// SectionGap and sits a little closer to the control below it than the
-	// item spacing would.
+	// A field label in the small font (PushSmallFont): grey in Vanilla and
+	// Nordic, plain text in Tailor. Opens a field with SectionGap and sits a
+	// little closer to the control below it than the item spacing would.
+	// Contract: every field label goes through here, a list's count line
+	// ("2 of 5 piece(s) selected", "12 outfit(s) in Tailor") included.
 	void LabelText(const char* text);
 
 	// Extra room above a field, on top of the item spacing; LabelText adds it
