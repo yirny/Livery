@@ -13,7 +13,8 @@
 //                  Load Outfit / Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit browser - Search / Filter / Sort over both outfit pages' list (OutfitBrowser.cpp
-//                  narrows and orders it); Escape first clears the search
+//                  narrows and orders it) in a lightened band between two full-width
+//                  rules; Escape first clears the search
 //   Outfit lists - the library outfit list, the selected outfit's name and its piece
 //                  list, which both outfit pages share
 //   Load page    - library outfits, the selected one shown on the preview; Load ticks
@@ -1177,11 +1178,45 @@ namespace
 		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
 	};
 
-	// Search | Filter, Sort under both, then a rule; refreshes the list only
-	// when one of them changed.
+	// The browser's band between screen heights a_top and a_bottom: the window
+	// background lightened, with a rule on each edge, all across the window
+	// inside its border (past the padding the other rules keep).
+	// Contract: drawn on the bottom channel of a splitter whose top channel
+	// holds the controls, so it stays behind them.
+	void DrawBrowserBand(float a_top, float a_bottom)
+	{
+		constexpr ImU32 kLighten = IM_COL32(255, 255, 255, 8);  // white laid over the window background
+
+		const ImVec2 pos = ImGui::GetWindowPos();
+		const ImVec2 size = ImGui::GetWindowSize();
+		const float  border = ImGui::GetStyle().WindowBorderSize;
+		const float  left = pos.x + border;
+		const float  right = pos.x + size.x - border;
+		auto*        draw = ImGui::GetWindowDrawList();
+		// The window clips its content short of its edges (half its padding).
+		draw->PushClipRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), false);
+		draw->AddRectFilled(ImVec2(left, a_top), ImVec2(right, a_bottom), kLighten);
+		const ImU32 rule = ImGui::GetColorU32(ImGuiCol_Border);
+		draw->AddLine(ImVec2(left, a_top + 0.5f), ImVec2(right, a_top + 0.5f), rule);
+		draw->AddLine(ImVec2(left, a_bottom - 0.5f), ImVec2(right, a_bottom - 0.5f), rule);
+		draw->PopClipRect();
+	}
+
+	// Search | Filter, Sort under both, in a band (DrawBrowserBand); refreshes
+	// the list only when one of them changed.
 	BrowserControls DrawBrowserControls(State& a_state)
 	{
-		const float  top = ImGui::GetCursorPosY();
+		constexpr float kBandPadding = 8.0f;  // pixels at 1080p, inside the band above and below the controls
+
+		const float pad = kBandPadding * Theme::Scale();
+		const float top = ImGui::GetCursorScreenPos().y;
+		auto*       draw = ImGui::GetWindowDrawList();
+		// Its own splitter: the tables inside split the draw list with theirs.
+		ImDrawListSplitter splitter;
+		splitter.Split(draw, 2);
+		splitter.SetCurrentChannel(draw, 1);
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + pad);
+
 		BrowserInput input;
 		ImGui::PushID("browser");
 		if (BeginColumns("browserTop")) {
@@ -1193,12 +1228,19 @@ namespace
 			EndColumns();
 		}
 		DrawSortField(a_state, input);
-		ImGui::Separator();
 		ImGui::PopID();
+
+		const float bottom = ImGui::GetItemRectMax().y + pad;
+		splitter.SetCurrentChannel(draw, 0);
+		DrawBrowserBand(top, bottom);
+		splitter.Merge(draw);
+		ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, bottom));
+		ImGui::Dummy(ImVec2(0.0f, 0.0f));  // ends the band with the item spacing below it
+
 		if (input.changed) {
 			OutfitBrowser::Refresh(a_state.browser, a_state.request);
 		}
-		return { input.escapeTaken, ImGui::GetCursorPosY() - top };
+		return { input.escapeTaken, ImGui::GetCursorScreenPos().y - top };
 	}
 
 	// --- Outfit lists ---------------------------------------------------------
