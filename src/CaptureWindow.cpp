@@ -22,10 +22,11 @@
 //                  on both, the selected outfit is on the preview, and a second
 //                  click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
-//                  pieces and returns
+//                  pieces and returns (greyed while none of them is loaded)
 //   Update page  - library outfits, the chosen one's categories (its own ones
 //                  locked, more can be ticked) and pieces; Update opens the
-//                  confirm popup, whose Confirm hands over to onUpdate
+//                  confirm popup, which names the pieces from unloaded plugins
+//                  that stay, and whose Confirm hands over to onUpdate
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
@@ -59,6 +60,7 @@ namespace
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kNoOutfits = "No outfits in Tailor.";
+	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
 	constexpr const char* kLockedCategory = "Already in this category. Tailor's API cannot take an outfit out of one.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
@@ -1339,10 +1341,14 @@ namespace
 	}
 
 	// The outfit's pieces as Tailor had them when the window opened, in rows
-	// laid out as the outfit list's beside it.
+	// laid out as the outfit list's beside it. The count includes the pieces
+	// whose plugin is not loaded, which have no row.
 	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
 	{
-		Theme::LabelText(std::format("{} piece(s)", a_outfit.pieces.size()).c_str());
+		const auto total = a_outfit.pieces.size() + a_outfit.unloadedPieces;
+		const auto count = a_outfit.unloadedPieces ? std::format("{} piece(s), {} not loaded", total, a_outfit.unloadedPieces) :
+		                                             std::format("{} piece(s)", total);
+		Theme::LabelText(count.c_str());
 		const float gap = Theme::SelectRowGap();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));
 		const float listHeight = ListHeight(a_outfit.pieces.size(), Theme::SelectRowHeight() + gap);
@@ -1378,11 +1384,15 @@ namespace
 	};
 
 	// Load / Back centred below a gap. a_escapeTaken: the browser used this
-	// frame's Escape.
+	// frame's Escape. An outfit with no loaded piece would tick nothing.
 	LoadAction DrawLoadButtons(const State& a_state, bool a_escapeTaken)
 	{
+		const char* noLoad = kNeedOutfit;
+		if (a_state.previewedOutfit >= 0) {
+			noLoad = OutfitAt(a_state, a_state.previewedOutfit).pieces.empty() ? kNoLoadedPiece : nullptr;
+		}
 		BeginButtonRow({ "Load", "Back" });
-		const bool load = ReasonButton("Load", a_state.previewedOutfit >= 0 ? nullptr : kNeedOutfit);
+		const bool load = ReasonButton("Load", noLoad);
 		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken);
 
@@ -1536,6 +1546,9 @@ namespace
 		const auto& outfit = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)];
 		ImGui::TextUnformatted(std::format("Replace the {} piece(s) of \"{}\"", outfit.pieces.size(), outfit.name).c_str());
 		ImGui::TextUnformatted(std::format("with the {} ticked piece(s)?", CountTickedPieces(a_state)).c_str());
+		if (outfit.unloadedPieces) {
+			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+		}
 		if (const auto added = AddedCategories(a_state); added.empty()) {
 			ImGui::TextDisabled("Its categories stay as they are.");
 		} else {

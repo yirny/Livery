@@ -146,7 +146,14 @@ namespace
 		return names;
 	}
 
-	std::vector<std::string> ReadOutfitNames()
+	// An outfit as Tailor's outfits.json lists it.
+	struct StoredOutfit
+	{
+		std::string                name;
+		std::optional<std::size_t> itemCount;  // pieces listed, loaded or not; nullopt when unreadable
+	};
+
+	std::vector<StoredOutfit> ReadStoredOutfits()
 	{
 		constexpr int kKnownVersion = 1;  // the "version" field this reader was written against
 
@@ -160,14 +167,16 @@ namespace
 			return {};
 		}
 
-		std::vector<std::string> names;
+		std::vector<StoredOutfit> stored;
 		for (const auto& outfit : *list) {
 			const auto name = outfit.find("name");
-			if (name != outfit.end() && name->is_string()) {
-				names.push_back(name->get<std::string>());
+			if (name == outfit.end() || !name->is_string()) {
+				continue;
 			}
+			const auto items = outfit.find("items");
+			stored.push_back({ name->get<std::string>(), items != outfit.end() && items->is_array() ? std::make_optional(items->size()) : std::nullopt });
 		}
-		return names;
+		return stored;
 	}
 
 	// How many pieces outfits.json lists for this outfit, loaded or not, or
@@ -724,14 +733,16 @@ namespace
 	// gains the pieces the actor does not carry (`pieces` matches it index for
 	// index). Outfit names come from outfits.json (API 1.0 cannot list every
 	// outfit), checked with DoesOutfitExist.
+	// Contract: unloadedPieces is the file's piece count minus the loaded ones,
+	// an estimate (the file can lag behind Tailor) shown to the user only.
 	std::vector<CaptureWindow::ExistingOutfit> ExistingOutfits(const std::vector<CaptureWindow::CategoryOption>& categories,
 		std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
 	{
-		auto names = ReadOutfitNames();
-		std::ranges::sort(names, [](const std::string& a, const std::string& b) { return _stricmp(a.c_str(), b.c_str()) < 0; });
+		auto stored = ReadStoredOutfits();
+		std::ranges::sort(stored, [](const StoredOutfit& a, const StoredOutfit& b) { return _stricmp(a.name.c_str(), b.name.c_str()) < 0; });
 
 		std::vector<CaptureWindow::ExistingOutfit> outfits;
-		for (auto& name : names) {
+		for (auto& [name, itemCount] : stored) {
 			if (_stricmp(name.c_str(), kPreviewOutfit) == 0 || !g_tailor->DoesOutfitExist(name.c_str())) {
 				continue;
 			}
@@ -741,8 +752,12 @@ namespace
 					outfit.categories.push_back(category.name);
 				}
 			}
-			for (auto* armor : OutfitArmors(outfit.name)) {
+			const auto loaded = OutfitArmors(outfit.name);
+			for (auto* armor : loaded) {
 				outfit.pieces.push_back(PieceIndex(armor, armors, pieces));
+			}
+			if (itemCount && *itemCount > loaded.size()) {
+				outfit.unloadedPieces = *itemCount - loaded.size();
 			}
 			std::ranges::sort(outfit.pieces);
 			const auto repeats = std::ranges::unique(outfit.pieces);

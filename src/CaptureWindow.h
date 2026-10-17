@@ -63,6 +63,9 @@ namespace CaptureWindow
 		std::string              name;
 		std::vector<std::string> categories;  // the known categories it is in; shown ticked and locked
 		std::vector<std::size_t> pieces;      // indices into Request::pieces of its loaded pieces, ascending, no repeats
+		// Its pieces whose plugin is not loaded, as Tailor's outfits.json counts them (0 when unknown).
+		// API 1.0 can neither list nor remove them, so an update leaves them in the outfit.
+		std::size_t unloadedPieces = 0;
 	};
 
 	struct Request
