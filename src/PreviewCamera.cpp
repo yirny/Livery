@@ -3,7 +3,8 @@
 // FILE MAP
 //   Constants  - speeds and sensitivities
 //   State      - what Begin changed, kept for End
-//   Helpers    - free camera fields, the toggle that keeps the control switches
+//   Helpers    - free camera fields, the toggle that keeps the control switches,
+//                facing an actor who is off the centre of the view
 //   API        - Begin / Move / End
 //
 // Entering and leaving the free camera follows Tailor 3.0's own outfit preview
@@ -25,10 +26,11 @@ namespace
 {
 	// --- Constants ------------------------------------------------------------
 
-	// The move, look, pan and zoom rates are at 100% camera speed; Settings::CameraSpeedScale scales them.
+	// The move, pan and zoom rates are at 100% camera speed; Settings::CameraSpeedScale scales them.
+	// A left drag turns at the game's own mouse look rate instead (ReadLookRadiansPerPixel).
 	constexpr float kMoveUnitsPerSecond = 225.0f;   // with W / A / S / D
 	constexpr float kSlowFactor = 0.5f;             // on the move speed while Shift is held, as in tfc
-	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag
+	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag, only when the game's settings cannot be read
 	constexpr float kPanUnitsPerPixel = 1.0f;       // of a right drag
 	constexpr float kZoomUnitsPerStep = 40.0f;      // forward per wheel step
 	constexpr float kMaxPitch = 89.0f * std::numbers::pi_v<float> / 180.0f;
@@ -51,9 +53,11 @@ namespace
 		bool                                    active = false;
 		RE::BSTSmartPointer<RE::TESCameraState> previousState;
 		FreeCameraFields                        freeFields;
-		bool                                    forcedThirdPerson = false;  // the player was in first person
-		RE::ActorHandle                         actor;                      // the previewed actor, which a left drag turns around
-		float                                   pitch = 0.0f;               // radians in -kMaxPitch..kMaxPitch, positive looks down
+		bool                                    forcedThirdPerson = false;                   // the player was in first person
+		RE::ActorHandle                         actor;                                       // the previewed actor, which a left drag turns around
+		float                                   pitch = 0.0f;                                // radians in -kMaxPitch..kMaxPitch, positive looks down
+		bool                                    invertY = false;                             // the game's Invert Y Axis option, for a left drag up and down
+		float                                   lookRadiansPerPixel = kLookRadiansPerPixel;  // of a left drag, from the game's look sensitivity
 	};
 
 	// Turns the camera's place around the actor by the angle the view just
@@ -101,6 +105,38 @@ namespace
 		state.SetInputEventHandlingEnabled(fields.inputEnabled);
 	}
 
+	// The game's Invert Y Axis option (SkyrimPrefs.ini). Read once per preview:
+	// GetSetting scans the whole collection, and the window holds the game's
+	// menus, so the option cannot change while the preview is on.
+	bool ReadInvertY()
+	{
+		auto* prefs = RE::INIPrefSettingCollection::GetSingleton();
+		auto* setting = prefs ? prefs->GetSetting("bInvertYValues:Controls") : nullptr;
+		if (!setting) {
+			logger::warn("Preview camera: the game's Invert Y setting was not found; treated as off");
+			return false;
+		}
+		return setting->GetBool();
+	}
+
+	// The game's mouse look rate: pi * fMouseHeadingSensitivity (SkyrimPrefs.ini,
+	// the Look Sensitivity slider) * fMouseHeadingXScale (Skyrim.ini) radians per
+	// pixel, as measured in the game's own heading turn; the same rate is used up
+	// and down, since the game's pitch rate depends on the frame rate. Read once
+	// per preview, like ReadInvertY.
+	float ReadLookRadiansPerPixel()
+	{
+		auto* prefs = RE::INIPrefSettingCollection::GetSingleton();
+		auto* ini = RE::INISettingCollection::GetSingleton();
+		auto* sensitivity = prefs ? prefs->GetSetting("fMouseHeadingSensitivity:Controls") : nullptr;
+		auto* xScale = ini ? ini->GetSetting("fMouseHeadingXScale:Controls") : nullptr;
+		if (!sensitivity || !xScale) {
+			logger::warn("Preview camera: the game's look sensitivity was not found; using the built-in rate");
+			return kLookRadiansPerPixel;
+		}
+		return std::numbers::pi_v<float> * sensitivity->GetFloat() * xScale->GetFloat();
+	}
+
 	// The free camera saves the control switches as it starts, turns every one
 	// on, and puts its copy back as it ends; keeping the switches as they are
 	// now leaves one another mod holds off still off afterwards (as Tailor does).
@@ -116,6 +152,43 @@ namespace
 		if (controls) {
 			controls->SetControlsState(enabled, stored);
 		}
+	}
+
+	// Turns the view to the actor only on an axis where it is clearly off: the
+	// heading when the actor's middle is more than kMaxHeadingOff to one side,
+	// the pitch when the view's centre misses the actor between feet and head.
+	// An ordinary third person view is left as it is; one placed over a shoulder
+	// (SmoothCam, fOverShoulderPosX) is turned. The camera's place never changes.
+	// Returns true when the view was turned.
+	bool FaceActorIfOffCenter(RE::FreeCameraState& free, RE::Actor& actor, float& pitch)
+	{
+		// Radians; roughly a seventh of the screen width off centre at a 65 degree horizontal field of view.
+		constexpr float kMaxHeadingOff = 10.0f * std::numbers::pi_v<float> / 180.0f;
+		const auto      feet = actor.GetPosition();
+		const float     height = actor.GetHeight();
+		const float     dx = feet.x - free.translation.x;
+		const float     dy = feet.y - free.translation.y;
+		const float     flat = std::sqrt(dx * dx + dy * dy);
+		if (flat == 0.0f) {
+			return false;  // straight above or below: there is no heading to face
+		}
+
+		bool        turned = false;
+		const float heading = std::atan2(dx, dy);  // heading 0 faces +Y (see Move)
+		if (std::abs(std::remainder(heading - free.rotation.y, 2.0f * std::numbers::pi_v<float>)) > kMaxHeadingOff) {
+			free.rotation.y = heading;
+			turned = true;
+		}
+		// Positive pitch looks down, so the head is the smaller angle.
+		const float below = free.translation.z - feet.z;
+		const float toHead = std::atan2(below - height, flat);
+		const float toFeet = std::atan2(below, flat);
+		if (pitch < toHead || pitch > toFeet) {
+			pitch = std::clamp(std::atan2(below - height * 0.5f, flat), -kMaxPitch, kMaxPitch);
+			free.rotation.x = pitch;
+			turned = true;
+		}
+		return turned;
 	}
 }
 
@@ -165,17 +238,22 @@ namespace PreviewCamera
 		session.actor = actor.GetHandle();
 		// Brought into -pi..pi once: the engine may keep the angle as 0..2pi.
 		session.pitch = std::clamp(std::remainder(free->rotation.x, 2.0f * std::numbers::pi_v<float>), -kMaxPitch, kMaxPitch);
+		const bool faced = FaceActorIfOffCenter(*free, actor, session.pitch);
+		session.invertY = ReadInvertY();
+		session.lookRadiansPerPixel = ReadLookRadiansPerPixel();
 		session.active = true;
 		g_session = std::move(session);
-		logger::info("Preview camera on {:08X}", actor.GetFormID());
+		logger::info("Preview camera on {:08X} (invert Y: {}, look {:.6f} rad/px, turned to the actor: {})", actor.GetFormID(),
+			g_session.invertY ? "on" : "off", g_session.lookRadiansPerPixel, faced ? "yes" : "no");
 		return true;
 	}
 
 	// rotation.x is the pitch (positive looks down), rotation.y the heading the
 	// camera faces, in Skyrim's convention: heading 0 faces +Y, and turns clockwise
 	// seen from above. A left drag sideways turns the view and the camera's place
-	// around the actor together; up and down tilts in place. The engine reads
-	// the fields every frame, so nothing else needs an update.
+	// around the actor together; up and down tilts in place, as the game's mouse
+	// look does (Invert Y Axis included). The engine reads the fields every frame,
+	// so nothing else needs an update.
 	void Move(const CaptureWindow::ViewInput& input)
 	{
 		auto* camera = RE::PlayerCamera::GetSingleton();
@@ -185,14 +263,15 @@ namespace PreviewCamera
 		}
 
 		const float scale = Settings::CameraSpeedScale();
-		const float look = kLookRadiansPerPixel * scale;
+		const float look = g_session.lookRadiansPerPixel;  // the game's own rate: the camera speed setting does not apply
 		const float turn = input.lookX * look;
 		free->rotation.y += turn;
 		OrbitActor(*free, g_session.actor, turn);
 		// The pitch is the session's own, never read back: the engine may store a
 		// look above the horizon as an angle near 2pi, which a clamp would turn
 		// into looking straight down.
-		g_session.pitch = std::clamp(g_session.pitch + input.lookY * look, -kMaxPitch, kMaxPitch);
+		const float lookY = g_session.invertY ? -input.lookY : input.lookY;
+		g_session.pitch = std::clamp(g_session.pitch + lookY * look, -kMaxPitch, kMaxPitch);
 		free->rotation.x = g_session.pitch;
 		const float        yaw = free->rotation.y;
 		const float        pitch = g_session.pitch;
@@ -203,9 +282,9 @@ namespace PreviewCamera
 		const float step = kMoveUnitsPerSecond * scale * (input.slow ? kSlowFactor : 1.0f) * input.seconds;
 		auto        move = forward * (input.moveForward * step + input.zoomSteps * kZoomUnitsPerStep * scale);
 		move += right * (input.moveRight * step);
-		// A right drag takes the view along with the mouse: the camera goes the other way.
+		// A right drag moves the camera the way the mouse goes; the scene slides the other way.
 		const float pan = kPanUnitsPerPixel * scale;
-		move += right * (-input.panX * pan) + up * (input.panY * pan);
+		move += right * (input.panX * pan) + up * (-input.panY * pan);
 		free->translation += move;
 	}
 
