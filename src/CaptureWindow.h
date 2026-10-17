@@ -18,9 +18,9 @@ namespace RE
 // the game thread from the input dispatch hook. All state is guarded by one
 // mutex. Nothing here calls Tailor: Create New hands the typed name to
 // Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
-// each piece tick to Request::onPieceToggled, each outfit previewed on the
-// Load page to Request::onPreviewPieces and the Live Preview tick to
-// Request::onPreviewOn / onPreviewOff, in an SKSE task.
+// each piece tick to Request::onPieceToggled, each outfit selected on the
+// Load and Update Existing pages to Request::onPreviewPieces and the Live
+// Preview tick to Request::onPreviewOn / onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
 	// Group of Tailor's armor-type categories, shown as a row of checkboxes
@@ -111,8 +111,9 @@ namespace CaptureWindow
 
 		// Runs on the game thread when the live preview should show exactly these
 		// indices into `pieces` (ascending, maybe empty): an outfit selected on the
-		// Load page, then the ticked pieces again when the user goes back without
-		// loading, Live Preview on or off. Empty for nothing to do.
+		// Load or Update Existing page, then the ticked pieces again when the user
+		// deselects it or goes back without loading it, Live Preview on or off.
+		// Empty for nothing to do.
 		std::function<void(const std::vector<std::size_t>& pieces)> onPreviewPieces;
 
 		// Runs on the game thread for each frame with input over the game rather
