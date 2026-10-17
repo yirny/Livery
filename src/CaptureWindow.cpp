@@ -1297,15 +1297,17 @@ namespace
 		return true;
 	}
 
-	// The outfit's pieces as Tailor had them when the window opened.
+	// The outfit's pieces as Tailor had them when the window opened, in rows
+	// laid out as the outfit list's beside it.
 	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
 	{
 		Theme::LabelText(std::format("{} piece(s)", a_outfit.pieces.size()).c_str());
-		PushListRowSpacing();
-		const float listHeight = ListHeight(a_outfit.pieces.size(), ImGui::GetTextLineHeightWithSpacing());
+		const float gap = Theme::SelectRowGap();
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));
+		const float listHeight = ListHeight(a_outfit.pieces.size(), Theme::SelectRowHeight() + gap);
 		if (Theme::BeginList("outfitPieces", listHeight)) {
 			for (const auto index : a_outfit.pieces) {
-				ImGui::TextUnformatted(a_state.request.pieces[index].name.c_str());
+				Theme::TextRow(a_state.request.pieces[index].name.c_str());
 			}
 		}
 		ImGui::PopStyleVar();
