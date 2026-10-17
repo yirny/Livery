@@ -60,10 +60,11 @@ namespace Theme
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
 
-	// A list of rows between a rule above and a rule below. The rules span the
-	// content; the rows run on past the window's padding to its edges (in a
-	// table cell, only on the table's outer sides, never into the gap between
-	// columns), and their text keeps that padding as an indent. Used like
+	// A list of rows between a rule above and a rule below. The rules and the
+	// rows' fills span the content; the rows' click areas run on past the
+	// window's padding to its edges (in a table cell, only on the table's outer
+	// sides, never into the gap between columns), and their text keeps that
+	// padding as an indent. Used like
 	// BeginChild / EndChild: always call EndList, before the next BeginList.
 	// Rows go through TickRow, SelectRow or plain text.
 	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
