@@ -70,7 +70,7 @@ With the cursor over the game rather than the window:
 
 `SpeedPercent` scales all four.
 
-The preview dresses the character in a working outfit named `Capture Preview`, kept in Tailor's library with no category, so Tailor never picks it at random. It is the only outfit the plugin changes before you confirm. Every close of the window, a save included, ends the override, and the character goes back to what Tailor would dress them in otherwise.
+The preview dresses the character in a working outfit named `Preview Outfit (used by Capture Outfit add-on)`, kept in Tailor's library with no category, so Tailor never picks it at random. It is the only outfit the plugin changes before you confirm. Every close of the window, a save included, ends the override, and the character goes back to what Tailor would dress them in otherwise.
 
 ### Categories and gender
 
@@ -104,7 +104,7 @@ Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships
 - Outfit names on the Update Existing page come from Tailor's `outfits.json`, checked against Tailor's library; an outfit Tailor has not written to disk yet is not listed. The same holds for the Load Outfit page.
 - Live Preview is unavailable for a character another mod has set an outfit override on: the tick is greyed and its tooltip says why. The plugin never replaces another mod's override, because API 1.0 cannot read it back.
 - On the player, unticking the last ticked piece leaves the preview still wearing it: Tailor does not dress the player in an empty outfit. NPCs are undressed as expected, and the saved outfit follows the ticks either way.
-- `Capture Preview` stays in Tailor's library once the preview has run, because API 1.0 cannot delete an outfit. The Load Outfit and Update Existing pages leave it out. If you delete it in Tailor, the next preview creates it again.
+- `Preview Outfit (used by Capture Outfit add-on)` stays in Tailor's library once the preview has run, because API 1.0 cannot delete an outfit. The Load Outfit and Update Existing pages leave it out. If you delete it in Tailor, the next preview creates it again.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
 
