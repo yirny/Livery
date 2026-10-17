@@ -10,7 +10,8 @@
 //   Pieces page  - inventory pieces (first page) plus the loaded outfit's, each tick
 //                  handed to onPieceToggled; the Live Preview tick, handed to onPreviewOn /
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
-//                  Load Outfit / Create New / Update Existing / Cancel
+//                  Load Outfit... at the count line's right end (only while Tailor
+//                  has outfits); Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit browser - Search | Filter above both outfit pages' list, in the small font
 //                  (OutfitBrowser.cpp narrows and orders it); Escape first clears the search
@@ -599,14 +600,17 @@ namespace
 	// A tick row (Theme::TickRow) per listed piece; unticked pieces are left out of the outfit.
 	// Each click goes to onPieceToggled (the live preview) in its own SKSE task,
 	// queued in click order.
+	// The count line ends with Load Outfit..., shown only while Tailor has
+	// outfits; returns true when it is clicked.
 	// Contract: a piece that is not listed is never ticked: only Load ticks a
 	// piece the actor does not carry, and the next Load sets every tick again.
-	void DrawPieceList(State& a_state)
+	bool DrawPieceList(State& a_state)
 	{
 		const auto& pieces = a_state.request.pieces;
 		const auto& onToggled = a_state.request.onPieceToggled;
 		const auto  listed = CountListedPieces(a_state);
 		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), listed).c_str());
+		const bool load = !a_state.request.existingOutfits.empty() && Theme::LabelLink("Load Outfit...");
 		PushListRowSpacing();  // popped before EndList, so the gap below the list is the normal one
 		const float listHeight = ListHeight(listed, ImGui::GetFrameHeightWithSpacing());
 		if (Theme::BeginList("pieces", listHeight)) {
@@ -632,6 +636,7 @@ namespace
 		if (CountTickedPieces(a_state) == 0) {
 			ImGui::TextDisabled(kNeedPiece);
 		}
+		return load;
 	}
 
 	// Turns the live preview on or off and the game's freeze the other way.
@@ -736,7 +741,7 @@ namespace
 	// The widest button row of the Pieces page, which sets the page's least width.
 	float PiecesButtonsWidth()
 	{
-		return ButtonRowWidth({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
+		return ButtonRowWidth({ "Create New", "Update Existing", "Cancel" });
 	}
 
 	enum class PiecesAction
@@ -748,16 +753,15 @@ namespace
 		kCancel
 	};
 
-	// Load Outfit / Create New / Update Existing / Cancel centred below a gap.
+	// Create New / Update Existing / Cancel centred below a gap; `a_load` is a
+	// click on the count line's Load Outfit... (DrawPieceList).
 	// The two save pages act on the ticked pieces, so both need at least one.
-	PiecesAction DrawPiecesButtons(const State& a_state)
+	PiecesAction DrawPiecesButtons(const State& a_state, bool a_load)
 	{
-		BeginButtonRow({ "Load Outfit", "Create New", "Update Existing", "Cancel" });
+		BeginButtonRow({ "Create New", "Update Existing", "Cancel" });
 		const char* noOutfits = a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr;
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
-		const bool  load = ReasonButton("Load Outfit", noOutfits);
-		ImGui::SameLine();
-		const bool create = ReasonButton("Create New", noPiece);
+		const bool  create = ReasonButton("Create New", noPiece);
 		ImGui::SameLine();
 		const bool update = ReasonButton("Update Existing", noPiece ? noPiece : noOutfits);
 		ImGui::SameLine();
@@ -767,7 +771,7 @@ namespace
 			ImGui::TextDisabled("Applying...");
 			return PiecesAction::kNone;
 		}
-		if (load) {
+		if (a_load) {
 			return PiecesAction::kLoadPage;
 		}
 		if (create) {
@@ -782,12 +786,12 @@ namespace
 	void DrawPiecesPage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
-		DrawPieceList(a_state);
+		const bool load = DrawPieceList(a_state);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state);
-		const auto action = DrawPiecesButtons(a_state);
+		const auto action = DrawPiecesButtons(a_state, load);
 		EndButtonRow();
 		ImGui::EndDisabled();
 
