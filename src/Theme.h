@@ -60,15 +60,17 @@ namespace Theme
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
 
-	// A list of rows between a rule above and a rule below. The rules and the
-	// rows' fills span the content; the rows' click areas run on past the
+	// A square-cornered list of rows between a rule above and a rule below. The
+	// rules and the rows' fills span the content. In Tailor the whole list keeps
+	// to the content, its backdrop ending at the window's padding as the other
+	// controls do; in Vanilla and Nordic the rows' click areas run on past the
 	// window's padding to its edges (in a table cell, only on the table's outer
 	// sides, never into the gap between columns), and their text keeps that
 	// padding as an indent. Used like
 	// BeginChild / EndChild: always call EndList, before the next BeginList.
-	// Rows go through TickRow, SelectRow or plain text.
+	// Rows go through TickRow, SelectRow or TextRow.
 	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
-	// columns clip the outer sides short of the window's edges.
+	// columns clip the outer sides short of the window's edges (Vanilla, Nordic).
 	bool BeginList(const char* id, float height);
 	void EndList();
 

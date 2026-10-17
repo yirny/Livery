@@ -1210,9 +1210,10 @@ namespace Theme
 
 	bool BeginList(const char* a_id, float a_height)
 	{
-		// Past the content across the window's padding to its edges; in a table,
-		// only on the table's outer sides, so the gap between columns stays clear.
-		const float padding = ImGui::GetStyle().WindowPadding.x;
+		// Vanilla and Nordic: past the content across the window's padding to its
+		// edges; in a table, only on the table's outer sides, so the gap between
+		// columns stays clear. Tailor: within the content, as its fields are.
+		const float padding = g_skin == Skin::kTailor ? 0.0f : ImGui::GetStyle().WindowPadding.x;
 		float       left = padding;
 		float       right = padding;
 		if (ImGui::GetCurrentTable()) {
@@ -1225,9 +1226,11 @@ namespace Theme
 		g_listReach = ImVec2(left, right);
 
 		// A child without a border drops its padding unless told to keep it.
+		// Square corners: the rules and the first and last rows' fills are square.
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, ListPaddingY()));
+		ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
 		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, a_height), ImGuiChildFlags_AlwaysUseWindowPadding);
-		ImGui::PopStyleVar();
+		ImGui::PopStyleVar(2);
 		if (visible && left > 0.0f) {
 			ImGui::Indent(left);  // the rows' text lines up with the content around the list (0 would mean the default indent)
 		}
