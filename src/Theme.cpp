@@ -842,11 +842,16 @@ namespace
 	}
 
 	// Vanilla and Nordic frame dropdowns and text fields with a fainter rule
-	// than the lists' and window's. Returns true when it pushed a colour.
-	bool PushFieldBorder()
+	// than the lists' and window's; a highlighted field takes the tick's colour
+	// in every skin. Returns true when it pushed a colour.
+	bool PushFieldBorder(bool a_highlighted)
 	{
 		constexpr float kFieldBorderAlpha = 0.5f;  // of the skin's border colour
 
+		if (a_highlighted) {
+			ImGui::PushStyleColor(ImGuiCol_Border, ImGui::GetStyleColorVec4(ImGuiCol_CheckMark));
+			return true;
+		}
 		if (g_skin == Theme::Skin::kTailor) {
 			return false;
 		}
@@ -1101,15 +1106,15 @@ namespace Theme
 		return HasGameCheckbox() ? GameCheckbox(a_label, a_active, true) : ImGui::RadioButton(a_label, a_active);
 	}
 
-	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags, const char* a_hint, bool a_error)
+	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags, const char* a_hint, FieldLook a_look)
 	{
 		int pushed = 0;
-		if (a_error) {
+		if (a_look == FieldLook::kError) {
 			// Full-strength red in place of the skin's fainter field border.
 			ImGui::PushStyleColor(ImGuiCol_Border, kErrorText);
 			ImGui::PushStyleColor(ImGuiCol_Text, kErrorText);
 			pushed = 2;
-		} else if (PushFieldBorder()) {
+		} else if (PushFieldBorder(a_look == FieldLook::kHighlighted)) {
 			pushed = 1;
 		}
 		const bool result = a_hint ? ImGui::InputTextWithHint(a_id, a_hint, a_buffer, a_size, a_flags) :
@@ -1135,12 +1140,12 @@ namespace Theme
 		return true;
 	}
 
-	bool BeginCombo(const char* a_id, const char* a_preview, int a_flags)
+	bool BeginCombo(const char* a_id, const char* a_preview, int a_flags, bool a_highlighted)
 	{
 		// The popup takes the window padding and border colour in force as BeginCombo opens it.
 		const ImVec2 padding = g_skin == Skin::kTailor ? kTailorDropdownPadding : kSquareDropdownPadding;
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding.x * g_scale, padding.y * g_scale));
-		const bool pushedBorder = PushFieldBorder();
+		const bool pushedBorder = PushFieldBorder(a_highlighted);
 		bool       open = false;
 		if (HasCustomDropdownArrow()) {
 			// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
@@ -1163,6 +1168,24 @@ namespace Theme
 		if (HasCustomDropdownArrow()) {
 			DrawCustomComboPreview(a_preview);
 		}
+	}
+
+	bool ClearButton(const char* a_id)
+	{
+		constexpr float kCrossRatio = 0.22f;      // half the cross's width, of the font size
+		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the category rows' check mark
+
+		const float  side = ImGui::GetFrameHeight();
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(side, side));
+		const ImU32  color = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+		const float  half = ImGui::GetFontSize() * kCrossRatio;
+		const float  thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
+		const ImVec2 centre(topLeft.x + side * 0.5f, topLeft.y + side * 0.5f);
+		auto*        draw = ImGui::GetWindowDrawList();
+		draw->AddLine(ImVec2(centre.x - half, centre.y - half), ImVec2(centre.x + half, centre.y + half), color, thickness);
+		draw->AddLine(ImVec2(centre.x - half, centre.y + half), ImVec2(centre.x + half, centre.y - half), color, thickness);
+		return clicked;
 	}
 
 	float ListPaddingY()
