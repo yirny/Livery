@@ -301,8 +301,21 @@ namespace Dressing
 		std::size_t count = 0;
 		for (auto& piece : pieces) {
 			const auto copy = Find(actor, piece.key);
-			if (!copy.extra || copy.extra->GetWorn() || IsLocked(*copy.extra)) {
+			if (!copy.extra) {
 				continue;
+			}
+			if (copy.extra->GetWorn()) {
+				// Still on but no longer locked (taken off and put back by another mod, or the
+				// lock suspended for the preview): the lock goes on again.
+				if (!IsLocked(*copy.extra)) {
+					Lock(actor, *copy.extra);
+					piece.locked = true;
+					++count;
+				}
+				continue;
+			}
+			if (IsLocked(*copy.extra)) {
+				continue;  // an unworn locked copy cannot be equipped
 			}
 			equipManager->EquipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, true, false, true);
 			if (const auto now = Find(actor, piece.key); now.extra && now.extra->GetWorn()) {

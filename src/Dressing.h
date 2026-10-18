@@ -47,8 +47,9 @@ namespace Dressing
 	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing);
 
 	// Puts on again, with PreventRemoval, the pieces they still carry but no longer wear
-	// (another mod took them off, which clears the lock). A piece they no longer carry
-	// is left alone. Updates each piece's `locked`; returns how many went back on.
+	// (another mod took them off, which clears the lock), and locks again a worn piece
+	// whose lock is gone. A piece they no longer carry is left alone. Updates each
+	// piece's `locked`; returns how many it put on or locked.
 	std::size_t PutBackOn(RE::Actor& actor, std::vector<Piece>& pieces);
 
 	// Takes off the locks this module set; with `removeCopies`, also takes back the
