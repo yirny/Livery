@@ -11,7 +11,8 @@
 //                  handed to onPieceToggled; the Live Preview tick, handed to onPreviewOn /
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
 //                  Load Outfit... at the count line's right end (greyed while the
-//                  library has no outfits); Create New / Update Existing / Cancel
+//                  library has no outfits); Create New / Update Existing / Assign /
+//                  Release / Cancel; Assign and Release hand over to onAssign / onRelease
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit browser - Search over Filter, above both outfit pages' list in its column, in
 //                  the small font (OutfitBrowser.cpp narrows and orders it); Escape first
@@ -59,6 +60,7 @@ namespace
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
+	constexpr const char* kNotAssigned = "Livery does not dress this character.";
 	constexpr const char* kNoOutfits = "No outfits in the library.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
 	// Frames the window's place is pinned after Open or a page change: an
@@ -88,7 +90,7 @@ namespace
 	{
 		kClosed,
 		kEditing,
-		kSaving  // Create or Confirm pressed; waiting for onSave / onUpdate to Close() or SetError()
+		kSaving  // Create, Confirm, Assign or Release pressed; waiting for the handler to Close() or SetError()
 	};
 
 	enum class Page
@@ -751,7 +753,7 @@ namespace
 	// The widest button row of the Pieces page, which sets the page's least width.
 	float PiecesButtonsWidth()
 	{
-		return ButtonRowWidth({ "Create New", "Update Existing", "Cancel" });
+		return ButtonRowWidth({ "Create New", "Update Existing", "Assign", "Release", "Cancel" });
 	}
 
 	enum class PiecesAction
@@ -760,20 +762,27 @@ namespace
 		kLoadPage,
 		kNamePage,
 		kUpdatePage,
+		kAssign,
+		kRelease,
 		kCancel
 	};
 
-	// Create New / Update Existing / Cancel centred below a gap; `a_load` is a
-	// click on the count line's Load Outfit... (DrawPieceList).
-	// The two save pages act on the ticked pieces, so both need at least one.
+	// Create New / Update Existing / Assign / Release / Cancel centred below a gap;
+	// `a_load` is a click on the count line's Load Outfit... (DrawPieceList).
+	// The two save pages and Assign act on the ticked pieces, so they need at least
+	// one; Release needs an assignment (Request::onRelease).
 	PiecesAction DrawPiecesButtons(const State& a_state, bool a_load)
 	{
-		BeginButtonRow({ "Create New", "Update Existing", "Cancel" });
+		BeginButtonRow({ "Create New", "Update Existing", "Assign", "Release", "Cancel" });
 		const char* noOutfits = a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr;
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
 		const bool  create = ReasonButton("Create New", noPiece);
 		ImGui::SameLine();
 		const bool update = ReasonButton("Update Existing", noPiece ? noPiece : noOutfits);
+		ImGui::SameLine();
+		const bool assign = ReasonButton("Assign", noPiece);
+		ImGui::SameLine();
+		const bool release = ReasonButton("Release", a_state.request.onRelease ? nullptr : kNotAssigned);
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
@@ -790,7 +799,39 @@ namespace
 		if (update) {
 			return PiecesAction::kUpdatePage;
 		}
+		if (assign) {
+			return PiecesAction::kAssign;
+		}
+		if (release) {
+			return PiecesAction::kRelease;
+		}
 		return cancel ? PiecesAction::kCancel : PiecesAction::kNone;
+	}
+
+	// The id of the outfit last loaded when the ticks are exactly its pieces, else 0.
+	std::uint32_t TickedOutfitId(const State& a_state)
+	{
+		if (a_state.loadedOutfit < 0) {
+			return 0;
+		}
+		const auto& outfit = OutfitAt(a_state, a_state.loadedOutfit);
+		return TickedPieces(a_state) == outfit.pieces ? outfit.id : 0;
+	}
+
+	void RequestAssign(State& a_state)
+	{
+		a_state.status = Status::kSaving;
+		a_state.error.clear();
+		auto onAssign = a_state.request.onAssign;
+		SKSE::GetTaskInterface()->AddTask([onAssign, pieces = TickedPieces(a_state), outfit = TickedOutfitId(a_state)] { onAssign(pieces, outfit); });
+	}
+
+	void RequestRelease(State& a_state)
+	{
+		a_state.status = Status::kSaving;
+		a_state.error.clear();
+		auto onRelease = a_state.request.onRelease;
+		SKSE::GetTaskInterface()->AddTask([onRelease] { onRelease(); });
 	}
 
 	void DrawPiecesPage(State& a_state)
@@ -824,6 +865,14 @@ namespace
 				PreviewOutfitOrTicks(a_state, a_state.selectedOutfit);
 			}
 			GoToPage(a_state, Page::kUpdate);
+			break;
+		case PiecesAction::kAssign:
+			QueueMenuSound(kOkSound);
+			RequestAssign(a_state);
+			break;
+		case PiecesAction::kRelease:
+			QueueMenuSound(kOkSound);
+			RequestRelease(a_state);
 			break;
 		case PiecesAction::kCancel:
 			QueueMenuSound(kCancelSound);

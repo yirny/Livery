@@ -3,7 +3,7 @@
 // FILE MAP
 //   Inventory - armor copies with extra data, found again by ExtraUniqueID; the lock
 //   Equip     - choose an instance per piece, put it on, take off the rest
-//   API       - Dress / PutBackOn / Release / WornArmor
+//   API       - Dress / PutBackOn / Release / PutBack / WornArmor
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -107,6 +107,18 @@ namespace
 			}
 		}
 		return {};
+	}
+
+	// Their worn gear, each copy tagged.
+	std::vector<Dressing::InstanceKey> WornKeys(RE::Actor& actor)
+	{
+		std::vector<Dressing::InstanceKey> keys;
+		for (const auto& copy : Copies(actor)) {
+			if (copy.extra->GetWorn() && IsGear(*copy.armor)) {
+				keys.push_back(Tag(actor, copy));
+			}
+		}
+		return keys;
 	}
 
 	// The worn copy of this armor; empty when none is worn.
@@ -265,6 +277,7 @@ namespace Dressing
 		}
 		// Contract: no InitInventoryIfRequired here. On an NPC who wears outfit items it took
 		// ExtraWorn off every outfit copy (seen in game), and PickInstance and TakeOffOthers read it.
+		const auto before = WornKeys(actor);
 		for (auto* armor : outfit) {
 			const auto wornAlready = [armor](const Piece& piece) { return piece.key.armor == armor->GetFormID(); };
 			if (!armor || std::ranges::any_of(result.worn, wornAlready)) {
@@ -286,6 +299,13 @@ namespace Dressing
 		// With no piece on, nothing is assigned: they keep what they wear.
 		if (!result.worn.empty()) {
 			TakeOffOthers(actor, result.worn, *equipManager);
+			for (const auto& key : before) {
+				const auto copy = Find(actor, key);
+				const bool inOutfit = std::ranges::any_of(result.worn, [&key](const Piece& piece) { return piece.key == key; });
+				if (copy.extra && !copy.extra->GetWorn() && !inOutfit) {
+					result.takenOff.push_back(key);
+				}
+			}
 		}
 		if (actor.IsPlayerRef()) {
 			RefreshModel(actor);
@@ -348,6 +368,29 @@ namespace Dressing
 		if (actor.IsPlayerRef()) {
 			RefreshModel(actor);
 		}
+	}
+
+	std::size_t PutBack(RE::Actor& actor, const std::vector<InstanceKey>& keys)
+	{
+		auto* equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!equipManager) {
+			return 0;
+		}
+		std::size_t count = 0;
+		for (const auto& key : keys) {
+			const auto copy = Find(actor, key);
+			if (!copy.extra || copy.extra->GetWorn() || IsLocked(*copy.extra)) {
+				continue;
+			}
+			equipManager->EquipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
+			if (const auto now = Find(actor, key); now.extra && now.extra->GetWorn()) {
+				++count;
+			}
+		}
+		if (actor.IsPlayerRef()) {
+			RefreshModel(actor);
+		}
+		return count;
 	}
 
 	std::vector<RE::TESObjectARMO*> WornArmor(RE::Actor& actor)
