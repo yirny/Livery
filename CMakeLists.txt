@@ -43,7 +43,7 @@ else()
     find_package(directxtk CONFIG REQUIRED)
     # Dear ImGui with the Win32 + DX11 backends, drawn from a DXGI Present hook (src/Hooks.cpp).
     find_package(imgui CONFIG REQUIRED)
-    # Reads the player's custom categories from Tailor's library.json (src/Plugin.cpp).
+    # Reads and writes the outfit library, outfits.json (src/Library.cpp).
     find_package(nlohmann_json CONFIG REQUIRED)
     # rapidcsv must be in vcpkg.json (CommonLibSSE-NG unconditionally adds it as an include dir)
 
@@ -91,6 +91,7 @@ else()
         src/CaptureWindow.cpp
         src/Dressing.cpp
         src/Hooks.cpp
+        src/Library.cpp
         src/MovementHold.cpp
         src/OutfitBrowser.cpp
         src/OutfitPreview.cpp
