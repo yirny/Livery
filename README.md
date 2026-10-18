@@ -74,7 +74,7 @@ With the cursor over the game rather than the window:
 
 `SpeedPercent` scales all four.
 
-The preview dresses an NPC through a temporary outfit written into their record, and the player through their inventory, the way Tailor's own preview does; Tailor's library is not touched. Every close of the window, a save included, ends the preview, and the character goes back to what they wore when it opened.
+The preview dresses an NPC through a temporary outfit written into their record, and the player through their inventory, the way Tailor's own preview does; Tailor's library is not touched. Every close of the window, a save included, ends the preview, and the character goes back to what they wore when it opened. An NPC gets the same copies of their outfit back, so armor the game picked at random for them, such as a bandit's, stays as it was.
 
 Each time an NPC's outfit changes, the game can remove every copy of the old outfit's pieces from their inventory, including copies that are their own, such as armor you gave them. The plugin notes an NPC's own armor as the window opens. About 2 seconds after the window closes, it adds back any copies that are gone and puts back on what they wore of their own.
 

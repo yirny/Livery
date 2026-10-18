@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   State    - the previewed actor, the pieces shown, what Begin found
-//   NPC      - a runtime outfit written into the base record: ApplyToNpc swaps the
-//              engine's outfit items, ShowOnNpc alternates two runtime forms
-//   Player   - inventory copies found again by ExtraUniqueID: DressPlayer picks a
-//              copy per piece, RestorePlayer puts the snapshot back
-//   API      - Begin / SetPiece / Show / End / Abandon / IsActive
+//   State     - the previewed actor, the pieces shown, what Begin found
+//   Inventory - armor copies with extra data, read again after every native call
+//   NPC       - a runtime outfit written into the base record: ShowOnNpc takes off the
+//               outfit they wore (kept in the inventory) and alternates two runtime
+//               forms, EndNpc puts the kept copies back on
+//   Player    - inventory copies found again by ExtraUniqueID: DressPlayer picks a
+//               copy per piece, RestorePlayer puts the snapshot back
+//   API       - Begin / SetPiece / Show / End / Abandon / IsActive
 //
 // Both paths follow Tailor 3.0 (GPL-3.0), reduced to what a preview needs: the NPC
 // path its src/outfit/OutfitManager.cpp (SetActorDefaultOutfit, InitializeHiddenOutfitItems,
 // FlushAndApplyOutfit, BeginCreateOutfit, TryEndCreateOutfit, PrepareForGameLoad), the
-// player path its src/player/PlayerWardrobe.cpp and PlayerHands.cpp (Tag, DressItems,
-// BeginPreview, EndPreview, ReturnHands).
+// player path its src/player/PlayerWardrobe.cpp, PlayerHands.cpp and PlayerModel.cpp (Tag,
+// DressItems, BeginPreview, EndPreview, ReturnHands, RefreshPlayerModel). Unlike Tailor, the
+// NPC's outfit is not made again as the preview ends: that would roll its leveled lists anew.
 #include "PCH.h"
 
 #include "OutfitPreview.h"
@@ -30,14 +33,24 @@ namespace
 {
 	// --- State ----------------------------------------------------------------
 
-	// What an NPC's base record held as the preview began; End and Abandon put it back.
+	// An outfit copy an NPC wore as the preview began, found again by armor and
+	// outfit mark: the copies one outfit made of a piece are alike.
+	struct WornPiece
+	{
+		RE::FormID armor = 0;
+		RE::FormID outfit = 0;  // the outfit that made the copy (its ExtraOutfitItem)
+	};
+
+	// What an NPC's base record held and what outfit they wore as the preview began;
+	// End and Abandon put it back.
 	struct NpcSnapshot
 	{
-		RE::FormID     npcID = 0;  // the base record, looked up again: the actor may be gone by then
-		RE::BGSOutfit* defaultOutfit = nullptr;
-		RE::BGSOutfit* sleepOutfit = nullptr;
-		bool           defaultHadChange = false;  // the save was recording a default outfit change
-		bool           sleepHadChange = false;
+		RE::FormID             npcID = 0;  // the base record, looked up again: the actor may be gone by then
+		RE::BGSOutfit*         defaultOutfit = nullptr;
+		RE::BGSOutfit*         sleepOutfit = nullptr;
+		bool                   defaultHadChange = false;  // the save was recording a default outfit change
+		bool                   sleepHadChange = false;
+		std::vector<WornPiece> worn;
 	};
 
 	// One inventory copy of the player's, as Tailor's wardrobe identifies it: the
@@ -73,127 +86,7 @@ namespace
 	// the pointers would leak them (as Tailor notes). Emptied when a preview ends.
 	std::array<RE::BGSOutfit*, 2> g_outfits{};
 
-	// --- NPC ------------------------------------------------------------------
-
-	using ChangeFlag = RE::TESNPC::ChangeFlags::ChangeFlag;
-
-	bool HasChange(RE::TESNPC& npc, ChangeFlag flag)
-	{
-		auto* saveLoad = RE::BGSSaveLoadGame::GetSingleton();
-		return saveLoad && saveLoad->GetChange(&npc, flag);
-	}
-
-	void SetChange(RE::TESNPC& npc, ChangeFlag flag, bool on)
-	{
-		if (on) {
-			npc.AddChange(flag);
-		} else {
-			npc.RemoveChange(flag);
-		}
-	}
-
-	// Every inventory instance the engine made for the outfit: InitOutfitItems tags
-	// each with an ExtraOutfitItem naming it. Collected before any equip, which can
-	// change the inventory.
-	std::vector<std::pair<RE::TESBoundObject*, RE::ExtraDataList*>> OutfitInstances(RE::Actor& actor, RE::FormID outfitID)
-	{
-		std::vector<std::pair<RE::TESBoundObject*, RE::ExtraDataList*>> instances;
-		auto*                                                           changes = actor.GetInventoryChanges();
-		if (!changes || !changes->entryList) {
-			return instances;
-		}
-		for (auto* entry : *changes->entryList) {
-			if (!entry || !entry->object || !entry->extraLists) {
-				continue;
-			}
-			for (auto* extra : *entry->extraLists) {
-				const auto* item = extra ? extra->GetByType<RE::ExtraOutfitItem>() : nullptr;
-				if (item && item->id == outfitID) {
-					instances.emplace_back(entry->object, extra);
-				}
-			}
-		}
-		return instances;
-	}
-
-	// Writes the outfit into the NPC's base record and dresses them in it; a null
-	// outfit undresses them. Tailor's SetActorDefaultOutfit and SetActorSleepOutfit.
-	// Contract: game thread. RemoveOutfitItems(nullptr) takes out every outfit-tagged
-	// instance, whichever outfit made it, and leaves untagged items (the NPC's own)
-	// alone. A runtime outfit's 0xFF FormID does not survive a load, so the change
-	// bits are cleared after every write; End and Abandon put the snapshot's back.
-	void ApplyToNpc(RE::Actor& actor, RE::TESNPC& npc, RE::BGSOutfit* outfit, RE::BGSOutfit* sleepOutfit)
-	{
-		actor.InitInventoryIfRequired();
-		actor.RemoveOutfitItems(nullptr);
-		npc.SetDefaultOutfit(outfit);
-		if (outfit) {
-			if (auto* changes = actor.GetInventoryChanges()) {
-				changes->InitOutfitItems(outfit, actor.GetLevel());
-			}
-			auto* equipManager = RE::ActorEquipManager::GetSingleton();
-			if (equipManager && !actor.IsDisabled()) {
-				for (const auto& [object, extra] : OutfitInstances(actor, outfit->GetFormID())) {
-					equipManager->EquipObject(&actor, object, extra, 1, nullptr, false, false, false, true);
-				}
-			}
-		}
-		npc.RemoveChange(ChangeFlag::kDefaultOutfit);
-		if (npc.sleepOutfit != sleepOutfit) {
-			npc.SetSleepOutfit(sleepOutfit);
-			npc.RemoveChange(ChangeFlag::kSleepOutfit);
-		}
-	}
-
-	// Snapshots the base record. Returns "" when the NPC can be previewed, or why not.
-	std::string BeginNpc(RE::TESNPC& npc)
-	{
-		for (auto& outfit : g_outfits) {
-			if (!outfit) {
-				auto* factory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::BGSOutfit>();
-				outfit = factory ? factory->Create() : nullptr;
-				if (!outfit) {
-					return "Preview off: the preview outfit could not be created.";
-				}
-				logger::info("Created preview outfit {:08X}", outfit->GetFormID());
-			}
-		}
-		g_npc = { npc.GetFormID(), npc.defaultOutfit, npc.sleepOutfit, HasChange(npc, ChangeFlag::kDefaultOutfit), HasChange(npc, ChangeFlag::kSleepOutfit) };
-		npc.RemoveChange(ChangeFlag::kDefaultOutfit);
-		npc.RemoveChange(ChangeFlag::kSleepOutfit);
-		return {};
-	}
-
-	// Dresses the NPC in g_pieces through the runtime outfit they do not wear now,
-	// so the engine always sees a new outfit (Tailor's double buffer). The sleep
-	// outfit is the same form, so a vanilla sleep outfit cannot take body slots
-	// while they are in bed.
-	void ShowOnNpc(RE::Actor& actor, RE::TESNPC& npc)
-	{
-		auto* outfit = npc.defaultOutfit == g_outfits[0] ? g_outfits[1] : g_outfits[0];
-		outfit->outfitItems.clear();
-		for (auto* armor : g_pieces) {
-			outfit->outfitItems.push_back(armor);
-		}
-		ApplyToNpc(actor, npc, outfit, outfit);
-	}
-
-	void RestoreNpcChanges(RE::TESNPC& npc)
-	{
-		SetChange(npc, ChangeFlag::kDefaultOutfit, g_npc.defaultHadChange);
-		SetChange(npc, ChangeFlag::kSleepOutfit, g_npc.sleepHadChange);
-	}
-
-	void ClearOutfits()
-	{
-		for (auto* outfit : g_outfits) {
-			if (outfit) {
-				outfit->outfitItems.clear();
-			}
-		}
-	}
-
-	// --- Player ---------------------------------------------------------------
+	// --- Inventory ------------------------------------------------------------
 
 	struct Copy
 	{
@@ -201,14 +94,9 @@ namespace
 		RE::ExtraDataList* extra = nullptr;
 	};
 
-	// Non-playable armor (skin, body-mod parts) is never the player's gear.
-	bool IsGear(const RE::TESObjectARMO& armor)
-	{
-		return (armor.formFlags & RE::TESObjectARMO::RecordFlags::kNonPlayable) == 0;
-	}
-
 	// Every armor copy with extra data, optionally of one armor. Plain copies have
-	// no extra list and are only counted by the engine.
+	// no extra list and are only counted by the engine. Native calls can rebuild
+	// extra lists, so the copies are read again after any call that changes the inventory.
 	std::vector<Copy> Copies(RE::Actor& actor, const RE::TESObjectARMO* only = nullptr)
 	{
 		std::vector<Copy> copies;
@@ -228,6 +116,243 @@ namespace
 			}
 		}
 		return copies;
+	}
+
+	// Calls `act` on each copy `match` accepts, reading the inventory again before
+	// each call because the act changes it; at most as many calls as copies matched at first.
+	template <class Match, class Act>
+	void ForEachCopy(RE::Actor& actor, Match match, Act act)
+	{
+		for (auto left = std::ranges::count_if(Copies(actor), match); left > 0; --left) {
+			const auto copies = Copies(actor);
+			const auto found = std::ranges::find_if(copies, match);
+			if (found == copies.end()) {
+				return;
+			}
+			act(*found);
+		}
+	}
+
+	std::int32_t CountOf(RE::Actor& actor, RE::TESObjectARMO& armor)
+	{
+		const auto inventory = actor.GetInventory([&armor](RE::TESBoundObject& item) { return &item == &armor; });
+		const auto found = inventory.find(&armor);
+		return found != inventory.end() ? found->second.first : 0;
+	}
+
+	// --- NPC ------------------------------------------------------------------
+
+	using ChangeFlag = RE::TESNPC::ChangeFlags::ChangeFlag;
+
+	bool HasChange(RE::TESNPC& npc, ChangeFlag flag)
+	{
+		auto* saveLoad = RE::BGSSaveLoadGame::GetSingleton();
+		return saveLoad && saveLoad->GetChange(&npc, flag);
+	}
+
+	void SetChange(RE::TESNPC& npc, ChangeFlag flag, bool on)
+	{
+		if (on) {
+			npc.AddChange(flag);
+		} else {
+			npc.RemoveChange(flag);
+		}
+	}
+
+	// The outfit that made this copy: InitOutfitItems marks each copy it adds with
+	// an ExtraOutfitItem naming the outfit. 0 for any other copy.
+	RE::FormID OutfitMark(RE::ExtraDataList& extra)
+	{
+		const auto* item = extra.GetByType<RE::ExtraOutfitItem>();
+		return item ? item->id : 0;
+	}
+
+	bool IsPreviewMark(RE::FormID mark)
+	{
+		return mark != 0 && std::ranges::any_of(g_outfits, [mark](const RE::BGSOutfit* outfit) { return outfit && outfit->GetFormID() == mark; });
+	}
+
+	// The outfit copies they wear. Their own armor is left to the capture window,
+	// which gives it back after the close.
+	std::vector<WornPiece> WornOutfitPieces(RE::Actor& actor)
+	{
+		std::vector<WornPiece> worn;
+		for (const auto& copy : Copies(actor)) {
+			if (const auto mark = OutfitMark(*copy.extra); mark != 0 && copy.extra->GetWorn()) {
+				worn.push_back({ copy.armor->GetFormID(), mark });
+			}
+		}
+		return worn;
+	}
+
+	// Writes both outfits into the base record. A runtime outfit's 0xFF FormID does
+	// not survive a load, so the change bits are cleared; End and Abandon put the snapshot's back.
+	void WriteOutfits(RE::TESNPC& npc, RE::BGSOutfit* outfit, RE::BGSOutfit* sleepOutfit)
+	{
+		npc.SetDefaultOutfit(outfit);
+		npc.SetSleepOutfit(sleepOutfit);
+		npc.RemoveChange(ChangeFlag::kDefaultOutfit);
+		npc.RemoveChange(ChangeFlag::kSleepOutfit);
+	}
+
+	// Takes every copy a preview outfit made out of the inventory, worn ones off first.
+	// Contract: game thread. Nothing else is removed: the NPC's own copies and the
+	// copies of the outfit they wore stay, and End puts the outfit's back on.
+	void RemovePreviewCopies(RE::Actor& actor, RE::ActorEquipManager& equipManager)
+	{
+		const auto preview = [](const Copy& copy) { return IsPreviewMark(OutfitMark(*copy.extra)); };
+		const auto worn = [&preview](const Copy& copy) { return preview(copy) && copy.extra->GetWorn(); };
+		ForEachCopy(actor, worn, [&](const Copy& copy) {
+			equipManager.UnequipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
+		});
+		ForEachCopy(actor, preview, [&](const Copy& copy) {
+			actor.RemoveItem(copy.armor, copy.extra->GetCount(), RE::ITEM_REMOVE_REASON::kRemove, copy.extra, nullptr);
+		});
+	}
+
+	// Takes off the outfit copies they wear that no preview outfit made. The copies
+	// stay in the inventory for End.
+	void TakeOffOtherOutfits(RE::Actor& actor, RE::ActorEquipManager& equipManager)
+	{
+		const auto other = [](const Copy& copy) {
+			const auto mark = OutfitMark(*copy.extra);
+			return mark != 0 && !IsPreviewMark(mark) && copy.extra->GetWorn();
+		};
+		ForEachCopy(actor, other, [&](const Copy& copy) {
+			equipManager.UnequipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
+		});
+	}
+
+	// Adds the outfit's copies and puts each on; leveled lists in it are rolled now.
+	// Tailor's InitializeHiddenOutfitItems.
+	void DressInOutfit(RE::Actor& actor, RE::BGSOutfit& outfit, RE::ActorEquipManager& equipManager)
+	{
+		if (auto* changes = actor.GetInventoryChanges()) {
+			changes->InitOutfitItems(&outfit, actor.GetLevel());
+		}
+		if (actor.IsDisabled()) {
+			return;
+		}
+		for (const auto& copy : Copies(actor)) {  // collected before any equip, which can change the inventory
+			if (OutfitMark(*copy.extra) == outfit.GetFormID()) {
+				equipManager.EquipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
+			}
+		}
+	}
+
+	// True when they wore outfit copies as the preview began and none of those is
+	// left: Tailor or the engine dressed them anew while the window was open.
+	bool OutfitCopiesGone(RE::Actor& actor)
+	{
+		const auto copies = Copies(actor);
+		return !g_npc.worn.empty() && std::ranges::none_of(g_npc.worn, [&copies](const WornPiece& piece) {
+			return std::ranges::any_of(copies, [&piece](const Copy& copy) { return OutfitMark(*copy.extra) == piece.outfit; });
+		});
+	}
+
+	// Puts each outfit copy they wore as the preview began back on, so pieces the
+	// game rolled from leveled lists stay as rolled. Returns how many they wear again.
+	std::size_t PutBackWorn(RE::Actor& actor, RE::ActorEquipManager& equipManager)
+	{
+		std::size_t on = 0;
+		for (const auto& piece : g_npc.worn) {
+			auto*      armor = RE::TESForm::LookupByID<RE::TESObjectARMO>(piece.armor);
+			const auto copies = armor ? Copies(actor, armor) : std::vector<Copy>{};
+			const auto same = [&piece](const Copy& copy) { return OutfitMark(*copy.extra) == piece.outfit; };
+			if (std::ranges::any_of(copies, [&same](const Copy& copy) { return same(copy) && copy.extra->GetWorn(); })) {
+				++on;  // still on
+			} else if (const auto kept = std::ranges::find_if(copies, same); kept != copies.end()) {
+				equipManager.EquipObject(&actor, armor, kept->extra, 1, nullptr, false, false, false, true);
+				++on;
+			} else {
+				logger::warn("Preview could not put armor {:08X} back on {:08X}: its copy is gone", piece.armor, actor.GetFormID());
+			}
+		}
+		return on;
+	}
+
+	// Snapshots the base record and the outfit they wear. Returns "" when the NPC
+	// can be previewed, or why not.
+	std::string BeginNpc(RE::Actor& actor, RE::TESNPC& npc)
+	{
+		for (auto& outfit : g_outfits) {
+			if (!outfit) {
+				auto* factory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::BGSOutfit>();
+				outfit = factory ? factory->Create() : nullptr;
+				if (!outfit) {
+					return "Preview off: the preview outfit could not be created.";
+				}
+				logger::info("Created preview outfit {:08X}", outfit->GetFormID());
+			}
+		}
+		g_npc = { npc.GetFormID(), npc.defaultOutfit, npc.sleepOutfit, HasChange(npc, ChangeFlag::kDefaultOutfit), HasChange(npc, ChangeFlag::kSleepOutfit),
+			WornOutfitPieces(actor) };
+		npc.RemoveChange(ChangeFlag::kDefaultOutfit);
+		npc.RemoveChange(ChangeFlag::kSleepOutfit);
+		return {};
+	}
+
+	// Dresses the NPC in g_pieces through the runtime outfit they do not wear now,
+	// so the engine always sees a new outfit (Tailor's double buffer). The sleep
+	// outfit is the same form, so a vanilla sleep outfit cannot take body slots
+	// while they are in bed. The outfit they wore comes off and stays in the inventory.
+	// Contract: game thread.
+	void ShowOnNpc(RE::Actor& actor, RE::TESNPC& npc)
+	{
+		auto* equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!equipManager) {
+			return;
+		}
+		auto* outfit = npc.defaultOutfit == g_outfits[0] ? g_outfits[1] : g_outfits[0];
+		outfit->outfitItems.clear();
+		for (auto* armor : g_pieces) {
+			outfit->outfitItems.push_back(armor);
+		}
+		actor.InitInventoryIfRequired();
+		RemovePreviewCopies(actor, *equipManager);
+		WriteOutfits(npc, outfit, outfit);
+		TakeOffOtherOutfits(actor, *equipManager);
+		DressInOutfit(actor, *outfit, *equipManager);
+	}
+
+	// Puts the base record back and the outfit copies they wore back on. The outfit
+	// is made again only when those copies are gone, which rolls its leveled lists anew.
+	// Contract: game thread.
+	void EndNpc(RE::Actor& actor, RE::TESNPC& npc, RE::ActorEquipManager& equipManager)
+	{
+		RemovePreviewCopies(actor, equipManager);
+		WriteOutfits(npc, g_npc.defaultOutfit, g_npc.sleepOutfit);
+		if (g_npc.defaultOutfit && OutfitCopiesGone(actor)) {
+			logger::info("The outfit {:08X} wore was replaced during the preview; outfit {:08X} goes on again", actor.GetFormID(), g_npc.defaultOutfit->GetFormID());
+			DressInOutfit(actor, *g_npc.defaultOutfit, equipManager);
+		}
+		if (!actor.IsDisabled()) {
+			const auto on = PutBackWorn(actor, equipManager);
+			logger::info("Put {} of {} outfit piece(s) back on {:08X}", on, g_npc.worn.size(), actor.GetFormID());
+		}
+	}
+
+	void RestoreNpcChanges(RE::TESNPC& npc)
+	{
+		SetChange(npc, ChangeFlag::kDefaultOutfit, g_npc.defaultHadChange);
+		SetChange(npc, ChangeFlag::kSleepOutfit, g_npc.sleepHadChange);
+	}
+
+	void ClearOutfits()
+	{
+		for (auto* outfit : g_outfits) {
+			if (outfit) {
+				outfit->outfitItems.clear();
+			}
+		}
+	}
+
+	// --- Player ---------------------------------------------------------------
+
+	// Non-playable armor (skin, body-mod parts) is never the player's gear.
+	bool IsGear(const RE::TESObjectARMO& armor)
+	{
+		return (armor.formFlags & RE::TESObjectARMO::RecordFlags::kNonPlayable) == 0;
 	}
 
 	std::optional<CopyKey> KeyOf(const Copy& copy)
@@ -313,13 +438,6 @@ namespace
 		if (const auto copy = Find(actor, key); copy.armor) {
 			actor.RemoveItem(copy.armor, 1, RE::ITEM_REMOVE_REASON::kRemove, copy.extra, nullptr);
 		}
-	}
-
-	std::int32_t CountOf(RE::Actor& actor, RE::TESObjectARMO& armor)
-	{
-		const auto inventory = actor.GetInventory([&armor](RE::TESBoundObject& item) { return &item == &armor; });
-		const auto found = inventory.find(&armor);
-		return found != inventory.end() ? found->second.first : 0;
 	}
 
 	// What a hand holds, unless it is armor: a shield is gear and goes with the worn keys.
@@ -435,12 +553,27 @@ namespace
 		ReturnHand(player, false, g_player.hands[1]);
 	}
 
+	// Rebuilds the player's model now: equip calls alone leave it as it was until
+	// something else rebuilds it, so the preview would lag behind the ticks.
+	// Tailor's RefreshPlayerModel. CommonLibSSE-NG's Update3DModel also sends SKSE's
+	// NiNodeUpdate event, so body-morph mods refit the new pieces.
+	void RefreshModel(RE::Actor& player)
+	{
+		auto* process = player.Is3DLoaded() ? player.GetActorRuntimeData().currentProcess : nullptr;
+		if (!process) {
+			return;
+		}
+		process->Set3DUpdateFlag(RE::RESET_3D_FLAGS::kModel);
+		process->Update3DModel(&player);
+	}
+
 	// --- API ------------------------------------------------------------------
 
 	void Redress(RE::Actor& actor)
 	{
 		if (g_isPlayer) {
 			DressPlayer(actor);
+			RefreshModel(actor);
 		} else if (auto* npc = actor.GetActorBase()) {
 			ShowOnNpc(actor, *npc);
 		}
@@ -468,7 +601,7 @@ namespace OutfitPreview
 			if (!npc) {
 				return "Preview off: the character has no base record.";
 			}
-			if (auto reason = BeginNpc(*npc); !reason.empty()) {
+			if (auto reason = BeginNpc(actor, *npc); !reason.empty()) {
 				return reason;
 			}
 		}
@@ -518,12 +651,14 @@ namespace OutfitPreview
 		if (g_isPlayer) {
 			if (actor) {
 				RestorePlayer(*actor);
+				RefreshModel(*actor);
 			}
 		} else if (auto* npc = RE::TESForm::LookupByID<RE::TESNPC>(g_npc.npcID)) {
 			// The actor may be gone (unloaded); the record is put right either way, or their
 			// next load would dress them in an emptied preview outfit.
-			if (actor) {
-				ApplyToNpc(*actor, *npc, g_npc.defaultOutfit, g_npc.sleepOutfit);
+			auto* equipManager = RE::ActorEquipManager::GetSingleton();
+			if (actor && equipManager) {
+				EndNpc(*actor, *npc, *equipManager);
 			} else {
 				npc->defaultOutfit = g_npc.defaultOutfit;
 				npc->sleepOutfit = g_npc.sleepOutfit;
