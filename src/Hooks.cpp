@@ -42,7 +42,7 @@ namespace
 	std::atomic_bool g_renderReady = false;
 	std::atomic_bool g_menuRegistered = false;
 
-	constexpr std::string_view kMenuName = "TailorOutfitCaptureMenu";
+	constexpr std::string_view kMenuName = "LiveryMenu";
 
 	// --- Hook targets ---------------------------------------------------------
 
