@@ -28,8 +28,8 @@ An outfit is a list of armor base forms. Dressing an actor in it:
    unworn instance that carries `ExtraCannotWear` cannot be equipped and is skipped.
 2. When the actor has none, add a plain copy (`AddObjectToContainer`), give it an
    `ExtraUniqueID` (`InventoryChanges::GetNextUniqueID`) and record the key in the
-   co-save (§5). Copies are made only here, at assignment time; nothing else ever
-   creates one.
+   co-save (§5). Copies that stay are made only here, at assignment time; the live
+   preview's own copies go back when it ends.
 3. Equip each chosen instance with `ActorEquipManager::EquipObject(..., a_forceEquip =
    true)`. `forceEquip` is the game's PreventRemoval flag: the engine puts
    `ExtraCannotWear` on the worn instance and its best-gear pass (`UpdateWornGear`)
@@ -39,7 +39,11 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 4. Take off worn armor that is not part of the outfit, except non-playable armor and
    pieces another mod locked (a lock already on a worn piece is never claimed). Only
    when at least one piece went on: otherwise nothing is assigned and the actor keeps
-   what they wear. An earlier assignment of the same actor is released first.
+   what they wear. Every copy worn before step 1 is tagged (`ExtraUniqueID`) first; the
+   ones that are off at the end, taken off here or by the engine for a slot a piece
+   filled, are recorded as the actor's own pieces (§5) and go back on at release. An
+   earlier assignment of the same actor is released first, its own pieces back on, so
+   they are what the new one records.
 
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
 put on armor they own there (a helmet, a shield). Accepted for now.
@@ -60,13 +64,15 @@ says so), so a lock would be needed anyway.
   SKSE task, since the event's thread is not documented.
 - A locked piece the player takes back in the trade menu stays taken: the slot is left
   to the vanilla picker until the player assigns again.
-- Unassign: release the mod's locks, remove the mod's copies still present (by co-save
-  key; never a player-given instance), forget the actor. The NPC returns to vanilla
-  behaviour at the engine's next re-evaluation, which can be a cell change or two
-  later; this delay is accepted.
+- Unassign (the window's Release): release the mod's locks, remove the mod's copies
+  still present (by co-save key; never a player-given instance), put the actor's own
+  pieces it took off back on (those still carried, unworn and unlocked, without a lock),
+  forget the actor. A slot whose own piece is gone is left to the engine's next
+  re-evaluation, which can be a cell change or two later.
 - Death: release the mod's locks (`TESDeathEvent`) and forget the actor, so the corpse
-  behaves like vanilla; the copies stay on it, lootable.
-- "Release everything" command for uninstall: unassign every managed actor. Actors not
+  behaves like vanilla; the copies stay on it, lootable, and its own pieces are not put
+  back on.
+- Release everything (F8, for uninstall): unassign every managed actor. Actors not
   in memory (non-persistent NPCs whose cell is not loaded) cannot be reached and keep
   their locks and copies. Locks and copies are otherwise the only residue after removal;
   they do not break a save.
@@ -82,7 +88,9 @@ items; nothing is put back on the player when they load.
 
 Building calls and anything taking `RE::Actor*` run on the game thread (SKSE task).
 Raw inventory pointers are read again after every native call; an instance is found
-again only by its `ExtraUniqueID` key.
+again only by its `ExtraUniqueID` key. `InitInventoryIfRequired` is never called before
+worn state is read: on an NPC who wears outfit items it takes `ExtraWorn` off every
+outfit copy (§6).
 
 ## 3. Hiding the mod's copies in the trade menu (stage 3)
 
@@ -107,18 +115,20 @@ but any `SetOutfit` then deletes them, and a non-outfit id has no precedent).
 
 ## 5. Co-save
 
-Co-save id `LVRY`, one record `ASGN` (version 1), read in the SKSE load callback,
-cleared on revert:
+Co-save id `LVRY`, one record `ASGN` (version 2; version 1, which has no outfit id and
+no own pieces, is still read), read in the SKSE load callback, cleared on revert:
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
   pieces Livery put on them, each as its instance key `(armor FormID, ExtraUniqueID
   baseID, uniqueID)` and two flags: Livery added the copy, Livery set its lock. NPCs
-  are locked, the player never, so no per-actor lock flag is stored.
-- Stage 2 adds the assigned outfit's id. Until then, and for the pieces themselves, an
-  edit of the library reaches an actor only when the player assigns again.
-- A piece whose plugin is gone is dropped at load, and an assignment left without
-  pieces. A key whose instance is gone is skipped whenever the actor is dressed or
-  released.
+  are locked, the player never, so no per-actor lock flag is stored. Then the instance
+  keys of their own copies Livery took off (§2 step 4).
+- The library outfit id the pieces came from, 0 when the ticked pieces were not exactly
+  a saved outfit; the window names the outfit from it. An edit of the library reaches an
+  actor only when the player assigns again.
+- A piece or own copy whose plugin is gone is dropped at load, and an assignment left
+  without pieces. A key whose instance is gone is skipped whenever the actor is dressed
+  or released.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
 can come later if sharing across characters is wanted.
@@ -136,6 +146,11 @@ can come later if sharing across characters is wanted.
 - A locked piece the NPC owns as a normal item can be taken in the trade menu; DOFT
   outfit copies are hidden by the engine only when their `ExtraOutfitItem` id is the
   current DOFT (SPID's filter handler shows the rule).
+- `TESObjectREFR::InitInventoryIfRequired` on an NPC wearing outfit items (Whiterun
+  guards, a follower) left every outfit copy without `ExtraWorn` (one copy per armor,
+  `ExtraOutfitItem` kept, the 3D unchanged); a non-outfit copy kept it.
+- An NPC's own outfit copy taken off and equipped again, the same instance in a later
+  frame, goes back on (live preview).
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
@@ -146,13 +161,13 @@ Each stage ends with an in-game check before the next starts.
 
 1. Rename the project (CMake, DLL, INI, log, deploy folder; the directory name stays
    until the memory is moved), settings, co-save, dressing core: assign, unassign,
-   load-time re-equip, death release, release everything. Hotkeys only: Shift+F10
-   copies what the target wears, F10 assigns the copy, Alt+F10 unassigns, F8 releases
-   everyone (checked before the capture hotkey, whose default is also F8); the target
-   is the crosshair NPC, else the player.
+   load-time re-equip, death release, release everything (F8, checked before the
+   capture hotkey). Done.
 2. Library: capture the worn pieces into an outfit, JSON storage, the ImGui window,
-   outfit list and preview from today's code. Remove the Tailor API and rewrite
-   CLAUDE.md §2.1 for the mod's own data.
+   outfit list and preview from the add-on's code; the preview dresses everyone through
+   the inventory; the window's Assign and Release replace the stage-1 keys, and the
+   capture hotkey defaults to F10. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
+   the mod's own data.
 3. The trade-menu filter hook (§3).
 4. Later, as needed: situation switching (town, home, sleep...), assignment export/import,
    an export to Tailor's import JSON.

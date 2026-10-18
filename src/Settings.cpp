@@ -42,7 +42,7 @@ namespace
 	constexpr float kMaxSpeedPercent = 200.0f;
 
 	using Key = RE::BSKeyboardDevice::Keys::Key;
-	constexpr std::uint32_t kDefaultHotkey = Key::kF8;
+	constexpr std::uint32_t kDefaultHotkey = Key::kF10;  // keep in step with kIniKeys
 	constexpr std::uint32_t kNoModifier = 0;
 
 	struct IniKey
@@ -72,8 +72,8 @@ namespace
 			L"1 = the capture window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
 			L"0 = it stays silent.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
-		{ kHotkeySection, kHotkeyKeyKey, L"66",
-			L"Key that captures the NPC under the crosshair, or you when there is none, as a DirectInput scan code (66 = F8).\n"
+		{ kHotkeySection, kHotkeyKeyKey, L"68",
+			L"Key that captures the NPC under the crosshair, or you when there is none, as a DirectInput scan code (68 = F10).\n"
 			L"Easiest to change in game through SKSE Menu Framework. Read once when the game starts." },
 		{ kHotkeySection, kHotkeyModifierKey, L"0",
 			L"Key that must be held together with Key: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt.\n"
@@ -460,7 +460,7 @@ namespace Settings
 		g_menuSounds = std::wstring_view{ value } != L"0";
 		logger::info("MenuSounds = {}", g_menuSounds.load());
 
-		// An out-of-range key or an unknown modifier keeps the default (F8, no modifier).
+		// An out-of-range key or an unknown modifier keeps the default (F10, no modifier).
 		const auto key = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyKeyKey, kDefaultHotkey, g_iniPath.c_str());
 		if (key > Key::kNone && key <= 0xFF) {
 			g_hotkey = key;

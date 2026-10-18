@@ -2,12 +2,12 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <vector>
 
 // Who Livery dresses in what (docs/design.md §2, §5): kept in the SKSE co-save, put
-// back on when another mod took a piece off, released when an NPC dies. Until the
-// outfit window exists, keys drive it: F10 dresses the crosshair target (the player
-// when there is none) in the pieces Shift+F10 copied from someone, Alt+F10 releases
-// the target, F8 releases everyone (the uninstall step).
+// back on when another mod took a piece off, released when an NPC dies. The capture
+// window assigns and releases; F8 releases everyone (the uninstall step).
 namespace Assignments
 {
 	// Contract: call once from SKSEPluginLoad.
@@ -16,11 +16,27 @@ namespace Assignments
 	// Contract: call once at kDataLoaded.
 	void RegisterSinks();
 
-	// Whether a keyboard key going down (DirectInput scan code) is one of the assignment
-	// keys; when it is, its command is queued as an SKSE task for `a_target`.
-	// Contract: call from the input path while handling that key's event, since the
-	// modifiers are read from the keyboard's current state.
-	bool HandleKey(std::uint32_t a_scanCode, RE::ObjectRefHandle a_target);
+	// Whether a keyboard key going down (DirectInput scan code) is the release-everyone
+	// key; when it is, the release is queued as an SKSE task.
+	// Contract: call from the input path while handling that key's event.
+	bool HandleKey(std::uint32_t a_scanCode);
+
+	// Dresses them in `a_armor` and keeps it on, an NPC locked, replacing an assignment
+	// they had; `a_outfit` is the library outfit the pieces came from, 0 for none. NPCs
+	// get the pieces they lack, the player only when the settings allow it. Their own
+	// pieces that come off are noted and go back on at release. Shows the result as a HUD
+	// message.
+	// Contract: game thread; no preview is on (OutfitPreview::End ran).
+	void Assign(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_armor, std::uint32_t a_outfit);
+
+	// Ends their assignment: Livery's locks and copies go, their own pieces it took off go
+	// back on. Nothing for an actor Livery does not dress. Shows a HUD message.
+	// Contract: game thread; no preview is on.
+	void Unassign(RE::Actor& a_actor);
+
+	// The library outfit Livery dresses them in: 0 for pieces not saved as one, nullopt
+	// when Livery does not dress them. Contract: game thread.
+	std::optional<std::uint32_t> OutfitOf(RE::FormID a_actor);
 
 	// Takes Livery's locks off the pieces it put on an assigned NPC and holds off putting
 	// them back on, so the preview can dress them freely; the assignment stays. Nothing
