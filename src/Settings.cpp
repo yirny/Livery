@@ -183,7 +183,7 @@ namespace
 	{
 		std::wofstream file{ g_iniPath };
 		if (!file) {
-			logger::warn("Could not create TailorOutfitCapture.ini");
+			logger::warn("Could not create Livery.ini");
 			return;
 		}
 		const wchar_t* section = nullptr;
@@ -202,7 +202,7 @@ namespace
 			}
 			file << entry.key << L'=' << entry.defaultValue << L'\n';
 		}
-		logger::info("Created TailorOutfitCapture.ini with default settings");
+		logger::info("Created Livery.ini with default settings");
 	}
 
 	// Appends keys a newer version introduced to an INI the player already has.
@@ -218,7 +218,7 @@ namespace
 				continue;
 			}
 			if (!::WritePrivateProfileStringW(entry.section, entry.key, entry.defaultValue, g_iniPath.c_str())) {
-				logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+				logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 				return;
 			}
 			logger::info("Added missing INI key [{}] {}", SKSE::stl::utf16_to_utf8(entry.section).value_or(""),
@@ -229,21 +229,21 @@ namespace
 	void SaveFollowersAndSpouseOnly(bool value)
 	{
 		if (!::WritePrivateProfileStringW(kIniSection, kRestrictKey, value ? L"1" : L"0", g_iniPath.c_str())) {
-			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
 
 	void SaveLivePreview(bool value)
 	{
 		if (!::WritePrivateProfileStringW(kIniSection, kLivePreviewKey, value ? L"1" : L"0", g_iniPath.c_str())) {
-			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
 
 	void SaveMenuSounds(bool value)
 	{
 		if (!::WritePrivateProfileStringW(kUiSection, kMenuSoundsKey, value ? L"1" : L"0", g_iniPath.c_str())) {
-			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
 
@@ -251,14 +251,14 @@ namespace
 	{
 		const auto value = std::format(L"{:.0f}", a_percent);
 		if (!::WritePrivateProfileStringW(kCameraSection, kSpeedPercentKey, value.c_str(), g_iniPath.c_str())) {
-			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
 
 	void SaveSkin(Theme::Skin a_skin)
 	{
 		if (!::WritePrivateProfileStringW(kUiSection, kSkinKey, OptionOf(a_skin).iniName, g_iniPath.c_str())) {
-			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
 
@@ -268,7 +268,7 @@ namespace
 		const auto modifier = std::to_wstring(a_modifier);
 		if (!::WritePrivateProfileStringW(kHotkeySection, kHotkeyKeyKey, key.c_str(), g_iniPath.c_str()) ||
 			!::WritePrivateProfileStringW(kHotkeySection, kHotkeyModifierKey, modifier.c_str(), g_iniPath.c_str())) {
-			logger::warn("Could not write TailorOutfitCapture.ini (error {})", ::GetLastError());
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
 
@@ -396,7 +396,7 @@ namespace Settings
 	{
 		// The game's working directory is the Skyrim folder (MO2's virtual Data included).
 		// An absolute path keeps the profile API from searching the Windows folder.
-		g_iniPath = std::filesystem::current_path() / L"Data/SKSE/Plugins/TailorOutfitCapture.ini";
+		g_iniPath = std::filesystem::current_path() / L"Data/SKSE/Plugins/Livery.ini";
 
 		// The INI is not shipped with the plugin (see kIniKeys).
 		std::error_code ec;
@@ -465,7 +465,7 @@ namespace Settings
 			logger::info("SKSE Menu Framework not loaded; settings are INI only");
 			return;
 		}
-		SKSEMenuFramework::SetSection("Tailor Outfit Capture");
+		SKSEMenuFramework::SetSection("Livery");
 		SKSEMenuFramework::AddSectionItem("Settings", RenderSettings);
 		// Registered for the life of the process; the framework owns the returned object.
 		SKSEMenuFramework::AddInputEvent(OnInput);

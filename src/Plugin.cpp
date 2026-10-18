@@ -1138,7 +1138,7 @@ namespace
 		if (!dir) {
 			return;
 		}
-		const auto path = *dir / "TailorOutfitCapture.log";
+		const auto path = *dir / "Livery.log";
 		auto       sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.string(), true);
 		auto       log = std::make_shared<spdlog::logger>("global", sink);
 		spdlog::set_default_logger(std::move(log));
@@ -1152,7 +1152,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 	// Two write_call<5> hooks need 14 bytes each; 64 leaves room to grow.
 	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 64 });
 	SetupLog();
-	logger::info("TailorOutfitCapture loaded");
+	logger::info("Livery loaded");
 	Settings::Load();
 	Hooks::Install();
 	return SKSE::GetMessagingInterface()->RegisterListener(OnMessage);

@@ -1,4 +1,4 @@
-# Tailor Outfit Capture
+# Livery - Immersive Outfit Management
 
 An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the armor an NPC, or you, are wearing as a new
 [Tailor](https://github.com/heathbrownkeyworks/Tailor) outfit, or puts it on an outfit Tailor already has. Aim at the
@@ -90,7 +90,7 @@ Every armor piece from a plugin that the character wears or carries. Non-playabl
 
 ### Settings
 
-Settings live in `Data\SKSE\Plugins\TailorOutfitCapture.ini`, which the plugin creates with defaults on first start (keys a newer version adds are appended, so an update never resets your settings). They are read once when the game starts. With SKSE Menu Framework installed, the same settings are on its **Tailor Outfit Capture** page and take effect at once.
+Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with defaults on first start (keys a newer version adds are appended, so an update never resets your settings). They are read once when the game starts. With SKSE Menu Framework installed, the same settings are on its **Livery** page and take effect at once.
 
 | Section   | Key                            | Default  | Meaning                                                                                              |
 | --------- | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
@@ -101,7 +101,7 @@ Settings live in `Data\SKSE\Plugins\TailorOutfitCapture.ini`, which the plugin c
 | `Hotkey`  | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).          |
 | `Camera`  | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).            |
 
-Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\TailorOutfitCapture\` with their licences.
+Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\Livery\` with their licences.
 
 ### Limits
 
@@ -113,7 +113,7 @@ Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships
 - Earlier versions kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - An NPC's own armor that the plugin gives back comes back plain: tempering and a custom name are lost, because the plugin cannot create that item data.
 
-Details go to `Documents\My Games\Skyrim Special Edition\SKSE\TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
+Details go to `Documents\My Games\Skyrim Special Edition\SKSE\Livery.log` (`Skyrim Special Edition GOG` for the GOG version).
 
 ---
 
@@ -171,7 +171,7 @@ cmake --build --preset release-windows
 
 > Run these from a **Developer Command Prompt for VS** (or after sourcing `vcvars64.bat`) so `cl.exe` and the Windows SDK are on `PATH`. The preset uses the Ninja generator, which builds with whatever MSVC toolset the environment provides.
 
-The DLL lands in `build/msvc/tailoroutfitcapture.dll`.
+The DLL lands in `build/msvc/livery.dll`.
 
 In VS Code, `.vscode/tasks.json` runs the same commands inside the VS developer environment; the default build task (`Ctrl+Shift+B`) builds and deploys in one go.
 
@@ -184,17 +184,17 @@ cmake --preset release-linux
 cmake --build --preset release-linux
 ```
 
-The DLL lands in `build/release-linux/tailoroutfitcapture.dll`.
+The DLL lands in `build/release-linux/livery.dll`.
 
 #### Deploy to a mod manager
 
-The `deploy` target copies `tailoroutfitcapture.dll`, its PDB and the `Data/SKSE/Plugins/TailorOutfitCapture` folder (skin fonts and textures) into `<deploy dir>/SKSE/Plugins/`. No INI is deployed; the plugin creates it on first start.
+The `deploy` target copies `livery.dll`, its PDB and the `Data/SKSE/Plugins/Livery` folder (skin fonts and textures) into `<deploy dir>/SKSE/Plugins/`. No INI is deployed; the plugin creates it on first start.
 
-The deploy directory is, in order: `-DDEPLOY_DIR_OVERRIDE=<path>` given at configure time; `$SKYRIM_MODS_FOLDER/tailoroutfitcapture` (your mod manager's staging folder); `$SKYRIM_FOLDER/Data`; else `build/<preset>/deploy/`. Copy `.env.example` to `.env` to set the environment variables.
+The deploy directory is, in order: `-DDEPLOY_DIR_OVERRIDE=<path>` given at configure time; `$SKYRIM_MODS_FOLDER/livery` (your mod manager's staging folder); `$SKYRIM_FOLDER/Data`; else `build/<preset>/deploy/`. Copy `.env.example` to `.env` to set the environment variables.
 
 ```bash
 # Windows: pin the destination once, then build the deploy target
-cmake --preset release-windows -DDEPLOY_DIR_OVERRIDE="C:/path/to/MO2/mods/Tailor Outfit Capture"
+cmake --preset release-windows -DDEPLOY_DIR_OVERRIDE="C:/path/to/MO2/mods/Livery"
 cmake --build --preset release-windows --target deploy
 
 # Linux (deploy.sh sources .env for you; cmake does not):

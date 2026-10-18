@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(
-    tailoroutfitcapture
+    livery
     VERSION 0.0.1
-    DESCRIPTION "An SKSE plugin for Skyrim SE/AE"
+    DESCRIPTION "Livery - Immersive Outfit Management"
     LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -83,7 +83,7 @@ else()
     add_commonlibsse_plugin(
         ${PROJECT_NAME}
         NAME
-        "tailoroutfitcapture"
+        "livery"
         AUTHOR
         "LocalDeveloper"
         SOURCES
@@ -125,7 +125,7 @@ else()
 
     set_target_properties(
         ${PROJECT_NAME}
-        PROPERTIES OUTPUT_NAME tailoroutfitcapture
+        PROPERTIES OUTPUT_NAME livery
                    PREFIX ""
                    SUFFIX ".dll")
 
@@ -187,11 +187,11 @@ else()
         DESTINATION "${DEPLOY_DIR}/SKSE/Plugins"
         OPTIONAL)
 
-    # No INI is deployed: the plugin creates TailorOutfitCapture.ini with defaults on
+    # No INI is deployed: the plugin creates Livery.ini with defaults on
     # first start and adds missing keys afterwards, so the player's settings survive updates.
 
     # Fonts of the Vanilla and Nordic skins, with their OFL licences (src/Theme.cpp).
-    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/TailorOutfitCapture"
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/Livery"
             DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
 
     # `cmake --build --preset deploy`  (or  cmake --workflow --preset deploy)

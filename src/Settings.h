@@ -5,7 +5,7 @@
 
 #include "Theme.h"
 
-// User settings from Data/SKSE/Plugins/TailorOutfitCapture.ini, editable in game
+// User settings from Data/SKSE/Plugins/Livery.ini, editable in game
 // through SKSE Menu Framework when it is installed (see Settings.cpp). The INI is
 // created with defaults on first start; keys a newer version adds are appended.
 namespace Settings

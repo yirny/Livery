@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
-    "name": "tailoroutfitcapture",
+    "name": "livery",
     "version-string": "0.0.1",
     "builtin-baseline": "4bc07e3eb00c5a9539a5a7a83415150a9260f8db",
     "dependencies": [

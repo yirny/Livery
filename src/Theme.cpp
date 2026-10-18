@@ -52,8 +52,8 @@
 namespace
 {
 	constexpr auto kTailorFontDir = L"Data/SKSE/Plugins/Tailor/fonts";
-	constexpr auto kOwnFontDir = L"Data/SKSE/Plugins/TailorOutfitCapture/fonts";
-	constexpr auto kTextureDir = L"Data/SKSE/Plugins/TailorOutfitCapture/textures";
+	constexpr auto kOwnFontDir = L"Data/SKSE/Plugins/Livery/fonts";
+	constexpr auto kTextureDir = L"Data/SKSE/Plugins/Livery/textures";
 
 	// Tailor's measured size adjustment for Poppins and Montserrat (its FontMetricScale).
 	constexpr float kFontMetricScale = 4.0f / 3.0f;
