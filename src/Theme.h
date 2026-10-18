@@ -48,7 +48,7 @@ namespace Theme
 	// Nordic, plain text in Tailor. Opens a field with SectionGap and sits a
 	// little closer to the control below it than the item spacing would.
 	// Contract: every field label goes through here, a list's count line
-	// ("2 of 5 piece(s) selected", "12 outfit(s) in Tailor") included.
+	// ("2 of 5 piece(s) selected", "12 outfit(s) in the library") included.
 	void LabelText(const char* text);
 
 	// A clickable label at the right end of the line just laid out (call it

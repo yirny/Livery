@@ -159,7 +159,7 @@ TEST_CASE("Search and filter combine", "[browser]")
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set", "Scout" });
 }
 
-TEST_CASE("Armor Type sort: Tailor's type order, then situation, then name", "[browser]")
+TEST_CASE("Armor Type sort: the library's type order, then situation, then name", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
@@ -170,7 +170,7 @@ TEST_CASE("Armor Type sort: Tailor's type order, then situation, then name", "[b
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Scout", "Guard Uniform", "iron set", "Bare" });
 }
 
-TEST_CASE("Situation sort: Tailor's situation order, then armor type, then name", "[browser]")
+TEST_CASE("Situation sort: the library's situation order, then armor type, then name", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;

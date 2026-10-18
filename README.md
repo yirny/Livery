@@ -1,11 +1,9 @@
 # Livery - Immersive Outfit Management
 
-An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the armor an NPC, or you, are wearing as a new
-[Tailor](https://github.com/heathbrownkeyworks/Tailor) outfit, or puts it on an outfit Tailor already has. Aim at the
-NPC (or at nothing, for yourself), press the hotkey, name the outfit in a small window, done.
-
-Livery is growing into an outfit manager of its own that needs no Tailor ([design](docs/design.md)). Its first part is in:
-[outfit assignments](#outfit-assignments) dress a character in the pieces copied from another and keep an NPC in them.
+An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the armor an NPC, or you, are wearing as an
+outfit in its own library, and dresses any character in a saved outfit, keeping an NPC in it. Aim at the NPC (or at
+nothing, for yourself), press the hotkey, tick the pieces in a small window, done. No ESP, no Papyrus; removing it
+cannot break a save ([design](docs/design.md)).
 
 Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMake](https://cmake.org) and [vcpkg](https://vcpkg.io).
 
@@ -16,7 +14,6 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 ## Requirements
 
 - [SKSE64](https://skse.silverlock.org/)
-- [Tailor](https://github.com/heathbrownkeyworks/Tailor) 3.0 or newer (mod API 1.0)
 - [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) for SE and AE, or [VR Address Library for SKSEVR](https://www.nexusmods.com/skyrimspecialedition/mods/58101) for VR
 - Optional: SKSE Menu Framework, for changing the settings in game
 
@@ -25,13 +22,13 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 **Mod manager (recommended):**
 
 1. Install the requirements above.
-2. Install Tailor Outfit Capture via your mod manager.
+2. Install Livery via your mod manager.
 3. Launch Skyrim via SKSE.
 
 **Manual:**
 
 1. Install the requirements above.
-2. Copy the `SKSE` folder from the archive into `Data\` (it holds `tailoroutfitcapture.dll` and the fonts and textures of the window skins).
+2. Copy the `SKSE` folder from the archive into `Data\` (it holds `livery.dll` and the fonts and textures of the window skins).
 3. Launch Skyrim via SKSE.
 
 ## Compatibility
@@ -47,20 +44,20 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 1. Load a save or start a new game.
 2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never a child). With nothing under the crosshair the hotkey captures the player instead.
-3. Press the capture hotkey (`[Hotkey] Key`, see [Settings](#settings)). Its default, F8, now releases everyone Livery dresses (see [Outfit assignments](#outfit-assignments)), so set another key to capture. The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden, the game cannot be saved, and an NPC stays where they stand.
+3. Press the capture hotkey (`[Hotkey] Key`, see [Settings](#settings); F10 by default). The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden, the game cannot be saved, and an NPC stays where they stand.
 
 The window has four pages:
 
-- **Pieces** — the heading shows the character's name and, below it, where Tailor judges them to be and what they wear, for example `In Town, wearing "Jarl's Finery" with changes.` For the player it shows only where Tailor judges them to be, for example `In Town.` Under it every armor piece the character wears or carries is listed with a checkbox: worn pieces start ticked except wigs (pieces on the Hair slot only), carried ones unticked. Ticking a piece unticks the ticked ones that share a body slot with it. **Load Outfit...** at the right end of the piece count opens the Load Outfit page; it is greyed while Tailor has no outfits. The **Live Preview** tick turns the preview on and off. **Create New** and **Update Existing** act on the ticked pieces, so both need at least one; **Cancel** or Esc closes the window and creates nothing. Throughout the window, a greyed button shows why on hover.
-- **Load Outfit** — the outfits Tailor already has (left), with the selected one's categories and pieces (right). **Load** ticks exactly its pieces and returns, adding those the character does not carry to the list; it is greyed for an outfit none of whose pieces is loaded. **Back** returns with the ticks unchanged.
+- **Pieces** — the heading shows the character's name and, when Livery dresses them, the outfit under it: `Dressed by Livery in "Jarl's Finery".`, or `Dressed by Livery.` for pieces that are not a saved outfit. Under it every armor piece the character wears or carries is listed with a checkbox: worn pieces start ticked except wigs (pieces on the Hair slot only), carried ones unticked. Ticking a piece unticks the ticked ones that share a body slot with it. **Load Outfit...** at the right end of the piece count opens the Load Outfit page; it is greyed while the library has no outfits. The **Live Preview** tick turns the preview on and off. **Create New**, **Update Existing** and **Assign** act on the ticked pieces, so each needs at least one; **Release** acts on the character (see [Outfit assignments](#outfit-assignments)); **Cancel** or Esc closes the window and changes nothing. Throughout the window, a greyed button shows why on hover.
+- **Load Outfit** — the library's outfits (left), with the selected one's categories and pieces (right). **Load** ticks exactly its pieces and returns, adding those the character does not carry to the list; it is greyed for an outfit none of whose pieces is loaded. **Back** returns with the ticks unchanged.
 - **Name** (after Create New) — the outfit name, pre-filled with the first free `Captured Outfit NNN`; the categories; and the outfit's gender. Press Enter or **Create** to save, **Back** to return to the pieces. An empty name field says so inside the field; when a save fails, the field turns red and shows the reason on hover until you edit the name.
-- **Update Existing** — the outfits Tailor already has (left), with the selected one's categories and pieces (right). **Update** asks for confirmation, then replaces the outfit's pieces with the ticked ones and adds it to the categories you ticked. Its name, gender and existing categories stay as they are. The confirmation says how many of its pieces come from plugins that are not loaded; those stay in it.
+- **Update Existing** — the library's outfits (left), with the selected one's categories and pieces (right). **Update** asks for confirmation, then replaces the outfit's pieces with the ticked ones and its categories with the ticked ones. Its name and gender stay as they are. The confirmation says how many of its pieces come from plugins that are not loaded; those stay in it.
 
 On both outfit pages, the piece count includes pieces from plugins that are not loaded and says how many those are; they have no row in the list. The selected outfit is shown on the live preview, and clicking it again deselects it. Deselecting it, or going **Back**, shows the ticked pieces again.
 
-The search field (magnifying glass) and the filter dropdown (funnel) above the list narrow it, and the **Sort by** dropdown at the list's top right orders it. The search keeps the outfits whose name contains the typed text, ignoring case. The filter keeps those in the ticked categories: any ticked one within a group, and every group with a tick; a `No ...` row (for example `No Situation`) keeps the outfits in none of that group's categories. **Sort by** orders the list by Name, by Armor Type (then situation, then name) or by Situation (then armor type, then name), following Tailor's category order with outfits in none of them last. A field that narrows the list is underlined in the accent colour, and its cross clears it; Esc clears the search before it goes back. A selected outfit stays selected, and named on the right, while the list hides it.
+The search field (magnifying glass) and the filter dropdown (funnel) above the list narrow it, and the **Sort by** dropdown at the list's top right orders it. The search keeps the outfits whose name contains the typed text, ignoring case. The filter keeps those in the ticked categories: any ticked one within a group, and every group with a tick; a `No ...` row (for example `No Situation`) keeps the outfits in none of that group's categories. **Sort by** orders the list by Name, by Armor Type (then situation, then name) or by Situation (then armor type, then name), following the library's category order with outfits in none of them last. A field that narrows the list is underlined in the accent colour, and its cross clears it; Esc clears the search before it goes back. A selected outfit stays selected, and named on the right, while the list hides it.
 
-The result is shown as a HUD message. The plugin creates nothing until you confirm, and it never deletes or renames anything: Tailor's mod API 1.0 cannot delete an outfit or take one out of a category, so the window warns before every step that cannot be undone.
+The result is shown as a HUD message. The plugin writes nothing until you confirm, and the window never deletes or renames an outfit, so it asks before Update Existing, the one step that cannot be undone.
 
 ### Live Preview
 
@@ -77,36 +74,27 @@ With the cursor over the game rather than the window:
 
 `SpeedPercent` scales all four.
 
-The preview dresses an NPC through a temporary outfit written into their record, and the player through their inventory, the way Tailor's own preview does; Tailor's library is not touched. Every close of the window, a save included, ends the preview, and the character goes back to what they wore when it opened. An NPC gets the same pieces of their outfit back, so armor the game picked at random for them, such as a bandit's, stays as it was.
-
-Each time an NPC's outfit changes, the game can remove every copy of the old outfit's pieces from their inventory, including copies that are their own, such as armor you gave them. The plugin notes an NPC's own armor as the window opens. About 2 seconds after the window closes, it adds back any copies that are gone and puts back on what they wore of their own.
+The preview dresses every character through their inventory: pieces they carry are put on, pieces they lack are added for the preview only. Every close of the window, a save included, ends the preview, takes those copies back, and the character goes back to the very items they wore when it opened, so armor the game picked at random for them, such as a bandit's, stays as it was. An outfit Livery keeps on an NPC is left alone by the preview and is back on when it ends.
 
 ### Categories and gender
 
-Tailor's armor classes (Clothing, Light Armor, Heavy Armor) are checkboxes; its situations (Adventuring, Town, Home, Sleep, Swimming, Warm) and the custom categories you created in Tailor, read from its `library.json`, are dropdowns. On the Update Existing page, the categories the outfit is already in are ticked and greyed out, and say why on hover. The armor class is detected from the worn pieces (body first, then head, hands, feet, circlet) and ticked for you; no situation is ever ticked by default, so a captured outfit never enters a situation pool unless you put it there.
+The armor classes (Clothing, Light Armor, Heavy Armor) are checkboxes; the situations (Adventuring, Town, Home, Sleep, Swimming, Warm) are a dropdown. On the Update Existing page, the categories the outfit is in start ticked. The armor class is detected from the worn pieces (body first, then head, hands, feet, circlet) and ticked for you; no situation is ever ticked by default, so a captured outfit never enters a situation pool unless you put it there.
 
-Gender is suggested the same way: **Female** when the deciding piece has only a female model, **Unisex** otherwise, and never Male unless you pick it. Tailor cannot change an outfit's gender later.
+Gender is suggested the same way: **Female** when the deciding piece has only a female model, **Unisex** otherwise, and never Male unless you pick it. The gender cannot be changed later.
 
 ### What gets captured
 
-Every armor piece from a plugin that the character wears or carries. Non-playable armor, such as the physics objects of body mods, is left out. Player-enchanted gear is saved as the plugin armor it was made from (Tailor refuses armor the game created at runtime); other runtime-created armor is left out. Pieces from plugins that are not loaded never show up.
+Every armor piece from a plugin that the character wears or carries. Non-playable armor, such as the physics objects of body mods, is left out. Player-enchanted gear is saved as the plugin armor it was made from; other runtime-created armor has no plugin record and is left out. Pieces from plugins that are not loaded never show up.
 
 ### Outfit assignments
 
-Livery can also dress a character by itself, without Tailor and without changing their outfit record. Until its outfit window exists, F10 and F8 drive it. F10 acts on the NPC under the crosshair, or on you when there is none. F8 comes before the capture hotkey, so it never opens the capture window.
-
-| Keys      | Action                                                                                   |
-| --------- | ---------------------------------------------------------------------------------------- |
-| Shift+F10 | Copies the armor the character wears.                                                    |
-| F10       | Dresses the character in the copied pieces, replacing an outfit Livery gave them before. |
-| Alt+F10   | Releases the character.                                                                  |
-| F8        | Releases everyone Livery dresses. Do this before you uninstall Livery.                   |
+Livery dresses a character without changing their outfit record. **Assign** on the Pieces page dresses the character in the ticked pieces, replacing an outfit Livery gave them before; load a saved outfit first to dress them in it. **Release** ends it. F8, outside the window, releases everyone Livery dresses: do this before you uninstall Livery. F8 comes before the capture hotkey, so it never opens the capture window.
 
 For each piece, Livery uses a copy the character already carries: the one they wear, else an enchanted one, else the most tempered one, else a plain one, so enchantments and tempering carry over. An NPC who carries none gets a new plain copy. You get one only when `AddMissingPieces` is on, because that creates items; otherwise the message names the pieces you do not carry. Once a piece is on, worn armor outside the outfit comes off, except non-playable armor and pieces another mod locked. When no piece can be put on, the character keeps what they wear.
 
 An NPC keeps the pieces on: each is locked as with the game's PreventRemoval, so the NPC no longer swaps it for better armor you give them. The lock is saved with the item. When another mod takes a piece off, Livery puts it back on the next time the NPC's 3D loads, as long as they still carry it. A piece you take back in the trade menu stays with you. Your own pieces are never locked, since a locked piece cannot be taken off in the inventory.
 
-Releasing an NPC removes the locks and takes back the copies Livery added; pieces that were theirs, or that you gave them, stay. The NPC returns to their own outfit when the game next re-evaluates it, which can take a cell change or two. When an NPC dies, Livery removes the locks and forgets them; the copies stay on the corpse.
+Releasing a character removes the locks, takes back the copies Livery added, and puts back on their own pieces that Assign took off. Pieces that were theirs, or that you gave them, stay, worn or not, so a character dressed in gear they already owned keeps it on. A slot whose own piece is gone is filled when the game next re-evaluates the NPC, which can take a cell change or two. When an NPC dies, Livery removes the locks and forgets them; the copies stay on the corpse and nothing is put back on.
 
 Assignments live in the SKSE co-save, so each save has its own. Livery adds no ESP, so uninstalling it cannot break a save: the locks and copies left on characters are ordinary item data. Releasing everyone first removes those too, except on NPCs out of reach (not persistent, and in a cell that is not loaded).
 
@@ -119,23 +107,22 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 | `General` | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                              |
 | `General` | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.    |
 | `UI`      | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla` or `Nordic`.                                          |
-| `Hotkey`  | `Key`                          | `66`     | Capture key as a DirectInput scan code (`66` = F8). In game, click the hotkey button and press a key. |
+| `Hotkey`  | `Key`                          | `68`     | Capture key as a DirectInput scan code (`68` = F10). In game, click the hotkey button and press a key. |
 | `Hotkey`  | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).           |
 | `Camera`  | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).             |
 | `Player`  | `AddMissingPieces`             | `0`      | `1` lets an outfit you give yourself add the pieces you do not carry, which creates items.            |
 
-Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\Livery\` with their licences.
+The outfit library is `Data\SKSE\Plugins\Livery\outfits.json`, shared by every save and character; each piece is stored as its plugin name and FormID, so an outfit survives a load order change. Back it up with your saves.
+
+Skins: **Tailor** matches [Tailor](https://github.com/heathbrownkeyworks/Tailor) 3.0's menus and uses the fonts Tailor ships (ImGui's default font without Tailor); **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\Livery\` with their licences.
 
 ### Limits
 
 - Only ASCII can be typed into the name field (the game's text input carries the ANSI code page).
 - The window is drawn with Dear ImGui on Skyrim SE/AE only. On Skyrim VR the hotkey saves the outfit at once under the automatic name, with the detected armor class and gender and no situation.
-- Outfit names on the Update Existing page come from Tailor's `outfits.json`, checked against Tailor's library; an outfit Tailor has not written to disk yet is not listed. The same holds for the Load Outfit page.
-- Pieces from plugins that are not loaded cannot be listed or removed through Tailor's API 1.0, so Update Existing leaves them in the outfit. Remove them in Tailor with those plugins loaded.
-- While Live Preview is on, Tailor can still redress a character it manages when a fight starts or a cell loads. Closing the window puts back what they wore when it opened.
-- Earlier versions kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
-- An NPC's own armor that the plugin gives back comes back plain: tempering and a custom name are lost, because the plugin cannot create that item data.
-- Pieces copied with Shift+F10 are kept only until the game closes.
+- Pieces from plugins that are not loaded have no row in the window, and Update Existing leaves them in the outfit. Edit `outfits.json` to remove them.
+- The window has no delete or rename. Edit `outfits.json` for those, with the game closed.
+- Earlier versions, as a Tailor add-on, kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - Slots an assigned outfit leaves empty stay the game's: an NPC can put on a helmet or shield they own there.
 - The copies Livery adds to an NPC show in the trade menu, where you can take them for free.
 
@@ -289,12 +276,6 @@ The script pins the submodule to a release tag (`v*`) on the `ng` branch and sta
 git commit -m "chore(deps): update CommonLibSSE-NG to v10.1.0"
 ```
 
-### Tailor API header
-
-`src/TailorAPI.h` is Tailor's official header, kept identical to the upstream copy in Tailor's `docs/api/`. Replace it with a newer upstream copy instead of editing it.
-
----
-
 ### Nexus Mods Page
 
 The `<!-- nexus:start/end -->` block at the top of `README.md` is the **source of truth** for Requirements, Installation, and Compatibility. `docs/nexus-page.md` holds the rest of the BBCode page (overview, tagline, credits).
@@ -337,4 +318,4 @@ python3 scripts/generate-nexus-page.py --copy
 
 ## License
 
-Copyright (c) 2026 Tailor Outfit Capture Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later. The SKSE Menu Framework header in `extern/` is LGPL-2.1; the Barlow Condensed and Sovngarde fonts are under the SIL Open Font License; the Nordic skin's ornaments are NORDIC UI art by Dopesan, used under the permissions on its mod page.
+Copyright (c) 2026 Livery Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later. The SKSE Menu Framework header in `extern/` is LGPL-2.1; the Barlow Condensed and Sovngarde fonts are under the SIL Open Font License; the Nordic skin's ornaments are NORDIC UI art by Dopesan, used under the permissions on its mod page.

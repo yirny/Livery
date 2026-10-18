@@ -3,10 +3,10 @@
 Written 2026-10-19 for the AI and the developer who implement it. Current spec only;
 the decisions below were settled with the user and verified where marked. The product
 is Livery - Immersive Outfit Management (`livery.dll`, `Livery.ini`, `Livery.log`,
-`Data/SKSE/Plugins/Livery/`). This repository evolves into it: the Tailor add-on it was
-keeps its ImGui window, input hook, theme, preview camera and inventory code; the
-Tailor API dependency goes away in stage 2. The dressing core is `src/Dressing.cpp`,
-the assignments and co-save `src/Assignments.cpp`.
+`Data/SKSE/Plugins/Livery/`). This repository evolved from a Tailor add-on and keeps
+its ImGui window, input hook, theme, preview camera and inventory code; the Tailor API
+dependency went away in stage 2. The dressing core is `src/Dressing.cpp`, the
+assignments and co-save `src/Assignments.cpp`, the library `src/Library.cpp`.
 
 ## 1. Goals, in priority order
 
@@ -167,7 +167,7 @@ Each stage ends with an in-game check before the next starts.
    outfit list and preview from the add-on's code; the preview dresses everyone through
    the inventory; the window's Assign and Release replace the stage-1 keys, and the
    capture hotkey defaults to F10. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
-   the mod's own data.
+   the mod's own data. Done.
 3. The trade-menu filter hook (§3).
 4. Later, as needed: situation switching (town, home, sleep...), assignment export/import,
    an export to Tailor's import JSON.
