@@ -16,21 +16,21 @@ namespace RE
 // Contract: Open, Close and SetError run on the game thread; FeedInput and
 // Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
 // the game thread from the input dispatch hook. All state is guarded by one
-// mutex. Nothing here calls Tailor: Create New hands the typed name to
+// mutex. Nothing here touches the outfit library: Create New hands the typed name to
 // Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
 // each piece tick to Request::onPieceToggled, each outfit selected on the
 // Load and Update Existing pages to Request::onPreviewPieces and the Live
 // Preview tick to Request::onPreviewOn / onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
-	// Group of Tailor's armor-type categories, shown as a row of checkboxes
+	// Group of the armor-type categories, shown as a row of checkboxes
 	// rather than a dropdown.
 	constexpr const char* kArmorTypeGroup = "Armor Type";
 
 	struct CategoryOption
 	{
 		std::string group;             // label of the field it is listed in
-		std::string name;              // the category's name as Tailor shows it
+		std::string name;              // the category's name as the library stores it
 		bool        selected = false;  // initial state of its tick
 	};
 
@@ -57,15 +57,16 @@ namespace CaptureWindow
 		float seconds = 0.0f;      // the frame's length
 	};
 
-	// An outfit already in Tailor's library, listed on the Load and Update Existing pages.
+	// An outfit already in the library, listed on the Load and Update Existing pages.
 	struct ExistingOutfit
 	{
 		std::string              name;
-		std::vector<std::string> categories;  // the known categories it is in; shown ticked and locked
+		std::vector<std::string> categories;  // the offered categories it is in; the Update page starts its ticks from them
 		std::vector<std::size_t> pieces;      // indices into Request::pieces of its loaded pieces, ascending, no repeats
-		// Its pieces whose plugin is not loaded, as Tailor's outfits.json counts them (0 when unknown).
-		// API 1.0 can neither list nor remove them, so an update leaves them in the outfit.
-		std::size_t unloadedPieces = 0;
+		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
+		// update leaves them in the outfit.
+		std::size_t   unloadedPieces = 0;
+		std::uint32_t id = 0;  // the library's id, handed back to onUpdate
 	};
 
 	struct Request
@@ -90,13 +91,11 @@ namespace CaptureWindow
 			onSave;
 
 		// Runs on the game thread once the user confirmed replacing the pieces of
-		// the outfit `name` (one of existingOutfits) with the ticked `pieces`
-		// (as in onSave) and adding it to `categories`: only those the user newly
-		// ticked, never one it is already in (in the order of `categories`, maybe
-		// empty). It must end by calling Close() or SetError().
-		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces,
-			const std::vector<std::string>& categories)>
-			onUpdate;
+		// the outfit `id` (one of existingOutfits) with the ticked `pieces` (as in
+		// onSave) and its categories with `categories`: every one ticked on the
+		// Update page (in the order of `categories`, maybe empty). It must end by
+		// calling Close() or SetError().
+		std::function<void(std::uint32_t id, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories)> onUpdate;
 
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns
