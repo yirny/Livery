@@ -12,12 +12,14 @@ namespace RE
 
 // Dresses the captured character in a set of armor pieces while the capture
 // window is open, and puts back exactly what they had (see OutfitPreview.cpp).
-// Tailor is not involved: an NPC wears a runtime outfit written into their base
-// record, as Tailor 3.0's own preview does, and the player wears inventory copies.
+// Everyone is dressed through their inventory, as Tailor 3.0's player preview
+// does; an NPC's outfit record is never touched. A piece shown on an NPC is
+// locked while it is shown, and the locks Livery itself put on an assigned NPC
+// are off for the preview and back on at End (Assignments).
 //
 // Contract: every function runs on the game thread (SKSE task). One preview at
-// a time: Begin before SetPiece or Show; End or Abandon ends it. Begin on an
-// actor without a base record fails; children are refused before the window opens.
+// a time: Begin before SetPiece or Show; End or Abandon ends it. Children are
+// refused before the window opens.
 namespace OutfitPreview
 {
 	// Snapshots the character and dresses them in `pieces`. Returns "" when the
@@ -32,14 +34,14 @@ namespace OutfitPreview
 	// pages). Does nothing without Begin.
 	void Show(const std::vector<RE::TESObjectARMO*>& pieces);
 
-	// Puts back what Begin found, dressing the character again in the same pieces,
-	// so an NPC's pieces rolled from leveled lists stay as rolled: the window
-	// closes or Live Preview goes off. Does nothing without Begin.
+	// Puts back what Begin found, the same copies, so an NPC's pieces rolled from
+	// leveled lists stay as rolled: the window closes or Live Preview goes off.
+	// Does nothing without Begin.
 	void End();
 
-	// Puts the base record's pointers back without dressing anyone: the world
-	// is about to be replaced (kPreLoadGame, kNewGame), and no NPC record may
-	// keep pointing at a runtime outfit. Does nothing without Begin.
+	// Drops the preview without dressing anyone: the world is about to be
+	// replaced (kPreLoadGame, kNewGame), inventories included. Does nothing
+	// without Begin.
 	void Abandon();
 
 	bool IsActive();
