@@ -16,7 +16,7 @@
 //                    go to Assignments
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
 //   Messaging      - outfit library, settings page, sink and menu registration, ready state
-//   Entry          - log, settings, co-save, trampoline, hooks
+//   Entry          - log, settings, co-save, trampoline, hooks (overlay, trade-menu filter)
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -27,6 +27,7 @@
 #include "OutfitPreview.h"
 #include "PreviewCamera.h"
 #include "Settings.h"
+#include "TradeFilter.h"
 
 #include <algorithm>
 #include <array>
@@ -692,12 +693,14 @@ namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
-	// Two write_call<5> hooks need 14 bytes each; 64 leaves room to grow.
-	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 64 });
+	// Five write_call<5> hooks (two in Hooks.cpp, three in TradeFilter.cpp) need 14 bytes each;
+	// 128 leaves room to grow.
+	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 128 });
 	SetupLog();
 	logger::info("Livery loaded");
 	Settings::Load();
 	Assignments::RegisterCoSave();
 	Hooks::Install();
+	TradeFilter::Install();
 	return SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
 }

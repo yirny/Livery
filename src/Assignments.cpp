@@ -8,7 +8,7 @@
 //   Co-save     - save, load (versions 1 and 2), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
 //   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Unassign / OutfitOf /
-//                 SuspendLocks / ResumeLocks
+//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -498,5 +498,22 @@ namespace Assignments
 			return;
 		}
 		PutPiecesBackOn(a_actor);
+	}
+
+	// The player's own list is never filtered: a copy added to the player is the player's item.
+	std::vector<Dressing::InstanceKey> MarkAddedCopies(RE::Actor& a_actor)
+	{
+		const auto  id = a_actor.GetFormID();
+		const auto* assignment = id == kPlayerRef ? nullptr : FindAssignment(id);
+		const auto* base = assignment ? a_actor.GetActorBase() : nullptr;
+		if (!base || !base->defaultOutfit) {
+			return {};
+		}
+		return Dressing::MarkAsOutfitItems(a_actor, assignment->pieces, base->defaultOutfit->GetFormID());
+	}
+
+	void UnmarkAddedCopies(RE::Actor& a_actor, const std::vector<Dressing::InstanceKey>& a_keys)
+	{
+		Dressing::UnmarkOutfitItems(a_actor, a_keys);
 	}
 }

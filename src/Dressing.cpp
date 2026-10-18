@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Inventory - armor copies with extra data, found again by ExtraUniqueID; the lock
+//   Inventory - armor copies with extra data, found again by ExtraUniqueID; the lock; the
+//               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest
-//   API       - Dress / PutBackOn / Release / PutBack / WornArmor
+//   API       - Dress / PutBackOn / Release / PutBack / MarkAsOutfitItems / UnmarkOutfitItems /
+//               WornArmor
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -13,6 +15,7 @@
 #include "Dressing.h"
 
 #include <algorithm>
+#include <cstring>
 #include <optional>
 
 namespace
@@ -144,6 +147,24 @@ namespace
 	{
 		extra.Add(new RE::ExtraCannotWear());
 		actor.AddChange(RE::TESObjectREFR::ChangeFlags::kInventory);
+	}
+
+	// An ExtraOutfitItem naming `outfit`. CommonLibSSE-NG declares the class without a
+	// constructor, so it is built the way the library's own extra-data constructors build one:
+	// on the engine's heap, where ExtraDataList::RemoveByType frees it, with the engine's vtable.
+	RE::ExtraOutfitItem* MakeOutfitItemMark(RE::FormID outfit)
+	{
+		auto* mark = RE::malloc<RE::ExtraOutfitItem>();
+		if (!mark) {
+			return nullptr;
+		}
+		std::memset(static_cast<void*>(mark), 0, sizeof(RE::ExtraOutfitItem));  // next = nullptr
+		if (!SKSE::stl::emplace_vtable(mark)) {
+			RE::free(mark);
+			return nullptr;
+		}
+		mark->id = outfit;
+		return mark;
 	}
 
 	// Rebuilds the player's model now: equip calls alone leave it as it was until
@@ -391,6 +412,34 @@ namespace Dressing
 			RefreshModel(actor);
 		}
 		return count;
+	}
+
+	std::vector<InstanceKey> MarkAsOutfitItems(RE::Actor& actor, const std::vector<Piece>& pieces, RE::FormID outfit)
+	{
+		std::vector<InstanceKey> marked;
+		for (const auto& piece : pieces) {
+			if (!piece.added) {
+				continue;
+			}
+			const auto copy = Find(actor, piece.key);
+			if (!copy.extra || copy.extra->HasType<RE::ExtraOutfitItem>()) {
+				continue;
+			}
+			if (auto* mark = MakeOutfitItemMark(outfit)) {
+				copy.extra->Add(mark);
+				marked.push_back(piece.key);
+			}
+		}
+		return marked;
+	}
+
+	void UnmarkOutfitItems(RE::Actor& actor, const std::vector<InstanceKey>& keys)
+	{
+		for (const auto& key : keys) {
+			if (const auto copy = Find(actor, key); copy.extra) {
+				copy.extra->RemoveByType(RE::ExtraDataType::kOutfitItem);
+			}
+		}
 	}
 
 	std::vector<RE::TESObjectARMO*> WornArmor(RE::Actor& actor)

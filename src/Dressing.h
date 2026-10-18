@@ -8,7 +8,8 @@
 // Dresses an actor in a set of armor by handing them the items and equipping them,
 // never through their outfit record (docs/design.md §2). With the lock, each worn
 // piece gets PreventRemoval (ExtraCannotWear), so the engine's best-gear pass leaves
-// that slot alone and better armor given later stays in the inventory.
+// that slot alone and better armor given later stays in the inventory. For the trade-menu
+// filter it disguises the copies it added as outfit items (docs/design.md §3).
 //
 // Contract: every function runs on the game thread (SKSE task). The inventory is read
 // again after every native call; an instance is found again only by the ExtraUniqueID
@@ -63,6 +64,16 @@ namespace Dressing
 	// Dress took off. A copy gone, already worn or locked is left alone. Returns how many
 	// went on.
 	std::size_t PutBack(RE::Actor& actor, const std::vector<InstanceKey>& keys);
+
+	// Marks the copies this module added (`added`) as items of the outfit `outfit`, the way the
+	// engine marks an NPC's own outfit items (ExtraOutfitItem), and returns the keys it marked;
+	// a copy gone or already marked is left alone. Nothing is flagged as changed: the mark is a
+	// disguise for one engine call, and UnmarkOutfitItems takes it off before anything else runs.
+	// Contract: game thread; UnmarkOutfitItems with the returned keys follows in the same call.
+	std::vector<InstanceKey> MarkAsOutfitItems(RE::Actor& actor, const std::vector<Piece>& pieces, RE::FormID outfit);
+
+	// Takes the marks MarkAsOutfitItems put on the copies of `keys` off again.
+	void UnmarkOutfitItems(RE::Actor& actor, const std::vector<InstanceKey>& keys);
 
 	// The playable armor they wear, each form once.
 	std::vector<RE::TESObjectARMO*> WornArmor(RE::Actor& actor);

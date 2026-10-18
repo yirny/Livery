@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "Dressing.h"
+
 #include <cstdint>
 #include <optional>
 #include <vector>
 
 // Who Livery dresses in what (docs/design.md §2, §5): kept in the SKSE co-save, put
 // back on when another mod took a piece off, released when an NPC dies. The capture
-// window assigns and releases; F8 releases everyone (the uninstall step).
+// window assigns and releases; F8 releases everyone (the uninstall step); the trade-menu
+// filter (TradeFilter) asks which copies to hide.
 namespace Assignments
 {
 	// Contract: call once from SKSEPluginLoad.
@@ -48,4 +51,13 @@ namespace Assignments
 	// (Dressing::PutBackOn). The actor may be gone by then; the suspension ends either way.
 	// Contract: game thread.
 	void ResumeLocks(RE::FormID a_actor);
+
+	// Marks the copies Livery added to an assigned NPC as items of their default outfit, so the
+	// engine's trade-menu filter leaves them out (docs/design.md §3), and returns what
+	// UnmarkAddedCopies takes. Nothing for the player, an actor Livery does not dress, or an NPC
+	// without a default outfit.
+	// Contract: game thread; UnmarkAddedCopies follows in the same call, before anything else
+	// touches the inventory.
+	std::vector<Dressing::InstanceKey> MarkAddedCopies(RE::Actor& a_actor);
+	void                               UnmarkAddedCopies(RE::Actor& a_actor, const std::vector<Dressing::InstanceKey>& a_keys);
 }
