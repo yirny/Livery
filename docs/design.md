@@ -1,10 +1,12 @@
-# The outfit manager: design
+# Livery: design
 
 Written 2026-10-19 for the AI and the developer who implement it. Current spec only;
-the decisions below were settled with the user and verified where marked. "The outfit
-manager" is a placeholder for the product name. This repository evolves into it: the
-Tailor add-on it is today keeps its ImGui window, input hook, theme, preview camera and
-inventory code; the Tailor API dependency goes away in stage 2.
+the decisions below were settled with the user and verified where marked. The product
+is Livery - Immersive Outfit Management (`livery.dll`, `Livery.ini`, `Livery.log`,
+`Data/SKSE/Plugins/Livery/`). This repository evolves into it: the Tailor add-on it was
+keeps its ImGui window, input hook, theme, preview camera and inventory code; the
+Tailor API dependency goes away in stage 2. The dressing core is `src/Dressing.cpp`,
+the assignments and co-save `src/Assignments.cpp`.
 
 ## 1. Goals, in priority order
 
@@ -22,8 +24,8 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 1. For each piece, pick an instance already in the actor's inventory, in this order:
    worn copy, enchanted copy, highest-tempered copy, plain copy. Player enchantments
    (`ExtraEnchantment`) and tempering (`ExtraHealth`) live on the instance, so the
-   player's own gear keeps them. Tailor's player wardrobe uses the same order; this
-   repository's `src/OutfitPreview.cpp` (`DressPlayer`) is the seed.
+   player's own gear keeps them. Tailor's player wardrobe uses the same order. An
+   unworn instance that carries `ExtraCannotWear` cannot be equipped and is skipped.
 2. When the actor has none, add a plain copy (`AddObjectToContainer`), give it an
    `ExtraUniqueID` (`InventoryChanges::GetNextUniqueID`) and record the key in the
    co-save (§5). Copies are made only here, at assignment time; nothing else ever
@@ -34,8 +36,12 @@ An outfit is a list of armor base forms. Dressing an actor in it:
    skips that slot, so better armor the player gives later stays in the inventory.
    A piece already worn gets the flag added directly (`ExtraDataList::Add(new
    RE::ExtraCannotWear())` + `AddChange(kInventory)`), Tailor's way for wigs.
-4. Take off worn armor that is not part of the outfit and release its lock if this
-   mod set it.
+4. Take off worn armor that is not part of the outfit, except non-playable armor and
+   pieces another mod locked (a lock already on a worn piece is never claimed). An
+   earlier assignment of the same actor is released first.
+
+Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
+put on armor they own there (a helmet, a shield). Accepted for now.
 
 Never through `TESNPC::defaultOutfit` (DOFT): `Actor::SetDefaultOutfit` writes an NPC_
 change form into the save, a runtime 0xFF outfit does not survive a load,
@@ -46,25 +52,30 @@ says so), so a lock would be needed anyway.
 ### Keeping the outfit on
 
 - `ExtraCannotWear` is saved with the instance, so nothing is re-applied on load.
-- On `TESObjectLoadedEvent` for a managed actor: if a piece of the assigned outfit is
-  in the inventory but not worn (another mod took it off; taking off clears the lock),
-  equip it again with the lock. Pieces the actor no longer owns are left alone. No
-  copies are created here.
+- On `TESObjectLoadedEvent` for a managed NPC: if the instance chosen for a piece is
+  still in the inventory but not worn (another mod took it off; taking off clears the
+  lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
+  copies are created here. The sink only checks a mutex-guarded id list and queues an
+  SKSE task, since the event's thread is not documented.
 - A locked piece the player takes back in the trade menu stays taken: the slot is left
   to the vanilla picker until the player assigns again.
 - Unassign: release the mod's locks, remove the mod's copies still present (by co-save
   key; never a player-given instance), forget the actor. The NPC returns to vanilla
   behaviour at the engine's next re-evaluation, which can be a cell change or two
   later; this delay is accepted.
-- Death: release the mod's locks (`TESDeathEvent`), so the corpse behaves like vanilla.
-- "Release everything" command for uninstall: unassign every managed actor. Locks and
-  copies are otherwise the only residue after removal; they do not break a save.
+- Death: release the mod's locks (`TESDeathEvent`) and forget the actor, so the corpse
+  behaves like vanilla; the copies stay on it, lootable.
+- "Release everything" command for uninstall: unassign every managed actor. Actors not
+  in memory (non-persistent NPCs whose cell is not loaded) cannot be reached and keep
+  their locks and copies. Locks and copies are otherwise the only residue after removal;
+  they do not break a save.
 
 ### The player
 
-Same dressing path, two differences: no lock (a locked piece cannot be taken off in the
-inventory menu, verified), and adding pieces the player lacks is OFF by default,
-switchable in the settings with a warning that it creates items.
+Same dressing path, three differences: no lock (a locked piece cannot be taken off in
+the inventory menu, verified); adding pieces the player lacks is OFF by default,
+switchable in the settings (`[Player] AddMissingPieces`) with a warning that it creates
+items; nothing is put back on the player when they load.
 
 ### Contracts
 
@@ -88,19 +99,25 @@ but any `SetOutfit` then deletes them, and a non-outfit id has no precedent).
 
 ## 4. Data
 
-- Outfit library: own JSON under `Data/SKSE/Plugins/<name>/`, shared by every save.
+- Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
 - Settings: INI, as today.
 
 ## 5. Co-save
 
-One record, versioned, loaded at kPostLoadGame, cleared on revert:
+Co-save id `LVRY`, one record `ASGN` (version 1), read in the SKSE load callback,
+cleared on revert:
 
-- Assignments: actor FormID (fixed with `ResolveFormID`) → outfit id, lock on/off.
-- Copy keys: per actor, `(armor FormID, ExtraUniqueID baseID, uniqueID)` for every copy
-  the mod added. Keys whose instance no longer exists are dropped at load.
-- Player: assigned outfit and copy keys.
+- Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
+  pieces Livery put on them, each as its instance key `(armor FormID, ExtraUniqueID
+  baseID, uniqueID)` and two flags: Livery added the copy, Livery set its lock. NPCs
+  are locked, the player never, so no per-actor lock flag is stored.
+- Stage 2 adds the assigned outfit's id. Until then, and for the pieces themselves, an
+  edit of the library reaches an actor only when the player assigns again.
+- A piece whose plugin is gone is dropped at load, and an assignment left without
+  pieces. A key whose instance is gone is skipped whenever the actor is dressed or
+  released.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
 can come later if sharing across characters is wanted.
@@ -128,7 +145,9 @@ Each stage ends with an in-game check before the next starts.
 
 1. Rename the project (CMake, DLL, INI, log, deploy folder; the directory name stays
    until the memory is moved), settings, co-save, dressing core: assign, unassign,
-   load-time re-equip, death release, release everything. Hotkeys only.
+   load-time re-equip, death release, release everything. Hotkeys only: Shift+F10
+   copies what the target wears, F10 assigns the copy, Alt+F10 unassigns, Ctrl+F10
+   releases everyone; the target is the crosshair NPC, else the player.
 2. Library: capture the worn pieces into an outfit, JSON storage, the ImGui window,
    outfit list and preview from today's code. Remove the Tailor API and rewrite
    CLAUDE.md §2.1 for the mod's own data.

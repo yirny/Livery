@@ -32,6 +32,9 @@ namespace Settings
 	// Multiplier on the preview camera's movement, mouse drags and wheel zoom; 1 is normal. Safe from any thread.
 	float CameraSpeedScale();
 
+	// Whether dressing the player adds the pieces they do not carry, which creates items. Safe from any thread.
+	bool PlayerAddsMissingPieces();
+
 	// Whether a keyboard key going down (DirectInput scan code) is the capture hotkey:
 	// the configured key, with its modifier held when one is configured.
 	// Contract: call from the input path while handling that key's event, since the

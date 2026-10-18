@@ -34,6 +34,8 @@ namespace
 	constexpr auto kHotkeyModifierKey = L"Modifier";
 	constexpr auto kCameraSection = L"Camera";
 	constexpr auto kSpeedPercentKey = L"SpeedPercent";
+	constexpr auto kPlayerSection = L"Player";
+	constexpr auto kAddMissingKey = L"AddMissingPieces";
 
 	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
 	constexpr float kMinSpeedPercent = 10.0f;
@@ -54,7 +56,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 7> kIniKeys{ {
+	constexpr std::array<IniKey, 8> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -79,6 +81,10 @@ namespace
 		{ kCameraSection, kSpeedPercentKey, L"100",
 			L"Speed of the preview camera: W / A / S / D movement, mouse drags and wheel zoom, as a percentage (10 to 200, 100 = normal).\n"
 			L"Shift halves the movement while held. Easiest to change in game through SKSE Menu Framework." },
+		{ kPlayerSection, kAddMissingKey, L"0",
+			L"1 = an outfit you give yourself adds the pieces you do not carry. Warning: this creates new items in your inventory.\n"
+			L"0 = those pieces are left out, and the message on screen names them.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
 	} };
 
 	// A modifier is named by its left-hand code in the INI and the picker; either side counts.
@@ -115,6 +121,7 @@ namespace
 	std::atomic<std::uint32_t> g_modifier{ kNoModifier };  // left-hand code of a kModifiers entry, or kNoModifier
 	std::atomic<bool>          g_pickingHotkey{ false };   // the settings page waits for the next key
 	std::atomic<float>         g_speedPercent{ kDefaultSpeedPercent };
+	std::atomic<bool>          g_playerAddsMissing{ false };
 	std::filesystem::path      g_iniPath;  // set once by Load, read-only afterwards
 
 	const SkinOption& OptionOf(Theme::Skin a_skin)
@@ -243,6 +250,13 @@ namespace
 	void SaveMenuSounds(bool value)
 	{
 		if (!::WritePrivateProfileStringW(kUiSection, kMenuSoundsKey, value ? L"1" : L"0", g_iniPath.c_str())) {
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
+		}
+	}
+
+	void SavePlayerAddsMissing(bool value)
+	{
+		if (!::WritePrivateProfileStringW(kPlayerSection, kAddMissingKey, value ? L"1" : L"0", g_iniPath.c_str())) {
 			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
@@ -387,6 +401,17 @@ namespace
 			SaveSpeedPercent(g_speedPercent.load());
 			logger::info("SpeedPercent = {:.0f} (SKSE Menu Framework)", g_speedPercent.load());
 		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		// Takes effect the next time you dress yourself.
+		bool addMissing = g_playerAddsMissing.load();
+		if (ImGuiMCP::Checkbox("Dressing yourself adds the pieces you do not carry (creates new items)", &addMissing)) {
+			g_playerAddsMissing = addMissing;
+			SavePlayerAddsMissing(addMissing);
+			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", addMissing);
+		}
 	}
 }
 
@@ -456,6 +481,12 @@ namespace Settings
 			g_speedPercent = std::clamp(read, kMinSpeedPercent, kMaxSpeedPercent);
 		}
 		logger::info("SpeedPercent = {:.0f}", g_speedPercent.load());
+
+		// A missing key keeps the default (off).
+		::GetPrivateProfileStringW(kPlayerSection, kAddMissingKey, L"0", value, static_cast<DWORD>(std::size(value)),
+			g_iniPath.c_str());
+		g_playerAddsMissing = std::wstring_view{ value } == L"1";
+		logger::info("AddMissingPieces = {}", g_playerAddsMissing.load());
 	}
 
 	void RegisterMenu()
@@ -508,5 +539,10 @@ namespace Settings
 	float CameraSpeedScale()
 	{
 		return g_speedPercent.load() / 100.0f;
+	}
+
+	bool PlayerAddsMissingPieces()
+	{
+		return g_playerAddsMissing.load();
 	}
 }

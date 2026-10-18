@@ -87,7 +87,9 @@ else()
         AUTHOR
         "LocalDeveloper"
         SOURCES
+        src/Assignments.cpp
         src/CaptureWindow.cpp
+        src/Dressing.cpp
         src/Hooks.cpp
         src/MovementHold.cpp
         src/OutfitBrowser.cpp

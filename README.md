@@ -4,6 +4,9 @@ An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the a
 [Tailor](https://github.com/heathbrownkeyworks/Tailor) outfit, or puts it on an outfit Tailor already has. Aim at the
 NPC (or at nothing, for yourself), press the hotkey, name the outfit in a small window, done.
 
+Livery is growing into an outfit manager of its own that needs no Tailor ([design](docs/design.md)). Its first part is in:
+[outfit assignments](#outfit-assignments) dress a character in the pieces copied from another and keep an NPC in them.
+
 Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMake](https://cmake.org) and [vcpkg](https://vcpkg.io).
 
 ---
@@ -88,18 +91,38 @@ Gender is suggested the same way: **Female** when the deciding piece has only a 
 
 Every armor piece from a plugin that the character wears or carries. Non-playable armor, such as the physics objects of body mods, is left out. Player-enchanted gear is saved as the plugin armor it was made from (Tailor refuses armor the game created at runtime); other runtime-created armor is left out. Pieces from plugins that are not loaded never show up.
 
+### Outfit assignments
+
+Livery can also dress a character by itself, without Tailor and without changing their outfit record. Until its outfit window exists, F10 drives it. Like the capture hotkey, it acts on the NPC under the crosshair, or on you when there is none.
+
+| Keys      | Action                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------- |
+| Shift+F10 | Copies the armor the character wears.                                                    |
+| F10       | Dresses the character in the copied pieces, replacing an outfit Livery gave them before. |
+| Alt+F10   | Releases the character.                                                                  |
+| Ctrl+F10  | Releases everyone Livery dresses. Do this before you uninstall Livery.                   |
+
+For each piece, Livery uses a copy the character already carries: the one they wear, else an enchanted one, else the most tempered one, else a plain one, so enchantments and tempering carry over. An NPC who carries none gets a new plain copy. You get one only when `AddMissingPieces` is on, because that creates items; otherwise the message names the pieces you do not carry. Worn armor outside the outfit comes off, except non-playable armor and pieces another mod locked.
+
+An NPC keeps the pieces on: each is locked as with the game's PreventRemoval, so the NPC no longer swaps it for better armor you give them. The lock is saved with the item. When another mod takes a piece off, Livery puts it back on the next time the NPC's 3D loads, as long as they still carry it. A piece you take back in the trade menu stays with you. Your own pieces are never locked, since a locked piece cannot be taken off in the inventory.
+
+Releasing an NPC removes the locks and takes back the copies Livery added; pieces that were theirs, or that you gave them, stay. The NPC returns to their own outfit when the game next re-evaluates it, which can take a cell change or two. When an NPC dies, Livery removes the locks and forgets them; the copies stay on the corpse.
+
+Assignments live in the SKSE co-save, so each save has its own. Livery adds no ESP, so uninstalling it cannot break a save: the locks and copies left on characters are ordinary item data. Releasing everyone first removes those too, except on NPCs out of reach (not persistent, and in a cell that is not loaded).
+
 ### Settings
 
 Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with defaults on first start (keys a newer version adds are appended, so an update never resets your settings). They are read once when the game starts. With SKSE Menu Framework installed, the same settings are on its **Livery** page and take effect at once.
 
-| Section   | Key                            | Default  | Meaning                                                                                              |
-| --------- | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
-| `General` | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                             |
-| `General` | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.   |
-| `UI`      | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla` or `Nordic`.                                         |
+| Section   | Key                            | Default  | Meaning                                                                                               |
+| --------- | ------------------------------ | -------- | ----------------------------------------------------------------------------------------------------- |
+| `General` | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                              |
+| `General` | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.    |
+| `UI`      | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla` or `Nordic`.                                          |
 | `Hotkey`  | `Key`                          | `66`     | Capture key as a DirectInput scan code (`66` = F8). In game, click the hotkey button and press a key. |
-| `Hotkey`  | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).          |
-| `Camera`  | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).            |
+| `Hotkey`  | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).           |
+| `Camera`  | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).             |
+| `Player`  | `AddMissingPieces`             | `0`      | `1` lets an outfit you give yourself add the pieces you do not carry, which creates items.            |
 
 Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships; **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\Livery\` with their licences.
 
@@ -112,6 +135,9 @@ Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships
 - While Live Preview is on, Tailor can still redress a character it manages when a fight starts or a cell loads. Closing the window puts back what they wore when it opened.
 - Earlier versions kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - An NPC's own armor that the plugin gives back comes back plain: tempering and a custom name are lost, because the plugin cannot create that item data.
+- Pieces copied with Shift+F10 are kept only until the game closes.
+- Slots an assigned outfit leaves empty stay the game's: an NPC can put on a helmet or shield they own there.
+- The copies Livery adds to an NPC show in the trade menu, where you can take them for free.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\Livery.log` (`Skyrim Special Edition GOG` for the GOG version).
 

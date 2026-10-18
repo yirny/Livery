@@ -15,11 +15,12 @@
 //                    armor, detect the armor class, list the library's outfits (adding their pieces the actor
 //                    does not carry), then open the window with the worn pieces ticked (or save those under
 //                    an automatic name where the overlay is unavailable)
-//   Event sinks    - crosshair target, hotkey
+//   Event sinks    - crosshair target, keys: the capture hotkey here, Livery's assignment key in Assignments
 //   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
-//   Entry          - log, settings, trampoline, hooks
+//   Entry          - log, settings, co-save, trampoline, hooks
 #include "PCH.h"
 
+#include "Assignments.h"
 #include "CaptureWindow.h"
 #include "Hooks.h"
 #include "MovementHold.h"
@@ -1069,9 +1070,15 @@ namespace
 
 			for (auto* event = *events; event; event = event->next) {
 				auto* button = event->AsButtonEvent();
-				if (button && button->GetDevice() == RE::INPUT_DEVICE::kKeyboard && button->IsDown() && Settings::IsHotkey(button->GetIDCode())) {
+				if (!button || button->GetDevice() != RE::INPUT_DEVICE::kKeyboard || !button->IsDown()) {
+					continue;
+				}
+				if (Settings::IsHotkey(button->GetIDCode())) {
 					const auto handle = g_target;
 					SKSE::GetTaskInterface()->AddTask([handle] { Capture(handle); });
+					break;
+				}
+				if (Assignments::HandleKey(button->GetIDCode(), g_target)) {
 					break;
 				}
 			}
@@ -1102,6 +1109,7 @@ namespace
 
 		case SKSE::MessagingInterface::kDataLoaded:
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
+			Assignments::RegisterSinks();
 			Hooks::RegisterMenu();
 			break;
 
@@ -1154,6 +1162,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 	SetupLog();
 	logger::info("Livery loaded");
 	Settings::Load();
+	Assignments::RegisterCoSave();
 	Hooks::Install();
 	return SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
 }
