@@ -32,8 +32,9 @@ namespace OutfitPreview
 	// pages). Does nothing without Begin.
 	void Show(const std::vector<RE::TESObjectARMO*>& pieces);
 
-	// Puts back what Begin found, dressing the character again: the window
-	// closes or Live Preview goes off. Does nothing without Begin.
+	// Puts back what Begin found, dressing the character again in the very copies
+	// they wore, so an NPC's pieces rolled from leveled lists stay as rolled: the
+	// window closes or Live Preview goes off. Does nothing without Begin.
 	void End();
 
 	// Puts the base record's pointers back without dressing anyone: the world
