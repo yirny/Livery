@@ -6,7 +6,8 @@ is Livery - Immersive Outfit Management (`livery.dll`, `Livery.ini`, `Livery.log
 `Data/SKSE/Plugins/Livery/`). This repository evolved from a Tailor add-on and keeps
 its ImGui window, input hook, theme, preview camera and inventory code; the Tailor API
 dependency went away in stage 2. The dressing core is `src/Dressing.cpp`, the
-assignments and co-save `src/Assignments.cpp`, the library `src/Library.cpp`.
+assignments and co-save `src/Assignments.cpp`, the library `src/Library.cpp`, the trade-menu
+filter `src/TradeFilter.cpp`.
 
 ## 1. Goals, in priority order
 
@@ -94,17 +95,32 @@ outfit copy (§6).
 
 ## 3. Hiding the mod's copies in the trade menu (stage 3)
 
-Copies the mod adds are ordinary items, so the trade menu shows them and the player
-could take them for free. Hiding uses the inventory-filter hook SPID uses for its
-distributed outfits (`SPID/src/Outfits/OutfitManager+Hooks.cpp`, runtime 1.6.1130+:
-`REL::ID(51145)+0xEB`, `REL::ID(51146)+0x15B`, `REL::ID(51144)+0x10F`; verify against
-the current Address Library before writing). Inside the call, remove the entries whose
-instance matches a co-save key. Only the mod's copies are hidden: player-given instances
-stay visible and takeable even while they are part of the outfit (taking back one's own
-item is not a dupe). Corpses are not filtered, as with vanilla outfit items.
+Copies the mod adds are ordinary items, so the trade, container and gift menus would list
+them and the player could take them for free. The engine hides an NPC's own outfit items in
+those menus by one rule, applied inside the functions that fill a menu's item list from an
+inventory: an entry whose `ExtraOutfitItem` names the actor base's current `defaultOutfit` is
+skipped. `src/TradeFilter.cpp` hooks the calls to those functions, the ones SPID hooks for
+its distributed outfits (`SPID/src/Outfits/OutfitManager+Hooks.cpp`, `FilterInventoryItems*`;
+SPID swaps `defaultOutfit` around the call). Around the original call, the copies Livery added
+to an assigned NPC (the co-save's `added` keys) carry a temporary `ExtraOutfitItem` with the
+NPC's `defaultOutfit` (`Dressing::MarkAsOutfitItems`); it is taken off again before the call
+returns, so no `SetOutfit` can ever see it and nothing is flagged as changed. Only the mod's
+copies are hidden: player-given instances stay visible and takeable even while they are part
+of the outfit (taking back one's own item is not a dupe). Not filtered: the player's own list
+(a copy added to the player is the player's item), an NPC without a default outfit, and
+corpses (Livery forgets an actor at death, and vanilla shows a corpse's outfit items too).
 
-Rejected: tagging copies with `ExtraOutfitItem` (id = the NPC's DOFT hides them in vanilla,
-but any `SetOutfit` then deletes them, and a non-outfit id has no precedent).
+Call sites, Address Library IDs (they exist in the 1.6.1170 and 1.6.1179 databases): AE
+1.6.1130+ `51145+0xEB`, `51146+0x15B`, `51144+0x10F` (an AE function inlines the caller of
+the first); SE 1.5.97 `50216+0xED`, `50217+0x152`. The Steam executable is DRM-wrapped, so the
+bytes are checked at install instead: a site must match SPID's signature, the `call` and the
+instructions after it (`E8 ?? ?? ?? ?? 90 48 85 DB` for the list fill), or it is left alone
+with a warning in the log. Skyrim VR and AE before 1.6.1130 are not covered.
+
+Rejected: a permanent `ExtraOutfitItem` on the copies (id = the NPC's DOFT hides them in
+vanilla, but any `SetOutfit` then deletes them, and a non-outfit id has no precedent);
+removing the entries from the filled `ItemList` (its GFx array and its engine-heap `Item`s
+would have to be kept in step).
 
 ## 4. Data
 
@@ -168,6 +184,6 @@ Each stage ends with an in-game check before the next starts.
    the inventory; the window's Assign and Release replace the stage-1 keys, and the
    capture hotkey defaults to F10. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
    the mod's own data. Done.
-3. The trade-menu filter hook (§3).
+3. The trade-menu filter hook (§3). Done.
 4. Later, as needed: situation switching (town, home, sleep...), assignment export/import,
    an export to Tailor's import JSON.
