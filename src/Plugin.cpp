@@ -12,8 +12,9 @@
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
 //                    armor, detect the armor class, list the library's outfits (adding their pieces the actor
 //                    does not carry), then open the window with the worn pieces ticked (or save those under
-//                    an automatic name where the overlay is unavailable)
-//   Event sinks    - crosshair target, keys: Livery's assignment keys (Assignments) first, then the capture hotkey
+//                    an automatic name where the overlay is unavailable); the window's Assign and Release
+//                    go to Assignments
+//   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
 //   Messaging      - outfit library, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, co-save, trampoline, hooks
 #include "PCH.h"
@@ -434,6 +435,33 @@ namespace
 		return outfits;
 	}
 
+	// The window's Assign and Release, and the line under the actor's name: the outfit
+	// Livery dresses them in. Both buttons close the window first, so the preview has put
+	// back what they wore before Livery dresses or releases them.
+	// Contract: game thread; `armors` matches request.pieces index for index.
+	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
+	{
+		const auto handle = actor.GetHandle();
+		request.onAssign = [handle, armors](const std::vector<std::size_t>& pieces, std::uint32_t outfit) {
+			CaptureWindow::Close();
+			if (const auto target = handle.get()) {
+				Assignments::Assign(*target, PickPieces(armors, pieces), outfit);
+			}
+		};
+		const auto outfit = Assignments::OutfitOf(actor.GetFormID());
+		if (!outfit) {
+			return;  // Release stays greyed
+		}
+		const auto* stored = *outfit ? Library::Find(*outfit) : nullptr;
+		request.actorSummary = stored ? std::format("Dressed by Livery in \"{}\".", stored->name) : "Dressed by Livery.";
+		request.onRelease = [handle] {
+			CaptureWindow::Close();
+			if (const auto target = handle.get()) {
+				Assignments::Unassign(*target);
+			}
+		};
+	}
+
 	// Contract: game thread (library reads that hand out armor forms run here, so
 	// the window itself never calls the library).
 	// Every inventory piece is listed; worn ones start ticked and decide the
@@ -458,6 +486,7 @@ namespace
 			armors.push_back(armor);
 		}
 		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
+		AttachAssignment(request, actor, armors);
 		AttachPreview(request, actor, armors);
 		// Every close, whatever closed the window, ends the preview, lets saving back on
 		// and lets an NPC walk again.
@@ -583,7 +612,7 @@ namespace
 					continue;
 				}
 				// Livery's keys first: F8 releases everyone even while it is the capture hotkey too.
-				if (Assignments::HandleKey(button->GetIDCode(), g_target)) {
+				if (Assignments::HandleKey(button->GetIDCode())) {
 					break;
 				}
 				if (Settings::IsHotkey(button->GetIDCode())) {

@@ -36,6 +36,7 @@ namespace Dressing
 	struct Result
 	{
 		std::vector<Piece>              worn;
+		std::vector<InstanceKey>        takenOff;    // their own copies worn before and off now; PutBack puts them on again
 		std::vector<RE::TESObjectARMO*> notCarried;  // left out: the actor had none and adding was off
 		std::vector<RE::TESObjectARMO*> refused;     // the engine would not put it on (race, a slot another mod locked)
 	};
@@ -44,6 +45,8 @@ namespace Dressing
 	// else the most tempered, else plain), else a new plain copy when `addMissing`.
 	// With `lock`, every piece gets PreventRemoval. Once a piece is on, worn armor outside
 	// the outfit comes off, except non-playable armor and pieces another mod locked.
+	// Every copy worn before is tagged first, so those that are off at the end, taken off
+	// here or by the engine for a slot a piece filled, are listed in `takenOff`.
 	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing);
 
 	// Puts on again, with PreventRemoval, the pieces they still carry but no longer wear
@@ -55,6 +58,11 @@ namespace Dressing
 	// Takes off the locks this module set; with `removeCopies`, also takes back the
 	// copies it added. Instances that were the actor's own stay with them.
 	void Release(RE::Actor& actor, const std::vector<Piece>& pieces, bool removeCopies);
+
+	// Puts on again, without a lock, the copies of `keys` they still carry: their own pieces
+	// Dress took off. A copy gone, already worn or locked is left alone. Returns how many
+	// went on.
+	std::size_t PutBack(RE::Actor& actor, const std::vector<InstanceKey>& keys);
 
 	// The playable armor they wear, each form once.
 	std::vector<RE::TESObjectARMO*> WornArmor(RE::Actor& actor);

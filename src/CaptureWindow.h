@@ -18,6 +18,7 @@ namespace RE
 // the game thread from the input dispatch hook. All state is guarded by one
 // mutex. Nothing here touches the outfit library: Create New hands the typed name to
 // Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
+// Assign and Release to Request::onAssign and Request::onRelease,
 // each piece tick to Request::onPieceToggled, each outfit selected on the
 // Load and Update Existing pages to Request::onPreviewPieces and the Live
 // Preview tick to Request::onPreviewOn / onPreviewOff, in an SKSE task.
@@ -96,6 +97,17 @@ namespace CaptureWindow
 		// Update page (in the order of `categories`, maybe empty). It must end by
 		// calling Close() or SetError().
 		std::function<void(std::uint32_t id, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories)> onUpdate;
+
+		// Runs on the game thread when the user presses Assign, with the ticked indices
+		// into `pieces` (ascending, never empty) and the id of the outfit last loaded
+		// when the ticks are exactly its pieces, else 0. It must end by calling Close()
+		// or SetError().
+		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit)> onAssign;
+
+		// Runs on the game thread when the user presses Release. Empty when Livery does
+		// not dress the character, which greys the button. It must end by calling
+		// Close() or SetError().
+		std::function<void()> onRelease;
 
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns
