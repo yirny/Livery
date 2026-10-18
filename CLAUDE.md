@@ -1,6 +1,6 @@
 # Livery — Claude Code Rules
 
-SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v9.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Talks to Tailor through its mod API 1.0 (`src/TailorAPI.h`, Tailor 3.0+). Feature: F8 on a crosshair NPC opens an ImGui window (name + built-in categories) and saves the armor they wear as a new Tailor outfit.
+SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v9.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Talks to Tailor through its mod API 1.0 (`src/TailorAPI.h`, Tailor 3.0+). Feature: F8 on a crosshair NPC opens an ImGui window (name + built-in categories) and saves the armor they wear as a new Tailor outfit. Livery's own outfit manager (`docs/design.md`, stage 1 in): F10 keys assign outfits by direct equip + PreventRemoval, kept in the SKSE co-save (`src/Assignments.cpp`, `src/Dressing.cpp`).
 
 Build (Windows): run inside the VS developer environment (`.vscode/tasks.json` does this; default build task = `Ctrl+Shift+B`):
 `cmake --preset release-windows` then `cmake --build --preset release-windows` → `build/msvc/livery.dll`.
