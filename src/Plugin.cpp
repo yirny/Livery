@@ -858,8 +858,8 @@ namespace
 		return skipped == 0 && substituted == 0 && worn == pieces;
 	}
 
-	// The line under the actor's name: where Tailor judges them to be and what it
-	// put on them. A fight counts as Adventuring: Tailor dresses people with an
+	// The line under the actor's name: where Tailor judges them to be and, for an
+	// NPC, what it put on them. A fight counts as Adventuring: Tailor dresses people with an
 	// Adventuring outfit for it, while GetSituation keeps naming the place.
 	// Contract: game thread (GetOutfit and GetSituation take an actor). Tailor's
 	// strings are valid only during the callback, so CopyTailorString copies them.
@@ -879,14 +879,24 @@ namespace
 			{ "warm", "Keeping Warm" },
 		} };
 
-		std::string outfit;
-		g_tailor->GetOutfit(&actor, CopyTailorString, &outfit);
 		std::string situation = "adventuring";
 		if (!actor.IsInCombat()) {
 			situation.clear();
 			g_tailor->GetSituation(&actor, CopyTailorString, &situation);
 		}
 
+		// The player sees what they wear: the line keeps only the situation.
+		if (actor.IsPlayerRef()) {
+			for (const auto& [name, phrase] : kSituationPhrases) {
+				if (situation == name) {
+					return std::format("{}.", phrase);
+				}
+			}
+			return {};
+		}
+
+		std::string outfit;
+		g_tailor->GetOutfit(&actor, CopyTailorString, &outfit);
 		std::string wearing = "wearing an unmanaged outfit";
 		if (!outfit.empty()) {
 			wearing = std::format("wearing \"{}\"", outfit);
