@@ -263,7 +263,8 @@ namespace Dressing
 		if (!equipManager) {
 			return result;
 		}
-		actor.InitInventoryIfRequired();
+		// Contract: no InitInventoryIfRequired here. On an NPC who wears outfit items it took
+		// ExtraWorn off every outfit copy (seen in game), and PickInstance and TakeOffOthers read it.
 		for (auto* armor : outfit) {
 			const auto wornAlready = [armor](const Piece& piece) { return piece.key.armor == armor->GetFormID(); };
 			if (!armor || std::ranges::any_of(result.worn, wornAlready)) {
