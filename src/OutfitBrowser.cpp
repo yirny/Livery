@@ -12,7 +12,7 @@
 
 namespace
 {
-	// Contract: the groups Plugin.cpp gives Tailor's armor-type and situation
+	// Contract: the groups Library gives its armor-type and situation
 	// categories (CaptureWindow::kArmorTypeGroup and its "Situation").
 	constexpr std::string_view kArmorTypeGroup = CaptureWindow::kArmorTypeGroup;
 	constexpr std::string_view kSituationGroup = "Situation";
@@ -50,7 +50,7 @@ namespace
 		return key;
 	}
 
-	// In Tailor's category order (Request::categories), so Clothing before Light
+	// In the library's category order (Request::categories), so Clothing before Light
 	// Armor, and Adventuring + Town before Adventuring + Swimming; an outfit in
 	// none of the group's categories goes last.
 	std::weak_ordering CompareGroupKeys(const std::vector<int>& a_left, const std::vector<int>& a_right)

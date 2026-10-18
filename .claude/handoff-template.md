@@ -47,7 +47,7 @@ Depth, sections, budget, and project checks are defined **only here**; `CLAUDE.m
 
 ### Constraints / Things Not to Touch
 
-- (e.g. TailorAPI.h untouched, no hooks added, Tailor data only added to)
+- (e.g. no hooks added, outfits.json only added to)
 
 ### Related Files
 
