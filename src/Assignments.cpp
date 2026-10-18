@@ -6,9 +6,10 @@
 //   Commands    - copy what someone wears, assign, unassign, release everyone (HUD messages)
 //   Keys        - the modifier held with F10 picks the command, Run picks the target
 //   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies
+//   Preview     - Livery's locks off one NPC while the preview dresses them, back on after
 //   Co-save     - save, load, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
-//   API         - RegisterCoSave / RegisterSinks / HandleKey
+//   API         - RegisterCoSave / RegisterSinks / HandleKey / SuspendLocks / ResumeLocks
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -60,6 +61,9 @@ namespace
 	// this, under its lock, and queue the work as SKSE tasks.
 	std::mutex              g_managedLock;
 	std::vector<RE::FormID> g_managed;
+
+	// Contract: game thread only. The NPC whose locks are off for the preview, or 0.
+	RE::FormID g_suspended = 0;
 
 	Assignment* FindAssignment(RE::FormID a_actor)
 	{
@@ -270,13 +274,16 @@ namespace
 
 	void PutPiecesBackOn(RE::FormID a_actor)
 	{
+		if (a_actor == g_suspended) {
+			return;  // the preview has them off on purpose
+		}
 		auto* assignment = FindAssignment(a_actor);
 		auto* actor = assignment ? RE::TESForm::LookupByID<RE::Actor>(a_actor) : nullptr;
 		if (!actor) {
 			return;
 		}
 		if (const auto count = Dressing::PutBackOn(*actor, assignment->pieces); count > 0) {
-			logger::info("Put {} piece(s) back on {:08X}", count, a_actor);
+			logger::info("Put {} piece(s) back on or locked again on {:08X}", count, a_actor);
 		}
 	}
 
@@ -406,6 +413,7 @@ namespace
 	void OnRevert(SKSE::SerializationInterface*)
 	{
 		g_assignments.clear();
+		g_suspended = 0;
 		SyncManaged();
 	}
 
@@ -491,5 +499,29 @@ namespace Assignments
 		}
 		SKSE::GetTaskInterface()->AddTask([a_target, command] { Run(command, a_target); });
 		return true;
+	}
+
+	// Release without removing copies takes exactly Livery's locks off (another mod's stay);
+	// the pieces then read as unlocked, which PutBackOn sets right again at ResumeLocks.
+	void SuspendLocks(RE::Actor& a_actor)
+	{
+		const auto id = a_actor.GetFormID();
+		auto*      assignment = id == kPlayerRef ? nullptr : FindAssignment(id);
+		if (!assignment) {
+			return;
+		}
+		g_suspended = id;
+		Dressing::Release(a_actor, assignment->pieces, false);
+		for (auto& piece : assignment->pieces) {
+			piece.locked = false;
+		}
+	}
+
+	void ResumeLocks(RE::FormID a_actor)
+	{
+		if (std::exchange(g_suspended, 0) != a_actor) {
+			return;
+		}
+		PutPiecesBackOn(a_actor);
 	}
 }
