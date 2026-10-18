@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   State     - the previewed actor, the pieces shown, what Begin found, the locks the preview set
+//   State     - the previewed actor, the pieces shown, what Begin found, the copies the
+//               preview put on and the locks it set
 //   Inventory - armor copies with extra data, found again by ExtraUniqueID; the lock
 //   Dressing  - Equip / Unequip / TakeBack by key, the hands; Dress picks a copy per piece
-//               and puts it on after the rest came off; Restore puts back what Begin found
+//               and puts it on after the rest came off; Restore takes off what the preview
+//               put on and puts back what Begin found
 //   API       - Begin / SetPiece / Show / End / Abandon / IsActive
 //
 // The character is dressed through their inventory, never through their outfit record:
@@ -24,7 +26,9 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <format>
 #include <optional>
+#include <string>
 #include <utility>
 
 // wingdi.h rewrites any GetObject call to GetObjectA/W; BGSDefaultObjectManager::GetObject is not one.
@@ -54,6 +58,7 @@ namespace
 		std::array<RE::TESForm*, 2> hands{};          // what the left and right hands held, armor aside: a previewed shield takes them
 		std::vector<CopyKey>        added;            // copies the preview put in the inventory; End takes them back
 		std::vector<CopyKey>        locked;           // copies the preview locked (an NPC's); Unequip and End unlock them
+		std::vector<CopyKey>        putOn;            // copies the preview put on that were not worn as it began; End takes only these off
 	};
 
 	// Contract: game thread only. One preview at a time.
@@ -213,6 +218,15 @@ namespace
 		}
 	}
 
+	// Notes a copy the preview just put on, so End takes it off again. A copy worn as
+	// the preview began is not noted: End wants it on.
+	void NotePutOn(const CopyKey& key)
+	{
+		if (!Contains(g_snapshot.worn, key) && !Contains(g_snapshot.putOn, key)) {
+			g_snapshot.putOn.push_back(key);
+		}
+	}
+
 	// Puts the copy on, with the lock when `lock`: forceEquip is PreventRemoval, and
 	// a copy already worn gets the flag directly (as Dressing does). A lock already
 	// there is another mod's and is left as it is.
@@ -306,8 +320,10 @@ namespace
 	// out. Then each piece goes on through a copy already worn, else the one worn as
 	// the preview began, else a copy the preview added, else any copy they own, else
 	// a copy the preview adds now; a piece for a slot another mod locked is left out,
-	// unless it is the locked piece itself. Preview copies the look no longer uses go
-	// back. Tailor's DressItems.
+	// unless it is the locked piece itself. Each copy it puts on is noted (NotePutOn),
+	// and on an NPC its lock too. A copy worn before this call is not noted: it was worn
+	// as the preview began, put on by an earlier call, or put on by the engine. Preview
+	// copies the look no longer uses go back. Tailor's DressItems.
 	// Contract: game thread; their own copies are never removed.
 	void Dress(RE::Actor& actor)
 	{
@@ -346,25 +362,32 @@ namespace
 				continue;
 			}
 			if (pick) {
-				Equip(actor, *pick, lock);
-			} else if (CountOf(actor, *armor) > 0) {
+				const bool wasWorn = Contains(worn, *pick);
+				Equip(actor, *pick, lock);  // notes the lock itself, unless the copy was locked already (another mod's)
+				if (!wasWorn) {
+					NotePutOn(*pick);
+				}
+			} else {
+				const bool carried = CountOf(actor, *armor) > 0;
+				if (!carried) {
+					actor.AddObjectToContainer(armor, nullptr, 1, nullptr);
+				}
 				// Plain copies carry no extra data: the equip manager picks one.
 				equipManager->EquipObject(&actor, armor, nullptr, 1, nullptr, false, lock, false, true);
 				pick = TagWorn(actor, *armor);
-			} else {
-				actor.AddObjectToContainer(armor, nullptr, 1, nullptr);
-				equipManager->EquipObject(&actor, armor, nullptr, 1, nullptr, false, lock, false, true);
-				pick = TagWorn(actor, *armor);
 				if (pick) {
-					g_snapshot.added.push_back(*pick);
-				} else {
+					if (!carried) {
+						g_snapshot.added.push_back(*pick);
+					}
+					if (lock) {
+						NoteLock(actor, *pick);  // the engine put the flag on the copy it equipped with forceEquip
+					}
+					NotePutOn(*pick);
+				} else if (!carried) {
 					actor.RemoveItem(armor, 1, RE::ITEM_REMOVE_REASON::kRemove, nullptr, nullptr);  // refused (race, a locked slot): the copy goes straight back
 				}
 			}
 			if (pick) {
-				if (lock) {
-					NoteLock(actor, *pick);  // the engine put the flag on the copy it equipped with forceEquip
-				}
 				chosen.push_back(*pick);
 			} else {
 				logger::warn("Preview could not put armor {:08X} on {:08X}", form, actor.GetFormID());
@@ -381,22 +404,57 @@ namespace
 		g_snapshot.added = std::move(kept);
 	}
 
-	// Puts back exactly what they wore as the preview began. Their own copies were
-	// never removed and the same extra lists go on again, so tempering, enchantments
-	// and names keep. The preview's locks go last: a piece worn at both ends stays on
+	// Puts on a copy of this armor unless one is worn: an unworn copy they carry that
+	// is not locked, else a plain one. For a piece worn as the preview began whose copy
+	// is gone. Logs what it found.
+	void PutOnSameArmor(RE::Actor& actor, RE::FormID form)
+	{
+		auto* armor = RE::TESForm::LookupByID<RE::TESObjectARMO>(form);
+		auto* equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!armor || !equipManager) {
+			return;
+		}
+		RE::ExtraDataList* spare = nullptr;
+		std::int32_t       listed = 0;  // copies on extra lists
+		for (const auto& copy : Copies(actor, armor)) {
+			if (copy.extra->GetWorn()) {
+				logger::info("Preview: the copy of {:08X} worn at the start is gone; another copy is worn", form);
+				return;
+			}
+			listed += copy.extra->GetCount();
+			if (!spare && !IsLocked(*copy.extra)) {
+				spare = copy.extra;
+			}
+		}
+		if (!spare && CountOf(actor, *armor) <= listed) {
+			logger::info("Preview: the copy of {:08X} worn at the start is gone, and no other copy can go on", form);
+			return;
+		}
+		equipManager->EquipObject(&actor, armor, spare, 1, nullptr, false, false, false, true);
+		logger::info("Preview: the copy of {:08X} worn at the start is gone; put on another copy", form);
+	}
+
+	// Puts back what they wore as the preview began and takes off only what the
+	// preview put on: when the engine remade an NPC's outfit copies meanwhile, the
+	// copies they wear now are their own outfit, unknown to the preview, and stay on.
+	// A piece worn at the start goes on again as the same copy, so tempering,
+	// enchantments and names keep; when that copy is gone, as another copy of the same
+	// armor. The preview's locks go last: a piece worn at both ends stays on
 	// throughout. Livery's own locks on an assigned NPC are Assignments' to put back.
 	void Restore(RE::Actor& actor)
 	{
-		for (const auto& key : WornGear(actor)) {
-			if (!Contains(g_snapshot.worn, key)) {
-				Unequip(actor, key);
-			}
+		for (const auto& key : g_snapshot.putOn) {
+			Unequip(actor, key);  // nothing for a copy already off or gone
 		}
 		for (const auto& key : g_snapshot.added) {
 			TakeBack(actor, key);
 		}
 		for (const auto& key : g_snapshot.worn) {
-			Equip(actor, key, false);  // nothing for a copy that is gone
+			if (Find(actor, key).extra) {
+				Equip(actor, key, false);
+			} else {
+				PutOnSameArmor(actor, key.form);
+			}
 		}
 		UnlockAll(actor);
 		ReturnHand(actor, true, g_snapshot.hands[0]);
@@ -437,6 +495,15 @@ namespace
 		}));
 	}
 
+	// How many pieces worn as the preview began have a copy of the same armor worn now, for the log.
+	std::size_t WornAgainCount(RE::Actor& actor)
+	{
+		const auto copies = Copies(actor);
+		return static_cast<std::size_t>(std::ranges::count_if(g_snapshot.worn, [&copies](const CopyKey& key) {
+			return std::ranges::any_of(copies, [&key](const Copy& copy) { return copy.armor->GetFormID() == key.form && copy.extra->GetWorn(); });
+		}));
+	}
+
 	void ClearState()
 	{
 		g_actorID = 0;
@@ -452,7 +519,9 @@ namespace OutfitPreview
 		End();  // a preview still on goes back first
 		g_isPlayer = actor.IsPlayerRef();
 		g_actorID = actor.GetFormID();
-		actor.InitInventoryIfRequired();
+		// Contract: no InitInventoryIfRequired before the snapshot. On an NPC who wears outfit
+		// items it took ExtraWorn off every outfit copy (seen in game), so nothing read as worn.
+
 		// An assigned NPC wears Livery's pieces locked: the locks go off so the preview
 		// can take the pieces off, and back on at End.
 		Assignments::SuspendLocks(actor);
@@ -505,13 +574,14 @@ namespace OutfitPreview
 			if (g_isPlayer) {
 				RefreshModel(*actor);
 			}
+			logger::info("Preview off: {} of {} piece(s) worn at the start are on {:08X} again", WornAgainCount(*actor), g_snapshot.worn.size(),
+				actor->GetFormID());
 		} else {
 			logger::warn("Preview off: the character is gone, so what they wore is not put back");
 		}
 		// The assignment's locks go back on, the actor gone or not: the record stays, and
 		// nothing is put back on them while the locks are off.
 		Assignments::ResumeLocks(g_actorID);
-		logger::info("Preview off");
 		ClearState();
 	}
 
