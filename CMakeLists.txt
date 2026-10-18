@@ -91,6 +91,7 @@ else()
         src/Hooks.cpp
         src/MovementHold.cpp
         src/OutfitBrowser.cpp
+        src/OutfitPreview.cpp
         src/Plugin.cpp
         src/PreviewCamera.cpp
         src/Settings.cpp
