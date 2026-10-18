@@ -57,11 +57,11 @@ On both outfit pages, the piece count includes pieces from plugins that are not 
 
 The search field (magnifying glass) and the filter dropdown (funnel) above the list narrow it, and the **Sort by** dropdown at the list's top right orders it. The search keeps the outfits whose name contains the typed text, ignoring case. The filter keeps those in the ticked categories: any ticked one within a group, and every group with a tick; a `No ...` row (for example `No Situation`) keeps the outfits in none of that group's categories. **Sort by** orders the list by Name, by Armor Type (then situation, then name) or by Situation (then armor type, then name), following Tailor's category order with outfits in none of them last. A field that narrows the list is underlined in the accent colour, and its cross clears it; Esc clears the search before it goes back. A selected outfit stays selected, and named on the right, while the list hides it.
 
-The result is shown as a HUD message. Apart from the preview's working outfit (see [Live Preview](#live-preview)), the plugin creates nothing until you confirm, and it never deletes or renames anything: Tailor's mod API 1.0 cannot delete an outfit or take one out of a category, so the window warns before every step that cannot be undone.
+The result is shown as a HUD message. The plugin creates nothing until you confirm, and it never deletes or renames anything: Tailor's mod API 1.0 cannot delete an outfit or take one out of a category, so the window warns before every step that cannot be undone.
 
 ### Live Preview
 
-While **Live Preview** is ticked, the game keeps running and the character wears the ticked pieces, or the outfit selected on the Load Outfit or Update Existing page, as a Tailor outfit override, seen through a free camera. With it off the game is paused and the view stays as it was. The window opens with the preview on or off as `LivePreview` says (see [Settings](#settings)); the tick switches it at any time.
+While **Live Preview** is ticked, the game keeps running and the character wears the ticked pieces, or the outfit selected on the Load Outfit or Update Existing page, seen through a free camera. With it off the game is paused and the view stays as it was. The window opens with the preview on or off as `LivePreview` says (see [Settings](#settings)); the tick switches it at any time.
 
 With the cursor over the game rather than the window:
 
@@ -74,9 +74,9 @@ With the cursor over the game rather than the window:
 
 `SpeedPercent` scales all four.
 
-The preview dresses the character in a working outfit named `Preview Outfit (used by Capture Outfit add-on)`, kept in Tailor's library with no category, so Tailor never picks it at random. It is the only outfit the plugin changes before you confirm. Every close of the window, a save included, ends the override, and the character goes back to what Tailor would dress them in otherwise.
+The preview dresses an NPC through a temporary outfit written into their record, and the player through their inventory, the way Tailor's own preview does; Tailor's library is not touched. Every close of the window, a save included, ends the preview, and the character goes back to what they wore when it opened.
 
-Each time Tailor changes an NPC's outfit, the game removes every copy of the old outfit's pieces from their inventory, including copies that are their own, such as armor you gave them. The plugin notes an NPC's own armor as the window opens. About 2 seconds after the window closes, it adds back any copies that are gone and puts back on what they wore of their own.
+Each time an NPC's outfit changes, the game can remove every copy of the old outfit's pieces from their inventory, including copies that are their own, such as armor you gave them. The plugin notes an NPC's own armor as the window opens. About 2 seconds after the window closes, it adds back any copies that are gone and puts back on what they wore of their own.
 
 ### Categories and gender
 
@@ -109,11 +109,9 @@ Skins: **Tailor** matches Tailor 3.0's own menus and uses the fonts Tailor ships
 - The window is drawn with Dear ImGui on Skyrim SE/AE only. On Skyrim VR the hotkey saves the outfit at once under the automatic name, with the detected armor class and gender and no situation.
 - Outfit names on the Update Existing page come from Tailor's `outfits.json`, checked against Tailor's library; an outfit Tailor has not written to disk yet is not listed. The same holds for the Load Outfit page.
 - Pieces from plugins that are not loaded cannot be listed or removed through Tailor's API 1.0, so Update Existing leaves them in the outfit. Remove them in Tailor with those plugins loaded.
-- Live Preview is unavailable for a character another mod has set an outfit override on: the tick is greyed and its tooltip says why. The plugin never replaces another mod's override, because API 1.0 cannot read it back.
-- Live Preview is unavailable for leveled characters, such as guards, soldiers and bandits: the tick is greyed and its tooltip says why. When an override ends, Tailor 3.0.1 dresses a leveled character in the outfit of the last template in their chain, not the one they wore, so a Whiterun guard would end up in Imperial armor. Capturing and saving still work.
-- On the player, unticking the last ticked piece leaves the preview still wearing it: Tailor does not dress the player in an empty outfit. NPCs are undressed as expected, and the saved outfit follows the ticks either way.
+- While Live Preview is on, Tailor can still redress a character it manages when a fight starts or a cell loads. Closing the window puts back what they wore when it opened.
+- Earlier versions kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - An NPC's own armor that the plugin gives back comes back plain: tempering and a custom name are lost, because the plugin cannot create that item data.
-- `Preview Outfit (used by Capture Outfit add-on)` stays in Tailor's library once the preview has run, because API 1.0 cannot delete an outfit. The Load Outfit and Update Existing pages leave it out. If you delete it in Tailor, the next preview creates it again.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\TailorOutfitCapture.log` (`Skyrim Special Edition GOG` for the GOG version).
 

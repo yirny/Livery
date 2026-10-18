@@ -4,8 +4,8 @@
 //   Constants      - Tailor's built-in categories
 //   Tailor writes  - SaveOutfit creates the outfit, adds pieces, then the chosen categories;
 //                    UpdateOutfit replaces a confirmed existing outfit's pieces (add first, then remove)
-//   Preview        - the captured actor wears kPreviewOutfit as an override that follows the piece ticks
-//                    and the outfit selected on the Load page, seen through PreviewCamera, while the
+//   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
+//                    outfit pages, through OutfitPreview, seen through PreviewCamera, while the
 //                    window's Live Preview tick is on; saving is off and an NPC is held where they
 //                    stand (MovementHold) while the window is open, and every close of the window,
 //                    a save included, ends them all
@@ -23,6 +23,7 @@
 #include "CaptureWindow.h"
 #include "Hooks.h"
 #include "MovementHold.h"
+#include "OutfitPreview.h"
 #include "PreviewCamera.h"
 #include "Settings.h"
 #include "TailorAPI.h"
@@ -69,16 +70,6 @@ namespace
 	// Body sets how the outfit reads at a glance.
 	using BipedSlot = RE::BGSBipedObjectForm::BipedObjectSlot;
 	constexpr std::array kSlotPriority{ BipedSlot::kBody, BipedSlot::kHead, BipedSlot::kHands, BipedSlot::kFeet, BipedSlot::kCirclet };
-
-	// The Tailor outfit the live preview dresses the captured actor in. Created
-	// once and reused (API 1.0 cannot delete it); never offered as an outfit to update.
-	constexpr const char* kPreviewOutfit = "Preview Outfit (used by Capture Outfit add-on)";
-
-	// Why the live preview stays off for an actor whose override another mod set.
-	constexpr const char* kOverrideSetNote = "Preview off: an outfit override is set.";
-
-	// Why the live preview stays off for a leveled actor (guards, soldiers, bandits).
-	constexpr const char* kLeveledActorNote = "Preview off: Tailor cannot give a leveled character their own outfit back.";
 
 	TailorAPI::ITailorInterface1* g_tailor = nullptr;
 	RE::ObjectRefHandle           g_target{};
@@ -380,29 +371,8 @@ namespace
 
 	// --- Preview --------------------------------------------------------------
 
-	// The actor the open window previews on, wearing kPreviewOutfit as an
-	// override; empty while Live Preview is off.
-	RE::ActorHandle g_previewActor{};
-
 	// The capture window set the player's kDisableSaving flag, so only it clears the flag.
 	bool g_windowBlocksSaving = false;
-
-	// Gives kPreviewOutfit exactly these pieces, new ones in before old ones out.
-	// Contract: game thread (Tailor building calls).
-	void SetPreviewPieces(const std::vector<RE::TESObjectARMO*>& armors)
-	{
-		const auto previous = OutfitArmors(kPreviewOutfit);
-		for (auto* armor : armors) {
-			if (!g_tailor->AddArmorToOutfit(kPreviewOutfit, armor)) {
-				logger::warn("Preview rejected armor {:08X}", armor->GetFormID());
-			}
-		}
-		for (auto* armor : previous) {
-			if (std::ranges::find(armors, armor) == armors.end() && !g_tailor->RemoveArmorFromOutfit(kPreviewOutfit, armor)) {
-				logger::warn("RemoveArmorFromOutfit({}, {:08X}) failed", kPreviewOutfit, armor->GetFormID());
-			}
-		}
-	}
 
 	// Contract: game thread; from the window's opening to its close, Live Preview on or
 	// off. The engine refuses a save silently while the window's menu is open, which
@@ -433,81 +403,20 @@ namespace
 		}
 	}
 
-	// Dresses the actor in kPreviewOutfit holding `armors` until EndPreview.
-	// Returns "" when the preview is on, or why it is off.
-	// Contract: game thread. An override already set (by another mod) is never
-	// replaced: API 1.0 cannot read it back to restore it. Checked at each start,
-	// as the preview's own override is cleared whenever Live Preview turns off.
-	// That override never outlives the window: Tailor's screens cannot show or clear one.
-	// kPreviewOutfit is the only outfit changed before the user confirms: it is
-	// created with no category, so Tailor never picks it at random, even empty.
-	std::string BeginPreview(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
-	{
-		if (g_tailor->HasOutfitOverride(&actor)) {
-			return kOverrideSetNote;
-		}
-		if (!g_tailor->DoesOutfitExist(kPreviewOutfit) && !g_tailor->CreateOutfit(kPreviewOutfit, "", -1)) {
-			return "Preview off: Tailor refused to create its outfit.";
-		}
-		SetPreviewPieces(armors);
-		if (!g_tailor->OverrideWithOutfit(&actor, kPreviewOutfit)) {
-			return "Preview off: Tailor refused to dress them.";
-		}
-		g_previewActor = actor.GetHandle();
-		logger::info("Preview on {:08X}", actor.GetFormID());
-		return {};
-	}
-
-	// Tailor dresses everyone wearing kPreviewOutfit again after each change.
-	// Contract: game thread (SKSE task queued by the window, in click order).
-	void SetPreviewPiece(RE::TESObjectARMO* armor, bool on)
-	{
-		if (!g_previewActor) {
-			return;
-		}
-		const bool done = on ? g_tailor->AddArmorToOutfit(kPreviewOutfit, armor) : g_tailor->RemoveArmorFromOutfit(kPreviewOutfit, armor);
-		if (!done) {
-			logger::warn("Preview could not {} armor {:08X}", on ? "add" : "remove", armor->GetFormID());
-		}
-	}
-
-	// The actor goes back to what Tailor would dress them in without an override.
-	// Contract: game thread; when Live Preview turns off and on every close of the
-	// window, a save and the close before a load included.
-	void EndPreview()
-	{
-		if (const auto actor = std::exchange(g_previewActor, {}).get()) {
-			g_tailor->ClearOutfitOverride(actor.get());
-			logger::info("Preview off {:08X}", actor->GetFormID());
-		}
-	}
-
 	// Wires the live preview into the window about to open, and starts it when
-	// the settings say so. While it is on, ticks change kPreviewOutfit and input
-	// over the game moves PreviewCamera (when it could take the camera); the
-	// window's Live Preview tick starts and ends both. When the preview cannot
-	// start, the window greys the tick and says why.
+	// the settings say so. While it is on, ticks change the pieces OutfitPreview
+	// dresses the actor in, and input over the game moves PreviewCamera (when it
+	// could take the camera); the window's Live Preview tick starts and ends both.
+	// When the preview cannot start, the window greys the tick and says why.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachPreview(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
 	{
-		// Checked before any start too, so the tick is greyed even when the window opens with Live Preview off.
-		if (g_tailor->HasOutfitOverride(&actor)) {
-			request.previewNote = kOverrideSetNote;
-			return;
-		}
-		// Contract: a leveled actor's base is built at runtime (a dynamic form). Tailor 3.0.1's
-		// ClearOutfitOverride then dresses them in the leaf template's outfit, not the one they wore
-		// (a Whiterun guard ends up in Imperial armor), so the preview's override is never set on one.
-		if (const auto* base = actor.GetActorBase(); base && base->IsDynamicForm()) {
-			request.previewNote = kLeveledActorNote;
-			return;
-		}
 		request.onPreviewOn = [handle = actor.GetHandle(), armors](const std::vector<std::size_t>& pieces) -> std::string {
 			const auto target = handle.get();
 			if (!target) {
 				return "Preview off: the character is gone.";
 			}
-			auto reason = BeginPreview(*target, PickPieces(armors, pieces));
+			auto reason = OutfitPreview::Begin(*target, PickPieces(armors, pieces));
 			if (reason.empty()) {
 				PreviewCamera::Begin(*target);  // without the camera the preview goes on in the game's own view
 			}
@@ -515,15 +424,11 @@ namespace
 		};
 		request.onPreviewOff = [] {
 			PreviewCamera::End();
-			EndPreview();
+			OutfitPreview::End();
 		};
-		// These three do nothing while Live Preview is off: no preview actor, no camera.
-		request.onPieceToggled = [armors](std::size_t index, bool on) { SetPreviewPiece(armors[index], on); };
-		request.onPreviewPieces = [armors](const std::vector<std::size_t>& pieces) {
-			if (g_previewActor) {
-				SetPreviewPieces(PickPieces(armors, pieces));
-			}
-		};
+		// These three do nothing while Live Preview is off: no preview, no camera.
+		request.onPieceToggled = [armors](std::size_t index, bool on) { OutfitPreview::SetPiece(armors[index], on); };
+		request.onPreviewPieces = [armors](const std::vector<std::size_t>& pieces) { OutfitPreview::Show(PickPieces(armors, pieces)); };
 		request.onViewInput = PreviewCamera::Move;
 
 		if (Settings::LivePreview()) {
@@ -540,11 +445,11 @@ namespace
 
 	// --- Own armor ------------------------------------------------------------
 	//
-	// Tailor dresses an NPC by swapping the engine's outfit, and the engine takes
-	// the old outfit off by removing every copy of its pieces' forms, the NPC's own
-	// ones too (armor the player gave them, say). The preview, its close and an
-	// update of the outfit they wear all swap it, so the NPC's own copies are noted
-	// as the window opens and given back after it closes.
+	// An outfit swap makes the engine take the old outfit off by removing every
+	// copy of its pieces' forms, the NPC's own ones too (armor the player gave
+	// them, say). The preview, its close and an update of the outfit they wear
+	// all swap it, so the NPC's own copies are noted as the window opens and
+	// given back after it closes.
 
 	// One form of armor an actor carries.
 	struct OwnArmor
@@ -661,13 +566,13 @@ namespace
 		}
 	}
 
-	// Gives the snapshot back a little after the close: Tailor redresses the
-	// actor from the next frame on, and its own equipment check runs about 1 s later.
+	// Gives the snapshot back a little after the close: the engine finishes the
+	// swap back to the actor's own outfit over the next frames.
 	// Contract: game thread, from the window's onClose. Nothing during a load
 	// (g_ready false): the snapshot's world is being replaced.
 	void ScheduleOwnArmorRestore(ArmorSnapshot snapshot)
 	{
-		constexpr auto kRestoreDelay = std::chrono::seconds(2);  // after Tailor's equipment check
+		constexpr auto kRestoreDelay = std::chrono::seconds(2);  // once the swap has settled
 
 		if (!g_ready || !snapshot.actor) {
 			return;
@@ -906,7 +811,7 @@ namespace
 
 		std::vector<CaptureWindow::ExistingOutfit> outfits;
 		for (auto& [name, itemCount] : stored) {
-			if (_stricmp(name.c_str(), kPreviewOutfit) == 0 || !g_tailor->DoesOutfitExist(name.c_str())) {
+			if (!g_tailor->DoesOutfitExist(name.c_str())) {
 				continue;
 			}
 			CaptureWindow::ExistingOutfit outfit{ .name = std::move(name) };
@@ -1005,7 +910,7 @@ namespace
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
 		// Noted before anything changes the actor's outfit; the player is left out:
-		// Tailor dresses the player through the inventory, never removing their own copies.
+		// the preview dresses the player through the inventory and never removes their own copies.
 		FlushOwnArmor();  // a window closed moments ago: give that back before noting this one
 		auto ownArmor = actor.IsPlayerRef() ? ArmorSnapshot{} : NoteOwnArmor(actor);
 
@@ -1029,10 +934,10 @@ namespace
 		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
 		AttachPreview(request, actor, armors);
 		// Every close, whatever closed the window, ends the preview, lets saving back on,
-		// lets an NPC walk again and gives their own armor back once Tailor has redressed them.
+		// lets an NPC walk again and gives their own armor back once the engine has redressed them.
 		request.onClose = [ownArmor = std::move(ownArmor)] {
 			PreviewCamera::End();
-			EndPreview();
+			OutfitPreview::End();
 			AllowSaving();
 			MovementHold::End();
 			ScheduleOwnArmorRestore(ownArmor);
@@ -1193,17 +1098,19 @@ namespace
 		case SKSE::MessagingInterface::kPreLoadGame:
 			g_ready = false;
 			g_target = {};
-			// Forget the preview without asking Tailor: the world it was set in is being
-			// replaced, and Tailor keeps overrides per save, so the save loading has none of it.
-			g_previewActor = {};
+			// The world the preview was set in is being replaced: put the NPC's record right now,
+			// without dressing anyone, so no record points at a runtime outfit after the load.
+			OutfitPreview::Abandon();
 			CaptureWindow::Close();  // discard a pending capture; its actor is going away
 			// The loading save has its own inventories: never give it this world's armor.
 			g_pendingArmor = {};
 			++g_armorGeneration;
 			break;
 
-		case SKSE::MessagingInterface::kPostLoadGame:
 		case SKSE::MessagingInterface::kNewGame:
+			OutfitPreview::Abandon();  // a new game replaces the world without a kPreLoadGame
+			[[fallthrough]];
+		case SKSE::MessagingInterface::kPostLoadGame:
 			g_ready = true;
 			g_target = {};
 			break;
