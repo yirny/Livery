@@ -15,7 +15,7 @@
 //                    armor, detect the armor class, list the library's outfits (adding their pieces the actor
 //                    does not carry), then open the window with the worn pieces ticked (or save those under
 //                    an automatic name where the overlay is unavailable)
-//   Event sinks    - crosshair target, keys: the capture hotkey here, Livery's assignment key in Assignments
+//   Event sinks    - crosshair target, keys: Livery's assignment keys (Assignments) first, then the capture hotkey
 //   Messaging      - Tailor interface, settings page, sink and menu registration, ready state
 //   Entry          - log, settings, co-save, trampoline, hooks
 #include "PCH.h"
@@ -1073,12 +1073,13 @@ namespace
 				if (!button || button->GetDevice() != RE::INPUT_DEVICE::kKeyboard || !button->IsDown()) {
 					continue;
 				}
+				// Livery's keys first: F8 releases everyone even while it is the capture hotkey too.
+				if (Assignments::HandleKey(button->GetIDCode(), g_target)) {
+					break;
+				}
 				if (Settings::IsHotkey(button->GetIDCode())) {
 					const auto handle = g_target;
 					SKSE::GetTaskInterface()->AddTask([handle] { Capture(handle); });
-					break;
-				}
-				if (Assignments::HandleKey(button->GetIDCode(), g_target)) {
 					break;
 				}
 			}

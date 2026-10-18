@@ -28,9 +28,10 @@ namespace
 	// --- Constants ------------------------------------------------------------
 
 	using Key = RE::BSKeyboardDevice::Keys::Key;
-	// Stands in for the outfit window until it exists (docs/design.md §7). F8 is the
-	// capture hotkey's default, F9 the game's Quick Load.
+	// Stand in for the outfit window until it exists (docs/design.md §7). F9 is the game's
+	// Quick Load. F8 is also the capture hotkey's default; Plugin.cpp checks these keys first.
 	constexpr std::uint32_t kAssignKey = Key::kF10;
+	constexpr std::uint32_t kReleaseEveryoneKey = Key::kF8;
 
 	// Skyrim.esm always loads at index 00, so the player's reference is always 0x14.
 	constexpr RE::FormID kPlayerRef = 0x14;
@@ -478,14 +479,12 @@ namespace Assignments
 
 	bool HandleKey(std::uint32_t a_scanCode, RE::ObjectRefHandle a_target)
 	{
-		if (a_scanCode != kAssignKey) {
-			return false;
-		}
-		// Ctrl releases everyone, Alt releases the target, Shift copies, the key alone assigns.
 		auto command = Command::kAssign;
-		if (Held(Key::kLeftControl, Key::kRightControl)) {
+		if (a_scanCode == kReleaseEveryoneKey) {
 			command = Command::kReleaseEveryone;
-		} else if (Held(Key::kLeftAlt, Key::kRightAlt)) {
+		} else if (a_scanCode != kAssignKey) {
+			return false;
+		} else if (Held(Key::kLeftAlt, Key::kRightAlt)) {  // with F10: Alt releases the target, Shift copies, the key alone assigns
 			command = Command::kUnassign;
 		} else if (Held(Key::kLeftShift, Key::kRightShift)) {
 			command = Command::kCopy;
