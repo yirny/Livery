@@ -553,30 +553,40 @@ namespace
 		ReturnHand(player, false, g_player.hands[1]);
 	}
 
-	// Rebuilds the player's model now: equip calls alone leave it as it was until
-	// something else rebuilds it, so the preview would lag behind the ticks.
-	// Tailor's RefreshPlayerModel. CommonLibSSE-NG's Update3DModel also sends SKSE's
+	// --- API ------------------------------------------------------------------
+
+	// Rebuilds the character's model from what they wear now. Equip calls alone can
+	// leave it behind: the player's lags behind the ticks, and an NPC whose outfit
+	// came off just before the same pieces went on shows bare. Tailor's
+	// RefreshPlayerModel. CommonLibSSE-NG's Update3DModel also sends SKSE's
 	// NiNodeUpdate event, so body-morph mods refit the new pieces.
-	void RefreshModel(RE::Actor& player)
+	void RefreshModel(RE::Actor& actor)
 	{
-		auto* process = player.Is3DLoaded() ? player.GetActorRuntimeData().currentProcess : nullptr;
+		auto* process = actor.Is3DLoaded() ? actor.GetActorRuntimeData().currentProcess : nullptr;
 		if (!process) {
 			return;
 		}
 		process->Set3DUpdateFlag(RE::RESET_3D_FLAGS::kModel);
-		process->Update3DModel(&player);
+		process->Update3DModel(&actor);
 	}
-
-	// --- API ------------------------------------------------------------------
 
 	void Redress(RE::Actor& actor)
 	{
 		if (g_isPlayer) {
 			DressPlayer(actor);
-			RefreshModel(actor);
 		} else if (auto* npc = actor.GetActorBase()) {
 			ShowOnNpc(actor, *npc);
 		}
+		RefreshModel(actor);
+	}
+
+	// How many of the pieces shown the character wears, for the log.
+	std::size_t WornCount(RE::Actor& actor)
+	{
+		const auto copies = Copies(actor);
+		return static_cast<std::size_t>(std::ranges::count_if(g_pieces, [&copies](const RE::TESObjectARMO* armor) {
+			return std::ranges::any_of(copies, [armor](const Copy& copy) { return copy.armor == armor && copy.extra->GetWorn(); });
+		}));
 	}
 
 	void ClearState()
@@ -609,7 +619,7 @@ namespace OutfitPreview
 		g_actor = actor.GetHandle();
 		g_pieces = pieces;
 		Redress(actor);
-		logger::info("Preview on {:08X}", actor.GetFormID());
+		logger::info("Preview on {:08X}: {} of {} piece(s) worn", actor.GetFormID(), WornCount(actor), g_pieces.size());
 		return {};
 	}
 
