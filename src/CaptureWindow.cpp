@@ -10,8 +10,8 @@
 //   Pieces page  - inventory pieces (first page) plus the loaded outfit's, each tick
 //                  handed to onPieceToggled; the Live Preview tick, handed to onPreviewOn /
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
-//                  Load Outfit... at the count line's right end (greyed while Tailor
-//                  has no outfits); Create New / Update Existing / Cancel
+//                  Load Outfit... at the count line's right end (greyed while the
+//                  library has no outfits); Create New / Update Existing / Cancel
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit browser - Search over Filter, above both outfit pages' list in its column, in
 //                  the small font (OutfitBrowser.cpp narrows and orders it); Escape first
@@ -23,8 +23,8 @@
 //                  click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
 //                  pieces and returns (greyed while none of them is loaded)
-//   Update page  - library outfits, the chosen one's categories (its own ones
-//                  locked, more can be ticked) and pieces; Update opens the
+//   Update page  - library outfits, the chosen one's categories (ticked as it
+//                  has them, free to change) and pieces; Update opens the
 //                  confirm popup, which names the pieces from unloaded plugins
 //                  that stay, and whose Confirm hands over to onUpdate
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
@@ -59,9 +59,8 @@ namespace
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
-	constexpr const char* kNoOutfits = "No outfits in Tailor.";
+	constexpr const char* kNoOutfits = "No outfits in the library.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
-	constexpr const char* kLockedCategory = "Already in this category. Tailor's API cannot take an outfit out of one.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -126,7 +125,6 @@ namespace
 		std::unique_ptr<bool[]>         pieceTicked;   // one per request.pieces; bool[] because Theme::TickRow needs bool*
 		std::unique_ptr<bool[]>         ticked;        // one per request.categories
 		std::unique_ptr<bool[]>         updateTicked;  // one per request.categories, for the selected outfit
-		std::unique_ptr<bool[]>         updateLocked;  // one per request.categories: the selected outfit is already in it
 		int                             gender = -1;   // of the new outfit: -1 unisex, 0 male, 1 female
 		std::string                     error;
 		bool                            focusNameField = false;
@@ -605,7 +603,7 @@ namespace
 	// Each click goes to onPieceToggled (the live preview) in its own SKSE task,
 	// queued in click order.
 	// The count line ends with Load Outfit..., greyed with the reason on hover
-	// while Tailor has no outfits; returns true when it is clicked.
+	// while the library has no outfits; returns true when it is clicked.
 	// Contract: a piece that is not listed is never ticked: only Load ticks a
 	// piece the actor does not carry, and the next Load sets every tick again.
 	bool DrawPieceList(State& a_state)
@@ -656,7 +654,7 @@ namespace
 	// unless the user moved it; a refusal greys the tick with the reason.
 	// Contract: game thread (SKSE task queued by DrawPreviewToggle). Open and
 	// Close run only there too, so the session cannot change between the two
-	// locks; the handlers run outside the lock, as they call Tailor.
+	// locks; the handlers run outside the lock, as they dress the actor.
 	void ApplyPreviewToggle(unsigned a_session, bool a_on, const std::vector<std::size_t>& a_pieces)
 	{
 		auto&                                                       state = GetState();
@@ -865,14 +863,11 @@ namespace
 	// mark on the right when ticked. An InvisibleButton does not
 	// close the combo popup, so the user can tick several rows in one go.
 	// The hit area also covers half the gap above and below the fill, so rows
-	// stacked with no item spacing leave no dead strip between them.
-	// A locked row is drawn greyed out (BeginDisabled scales every colour's
-	// alpha), ignores clicks and shows kLockedCategory on hover. Returns true
-	// when toggled.
+	// stacked with no item spacing leave no dead strip between them. Returns
+	// true when toggled.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
-	bool DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_locked)
+	bool DrawCategoryRow(const char* a_label, bool& a_ticked)
 	{
-		ImGui::BeginDisabled(a_locked);
 		const auto&  style = ImGui::GetStyle();
 		const float  halfGap = Theme::ListRowGap(style.ItemInnerSpacing.y) * 0.5f;
 		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
@@ -900,18 +895,12 @@ namespace
 			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
 			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
 		}
-		const bool lockedHovered = a_locked && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-		ImGui::EndDisabled();
-		// After EndDisabled, so the tooltip is not drawn faded.
-		if (lockedHovered) {
-			ImGui::SetTooltip("%s", kLockedCategory);
-		}
 		return toggled;
 	}
 
 	// Multi-select dropdown labelled by its group: a combo whose popup lists
 	// request.categories[a_begin, a_end) as rows.
-	void DrawCategoryCombo(const State& a_state, std::size_t a_begin, std::size_t a_end, bool* a_ticked, const bool* a_locked)
+	void DrawCategoryCombo(const State& a_state, std::size_t a_begin, std::size_t a_end, bool* a_ticked)
 	{
 		const char* group = a_state.request.categories[a_begin].group.c_str();
 		Theme::LabelText(group);
@@ -923,7 +912,7 @@ namespace
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
 			for (std::size_t i = a_begin; i < a_end; ++i) {
 				ImGui::PushID(static_cast<int>(i));
-				DrawCategoryRow(a_state.request.categories[i].name.c_str(), a_ticked[i], a_locked && a_locked[i]);
+				DrawCategoryRow(a_state.request.categories[i].name.c_str(), a_ticked[i]);
 				ImGui::PopID();
 			}
 			ImGui::PopStyleVar();
@@ -933,43 +922,33 @@ namespace
 	}
 
 	// The armor-type group as one row of checkboxes labelled by its group:
-	// request.categories[a_begin, a_end). A locked one is greyed out and shows
-	// kLockedCategory on hover.
-	void DrawArmorTypeField(const State& a_state, std::size_t a_begin, std::size_t a_end, bool* a_ticked, const bool* a_locked)
+	// request.categories[a_begin, a_end).
+	void DrawArmorTypeField(const State& a_state, std::size_t a_begin, std::size_t a_end, bool* a_ticked)
 	{
 		Theme::LabelText(CaptureWindow::kArmorTypeGroup);
 		for (std::size_t i = a_begin; i < a_end; ++i) {
 			if (i > a_begin) {
 				ImGui::SameLine();
 			}
-			const bool locked = a_locked && a_locked[i];
-			ImGui::BeginDisabled(locked);
 			if (Theme::Checkbox(a_state.request.categories[i].name.c_str(), &a_ticked[i])) {
 				QueueMenuSound(kFocusSound);
-			}
-			const bool hovered = locked && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-			ImGui::EndDisabled();
-			// After EndDisabled, so the tooltip is not drawn faded.
-			if (hovered) {
-				ImGui::SetTooltip("%s", kLockedCategory);
 			}
 		}
 	}
 
 	// One field per run of request.categories sharing a group, so a group with
-	// no category (no custom ones) shows no field: checkboxes for the armor
-	// types, a dropdown for every other group. a_ticked and a_locked (nullptr
-	// for none locked) hold one entry per request.categories.
-	void DrawCategoryFields(const State& a_state, const char* a_id, bool* a_ticked, const bool* a_locked)
+	// no category shows no field: checkboxes for the armor types, a dropdown
+	// for every other group. a_ticked holds one entry per request.categories.
+	void DrawCategoryFields(const State& a_state, const char* a_id, bool* a_ticked)
 	{
 		const auto& options = a_state.request.categories;
 		ImGui::PushID(a_id);
 		for (std::size_t begin = 0, end = 0; begin < options.size(); begin = end) {
 			for (end = begin + 1; end < options.size() && options[end].group == options[begin].group; ++end) {}
 			if (options[begin].group == CaptureWindow::kArmorTypeGroup) {
-				DrawArmorTypeField(a_state, begin, end, a_ticked, a_locked);
+				DrawArmorTypeField(a_state, begin, end, a_ticked);
 			} else {
-				DrawCategoryCombo(a_state, begin, end, a_ticked, a_locked);
+				DrawCategoryCombo(a_state, begin, end, a_ticked);
 			}
 		}
 		ImGui::PopID();
@@ -999,14 +978,13 @@ namespace
 		return enter && !Trimmed(a_state.name.data()).empty();
 	}
 
-	// Tailor's gender values as one row of radio buttons. API 1.0 cannot change
-	// an outfit's gender after CreateOutfit; only the player can, in Tailor.
+	// The new outfit's gender as one row of radio buttons.
 	void DrawGenderField(State& a_state)
 	{
 		struct GenderOption
 		{
 			const char* label;
-			int         value;  // Tailor's value
+			int         value;  // as the library stores it
 		};
 		constexpr std::array<GenderOption, 3> kGenderOptions{ {
 			{ "Unisex", -1 },
@@ -1076,7 +1054,7 @@ namespace
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const bool save = DrawNameField(a_state);
-		DrawCategoryFields(a_state, "##categories", a_state.ticked.get(), nullptr);
+		DrawCategoryFields(a_state, "##categories", a_state.ticked.get());
 		DrawGenderField(a_state);
 		const auto action = DrawNameButtons(a_state, save);
 		EndButtonRow();
@@ -1155,7 +1133,7 @@ namespace
 				ImGui::TextDisabled("%s", row.group.c_str());
 			}
 			ImGui::PushID(static_cast<int>(i));
-			a_input.changed |= DrawCategoryRow(row.label.c_str(), browser.filterTicked[i], false);
+			a_input.changed |= DrawCategoryRow(row.label.c_str(), browser.filterTicked[i]);
 			ImGui::PopID();
 		}
 		ImGui::PopStyleVar();
@@ -1239,7 +1217,7 @@ namespace
 		bool changed = false;
 		for (const auto& option : kSortOptions) {
 			bool ticked = a_state.browser.sort == option.key;
-			if (DrawCategoryRow(option.label, ticked, false)) {
+			if (DrawCategoryRow(option.label, ticked)) {
 				changed = a_state.browser.sort != option.key;
 				a_state.browser.sort = option.key;
 				ImGui::CloseCurrentPopup();
@@ -1294,7 +1272,7 @@ namespace
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto& visible = a_state.browser.visible;
 		if (visible.size() == outfits.size()) {
-			Theme::LabelText(std::format("{} outfit(s) in Tailor", outfits.size()).c_str());
+			Theme::LabelText(std::format("{} outfit(s) in the library", outfits.size()).c_str());
 		} else {
 			Theme::LabelText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
 		}
@@ -1340,7 +1318,7 @@ namespace
 		return true;
 	}
 
-	// The outfit's pieces as Tailor had them when the window opened, in rows
+	// The outfit's pieces as the library had them when the window opened, in rows
 	// laid out as the outfit list's beside it. The count includes the pieces
 	// whose plugin is not loaded, which have no row.
 	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
@@ -1455,8 +1433,7 @@ namespace
 
 	// --- Update page ----------------------------------------------------------
 
-	// Starts the category ticks from the outfit's own categories, which are
-	// locked: API 1.0 can add an outfit to a category but not take it out.
+	// Starts the category ticks from the outfit's own categories.
 	void SelectOutfit(State& a_state, int a_index)
 	{
 		if (a_state.selectedOutfit == a_index) {
@@ -1466,32 +1443,30 @@ namespace
 		const auto& joined = a_state.request.existingOutfits[static_cast<std::size_t>(a_index)].categories;
 		const auto& options = a_state.request.categories;
 		for (std::size_t i = 0; i < options.size(); ++i) {
-			const bool in = std::ranges::find(joined, options[i].name) != joined.end();
-			a_state.updateLocked[i] = in;
-			a_state.updateTicked[i] = in;
+			a_state.updateTicked[i] = std::ranges::find(joined, options[i].name) != joined.end();
 		}
 	}
 
-	// The categories the user ticked that the selected outfit is not in yet.
-	std::vector<std::string> AddedCategories(const State& a_state)
+	// The categories ticked on the Update page, which replace the selected outfit's.
+	std::vector<std::string> UpdateCategories(const State& a_state)
 	{
-		std::vector<std::string> added;
+		std::vector<std::string> ticked;
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
-			if (a_state.updateTicked[i] && !a_state.updateLocked[i]) {
-				added.push_back(a_state.request.categories[i].name);
+			if (a_state.updateTicked[i]) {
+				ticked.push_back(a_state.request.categories[i].name);
 			}
 		}
-		return added;
+		return ticked;
 	}
 
-	// Right column: the selected outfit as Tailor had it when the window opened,
-	// with the category fields to add it to more categories.
+	// Right column: the selected outfit as the library had it when the window
+	// opened, with the category fields ticked as it has them.
 	void DrawOutfitDetails(State& a_state)
 	{
 		if (!DrawSelectedName(a_state, a_state.selectedOutfit, "Select an outfit to update")) {
 			return;
 		}
-		DrawCategoryFields(a_state, "##updateCategories", a_state.updateTicked.get(), a_state.updateLocked.get());
+		DrawCategoryFields(a_state, "##updateCategories", a_state.updateTicked.get());
 		DrawOutfitPieces(a_state, OutfitAt(a_state, a_state.selectedOutfit));
 	}
 
@@ -1522,7 +1497,7 @@ namespace
 	}
 
 	// Returns true when the user confirmed replacing the selected outfit's pieces
-	// and adding it to the newly ticked categories.
+	// and categories with the ticked ones.
 	// Contract: called every frame on the Update page: a modal that is open but
 	// not submitted stays invisible and still blocks the window.
 	bool DrawConfirmPopup(const State& a_state)
@@ -1549,11 +1524,10 @@ namespace
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
-		if (const auto added = AddedCategories(a_state); added.empty()) {
-			ImGui::TextDisabled("Its categories stay as they are.");
+		if (const auto categories = UpdateCategories(a_state); categories.empty()) {
+			ImGui::TextUnformatted("It will be in no category.");
 		} else {
-			ImGui::TextUnformatted(std::format("Also add it to: {}.", JoinNames(added)).c_str());
-			ImGui::TextDisabled("Categories cannot be removed later.");
+			ImGui::TextUnformatted(std::format("Its categories become: {}.", JoinNames(categories)).c_str());
 		}
 		BeginButtonRow({ "Confirm", "Cancel" });
 		const bool confirm = Theme::Button("Confirm");
@@ -1572,11 +1546,11 @@ namespace
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
-		const auto name = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)].name;
+		const auto id = a_state.request.existingOutfits[static_cast<std::size_t>(a_state.selectedOutfit)].id;
 		const auto pieces = TickedPieces(a_state);
-		const auto categories = AddedCategories(a_state);
+		const auto categories = UpdateCategories(a_state);
 		auto       onUpdate = a_state.request.onUpdate;
-		SKSE::GetTaskInterface()->AddTask([onUpdate, name, pieces, categories] { onUpdate(name, pieces, categories); });
+		SKSE::GetTaskInterface()->AddTask([onUpdate, id, pieces, categories] { onUpdate(id, pieces, categories); });
 	}
 
 	// Selecting an outfit shows it on the preview; a second click on it, or Back,
@@ -1638,7 +1612,6 @@ namespace CaptureWindow
 				state.ticked[i] = state.request.categories[i].selected;
 			}
 			state.updateTicked = std::make_unique<bool[]>(state.request.categories.size());  // filled by SelectOutfit
-			state.updateLocked = std::make_unique<bool[]>(state.request.categories.size());
 			state.gender = state.request.suggestedGender;
 			state.error.clear();
 			state.pending.clear();
@@ -1687,7 +1660,6 @@ namespace CaptureWindow
 			state.request = {};
 			state.ticked.reset();
 			state.updateTicked.reset();
-			state.updateLocked.reset();
 			state.pending.clear();
 		}
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
@@ -1696,7 +1668,7 @@ namespace CaptureWindow
 		}
 		Hooks::HideMenu();
 		if (onClose) {
-			onClose();  // outside the lock: it calls Tailor
+			onClose();  // outside the lock: it dresses the actor again
 		}
 	}
 
@@ -1803,7 +1775,7 @@ namespace CaptureWindow
 		if (!Theme::HasTitleBar()) {
 			flags |= ImGuiWindowFlags_NoTitleBar;
 		}
-		if (!ImGui::Begin("Capturing Outfit for Tailor", nullptr, flags)) {
+		if (!ImGui::Begin("Livery", nullptr, flags)) {
 			ImGui::End();
 			return;
 		}
