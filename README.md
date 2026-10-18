@@ -92,7 +92,7 @@ Livery dresses a character without changing their outfit record. **Assign** on t
 
 For each piece, Livery uses a copy the character already carries: the one they wear, else an enchanted one, else the most tempered one, else a plain one, so enchantments and tempering carry over. An NPC who carries none gets a new plain copy. You get one only when `AddMissingPieces` is on, because that creates items; otherwise the message names the pieces you do not carry. Once a piece is on, worn armor outside the outfit comes off, except non-playable armor and pieces another mod locked. When no piece can be put on, the character keeps what they wear.
 
-An NPC keeps the pieces on: each is locked as with the game's PreventRemoval, so the NPC no longer swaps it for better armor you give them. The lock is saved with the item. When another mod takes a piece off, Livery puts it back on the next time the NPC's 3D loads, as long as they still carry it. A piece you take back in the trade menu stays with you. Your own pieces are never locked, since a locked piece cannot be taken off in the inventory.
+An NPC keeps the pieces on: each is locked as with the game's PreventRemoval, so the NPC no longer swaps it for better armor you give them. The lock is saved with the item. When another mod takes a piece off, Livery puts it back on the next time the NPC's 3D loads, as long as they still carry it. The copies Livery added do not show in the trade menu, as an NPC's own outfit does not; pieces that were theirs or that you gave them do, and a piece you take back there stays with you. Your own pieces are never locked, since a locked piece cannot be taken off in the inventory.
 
 Releasing a character removes the locks, takes back the copies Livery added, and puts back on their own pieces that Assign took off. Pieces that were theirs, or that you gave them, stay, worn or not, so a character dressed in gear they already owned keeps it on. A slot whose own piece is gone is filled when the game next re-evaluates the NPC, which can take a cell change or two. When an NPC dies, Livery removes the locks and forgets them; the copies stay on the corpse and nothing is put back on.
 
@@ -124,7 +124,7 @@ Skins: **Tailor** matches [Tailor](https://github.com/heathbrownkeyworks/Tailor)
 - The window has no delete or rename. Edit `outfits.json` for those, with the game closed.
 - Earlier versions, as a Tailor add-on, kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - Slots an assigned outfit leaves empty stay the game's: an NPC can put on a helmet or shield they own there.
-- The copies Livery adds to an NPC show in the trade menu, where you can take them for free.
+- On Skyrim VR and on AE before 1.6.1130 the copies Livery adds to an NPC show in the trade menu, where you can take them for free; so do those of an NPC who has no default outfit.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\Livery.log` (`Skyrim Special Edition GOG` for the GOG version).
 
