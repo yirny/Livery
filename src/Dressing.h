@@ -42,8 +42,8 @@ namespace Dressing
 
 	// Puts `outfit` on them, per piece the instance they carry (worn, else enchanted,
 	// else the most tempered, else plain), else a new plain copy when `addMissing`.
-	// With `lock`, every piece gets PreventRemoval. Worn armor outside the outfit comes
-	// off, except non-playable armor and pieces another mod locked.
+	// With `lock`, every piece gets PreventRemoval. Once a piece is on, worn armor outside
+	// the outfit comes off, except non-playable armor and pieces another mod locked.
 	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing);
 
 	// Puts on again, with PreventRemoval, the pieces they still carry but no longer wear

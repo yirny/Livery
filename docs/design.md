@@ -37,8 +37,9 @@ An outfit is a list of armor base forms. Dressing an actor in it:
    A piece already worn gets the flag added directly (`ExtraDataList::Add(new
    RE::ExtraCannotWear())` + `AddChange(kInventory)`), Tailor's way for wigs.
 4. Take off worn armor that is not part of the outfit, except non-playable armor and
-   pieces another mod locked (a lock already on a worn piece is never claimed). An
-   earlier assignment of the same actor is released first.
+   pieces another mod locked (a lock already on a worn piece is never claimed). Only
+   when at least one piece went on: otherwise nothing is assigned and the actor keeps
+   what they wear. An earlier assignment of the same actor is released first.
 
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
 put on armor they own there (a helmet, a shield). Accepted for now.
@@ -146,8 +147,9 @@ Each stage ends with an in-game check before the next starts.
 1. Rename the project (CMake, DLL, INI, log, deploy folder; the directory name stays
    until the memory is moved), settings, co-save, dressing core: assign, unassign,
    load-time re-equip, death release, release everything. Hotkeys only: Shift+F10
-   copies what the target wears, F10 assigns the copy, Alt+F10 unassigns, Ctrl+F10
-   releases everyone; the target is the crosshair NPC, else the player.
+   copies what the target wears, F10 assigns the copy, Alt+F10 unassigns, F8 releases
+   everyone (checked before the capture hotkey, whose default is also F8); the target
+   is the crosshair NPC, else the player.
 2. Library: capture the worn pieces into an outfit, JSON storage, the ImGui window,
    outfit list and preview from today's code. Remove the Tailor API and rewrite
    CLAUDE.md §2.1 for the mod's own data.

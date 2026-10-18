@@ -47,7 +47,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 1. Load a save or start a new game.
 2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never a child). With nothing under the crosshair the hotkey captures the player instead.
-3. Press **F8** (configurable, see [Settings](#settings)). The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden, the game cannot be saved, and an NPC stays where they stand.
+3. Press the capture hotkey (`[Hotkey] Key`, see [Settings](#settings)). Its default, F8, now releases everyone Livery dresses (see [Outfit assignments](#outfit-assignments)), so set another key to capture. The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden, the game cannot be saved, and an NPC stays where they stand.
 
 The window has four pages:
 
@@ -93,16 +93,16 @@ Every armor piece from a plugin that the character wears or carries. Non-playabl
 
 ### Outfit assignments
 
-Livery can also dress a character by itself, without Tailor and without changing their outfit record. Until its outfit window exists, F10 drives it. Like the capture hotkey, it acts on the NPC under the crosshair, or on you when there is none.
+Livery can also dress a character by itself, without Tailor and without changing their outfit record. Until its outfit window exists, F10 and F8 drive it. F10 acts on the NPC under the crosshair, or on you when there is none. F8 comes before the capture hotkey, so it never opens the capture window.
 
 | Keys      | Action                                                                                   |
 | --------- | ---------------------------------------------------------------------------------------- |
 | Shift+F10 | Copies the armor the character wears.                                                    |
 | F10       | Dresses the character in the copied pieces, replacing an outfit Livery gave them before. |
 | Alt+F10   | Releases the character.                                                                  |
-| Ctrl+F10  | Releases everyone Livery dresses. Do this before you uninstall Livery.                   |
+| F8        | Releases everyone Livery dresses. Do this before you uninstall Livery.                   |
 
-For each piece, Livery uses a copy the character already carries: the one they wear, else an enchanted one, else the most tempered one, else a plain one, so enchantments and tempering carry over. An NPC who carries none gets a new plain copy. You get one only when `AddMissingPieces` is on, because that creates items; otherwise the message names the pieces you do not carry. Worn armor outside the outfit comes off, except non-playable armor and pieces another mod locked.
+For each piece, Livery uses a copy the character already carries: the one they wear, else an enchanted one, else the most tempered one, else a plain one, so enchantments and tempering carry over. An NPC who carries none gets a new plain copy. You get one only when `AddMissingPieces` is on, because that creates items; otherwise the message names the pieces you do not carry. Once a piece is on, worn armor outside the outfit comes off, except non-playable armor and pieces another mod locked. When no piece can be put on, the character keeps what they wear.
 
 An NPC keeps the pieces on: each is locked as with the game's PreventRemoval, so the NPC no longer swaps it for better armor you give them. The lock is saved with the item. When another mod takes a piece off, Livery puts it back on the next time the NPC's 3D loads, as long as they still carry it. A piece you take back in the trade menu stays with you. Your own pieces are never locked, since a locked piece cannot be taken off in the inventory.
 

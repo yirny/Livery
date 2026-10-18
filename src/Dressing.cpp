@@ -282,7 +282,10 @@ namespace Dressing
 				break;
 			}
 		}
-		TakeOffOthers(actor, result.worn, *equipManager);
+		// With no piece on, nothing is assigned: they keep what they wear.
+		if (!result.worn.empty()) {
+			TakeOffOthers(actor, result.worn, *equipManager);
+		}
 		if (actor.IsPlayerRef()) {
 			RefreshModel(actor);
 		}
