@@ -2,9 +2,10 @@
 //
 // FILE MAP
 //   Constants - the poll interval, the water reach and the snow share
-//   Detection - water, sleep, cold outdoors, location
+//   Detection - water, sleep, cold outdoors, location, the player's beast form
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
-//               assigned NPC with situation outfits and redresses at most one
+//               assigned actor with situation outfits, the player included, and
+//               redresses at most one
 //   API       - Name / Evaluate / Start / Stop
 //
 // The rules follow Tailor 3.0's src/events/SituationHandler.cpp and its policy headers
@@ -45,6 +46,11 @@ namespace
 		const auto* state = a_actor.AsActorState();
 		if (state && state->IsSwimming()) {
 			return true;
+		}
+		// A rider's feet are in the stirrups, well above the water the horse wades: only
+		// swimming counts (Tailor's rule for the player).
+		if (a_actor.IsOnMount()) {
+			return false;
 		}
 		// -infinity while no water is relevant to them.
 		const float water = a_actor.GetWaterHeight();
@@ -150,20 +156,30 @@ namespace
 		}
 	}
 
+	// A werewolf or Vampire Lord, or a mod's transformation: their races are not playable
+	// (Tailor's InBeastForm). The transformation takes the gear off and puts it back on.
+	bool IsPlayerInBeastForm(RE::Actor& a_actor)
+	{
+		const auto* race = a_actor.IsPlayerRef() ? a_actor.GetRace() : nullptr;
+		return race && !race->data.flags.all(RE::RACE_DATA::Flag::kPlayable);
+	}
+
 	// --- Poll -----------------------------------------------------------------
 
 	std::atomic<bool> g_running{ false };  // between Start and Stop
 	std::atomic<bool> g_queued{ false };   // a poll task waits to run
 	std::jthread      g_poller;
 
-	// Contract: game thread only. What each polled NPC was last seen in, so a change is
+	// Contract: game thread only. What each polled actor was last seen in, so a change is
 	// acted on once: a dressing that put nothing on is not tried again until their
 	// situations change.
 	std::unordered_map<RE::FormID, Situations::Applicable> g_lastSeen;
 
 	// Nothing while the game is paused or loading, or while the capture window has an actor
-	// on the preview. At most one NPC is redressed per poll, so a change for everyone at
-	// once (the weather) is spread out; the others follow at the next polls.
+	// on the preview. At most one actor is redressed per poll, so a change for everyone at
+	// once (the weather) is spread out; the others follow at the next polls. The player in
+	// beast form is skipped: a redress then would put Livery's pieces in the transformation's
+	// way. Turned back, they are seen anew and redressed only when the outfit due differs.
 	// Contract: game thread (SKSE task).
 	void Poll()
 	{
@@ -179,8 +195,8 @@ namespace
 		bool redressed = false;
 		for (const auto id : actors) {
 			auto* actor = RE::TESForm::LookupByID<RE::Actor>(id);
-			if (!actor || !actor->Is3DLoaded() || actor->IsDead()) {
-				g_lastSeen.erase(id);  // seen anew when they load again
+			if (!actor || !actor->Is3DLoaded() || actor->IsDead() || IsPlayerInBeastForm(*actor)) {
+				g_lastSeen.erase(id);  // seen anew when they load again or turn back
 				continue;
 			}
 			const auto now = Situations::Evaluate(*actor);
