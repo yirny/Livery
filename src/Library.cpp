@@ -16,6 +16,7 @@
 #include "Library.h"
 
 #include "CaptureWindow.h"
+#include "TailorExport.h"
 #include "Utils.h"
 
 #include <nlohmann/json.hpp>
@@ -41,7 +42,7 @@ namespace
 	constexpr RE::FormID    kMaxLightLocalID = 0xFFF;  // the same for a light plugin
 	constexpr const char*   kUnreadable = "Livery could not read outfits.json, so it changes nothing (see Livery.log).";
 
-	// Tailor's built-in categories, kept so a later export to Tailor maps one to one.
+	// Tailor's built-in categories, so the export to Tailor (TailorExport.cpp) maps one to one.
 	constexpr std::array<Library::Category, 9> kCategories{ {
 		{ CaptureWindow::kArmorTypeGroup, "Clothing" },
 		{ CaptureWindow::kArmorTypeGroup, "Light Armor" },
@@ -319,6 +320,7 @@ namespace Library
 		g_nextId = nextId;
 		g_writable = true;
 		logger::info("Loaded {} outfit(s) from outfits.json", g_outfits.size());
+		TailorExport::Write(g_outfits);  // Tailor export; remove with TailorExport.cpp
 	}
 
 	std::span<const Category> Categories()
@@ -386,6 +388,7 @@ namespace Library
 		}
 		g_outfits = std::move(outfits);
 		++g_nextId;
+		TailorExport::Write(g_outfits);  // Tailor export; remove with TailorExport.cpp
 		return std::nullopt;
 	}
 
@@ -416,6 +419,7 @@ namespace Library
 			return problem;
 		}
 		g_outfits = std::move(outfits);
+		TailorExport::Write(g_outfits);  // Tailor export; remove with TailorExport.cpp
 		return std::nullopt;
 	}
 }
