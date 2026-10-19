@@ -16,18 +16,17 @@ namespace RE
 // Contract: Open, Close and SetError run on the game thread; FeedInput and
 // Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
 // the game thread from the input dispatch hook. All state is guarded by one
-// mutex. Nothing here touches the outfit library: Create New hands the typed name to
+// mutex. Nothing here touches the outfit library: Create hands the typed name to
 // Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
-// Assign and Release to Request::onAssign and Request::onRelease, the Situations
-// page's Apply to Request::onClearSituations,
+// Apply and Restore Original Outfit to Request::onApply and Request::onRestore,
 // each piece tick to Request::onPieceToggled, each outfit selected on the
 // Load and Update Existing pages to Request::onPreviewPieces and the Live
 // Preview tick to Request::onPreviewOn / onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
-	// Group of the armor-type categories, shown as a row of checkboxes
-	// rather than a dropdown.
-	constexpr const char* kArmorTypeGroup = "Armor Type";
+	// Group of the class categories (ArmorInfo's SkyUI classes), shown as a row of
+	// checkboxes rather than a dropdown.
+	constexpr const char* kClassGroup = "Class";
 
 	struct CategoryOption
 	{
@@ -36,12 +35,27 @@ namespace CaptureWindow
 		bool        selected = false;  // initial state of its tick
 	};
 
+	// Where a piece comes from: the Capture page lists the pieces under one heading per
+	// group, in this order.
+	enum class PieceGroup
+	{
+		kLiveryOutfit,  // worn, put on by Livery from the library outfit Request::outfitName names
+		kWorn,          // the other worn pieces
+		kCarried,       // in the actor's inventory, not worn
+		kPlayer,        // an NPC's window only: in the player's inventory, not the NPC's
+		kNotCarried     // only a library outfit has it; listed while that outfit is loaded
+	};
+
 	struct Piece
 	{
-		std::string   name;          // the armor's display name
-		bool          selected;      // initial state of its checkbox
-		std::uint32_t slots = 0;     // body slot mask; ticking the piece unticks others sharing a slot
-		bool          owned = true;  // in the actor's inventory; one only a library outfit has is listed while that outfit is loaded
+		std::string   name;              // the armor's display name
+		bool          selected = false;  // initial state of its checkbox
+		std::uint32_t slots = 0;         // body slot mask; ticking the piece unticks others sharing a slot
+		PieceGroup    group = PieceGroup::kCarried;
+		std::string   type;            // the Type column (ArmorInfo::TypeOf); "" for none
+		int           typeOrder = 0;   // what the Type column sorts by
+		std::string   armorClass;      // the Class column (ArmorInfo::ClassOf)
+		int           classOrder = 0;  // what the Class column sorts by
 	};
 
 	// One frame of mouse and key input over the game rather than the window,
@@ -73,19 +87,16 @@ namespace CaptureWindow
 
 	struct Request
 	{
-		std::string                 actorName;             // shown as the title line
+		std::string                 actorName;             // the title line names them
 		std::string                 actorSummary;          // shown greyed under the title line; "" for none
-		std::vector<Piece>          pieces;                // shown as a checkbox list; both actions need at least one ticked
+		std::string                 outfitName;            // the library outfit of PieceGroup::kLiveryOutfit's heading
+		std::vector<Piece>          pieces;                // shown as a checkbox list; Save, Update Existing and Apply need at least one ticked
 		bool                        previewOn = false;     // Live Preview is on as the window opens; off, the window freezes the game
 		std::string                 previewNote;           // why Live Preview cannot be on, shown over its greyed tick; "" when it can
 		std::string                 suggestedName;         // initial text of the name field
 		std::vector<CategoryOption> categories;            // offered in the multi-select dropdown
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Update Existing page, in display order
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
-		std::vector<std::string>    situations;            // offered in the Assign for dropdown after Default; empty hides it and the Situations page
-		std::vector<std::string>    situationOutfits;      // one per `situations`: the outfit chosen for it, "" for none
-		std::string                 defaultOutfit;         // the default outfit, as the Situations page names it; "" for none
-		int                         wornFor = -1;          // what the outfit worn is for: -1 none, 0 the default, else the index into `situations` plus one
 
 		// Runs on the game thread with the trimmed, non-empty name, the indices
 		// into `pieces` the user left ticked (ascending, never empty), the
@@ -103,23 +114,16 @@ namespace CaptureWindow
 		// calling Close() or SetError().
 		std::function<void(std::uint32_t id, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories)> onUpdate;
 
-		// Runs on the game thread when the user presses Assign, with the ticked indices
-		// into `pieces` (ascending, never empty), the id of the outfit last loaded when
-		// the ticks are exactly its pieces, else 0, and what the outfit is assigned for:
-		// 0 for the default, else the index into `situations` plus one, with `outfit`
-		// then never 0. It must end by calling Close() or SetError().
-		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit, std::size_t situation)> onAssign;
+		// Runs on the game thread when the user presses Apply, with the ticked indices
+		// into `pieces` (ascending, never empty) and the id of the outfit last loaded
+		// when the ticks are exactly its pieces, else 0. It must end by calling Close()
+		// or SetError().
+		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit)> onApply;
 
-		// Runs on the game thread when the user presses Release. Empty when Livery does
-		// not dress the character, which greys the button. It must end by calling
-		// Close() or SetError().
-		std::function<void()> onRelease;
-
-		// Runs on the game thread when the user presses Apply on the Situations page, with
-		// the indices into `situations` marked to clear (ascending, never empty, each with an
-		// outfit in `situationOutfits`). Empty when Livery does not dress the character,
-		// which greys the page's link. It must end by calling Close() or SetError().
-		std::function<void(const std::vector<std::size_t>& situations)> onClearSituations;
+		// Runs on the game thread when the user presses Restore Original Outfit. Empty
+		// when Livery has no pieces on the character, which hides the button. It must end
+		// by calling Close() or SetError().
+		std::function<void()> onRestore;
 
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns

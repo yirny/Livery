@@ -8,25 +8,26 @@
 
 namespace
 {
-	// Request::categories as Plugin.cpp builds it: armor types, situations, custom ones.
+	// Request::categories as Plugin.cpp builds it: classes, situations, custom ones.
 	CaptureWindow::Request MakeRequest()
 	{
 		CaptureWindow::Request request;
 		request.categories = {
-			{ CaptureWindow::kArmorTypeGroup, "Clothing" },
-			{ CaptureWindow::kArmorTypeGroup, "Light Armor" },
-			{ CaptureWindow::kArmorTypeGroup, "Heavy Armor" },
+			{ CaptureWindow::kClassGroup, "Light" },
+			{ CaptureWindow::kClassGroup, "Heavy" },
+			{ CaptureWindow::kClassGroup, "Clothing" },
+			{ CaptureWindow::kClassGroup, "Jewelry" },
 			{ "Situation", "Adventuring" },
 			{ "Situation", "Town" },
 			{ "Situation", "Swimming" },
 			{ "Custom Category", "Favourites" },
 		};
 		request.existingOutfits = {
-			{ "iron set", { "Heavy Armor", "Adventuring" }, {} },
-			{ "Guard Uniform", { "Light Armor", "Adventuring", "Swimming" }, {} },
+			{ "iron set", { "Heavy", "Adventuring" }, {} },
+			{ "Guard Uniform", { "Light", "Adventuring", "Swimming" }, {} },
 			{ "Town Dress", { "Clothing", "Town" }, {} },
 			{ "Bare", {}, {} },
-			{ "Scout", { "Light Armor", "Adventuring", "Town", "Favourites" }, {} },
+			{ "Scout", { "Light", "Adventuring", "Town", "Favourites" }, {} },
 		};
 		return request;
 	}
@@ -78,8 +79,8 @@ TEST_CASE("Filter rows follow the groups, each with its No row", "[browser]")
 	for (const auto& row : state.filter) {
 		labels.push_back(row.label);
 	}
-	CHECK(labels == std::vector<std::string>{ "Clothing", "Light Armor", "Heavy Armor", "No Armor Type", "Adventuring", "Town",
-						"Swimming", "No Situation", "Favourites", "No Custom Category" });
+	CHECK(labels == std::vector<std::string>{ "Light", "Heavy", "Clothing", "Jewelry", "No Class", "Adventuring", "Town", "Swimming",
+						"No Situation", "Favourites", "No Custom Category" });
 }
 
 TEST_CASE("No custom category means no Custom Category rows", "[browser]")
@@ -118,15 +119,15 @@ TEST_CASE("Filter: any ticked row within a group, every ticked group", "[browser
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
 
-	Tick(state, "Light Armor");
-	Tick(state, "Heavy Armor");
+	Tick(state, "Light");
+	Tick(state, "Heavy");
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Guard Uniform", "iron set", "Scout" });
 
 	Tick(state, "Town");
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Scout" });
-	CHECK(OutfitBrowser::FilterPreview(state) == "Light Armor, Heavy Armor, Town");
+	CHECK(OutfitBrowser::FilterPreview(state) == "Light, Heavy, Town");
 
 	OutfitBrowser::ClearFilter(state);
 	OutfitBrowser::Refresh(state, request);
@@ -159,18 +160,18 @@ TEST_CASE("Search and filter combine", "[browser]")
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set", "Scout" });
 }
 
-TEST_CASE("Armor Type sort: the library's type order, then situation, then name", "[browser]")
+TEST_CASE("Class sort: the library's class order, then situation, then name", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	state.sort = OutfitBrowser::SortKey::kArmorType;
+	state.sort = OutfitBrowser::SortKey::kClass;
 	OutfitBrowser::Refresh(state, request);
-	// Light Armor: Adventuring + Town (Scout) before Adventuring + Swimming (Guard Uniform).
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Scout", "Guard Uniform", "iron set", "Bare" });
+	// Light: Adventuring + Town (Scout) before Adventuring + Swimming (Guard Uniform).
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Scout", "Guard Uniform", "iron set", "Town Dress", "Bare" });
 }
 
-TEST_CASE("Situation sort: the library's situation order, then armor type, then name", "[browser]")
+TEST_CASE("Situation sort: the library's situation order, then class, then name", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;

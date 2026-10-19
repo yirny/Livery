@@ -10,16 +10,18 @@
 //                    stand (MovementHold) while the window is open, and every close of the window,
 //                    a save included, ends them all
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
-//                    armor, detect the armor class, list the library's outfits (adding their pieces the actor
-//                    does not carry), then open the window with the worn pieces ticked (or save those under
-//                    an automatic name where the overlay is unavailable); the window's Assign and Release
-//                    go to Assignments
+//                    armor (and for an NPC the player's, per the settings), each piece with its group and
+//                    SkyUI's Type and Class (ArmorInfo), detect the class, list the library's outfits (adding
+//                    their pieces nobody carries), then open the window with the worn pieces ticked (or save
+//                    those under an automatic name where the overlay is unavailable); the window's Apply and
+//                    Restore Original Outfit go to Assignments
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
 //   Messaging      - outfit library, settings page, sink and menu registration, ready state, the
 //                    situation poll (Situations) around loads
 //   Entry          - log, settings, co-save, trampoline, hooks (overlay, trade-menu filter)
 #include "PCH.h"
 
+#include "ArmorInfo.h"
 #include "Assignments.h"
 #include "CaptureWindow.h"
 #include "Hooks.h"
@@ -43,7 +45,7 @@
 
 namespace
 {
-	// Slots that decide an outfit's armor class and gender, most telling first:
+	// Slots that decide an outfit's class and gender, most telling first:
 	// Body sets how the outfit reads at a glance.
 	using BipedSlot = RE::BGSBipedObjectForm::BipedObjectSlot;
 	constexpr std::array kSlotPriority{ BipedSlot::kBody, BipedSlot::kHead, BipedSlot::kHands, BipedSlot::kFeet, BipedSlot::kCirclet };
@@ -226,10 +228,21 @@ namespace
 		bool               worn;
 	};
 
-	// Inventory armor as plugin-defined forms, worn pieces first, each group in
-	// name order. The library names a piece by its plugin, which runtime-created armor
-	// (FormID 0xFF......) does not have, so player-enchanted gear is replaced by the plugin armor it was made from
-	// (templateArmor, TNAM); runtime-created armor without one is left out. Only
+	// The plugin armor an inventory armor is listed as. The library names a piece by its
+	// plugin, which runtime-created armor (FormID 0xFF......) does not have, so player-enchanted
+	// gear is replaced by the plugin armor it was made from (templateArmor, TNAM); nullptr for
+	// runtime-created armor without one.
+	RE::TESObjectARMO* PluginArmor(RE::TESObjectARMO& armor)
+	{
+		if (!armor.IsDynamicForm()) {
+			return &armor;
+		}
+		auto* base = armor.templateArmor;
+		return base && !base->IsDynamicForm() ? base : nullptr;
+	}
+
+	// Inventory armor as plugin-defined forms (PluginArmor), worn pieces first, each group in
+	// name order; runtime-created armor without a plugin armor is left out. Only
 	// worn pieces count in substituted and skipped. A form both worn and carried
 	// is listed once, as worn.
 	// Non-playable armor is left out uncounted: body-mod parts such as the BHUNP /
@@ -254,21 +267,19 @@ namespace
 				continue;
 			}
 			const bool worn = entry && entry->IsWorn();
-			if (armor->IsDynamicForm()) {
-				auto* base = armor->templateArmor;
-				if (!base || base->IsDynamicForm()) {
-					if (worn) {
-						++skipped;
-						logger::info("Skipped runtime-created armor {:08X}", armor->GetFormID());
-					}
-					continue;
-				}
+			auto*      plugin = PluginArmor(*armor);
+			if (!plugin) {
 				if (worn) {
-					++substituted;
-					logger::info("Using base armor {:08X} for runtime-created armor {:08X}", base->GetFormID(), armor->GetFormID());
+					++skipped;
+					logger::info("Skipped runtime-created armor {:08X}", armor->GetFormID());
 				}
-				armor = base;
+				continue;
 			}
+			if (plugin != armor && worn) {
+				++substituted;
+				logger::info("Using base armor {:08X} for runtime-created armor {:08X}", plugin->GetFormID(), armor->GetFormID());
+			}
+			armor = plugin;
 			if (const auto found = std::ranges::find(armors, armor, &InventoryArmor::armor); found != armors.end()) {
 				found->worn = found->worn || worn;
 			} else {
@@ -283,6 +294,40 @@ namespace
 			return _stricmp(DisplayName(*a.armor).c_str(), DisplayName(*b.armor).c_str()) < 0;
 		});
 		return armors;
+	}
+
+	// The player's armor an NPC's window lists under From Player's Inventory, as plugin armor
+	// (PluginArmor), each form once, per the settings: none with ShowPlayerInventory off, never a
+	// quest item, a favorite only with ProtectFavorites off, and a form the player wears only with
+	// ShowPlayerWornPieces on or when they carry another copy of it.
+	std::vector<RE::TESObjectARMO*> OfferedPlayerArmor(RE::PlayerCharacter& player)
+	{
+		std::vector<RE::TESObjectARMO*> offered;
+		if (!Settings::ShowPlayerInventory()) {
+			return offered;
+		}
+		const bool showWorn = Settings::ShowPlayerWornPieces();
+		const bool protectFavorites = Settings::ProtectFavorites();
+		const auto inventory = player.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
+		for (const auto& [object, itemData] : inventory) {
+			const auto& [count, entry] = itemData;
+			auto* armor = object->As<RE::TESObjectARMO>();
+			if (count <= 0 || !armor || armor->formFlags & RE::TESObjectARMO::RecordFlags::kNonPlayable) {
+				continue;
+			}
+			if (entry && (entry->IsQuestObject() || (protectFavorites && entry->IsFavorited()))) {
+				continue;
+			}
+			// One copy at most is worn, so a count of two or more leaves one carried.
+			if (entry && entry->IsWorn() && !showWorn && count < 2) {
+				continue;
+			}
+			auto* plugin = PluginArmor(*armor);
+			if (plugin && std::ranges::find(offered, plugin) == offered.end()) {
+				offered.push_back(plugin);
+			}
+		}
+		return offered;
 	}
 
 	std::vector<RE::TESObjectARMO*> WornArmors(const std::vector<InventoryArmor>& armors)
@@ -333,30 +378,23 @@ namespace
 		});
 	}
 
-	// Armor-type category of an outfit: the armor type of the first piece
-	// found on a kSlotPriority slot; Clothing when none is.
+	// Class category of an outfit: the SkyUI class (ArmorInfo) of the first piece found on a
+	// kSlotPriority slot that has one of the library's four; Clothing when none has.
 	const char* DetectArmorClass(const std::vector<RE::TESObjectARMO*>& armors)
 	{
-		using Type = RE::BGSBipedObjectForm::ArmorType;
+		using ArmorInfo::ArmorClass;
 
 		for (const auto slot : kSlotPriority) {
 			for (const auto* armor : armors) {
 				if (!armor->HasPartOf(slot)) {
 					continue;
 				}
-				switch (armor->GetArmorType()) {
-				case Type::kLightArmor:
-					return "Light Armor";
-				case Type::kHeavyArmor:
-					return "Heavy Armor";
-				case Type::kClothing:
-					return "Clothing";
-				default:
-					break;  // out-of-range value from a broken record: try the next piece
+				if (const auto armorClass = ArmorInfo::ClassOf(*armor); armorClass != ArmorClass::kOther) {
+					return ArmorInfo::ClassName(armorClass);
 				}
 			}
 		}
-		return "Clothing";
+		return ArmorInfo::ClassName(ArmorClass::kClothing);
 	}
 
 	// A piece is for women when none of its armor addons has a male model and
@@ -393,15 +431,30 @@ namespace
 		return -1;
 	}
 
+	// A row of the window's piece list, with SkyUI's Type and Class (ArmorInfo).
+	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected)
+	{
+		const auto type = ArmorInfo::TypeOf(armor);
+		const auto armorClass = ArmorInfo::ClassOf(armor);
+		return { .name = DisplayName(armor),
+			.selected = selected,
+			.slots = armor.GetSlotMask().underlying(),
+			.group = group,
+			.type = type.name,
+			.typeOrder = type.order,
+			.armorClass = ArmorInfo::ClassName(armorClass),
+			.classOrder = static_cast<int>(armorClass) };
+	}
+
 	// Index of the armor in `armors`; armor not there yet is appended to both
-	// lists as a piece the actor does not carry, unticked.
+	// lists as a piece nobody carries, unticked.
 	std::size_t PieceIndex(RE::TESObjectARMO* armor, std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
 	{
 		if (const auto found = std::ranges::find(armors, armor); found != armors.end()) {
 			return static_cast<std::size_t>(found - armors.begin());
 		}
 		armors.push_back(armor);
-		pieces.push_back({ .name = DisplayName(*armor), .selected = false, .slots = armor->GetSlotMask().underlying(), .owned = false });
+		pieces.push_back(MakePiece(*armor, CaptureWindow::PieceGroup::kNotCarried, false));
 		return armors.size() - 1;
 	}
 
@@ -466,75 +519,44 @@ namespace
 		return chosen.empty() ? text : text + chosen + ".";
 	}
 
-	// Names a library outfit for the Situations page, or says it is gone.
-	std::string OutfitName(std::uint32_t id)
+	// The library outfit Livery has on them now (the default's, or the worn situation's), for
+	// the first heading of the piece list; nullptr when Livery has nothing on them, the pieces
+	// are not a saved outfit (id 0) or the outfit has left the library.
+	// Contract: the pointer goes stale at the next Library::Create or Update.
+	const Library::Outfit* WornLibraryOutfit(const std::optional<Assignments::Choices>& choices)
 	{
-		const auto* stored = Library::Find(id);
-		return stored ? stored->name : "An outfit no longer in the library";
+		if (!choices || !choices->dressed) {
+			return nullptr;
+		}
+		const bool forSituation = choices->worn != Situations::Situation::kDefault;
+		const auto id = forSituation ? choices->situations[Situations::Index(choices->worn)] : choices->defaultOutfit;
+		return id ? Library::Find(id) : nullptr;
 	}
 
-	// The Situations page: the outfits chosen for the default and each situation, which of
-	// them is worn, and Apply, which forgets the situations marked to clear. Apply closes
-	// the window first, as Assign does.
-	// Contract: game thread; request.situations is filled and situationOutfits matches it.
-	void AttachSituations(CaptureWindow::Request& request, const Assignments::Choices& choices, RE::ActorHandle handle)
-	{
-		for (std::size_t i = 0; i < Situations::kChoosable.size(); ++i) {
-			if (const auto outfit = choices.situations[i]) {
-				request.situationOutfits[i] = OutfitName(outfit);
-			}
-		}
-		if (choices.hasDefault) {
-			request.defaultOutfit = choices.defaultOutfit ? OutfitName(choices.defaultOutfit) : "Pieces that are not a saved outfit";
-		}
-		if (choices.dressed) {
-			request.wornFor = choices.worn == Situations::Situation::kDefault ? 0 : static_cast<int>(Situations::Index(choices.worn)) + 1;
-		}
-		request.onClearSituations = [handle](const std::vector<std::size_t>& situations) {
-			CaptureWindow::Close();
-			const auto target = handle.get();
-			if (!target) {
-				return;
-			}
-			std::vector<Situations::Situation> cleared;
-			for (const auto index : situations) {
-				cleared.push_back(Situations::kChoosable[index]);
-			}
-			Assignments::ClearSituations(*target, cleared);
-		};
-	}
-
-	// The window's Assign and Release, the line under the actor's name and the Situations
-	// page. Assign dresses them in the ticked pieces by default, or chooses the loaded outfit
-	// for a situation (Situations), the player's as an NPC's. Both buttons close the window
-	// first, so the preview has put back what they wore before Livery dresses or releases them.
+	// The window's Apply and Restore Original Outfit, and the line under the actor's name.
+	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's;
+	// Restore, offered while Livery has pieces on them, ends what Livery chose for them. Both
+	// close the window first, so the preview has put back what they wore before Livery dresses
+	// or releases them.
 	// Contract: game thread; `armors` matches request.pieces index for index.
-	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
+	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::optional<Assignments::Choices>& choices)
 	{
 		const auto handle = actor.GetHandle();
-		for (const auto situation : Situations::kChoosable) {
-			request.situations.push_back(Situations::Name(situation));
-		}
-		request.situationOutfits.resize(request.situations.size());
-		request.onAssign = [handle, armors](const std::vector<std::size_t>& pieces, std::uint32_t outfit, std::size_t situation) {
+		request.onApply = [handle, armors](const std::vector<std::size_t>& pieces, std::uint32_t outfit) {
 			CaptureWindow::Close();
-			const auto target = handle.get();
-			if (!target) {
-				return;
-			}
-			if (situation == 0) {
+			if (const auto target = handle.get()) {
 				Assignments::Assign(*target, PickPieces(armors, pieces), outfit);
-			} else {
-				Assignments::SetSituation(*target, Situations::kChoosable[situation - 1], outfit);
 			}
 		};
-		const auto choices = Assignments::ChoicesOf(actor.GetFormID());
 		if (!choices) {
-			return;  // Release and the Situations page's link stay greyed
+			return;
 		}
 		request.actorSummary = DescribeAssignment(*choices);
-		AttachSituations(request, *choices, handle);
-		request.onRelease = [handle] {
+		if (!choices->dressed) {
+			return;  // Restore stays hidden
+		}
+		request.onRestore = [handle] {
 			CaptureWindow::Close();
 			if (const auto target = handle.get()) {
 				Assignments::Unassign(*target);
@@ -542,13 +564,32 @@ namespace
 		};
 	}
 
+	// The player's armor under From Player's Inventory, for an NPC: the forms the NPC does
+	// not carry, which are listed once, under the NPC's own headings.
+	// Contract: game thread; `armors` matches `pieces` index for index.
+	void AddPlayerPieces(RE::Actor& actor, std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		if (!player || actor.IsPlayerRef()) {
+			return;
+		}
+		for (auto* armor : OfferedPlayerArmor(*player)) {
+			if (std::ranges::find(armors, armor) == armors.end()) {
+				pieces.push_back(MakePiece(*armor, CaptureWindow::PieceGroup::kPlayer, false));
+				armors.push_back(armor);
+			}
+		}
+	}
+
 	// Contract: game thread (library reads that hand out armor forms run here, so
 	// the window itself never calls the library).
-	// Every inventory piece is listed; worn ones start ticked and decide the
-	// suggested armor class and gender. The library outfits' other pieces follow,
-	// for Load Outfit.
+	// Every inventory piece is listed, the worn ones under the outfit Livery put on them or
+	// the other worn pieces' heading; worn ones start ticked and decide the suggested class
+	// and gender. For an NPC the player's armor follows (AddPlayerPieces), then the library
+	// outfits' other pieces, for Load Outfit.
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
+		using Group = CaptureWindow::PieceGroup;
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
 		request.suggestedName = NextAutomaticName();
@@ -559,14 +600,22 @@ namespace
 			category.selected = category.name == armorClass;
 		}
 		request.suggestedGender = DetectGender(worn);
+		const auto  choices = Assignments::ChoicesOf(actor.GetFormID());
+		const auto* livery = WornLibraryOutfit(choices);
+		if (livery) {
+			request.outfitName = livery->name;
+		}
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& [armor, isWorn] : inventory) {
-			request.pieces.push_back({ DisplayName(*armor), isWorn && !LooksLikeWig(*armor), armor->GetSlotMask().underlying() });
+			const bool fromLivery = livery && isWorn && std::ranges::find(choices->wornArmor, armor->GetFormID()) != choices->wornArmor.end();
+			const auto group = !isWorn ? Group::kCarried : (fromLivery ? Group::kLiveryOutfit : Group::kWorn);
+			request.pieces.push_back(MakePiece(*armor, group, isWorn && !LooksLikeWig(*armor)));
 			armors.push_back(armor);
 		}
+		AddPlayerPieces(actor, armors, request.pieces);
 		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
-		AttachAssignment(request, actor, armors);
+		AttachAssignment(request, actor, armors, choices);
 		AttachPreview(request, actor, armors);
 		// Every close, whatever closed the window, ends the preview, lets saving back on
 		// and lets an NPC walk again.

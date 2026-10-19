@@ -49,7 +49,7 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
 put on armor they own there (a helmet, a shield). Accepted for now.
 
-The outfit Assign gives is the actor's default. An outfit chosen for a situation (§7)
+The outfit the window's Apply gives (`Assignments::Assign`) is the actor's default. An outfit chosen for a situation (§7)
 replaces it while the situation lasts, by the same steps: the worn pieces are released
 (copies removed, the actor's own pieces back on) and the new outfit is dressed.
 
@@ -69,7 +69,7 @@ says so), so a lock would be needed anyway.
   SKSE task, since the event's thread is not documented.
 - A locked piece the player takes back in the trade menu stays taken: the slot is left
   to the vanilla picker until the player assigns again.
-- Unassign (the window's Release): release the mod's locks, remove the mod's copies
+- Unassign (the window's Restore Original Outfit): release the mod's locks, remove the mod's copies
   still present (by co-save key; never a player-given instance), put the actor's own
   pieces it took off back on (those still carried, unworn and unlocked, without a lock),
   forget the actor. A slot whose own piece is gone is left to the engine's next
@@ -189,8 +189,8 @@ can come later if sharing across characters is wanted.
   outdoors in cloudy, rainy or snowy weather (a region that is not snowy); the default
   during a fight and the situation outfit after it; the choices and the switching survive
   save and load; a version 2 co-save record is read.
-- The Situations page (§7): two situations cleared in one Apply; Town cleared while in
-  a town put the default back on at once; the cleared choices stayed cleared across save
+- `Assignments::ClearSituations` (§7): two situations cleared in one call; Town cleared
+  while in a town put the default back on at once; the cleared choices stayed cleared across save
   and load.
 - Situation outfits on the player (§7): Town in Whiterun, Warm by weather, and Swimming
   when wading on foot; no redress while a werewolf, and the right outfit on after turning
@@ -204,17 +204,13 @@ can come later if sharing across characters is wanted.
 ## 7. Situations
 
 An assigned actor can have a library outfit per situation: Town, Home, Sleep, Swimming,
-Warm (`Situations::kChoosable`). The default, what Assign gives, is worn where none of
-them applies. The window's Pieces page has an **Assign for** dropdown: Default assigns the
-ticked pieces as before; a situation needs the ticks to be a loaded library outfit and
-records its id for that situation, since the outfit is read from the library each time
-it goes on. An actor can have situation outfits without a default and then wears their
-own clothes outside them. Release forgets the choices with the rest. The **Situations...**
-link on the dropdown's label line, greyed while no situation has an outfit, opens the
-Situations page: the default's and each situation's outfit, the one worn marked. Clear
-marks a situation; Apply closes the window and forgets the marked ones at once
-(`Assignments::ClearSituations`, one redress, one HUD message). The default has no Clear:
-Release ends it. The player has the same dropdown and page.
+Warm (`Situations::kChoosable`). The default, what the window's Apply gives, is worn
+where none of them applies. A situation records a library outfit's id
+(`Assignments::SetSituation`), since the outfit is read from the library each time it goes
+on. An actor can have situation outfits without a default and then wears their own clothes
+outside them. Restore Original Outfit forgets the choices with the rest. The capture window
+has no control that chooses or clears a situation outfit until its Save page
+(docs/ui-redesign.md §4); the choices in a save keep working, the player's too.
 
 ### Detection (`Situations::Evaluate`)
 
@@ -254,8 +250,8 @@ on), it evaluates the situations and, when they differ from the last poll's, cal
 outfit differs from the one worn (`worn` in the record). One redress per poll: when the
 weather turns for everyone, the others follow at the next polls. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
-again until the situations change. Assign and the dropdown dress for the current
-situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
+again until the situations change. Apply dresses for the current situations at
+once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
 `kNewGame`, forgetting what it last saw. The record's `pieces` describe whatever is worn,
 so a situation outfit is kept on, locked and put back at 3D load like the default.
 
@@ -278,7 +274,8 @@ Each stage ends with an in-game check before the next starts.
 5. The player's situations (§7): the window's dropdown and Situations page, the poll
    skipping beast form, the mount rule for water. Done.
 6. The export to Tailor's import JSON (§4). Done.
-7. Rework the capture window's existing pages.
+7. Rework the capture window's existing pages (docs/ui-redesign.md). Step 1, the Capture
+   page: built, not yet checked in game.
 8. An Outfit Management window: Delete and Rename for library outfits. Delete must deal
    with the assignments and situation choices that name the outfit; Rename needs the
    no-rename rule in CLAUDE.md §2.1 rewritten.

@@ -12,9 +12,11 @@
 //                Vanilla and Nordic skins); the dropdown arrows; the game's
 //                checkbox of the Vanilla and Nordic skins; the fainter field
 //                border; the selected single-choice row's mark
-//   Labels     - a field label's line spacing; LabelLink's plus-in-square mark
-//   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets
-//                and the lists between rules (BeginList / EndList)
+//   Labels     - a field label's line spacing; the colour of clickable labels;
+//                LabelLink's plus-in-square mark
+//   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets, the
+//                lists between rules (BeginList / EndList) and their columns
+//                (HeaderRow over multi-column tick rows)
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
 // TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
@@ -39,7 +41,7 @@
 #include <wrl/client.h>
 
 #include <imgui.h>
-#include <imgui_internal.h>  // BeginComboPreview / EndComboPreview
+#include <imgui_internal.h>  // BeginComboPreview / EndComboPreview, RenderTextEllipsis
 
 #include <algorithm>
 #include <array>
@@ -629,6 +631,17 @@ namespace
 		return (g_skin == Theme::Skin::kTailor ? kTailorRuleWidth + kTailorRuleGap : kRowTextShift) * g_scale;
 	}
 
+	// How far right of a list's indent a tick row's text starts: in Tailor clear of
+	// the amber rule, in Vanilla and Nordic past the equipped mark's column.
+	float TickTextShift()
+	{
+		if (g_skin == Theme::Skin::kTailor) {
+			return RowTextShift();
+		}
+		const Ornament& mark = g_skin == Theme::Skin::kNordic ? g_nordicEquipped : g_vanillaEquipped;
+		return mark.size.x * g_scale + ImGui::GetStyle().ItemInnerSpacing.x;
+	}
+
 	// One row of a Theme::BeginList list, laid out as an invisible button that
 	// runs edge to edge of the list; its fills span only the rules' width
 	// (EndList). The text starts `inset` in, on the list's indent, so it lines
@@ -661,13 +674,32 @@ namespace
 		return row;
 	}
 
+	// A tick row's cells, each at its column (Theme::HeaderRow) from `a_textX`,
+	// centred on `a_midY`; one too long for its column ends in an ellipsis.
+	void DrawCells(ImDrawList* a_draw, float a_textX, float a_midY, float a_right, std::span<const char* const> a_cells,
+		std::span<const float> a_columnX)
+	{
+		const ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
+		for (std::size_t i = 0; i < a_cells.size(); ++i) {
+			const float  left = a_textX + a_columnX[i];
+			const float  end = i + 1 < a_cells.size() ? a_textX + a_columnX[i + 1] - Theme::ColumnGap() : a_right;
+			const ImVec2 size = ImGui::CalcTextSize(a_cells[i]);
+			const ImVec2 topLeft(left, a_midY - size.y * 0.5f);
+			if (left + size.x <= end) {
+				a_draw->AddText(topLeft, color, a_cells[i]);
+			} else if (end > left) {
+				ImGui::RenderTextEllipsis(a_draw, topLeft, ImVec2(end, topLeft.y + size.y), end, a_cells[i], nullptr, &size);
+			}
+		}
+	}
+
 	// Tailor 3.0's selected list row: while ticked, the row's fill in the faint
 	// amber selection colour with an amber rule down its left edge; the muted
 	// brown hover fill while hovered. The text sits clear of the rule.
-	bool TailorRow(const char* a_label, bool* a_ticked)
+	bool TailorRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
 	{
 		const float   height = ImGui::GetFrameHeight();
-		const ListRow row = LayOutListRow(a_label, height);
+		const ListRow row = LayOutListRow(a_cells[0], height);
 		if (row.pressed) {
 			*a_ticked = !*a_ticked;
 		}
@@ -682,8 +714,8 @@ namespace
 		if (*a_ticked) {
 			draw->AddRectFilled(row.fillMin, ImVec2(row.fillMin.x + kTailorRuleWidth * g_scale, row.fillMax.y), ImGui::GetColorU32(kAmber));
 		}
-		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		draw->AddText(ImVec2(row.min.x + row.inset + RowTextShift(), row.min.y + (height - text.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		const float right = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
+		DrawCells(draw, row.min.x + row.inset + TickTextShift(), row.min.y + height * 0.5f, right, a_cells, a_columnX);
 		return row.pressed;
 	}
 
@@ -691,14 +723,14 @@ namespace
 	// left edge to the right and the skin's equipped mark at the left; a faint
 	// tint while hovered. The mark's column stays on unticked rows so the names
 	// line up. Without the texture the mark is a small filled triangle.
-	bool InventoryRow(const char* a_label, bool* a_ticked)
+	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
 	{
 		constexpr ImU32 kVanillaMark = IM_COL32(204, 204, 204, 255);  // the game's #cccccc
 		constexpr int   kBarAlpha = 70;                               // of the bar's white right end
 
 		const auto&   style = ImGui::GetStyle();
 		const float   height = ImGui::GetFrameHeight();
-		const ListRow row = LayOutListRow(a_label, height);
+		const ListRow row = LayOutListRow(a_cells[0], height);
 		if (row.pressed) {
 			*a_ticked = !*a_ticked;
 		}
@@ -731,8 +763,7 @@ namespace
 					ImVec2(centreX - half * 0.6f, midY + half), ImGui::GetColorU32(nordic ? kNordicOrnament : kVanillaMark));
 			}
 		}
-		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		draw->AddText(ImVec2(markTopLeft.x + markSize.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		DrawCells(draw, topLeft.x + row.inset + TickTextShift(), midY, row.fillMax.x - style.FramePadding.x, a_cells, a_columnX);
 		return row.pressed;
 	}
 
@@ -1033,6 +1064,16 @@ namespace
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - kLabelGapTrim * g_scale)));
 	}
 
+	// LabelText's colour, or the lit one while hovered: amber in Tailor, whose label
+	// is already the text colour.
+	ImU32 LinkColor(bool a_hovered)
+	{
+		if (g_skin == Theme::Skin::kTailor) {
+			return a_hovered ? ImGui::GetColorU32(kAmber) : ImGui::GetColorU32(ImGuiCol_Text);
+		}
+		return a_hovered ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(kNordicLabel);
+	}
+
 	// A filled square `a_side` pixels across, its corners rounded, with a plus
 	// cut out of its middle so the window shows through. ImGui cannot cut a
 	// hole, so four rotated copies of one piece are filled: a corner square and
@@ -1271,11 +1312,7 @@ namespace Theme
 		const bool clicked = ImGui::InvisibleButton(a_label, ImVec2(width, (std::max)(side, text.y)));
 		ImGui::PopStyleVar();
 
-		// LabelText's colour, lit while hovered: amber in Tailor, whose label is already the text colour.
-		const bool  tailor = g_skin == Skin::kTailor;
-		const ImU32 normal = tailor ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(kNordicLabel);
-		const ImU32 lit = tailor ? ImGui::GetColorU32(kAmber) : ImGui::GetColorU32(ImGuiCol_Text);
-		const ImU32 color = ImGui::IsItemHovered() ? lit : normal;
+		const ImU32 color = LinkColor(ImGui::IsItemHovered());
 		auto*       draw = ImGui::GetWindowDrawList();
 		DrawPlusSquare(draw, topLeft, side, color);
 		draw->AddText(ImVec2(topLeft.x + side + style.ItemInnerSpacing.x, topLeft.y), color, a_label);
@@ -1296,9 +1333,69 @@ namespace Theme
 		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f;
 	}
 
-	bool TickRow(const char* a_label, bool* a_ticked)
+	float ColumnsWidth()
 	{
-		return g_skin == Skin::kTailor ? TailorRow(a_label, a_ticked) : InventoryRow(a_label, a_ticked);
+		return (std::max)(0.0f, ImGui::GetContentRegionAvail().x - TickTextShift() - ImGui::GetStyle().FramePadding.x);
+	}
+
+	float ColumnGap()
+	{
+		constexpr float kColumnGap = 16.0f;  // pixels at 1080p
+		return kColumnGap * g_scale;
+	}
+
+	int HeaderRow(std::span<const char* const> a_labels, std::span<const float> a_columnX, int a_sorted, bool a_descending)
+	{
+		constexpr float kArrowRatio = 0.4f;  // the sort arrow's width, of the font size
+
+		SectionGap();
+		PushLabelSpacing();  // the gap below is LabelText's
+		PushSmallFont();
+		const auto&  style = ImGui::GetStyle();
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		const float  textX = origin.x + TickTextShift();
+		const float  arrow = ImGui::GetFontSize() * kArrowRatio;
+		auto*        draw = ImGui::GetWindowDrawList();
+		int          clicked = -1;
+		for (std::size_t i = 0; i < a_labels.size(); ++i) {
+			const bool   sorted = static_cast<int>(i) == a_sorted;
+			const ImVec2 text = ImGui::CalcTextSize(a_labels[i]);
+			const float  width = text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f);
+			if (i > 0) {
+				ImGui::SameLine();
+			}
+			ImGui::SetCursorScreenPos(ImVec2(textX + a_columnX[i], origin.y));
+			if (ImGui::InvisibleButton(a_labels[i], ImVec2((std::max)(1.0f, width), (std::max)(1.0f, text.y)))) {
+				clicked = static_cast<int>(i);
+			}
+			const ImU32  color = LinkColor(ImGui::IsItemHovered());
+			const ImVec2 pos = ImGui::GetItemRectMin();
+			draw->AddText(pos, color, a_labels[i]);
+			if (sorted) {
+				const float left = pos.x + text.x + style.ItemInnerSpacing.x;
+				const float midY = pos.y + text.y * 0.5f;
+				const float half = arrow * 0.5f;
+				const float tip = a_descending ? half * 0.6f : -half * 0.6f;  // the point's offset from midY
+				draw->AddTriangleFilled(ImVec2(left, midY - tip), ImVec2(left + arrow, midY - tip), ImVec2(left + half, midY + tip), color);
+			}
+		}
+		PopSmallFont();
+		ImGui::PopStyleVar();
+		return clicked;
+	}
+
+	bool TickRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
+	{
+		return g_skin == Skin::kTailor ? TailorRow(a_cells, a_columnX, a_ticked) : InventoryRow(a_cells, a_columnX, a_ticked);
+	}
+
+	bool TextButton(const char* a_label)
+	{
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)));
+		ImGui::GetWindowDrawList()->AddText(topLeft, LinkColor(ImGui::IsItemHovered()), a_label);
+		return clicked;
 	}
 
 	bool Checkbox(const char* a_label, bool* a_value)

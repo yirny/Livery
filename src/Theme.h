@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstddef>
+#include <span>
 
 struct ID3D11Device;
 
@@ -90,14 +91,36 @@ namespace Theme
 	float ListPaddingY();
 	float ListRowGap(float fallback);
 
-	// A row the user ticks on and off; returns true when toggled. While ticked,
-	// Tailor fills it faintly amber with an amber rule on its left edge, as
-	// Tailor 3.0 marks a selected row; Vanilla and Nordic draw it like a SkyUI
-	// inventory row: the skin's equipped mark and a white bar fading in from the
-	// left.
-	// Contract: inside BeginList; the label is shown as is and is the row's
-	// ImGui ID, so PushID around rows whose labels may repeat.
-	bool TickRow(const char* label, bool* ticked);
+	// Columns of a header row and the tick rows under it: each column's left edge
+	// in pixels from where a tick row's text starts, the first at 0, ascending. A
+	// cell's text ends, with an ellipsis, ColumnGap() short of the next column, and
+	// the last column's at the row's right end.
+	//
+	// Room for a tick row's columns, from where its text starts to the list's
+	// right end. Contract: called outside BeginList, at the list's indent.
+	float ColumnsWidth();
+
+	// Pixels on the back buffer between the end of one column's text and the next column.
+	float ColumnGap();
+
+	// The column labels over a list, in LabelText's font and colour, each lit
+	// while hovered (white in Vanilla and Nordic, amber in Tailor); the label of
+	// column `sorted` has a small arrow after it, pointing up unless
+	// `descending`. Opens a field as LabelText does. Returns the index of the
+	// column clicked, or -1. Faded and inert inside BeginDisabled.
+	// Contract: right above BeginList, one label per column; the labels are shown
+	// as is and are ImGui IDs.
+	int HeaderRow(std::span<const char* const> labels, std::span<const float> columnX, int sorted, bool descending);
+
+	// A row the user ticks on and off, one text per column; returns true when
+	// toggled. While ticked, Tailor fills it faintly amber with an amber rule on
+	// its left edge, as Tailor 3.0 marks a selected row; Vanilla and Nordic draw it
+	// like a SkyUI inventory row: the skin's equipped mark and a white bar fading
+	// in from the left.
+	// Contract: inside BeginList, one cell per column; the cells are shown as is
+	// and the first is the row's ImGui ID, so PushID around rows whose first cells
+	// may repeat.
+	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked);
 
 	// A row of a single-choice list, SelectRowHeight tall: filled while selected
 	// or hovered, its text a little right of the list's indent; returns true
@@ -197,6 +220,12 @@ namespace Theme
 	// Lay it over the right end of a field submitted with
 	// ImGui::SetNextItemAllowOverlap, or beside one, as tall as the field.
 	bool ClearButton(const char* id, float side);
+
+	// Text with no frame in the body font, in LabelText's colour and lit while
+	// hovered (white in Vanilla and Nordic, amber in Tailor). Returns true when
+	// clicked. Faded and inert inside BeginDisabled.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool TextButton(const char* label);
 
 	// The body font at a smaller size, for controls that sit beside others
 	// (the outfit browser's). Pair them in the same window: ImGui checks that a

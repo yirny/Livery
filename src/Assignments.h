@@ -63,10 +63,11 @@ namespace Assignments
 	// Contract: game thread; no preview is on.
 	void Unassign(RE::Actor& a_actor);
 
-	// What Livery has chosen for them, for the window's summary line and Situations page.
+	// What Livery has chosen for them, for the window's summary line and piece headings.
 	struct Choices
 	{
 		bool                                                     dressed = false;                         // Livery has pieces on them now
+		std::vector<RE::FormID>                                  wornArmor;                               // the armor of those pieces
 		bool                                                     hasDefault = false;                      // they have a default outfit
 		std::uint32_t                                            defaultOutfit = 0;                       // the library outfit the default pieces came from; 0 for none
 		std::array<std::uint32_t, Situations::kChoosable.size()> situations{};                            // outfit per situation (Situations::Index); 0 for none
