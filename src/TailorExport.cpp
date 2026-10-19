@@ -24,13 +24,14 @@ namespace
 {
 	constexpr auto kExportFile = L"Data/SKSE/Plugins/Livery/tailor-export.json";
 
-	// Tailor's key for a Livery category, or nullptr for one Tailor has no built-in category for.
+	// Tailor's key for a Livery category, or nullptr for one Tailor has no built-in category
+	// for (Jewelry).
 	const char* TailorKey(std::string_view a_category)
 	{
 		constexpr std::array<std::pair<std::string_view, const char*>, 9> kKeys{ {
 			{ "Clothing", "clothing" },
-			{ "Light Armor", "light" },
-			{ "Heavy Armor", "heavy" },
+			{ "Light", "light" },
+			{ "Heavy", "heavy" },
 			{ "Adventuring", "adventuring" },
 			{ "Town", "town" },
 			{ "Home", "home" },
