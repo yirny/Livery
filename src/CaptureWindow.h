@@ -18,7 +18,8 @@ namespace RE
 // the game thread from the input dispatch hook. All state is guarded by one
 // mutex. Nothing here touches the outfit library: Create New hands the typed name to
 // Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
-// Assign and Release to Request::onAssign and Request::onRelease,
+// Assign and Release to Request::onAssign and Request::onRelease, the Situations
+// page's Apply to Request::onClearSituations,
 // each piece tick to Request::onPieceToggled, each outfit selected on the
 // Load and Update Existing pages to Request::onPreviewPieces and the Live
 // Preview tick to Request::onPreviewOn / onPreviewOff, in an SKSE task.
@@ -81,7 +82,10 @@ namespace CaptureWindow
 		std::vector<CategoryOption> categories;            // offered in the multi-select dropdown
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Update Existing page, in display order
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
-		std::vector<std::string>    situations;            // offered in the Assign for dropdown after Default; empty hides it
+		std::vector<std::string>    situations;            // offered in the Assign for dropdown after Default; empty hides it and the Situations page
+		std::vector<std::string>    situationOutfits;      // one per `situations`: the outfit chosen for it, "" for none
+		std::string                 defaultOutfit;         // the default outfit, as the Situations page names it; "" for none
+		int                         wornFor = -1;          // what the outfit worn is for: -1 none, 0 the default, else the index into `situations` plus one
 
 		// Runs on the game thread with the trimmed, non-empty name, the indices
 		// into `pieces` the user left ticked (ascending, never empty), the
@@ -110,6 +114,12 @@ namespace CaptureWindow
 		// not dress the character, which greys the button. It must end by calling
 		// Close() or SetError().
 		std::function<void()> onRelease;
+
+		// Runs on the game thread when the user presses Apply on the Situations page, with
+		// the indices into `situations` marked to clear (ascending, never empty, each with an
+		// outfit in `situationOutfits`). Empty when Livery does not dress the character,
+		// which greys the page's link. It must end by calling Close() or SetError().
+		std::function<void(const std::vector<std::size_t>& situations)> onClearSituations;
 
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns

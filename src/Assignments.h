@@ -42,6 +42,12 @@ namespace Assignments
 	// Contract: game thread; no preview is on; `a_situation` is not kDefault.
 	void SetSituation(RE::Actor& a_actor, Situations::Situation a_situation, std::uint32_t a_outfit);
 
+	// Forgets the outfits chosen for these situations and dresses them for their situations
+	// now, once for all of them. Nothing for an actor Livery does not dress. Shows one HUD
+	// message.
+	// Contract: game thread; no preview is on; no entry is kDefault.
+	void ClearSituations(RE::Actor& a_actor, const std::vector<Situations::Situation>& a_situations);
+
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
 	// first situation they have an outfit for, else the default. A situation outfit that
 	// puts nothing on falls back to the default. Returns whether they were redressed.
@@ -57,10 +63,11 @@ namespace Assignments
 	// Contract: game thread; no preview is on.
 	void Unassign(RE::Actor& a_actor);
 
-	// What Livery has chosen for them, for the window's summary line.
+	// What Livery has chosen for them, for the window's summary line and Situations page.
 	struct Choices
 	{
 		bool                                                     dressed = false;                         // Livery has pieces on them now
+		bool                                                     hasDefault = false;                      // they have a default outfit
 		std::uint32_t                                            defaultOutfit = 0;                       // the library outfit the default pieces came from; 0 for none
 		std::array<std::uint32_t, Situations::kChoosable.size()> situations{};                            // outfit per situation (Situations::Index); 0 for none
 		Situations::Situation                                    worn = Situations::Situation::kDefault;  // what the pieces they wear are for

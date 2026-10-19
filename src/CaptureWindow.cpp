@@ -11,7 +11,9 @@
 //                  handed to onPieceToggled; the Live Preview tick, handed to onPreviewOn /
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
 //                  Load Outfit... at the count line's right end (greyed while the
-//                  library has no outfits); the Assign for dropdown (Default or a situation);
+//                  library has no outfits); the Assign for dropdown (Default or a situation)
+//                  with Situations... at its label line's right end (greyed while no
+//                  situation has an outfit);
 //                  Create New / Update Existing / Assign / Release / Cancel; Assign and
 //                  Release hand over to onAssign / onRelease
 //   Name page    - name, categories and gender of the new outfit; Create / Back
@@ -29,6 +31,9 @@
 //                  has them, free to change) and pieces; Update opens the
 //                  confirm popup, which names the pieces from unloaded plugins
 //                  that stay, and whose Confirm hands over to onUpdate
+//   Situations page - the default's and each situation's outfit, the one worn marked;
+//                  Clear / Undo marks a situation; Apply hands the marks to
+//                  onClearSituations, Back drops them
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
@@ -65,6 +70,8 @@ namespace
 	constexpr const char* kNeedSavedOutfit = "Load a saved outfit first: a situation outfit comes from the library.";
 	constexpr const char* kNoOutfits = "No outfits in the library.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
+	constexpr const char* kNoSituationOutfits = "No outfit is chosen for a situation.";
+	constexpr const char* kNeedClearMark = "Press Clear on a situation first.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -100,7 +107,8 @@ namespace
 		kPieces,
 		kName,
 		kLoad,
-		kUpdate
+		kUpdate,
+		kSituations
 	};
 
 	struct InputRecord
@@ -139,6 +147,7 @@ namespace
 		int                             previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
 		int                             loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
 		int                             assignFor = 0;         // what Assign is for: 0 the default, else the index into request.situations plus one
+		std::vector<bool>               clearing;              // one per request.situations: marked to clear on the Situations page
 		OutfitBrowser::State            browser;               // search, filter and sort of the Load and Update pages' outfit list
 		int                             recentreFrames = 0;    // frames left to pin the window to its place
 		std::optional<ImVec2>           placeCentre;           // where a pinned window's centre goes; none for the start place
@@ -764,17 +773,41 @@ namespace
 		return TickedPieces(a_state) == outfit.pieces ? outfit.id : 0;
 	}
 
+	// Whether any situation has an outfit, so the Situations page has something to clear.
+	bool HasSituationOutfits(const State& a_state)
+	{
+		return std::ranges::any_of(a_state.request.situationOutfits, [](const std::string& a_outfit) { return !a_outfit.empty(); });
+	}
+
+	// Situations... at the right end of the Assign for label line, greyed with the reason
+	// on hover while no situation has an outfit; returns true when it is clicked.
+	bool DrawSituationsLink(const State& a_state)
+	{
+		const bool none = !a_state.request.onClearSituations || !HasSituationOutfits(a_state);
+		ImGui::BeginDisabled(none);
+		const bool clicked = Theme::LabelLink("Situations...") && !none;
+		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		ImGui::EndDisabled();
+		// After EndDisabled, so the tooltip is not drawn faded.
+		if (none && hovered) {
+			ImGui::SetTooltip("%s", kNoSituationOutfits);
+		}
+		return clicked;
+	}
+
 	// "Assign for": Default or one of request.situations, as a single-choice dropdown;
 	// nothing when the request offers no situations. A situation outfit comes from the
 	// library, so Assign then needs the ticks to be a loaded outfit (DrawPiecesButtons).
-	void DrawAssignForField(State& a_state)
+	// Returns true when the label line's Situations... is clicked.
+	bool DrawAssignForField(State& a_state)
 	{
 		const auto& situations = a_state.request.situations;
 		if (situations.empty()) {
-			return;
+			return false;
 		}
 		const auto label = [&situations](int a_choice) { return a_choice == 0 ? "Default" : situations[static_cast<std::size_t>(a_choice) - 1].c_str(); };
 		Theme::LabelText("Assign for");
+		const bool situationsPage = DrawSituationsLink(a_state);
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		const bool open = Theme::BeginCombo("##assignFor", ImGuiComboFlags_HeightLargest);
 		if (open) {
@@ -789,6 +822,7 @@ namespace
 			ImGui::PopStyleVar();
 		}
 		Theme::EndCombo(open, label(a_state.assignFor));
+		return situationsPage;
 	}
 
 	// The widest button row of the Pieces page, which sets the page's least width.
@@ -801,6 +835,7 @@ namespace
 	{
 		kNone,
 		kLoadPage,
+		kSituationsPage,
 		kNamePage,
 		kUpdatePage,
 		kAssign,
@@ -809,11 +844,12 @@ namespace
 	};
 
 	// Create New / Update Existing / Assign / Release / Cancel centred below a gap;
-	// `a_load` is a click on the count line's Load Outfit... (DrawPieceList).
+	// `a_load` is a click on the count line's Load Outfit... (DrawPieceList),
+	// `a_situations` one on the Assign for line's Situations... (DrawAssignForField).
 	// The two save pages and Assign act on the ticked pieces, so they need at least
 	// one; Assign for a situation needs them to be a loaded outfit; Release needs an
 	// assignment (Request::onRelease).
-	PiecesAction DrawPiecesButtons(const State& a_state, bool a_load)
+	PiecesAction DrawPiecesButtons(const State& a_state, bool a_load, bool a_situations)
 	{
 		BeginButtonRow({ "Create New", "Update Existing", "Assign", "Release", "Cancel" });
 		const char* noOutfits = a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr;
@@ -835,6 +871,9 @@ namespace
 		}
 		if (a_load) {
 			return PiecesAction::kLoadPage;
+		}
+		if (a_situations) {
+			return PiecesAction::kSituationsPage;
 		}
 		if (create) {
 			return PiecesAction::kNamePage;
@@ -876,8 +915,8 @@ namespace
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state);
-		DrawAssignForField(a_state);
-		const auto action = DrawPiecesButtons(a_state, load);
+		const bool situations = DrawAssignForField(a_state);
+		const auto action = DrawPiecesButtons(a_state, load, situations);
 		EndButtonRow();
 		ImGui::EndDisabled();
 
@@ -886,6 +925,11 @@ namespace
 			QueueMenuSound(kOkSound);
 			a_state.previewedOutfit = -1;
 			GoToPage(a_state, Page::kLoad);
+			break;
+		case PiecesAction::kSituationsPage:
+			QueueMenuSound(kOkSound);
+			a_state.clearing.assign(a_state.request.situations.size(), false);
+			GoToPage(a_state, Page::kSituations);
 			break;
 		case PiecesAction::kNamePage:
 			QueueMenuSound(kOkSound);
@@ -1673,6 +1717,122 @@ namespace
 			GoToPage(a_state, Page::kPieces);
 		}
 	}
+
+	// --- Situations page ------------------------------------------------------
+
+	// One field: the situation's name as its label, "(worn now)" added while the outfit on
+	// the character is for it, then its outfit, greyed while there is none or it is marked
+	// to clear. A situation with an outfit (`a_clearing` set) gets Clear, or Undo once
+	// marked, at the line's right end. Returns true when that button is clicked.
+	bool DrawSituationRow(const char* a_label, bool a_worn, const std::string& a_outfit, const bool* a_clearing)
+	{
+		const std::string label = a_worn ? std::format("{} (worn now)", a_label) : std::string(a_label);
+		Theme::LabelText(label.c_str());
+		const char* button = a_clearing ? (*a_clearing ? "Undo" : "Clear") : nullptr;
+		const float buttonRoom = button ? (std::max)(Theme::ButtonWidth("Clear"), Theme::ButtonWidth("Undo")) + ImGui::GetStyle().ItemSpacing.x : 0.0f;
+		const char* text = a_outfit.empty() ? "None" : a_outfit.c_str();
+		ImGui::AlignTextToFramePadding();  // level with the button
+		ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - buttonRoom);
+		if (a_outfit.empty() || (a_clearing && *a_clearing)) {
+			ImGui::TextDisabled("%s", text);
+		} else {
+			ImGui::TextUnformatted(text);
+		}
+		ImGui::PopTextWrapPos();
+		if (!button) {
+			return false;
+		}
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - Theme::ButtonWidth(button)));
+		return Theme::Button(button);
+	}
+
+	// The default first, read only (Release ends it), then each situation; a click on a
+	// situation's button marks it to clear or takes the mark off.
+	// Contract: request.situationOutfits and clearing have one entry per request.situations.
+	void DrawSituationRows(State& a_state)
+	{
+		const auto& request = a_state.request;
+		DrawSituationRow("Default", request.wornFor == 0, request.defaultOutfit, nullptr);
+		for (std::size_t i = 0; i < request.situations.size(); ++i) {
+			const bool chosen = !request.situationOutfits[i].empty();
+			const bool clearing = a_state.clearing[i];
+			const bool worn = request.wornFor == static_cast<int>(i) + 1;
+			ImGui::PushID(static_cast<int>(i));
+			if (DrawSituationRow(request.situations[i].c_str(), worn, request.situationOutfits[i], chosen ? &clearing : nullptr)) {
+				QueueMenuSound(kFocusSound);
+				a_state.clearing[i] = !clearing;
+			}
+			ImGui::PopID();
+		}
+	}
+
+	enum class SituationsAction
+	{
+		kNone,
+		kApply,
+		kBack
+	};
+
+	// Apply / Back centred below a gap; Apply needs a situation marked to clear.
+	SituationsAction DrawSituationsButtons(const State& a_state)
+	{
+		const bool marked = std::find(a_state.clearing.begin(), a_state.clearing.end(), true) != a_state.clearing.end();
+		BeginButtonRow({ "Apply", "Back" });
+		const bool apply = ReasonButton("Apply", marked ? nullptr : kNeedClearMark);
+		ImGui::SameLine();
+		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+
+		if (a_state.status != Status::kEditing) {
+			ImGui::TextDisabled("Applying...");
+			return SituationsAction::kNone;
+		}
+		if (apply) {
+			return SituationsAction::kApply;
+		}
+		return back ? SituationsAction::kBack : SituationsAction::kNone;
+	}
+
+	void RequestClearSituations(State& a_state)
+	{
+		a_state.status = Status::kSaving;
+		a_state.error.clear();
+		std::vector<std::size_t> situations;
+		for (std::size_t i = 0; i < a_state.clearing.size(); ++i) {
+			if (a_state.clearing[i]) {
+				situations.push_back(i);
+			}
+		}
+		auto onClear = a_state.request.onClearSituations;
+		SKSE::GetTaskInterface()->AddTask([onClear, situations] { onClear(situations); });
+	}
+
+	// The marks hold until Apply, which hands them to onClearSituations, or Back, which
+	// drops them.
+	void DrawSituationsPage(State& a_state)
+	{
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		DrawSituationRows(a_state);
+		if (!a_state.error.empty()) {
+			DrawError(a_state.error);
+		}
+		const auto action = DrawSituationsButtons(a_state);
+		EndButtonRow();
+		ImGui::EndDisabled();
+
+		switch (action) {
+		case SituationsAction::kApply:
+			QueueMenuSound(kOkSound);
+			RequestClearSituations(a_state);
+			break;
+		case SituationsAction::kBack:
+			QueueMenuSound(kCancelSound);
+			GoToPage(a_state, Page::kPieces);
+			break;
+		case SituationsAction::kNone:
+			break;
+		}
+	}
 }
 
 namespace CaptureWindow
@@ -1707,6 +1867,7 @@ namespace CaptureWindow
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
 			state.assignFor = 0;
+			state.clearing.clear();  // sized as the Situations page opens
 			OutfitBrowser::Reset(state.browser, state.request);
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
@@ -1886,6 +2047,9 @@ namespace CaptureWindow
 			break;
 		case Page::kUpdate:
 			DrawUpdatePage(state);
+			break;
+		case Page::kSituations:
+			DrawSituationsPage(state);
 			break;
 		}
 		ImGui::End();
