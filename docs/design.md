@@ -185,6 +185,9 @@ can come later if sharing across characters is wanted.
 - The Situations page (§7): two situations cleared in one Apply; Town cleared while in
   a town put the default back on at once; the cleared choices stayed cleared across save
   and load.
+- Situation outfits on the player (§7): Town in Whiterun and Warm by weather; no redress
+  while a werewolf, and the right outfit on after turning back; wading on horseback is
+  not Swimming; the choices survive save and load.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
@@ -264,7 +267,7 @@ Each stage ends with an in-game check before the next starts.
 4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown, the
    Situations page with its per-situation clear. Done.
 5. The player's situations (§7): the window's dropdown and Situations page, the poll
-   skipping beast form, the mount rule for water.
+   skipping beast form, the mount rule for water. Done.
 6. Later, as needed: assignment export/import; an export to
    Tailor's import JSON; user-defined conditions in the way of Skyrim Outfit Equipment
    System NG.
