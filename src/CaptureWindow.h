@@ -16,12 +16,13 @@ namespace RE
 // Contract: Open, Close and SetError run on the game thread; FeedInput and
 // Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
 // the game thread from the input dispatch hook. All state is guarded by one
-// mutex. Nothing here touches the outfit library: Create hands the typed name to
-// Request::onSave, Update Existing the chosen outfit to Request::onUpdate,
-// Apply and Restore Original Outfit to Request::onApply and Request::onRestore,
-// each piece tick to Request::onPieceToggled, each outfit selected on the
-// Load and Update Existing pages to Request::onPreviewPieces and the Live
-// Preview tick to Request::onPreviewOn / onPreviewOff, in an SKSE task.
+// mutex. Nothing here touches the outfit library or the assignments: the Save
+// page's Create and Update hand the outfit and the rows to change to
+// Request::onSave, Apply and Restore Original Outfit go to Request::onApply and
+// Request::onRestore, each piece tick to Request::onPieceToggled, each outfit
+// selected on the Load page and the Update tab's selection to
+// Request::onPreviewPieces and the Live Preview tick to Request::onPreviewOn /
+// onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
 	// Group of the class categories (ArmorInfo's SkyUI classes), shown as a row of
@@ -73,16 +74,37 @@ namespace CaptureWindow
 		float seconds = 0.0f;      // the frame's length
 	};
 
-	// An outfit already in the library, listed on the Load and Update Existing pages.
+	// An outfit already in the library, listed on the Load page and the Update tab's selection.
 	struct ExistingOutfit
 	{
 		std::string              name;
-		std::vector<std::string> categories;  // the offered categories it is in; the Update page starts its ticks from them
+		std::vector<std::string> categories;  // the offered categories it is in; the Update tab starts its ticks from them
 		std::vector<std::size_t> pieces;      // indices into Request::pieces of its loaded pieces, ascending, no repeats
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
 		std::size_t   unloadedPieces = 0;
-		std::uint32_t id = 0;  // the library's id, handed back to onUpdate
+		std::uint32_t id = 0;       // the library's id, handed back in SaveRequest::outfit
+		int           gender = -1;  // -1 unisex, 0 male, 1 female
+	};
+
+	// What one row of the Save page's "wears it for" field holds for the actor now.
+	struct RowAssignment
+	{
+		bool          taken = false;  // the row has an outfit
+		std::uint32_t outfit = 0;     // its library id; 0 with `taken` for a default of pieces that are not a saved outfit
+	};
+
+	// What the Save page hands over: the outfit to write, then the rows of "wears it for"
+	// (indices into Request::assigned) to change for the actor.
+	struct SaveRequest
+	{
+		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
+		std::string              name;        // trimmed, non-empty
+		int                      gender = -1;
+		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
+		std::vector<std::string> categories;  // ticked, in the order of Request::categories, maybe none
+		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row taken by another outfit only after Replace
+		std::vector<std::size_t> remove;      // Update only: rows that had the outfit and are unticked, ascending
 	};
 
 	struct Request
@@ -90,29 +112,20 @@ namespace CaptureWindow
 		std::string                 actorName;             // the title line names them
 		std::string                 actorSummary;          // shown greyed under the title line; "" for none
 		std::string                 outfitName;            // the library outfit of PieceGroup::kLiveryOutfit's heading
-		std::vector<Piece>          pieces;                // shown as a checkbox list; Save, Update Existing and Apply need at least one ticked
+		std::vector<Piece>          pieces;                // shown as a checkbox list; Save and Apply need at least one ticked
 		bool                        previewOn = false;     // Live Preview is on as the window opens; off, the window freezes the game
 		std::string                 previewNote;           // why Live Preview cannot be on, shown over its greyed tick; "" when it can
 		std::string                 suggestedName;         // initial text of the name field
-		std::vector<CategoryOption> categories;            // offered in the multi-select dropdown
-		std::vector<ExistingOutfit> existingOutfits;       // listed on the Update Existing page, in display order
+		std::vector<CategoryOption> categories;            // offered as the Class checkboxes
+		std::vector<ExistingOutfit> existingOutfits;       // listed on the Load page and the Update tab's selection, in display order
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
+		std::vector<std::string>    situations;            // the rows of "wears it for" after Default
+		std::vector<RowAssignment>  assigned;              // one per row: Default, then `situations`
 
-		// Runs on the game thread with the trimmed, non-empty name, the indices
-		// into `pieces` the user left ticked (ascending, never empty), the
-		// categories the user ticked (in the order of `categories`) and the chosen
-		// gender (-1, 0 or 1). It must end by calling Close() (done) or SetError()
-		// (keep the window open).
-		std::function<void(const std::string& name, const std::vector<std::size_t>& pieces,
-			const std::vector<std::string>& categories, int gender)>
-			onSave;
-
-		// Runs on the game thread once the user confirmed replacing the pieces of
-		// the outfit `id` (one of existingOutfits) with the ticked `pieces` (as in
-		// onSave) and its categories with `categories`: every one ticked on the
-		// Update page (in the order of `categories`, maybe empty). It must end by
-		// calling Close() or SetError().
-		std::function<void(std::uint32_t id, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories)> onUpdate;
+		// Runs on the game thread when the user saves on the Save page: after Create,
+		// or after confirming the Update tab's popup. It must end by calling Close()
+		// (done) or SetError() (keep the window open).
+		std::function<void(const SaveRequest& save)> onSave;
 
 		// Runs on the game thread when the user presses Apply, with the ticked indices
 		// into `pieces` (ascending, never empty) and the id of the outfit last loaded

@@ -21,9 +21,8 @@ namespace OutfitBrowser
 
 	enum class SortKey
 	{
-		kName,      // name only
-		kClass,     // class, then situation, then name
-		kSituation  // situation, then class, then name
+		kName,  // name only
+		kClass  // class, then name
 	};
 
 	// One row of the Filter dropdown: a category, or the row for outfits in
