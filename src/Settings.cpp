@@ -36,6 +36,11 @@ namespace
 	constexpr auto kSpeedPercentKey = L"SpeedPercent";
 	constexpr auto kPlayerSection = L"Player";
 	constexpr auto kAddMissingKey = L"AddMissingPieces";
+	constexpr auto kWindowSection = L"Window";
+	constexpr auto kShowPlayerInventoryKey = L"ShowPlayerInventory";
+	constexpr auto kShowPlayerWornKey = L"ShowPlayerWornPieces";
+	constexpr auto kTransferSection = L"Transfer";
+	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
 
 	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
 	constexpr float kMinSpeedPercent = 10.0f;
@@ -56,7 +61,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 8> kIniKeys{ {
+	constexpr std::array<IniKey, 11> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -84,6 +89,18 @@ namespace
 		{ kPlayerSection, kAddMissingKey, L"0",
 			L"1 = an outfit you give yourself adds the pieces you do not carry. Warning: this creates new items in your inventory.\n"
 			L"0 = those pieces are left out, and the message on screen names them.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kWindowSection, kShowPlayerInventoryKey, L"1",
+			L"1 = the capture window of an NPC also lists your armor, under From Player's Inventory.\n"
+			L"0 = it lists only the NPC's own pieces and those of the loaded outfit.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kWindowSection, kShowPlayerWornKey, L"0",
+			L"1 = that list includes the armor you wear.\n"
+			L"0 = it leaves out what you wear, unless you carry another copy.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kTransferSection, kProtectFavoritesKey, L"1",
+			L"1 = your favorites are left out of that list, as quest items always are.\n"
+			L"0 = your favorites are listed too.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 	} };
 
@@ -122,6 +139,9 @@ namespace
 	std::atomic<bool>          g_pickingHotkey{ false };   // the settings page waits for the next key
 	std::atomic<float>         g_speedPercent{ kDefaultSpeedPercent };
 	std::atomic<bool>          g_playerAddsMissing{ false };
+	std::atomic<bool>          g_showPlayerInventory{ true };
+	std::atomic<bool>          g_showPlayerWorn{ false };
+	std::atomic<bool>          g_protectFavorites{ true };
 	std::filesystem::path      g_iniPath;  // set once by Load, read-only afterwards
 
 	const SkinOption& OptionOf(Theme::Skin a_skin)
@@ -257,6 +277,13 @@ namespace
 	void SavePlayerAddsMissing(bool value)
 	{
 		if (!::WritePrivateProfileStringW(kPlayerSection, kAddMissingKey, value ? L"1" : L"0", g_iniPath.c_str())) {
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
+		}
+	}
+
+	void SaveFlag(const wchar_t* a_section, const wchar_t* a_key, bool a_value)
+	{
+		if (!::WritePrivateProfileStringW(a_section, a_key, a_value ? L"1" : L"0", g_iniPath.c_str())) {
 			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
 	}
@@ -412,6 +439,29 @@ namespace
 			SavePlayerAddsMissing(addMissing);
 			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", addMissing);
 		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		// The three below take effect the next time the capture window opens.
+		bool showInventory = g_showPlayerInventory.load();
+		if (ImGuiMCP::Checkbox("An NPC's capture window lists your armor too", &showInventory)) {
+			g_showPlayerInventory = showInventory;
+			SaveFlag(kWindowSection, kShowPlayerInventoryKey, showInventory);
+			logger::info("ShowPlayerInventory = {} (SKSE Menu Framework)", showInventory);
+		}
+		bool showWorn = g_showPlayerWorn.load();
+		if (ImGuiMCP::Checkbox("... including the armor you wear", &showWorn)) {
+			g_showPlayerWorn = showWorn;
+			SaveFlag(kWindowSection, kShowPlayerWornKey, showWorn);
+			logger::info("ShowPlayerWornPieces = {} (SKSE Menu Framework)", showWorn);
+		}
+		bool protectFavorites = g_protectFavorites.load();
+		if (ImGuiMCP::Checkbox("... leaving out your favorites", &protectFavorites)) {
+			g_protectFavorites = protectFavorites;
+			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
+			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
+		}
 	}
 }
 
@@ -487,6 +537,19 @@ namespace Settings
 			g_iniPath.c_str());
 		g_playerAddsMissing = std::wstring_view{ value } == L"1";
 		logger::info("AddMissingPieces = {}", g_playerAddsMissing.load());
+
+		// A missing key keeps the default.
+		::GetPrivateProfileStringW(kWindowSection, kShowPlayerInventoryKey, L"1", value, static_cast<DWORD>(std::size(value)),
+			g_iniPath.c_str());
+		g_showPlayerInventory = std::wstring_view{ value } != L"0";
+		::GetPrivateProfileStringW(kWindowSection, kShowPlayerWornKey, L"0", value, static_cast<DWORD>(std::size(value)),
+			g_iniPath.c_str());
+		g_showPlayerWorn = std::wstring_view{ value } == L"1";
+		::GetPrivateProfileStringW(kTransferSection, kProtectFavoritesKey, L"1", value, static_cast<DWORD>(std::size(value)),
+			g_iniPath.c_str());
+		g_protectFavorites = std::wstring_view{ value } != L"0";
+		logger::info("ShowPlayerInventory = {}, ShowPlayerWornPieces = {}, ProtectFavorites = {}", g_showPlayerInventory.load(),
+			g_showPlayerWorn.load(), g_protectFavorites.load());
 	}
 
 	void RegisterMenu()
@@ -544,5 +607,20 @@ namespace Settings
 	bool PlayerAddsMissingPieces()
 	{
 		return g_playerAddsMissing.load();
+	}
+
+	bool ShowPlayerInventory()
+	{
+		return g_showPlayerInventory.load();
+	}
+
+	bool ShowPlayerWornPieces()
+	{
+		return g_showPlayerWorn.load();
+	}
+
+	bool ProtectFavorites()
+	{
+		return g_protectFavorites.load();
 	}
 }

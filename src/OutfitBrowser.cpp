@@ -12,9 +12,9 @@
 
 namespace
 {
-	// Contract: the groups Library gives its armor-type and situation
-	// categories (CaptureWindow::kArmorTypeGroup and its "Situation").
-	constexpr std::string_view kArmorTypeGroup = CaptureWindow::kArmorTypeGroup;
+	// Contract: the groups Library gives its class and situation
+	// categories (CaptureWindow::kClassGroup and its "Situation").
+	constexpr std::string_view kClassGroup = CaptureWindow::kClassGroup;
 	constexpr std::string_view kSituationGroup = "Situation";
 
 	// --- Helpers --------------------------------------------------------------
@@ -50,8 +50,8 @@ namespace
 		return key;
 	}
 
-	// In the library's category order (Request::categories), so Clothing before Light
-	// Armor, and Adventuring + Town before Adventuring + Swimming; an outfit in
+	// In the library's category order (Request::categories), so Light before Clothing,
+	// and Adventuring + Town before Adventuring + Swimming; an outfit in
 	// none of the group's categories goes last.
 	std::weak_ordering CompareGroupKeys(const std::vector<int>& a_left, const std::vector<int>& a_right)
 	{
@@ -143,20 +143,20 @@ namespace OutfitBrowser
 			}
 		}
 
-		std::vector<std::vector<int>> armorTypes(outfits.size());
+		std::vector<std::vector<int>> classes(outfits.size());
 		std::vector<std::vector<int>> situations(outfits.size());
 		if (a_state.sort != SortKey::kName) {
 			for (const int i : a_state.visible) {
 				const auto& categories = a_state.categories[static_cast<std::size_t>(i)];
-				armorTypes[static_cast<std::size_t>(i)] = GroupKey(categories, a_request, kArmorTypeGroup);
+				classes[static_cast<std::size_t>(i)] = GroupKey(categories, a_request, kClassGroup);
 				situations[static_cast<std::size_t>(i)] = GroupKey(categories, a_request, kSituationGroup);
 			}
 		}
 		const auto before = [&](int a, int b) {
 			const auto  left = static_cast<std::size_t>(a);
 			const auto  right = static_cast<std::size_t>(b);
-			const auto& first = a_state.sort == SortKey::kSituation ? situations : armorTypes;
-			const auto& second = a_state.sort == SortKey::kSituation ? armorTypes : situations;
+			const auto& first = a_state.sort == SortKey::kSituation ? situations : classes;
+			const auto& second = a_state.sort == SortKey::kSituation ? classes : situations;
 			auto        order = std::weak_ordering::equivalent;
 			if (a_state.sort != SortKey::kName) {
 				order = CompareGroupKeys(first[left], first[right]);

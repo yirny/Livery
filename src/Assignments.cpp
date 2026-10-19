@@ -739,8 +739,13 @@ namespace Assignments
 		if (!assignment) {
 			return std::nullopt;
 		}
+		std::vector<RE::FormID> wornArmor;
+		for (const auto& piece : assignment->pieces) {
+			wornArmor.push_back(piece.key.armor);
+		}
 		return Choices{
 			.dressed = !assignment->pieces.empty(),
+			.wornArmor = std::move(wornArmor),
 			.hasDefault = !assignment->defaultArmor.empty(),
 			.defaultOutfit = assignment->defaultOutfit,
 			.situations = assignment->situations,

@@ -21,7 +21,7 @@ namespace Library
 	// A category an outfit can be in, as the capture window offers it.
 	struct Category
 	{
-		const char* group;  // CaptureWindow::kArmorTypeGroup or "Situation"
+		const char* group;  // CaptureWindow::kClassGroup or "Situation"
 		const char* name;   // as the file stores it
 	};
 
@@ -44,10 +44,11 @@ namespace Library
 
 	// Reads the file. A missing file is an empty library. A file that cannot be read, or
 	// that a newer version wrote, leaves the library empty and refuses every change, so
-	// the file is never overwritten.
+	// the file is never overwritten. The class names of older files ("Light Armor", "Heavy
+	// Armor") are read as today's; the file is not written here.
 	void Load();
 
-	// The categories the window offers, in display order: armor types, then situations.
+	// The categories the window offers, in display order: classes, then situations.
 	std::span<const Category> Categories();
 
 	// Contract: pointers and references into the library go stale at the next Create or Update.

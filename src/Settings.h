@@ -35,6 +35,12 @@ namespace Settings
 	// Whether dressing the player adds the pieces they do not carry, which creates items. Safe from any thread.
 	bool PlayerAddsMissingPieces();
 
+	// What an NPC's capture window lists of the player's armor: any at all, also the pieces the
+	// player wears, and whether favorites stay out (quest items always do). Safe from any thread.
+	bool ShowPlayerInventory();
+	bool ShowPlayerWornPieces();
+	bool ProtectFavorites();
+
 	// Whether a keyboard key going down (DirectInput scan code) is the capture hotkey:
 	// the configured key, with its modifier held when one is configured.
 	// Contract: call from the input path while handling that key's event, since the

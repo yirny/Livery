@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants - file location and version, the categories the window offers
+//   Constants - file location and version, the categories the window offers, old class names
 //   State     - the outfits as read, the next id, whether the file may be written
 //   Helpers   - armor to piece and back
 //   File      - parse (all or nothing), serialise, write through a temporary file
@@ -9,12 +9,13 @@
 //
 // outfits.json, version 1:
 //   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard", "gender": -1,
-//     "categories": [ "Light Armor" ], "pieces": [ { "plugin": "Skyrim.esm",
+//     "categories": [ "Light" ], "pieces": [ { "plugin": "Skyrim.esm",
 //     "formId": "0x013921", "name": "Imperial Light Armor" } ] } ] }
 #include "PCH.h"
 
 #include "Library.h"
 
+#include "ArmorInfo.h"
 #include "CaptureWindow.h"
 #include "TailorExport.h"
 #include "Utils.h"
@@ -42,17 +43,31 @@ namespace
 	constexpr RE::FormID    kMaxLightLocalID = 0xFFF;  // the same for a light plugin
 	constexpr const char*   kUnreadable = "Livery could not read outfits.json, so it changes nothing (see Livery.log).";
 
-	// Tailor's built-in categories, so the export to Tailor (TailorExport.cpp) maps one to one.
-	constexpr std::array<Library::Category, 9> kCategories{ {
-		{ CaptureWindow::kArmorTypeGroup, "Clothing" },
-		{ CaptureWindow::kArmorTypeGroup, "Light Armor" },
-		{ CaptureWindow::kArmorTypeGroup, "Heavy Armor" },
+	// SkyUI's armor classes (ArmorInfo), then Tailor's situation categories.
+	using ArmorInfo::ArmorClass;
+	constexpr std::array<Library::Category, 10> kCategories{ {
+		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kLight) },
+		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kHeavy) },
+		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kClothing) },
+		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kJewelry) },
 		{ "Situation", "Adventuring" },
 		{ "Situation", "Town" },
 		{ "Situation", "Home" },
 		{ "Situation", "Sleep" },
 		{ "Situation", "Swimming" },
 		{ "Situation", "Warm" },
+	} };
+
+	// Class names files written before the SkyUI classes hold, and what Load reads them as.
+	// "Clothing" kept its name.
+	struct RenamedCategory
+	{
+		std::string_view stored;
+		const char*      current;
+	};
+	constexpr std::array<RenamedCategory, 2> kRenamedCategories{ {
+		{ "Light Armor", ArmorInfo::ClassName(ArmorClass::kLight) },
+		{ "Heavy Armor", ArmorInfo::ClassName(ArmorClass::kHeavy) },
 	} };
 
 	// --- State ----------------------------------------------------------------
@@ -162,6 +177,20 @@ namespace
 		return error == std::errc{} && end == last && a_id <= kMaxLocalID;
 	}
 
+	// An old class name as its current one, listed once.
+	void RenameOldCategories(std::vector<std::string>& a_categories)
+	{
+		std::vector<std::string> renamed;
+		for (auto& category : a_categories) {
+			const auto  old = std::ranges::find(kRenamedCategories, std::string_view{ category }, &RenamedCategory::stored);
+			std::string name = old != kRenamedCategories.end() ? old->current : std::move(category);
+			if (std::ranges::find(renamed, name) == renamed.end()) {
+				renamed.push_back(std::move(name));
+			}
+		}
+		a_categories = std::move(renamed);
+	}
+
 	std::optional<std::string> ParsePiece(const nlohmann::json& a_json, Library::PieceRef& a_piece)
 	{
 		if (!a_json.is_object() || !ReadString(Field(a_json, "plugin"), a_piece.plugin)) {
@@ -201,6 +230,8 @@ namespace
 				return "a category that is not a name";
 			}
 		}
+		// In memory only: the file keeps the old names until the next Create or Update writes it.
+		RenameOldCategories(a_outfit.categories);
 		const auto* pieces = Field(a_json, "pieces");
 		if (!pieces || !pieces->is_array() || pieces->empty()) {
 			return "no pieces";
