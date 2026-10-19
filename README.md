@@ -121,6 +121,8 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 
 The outfit library is `Data\SKSE\Plugins\Livery\outfits.json`, shared by every save and character; each piece is stored as its plugin name and FormID, so an outfit survives a load order change. Back it up with your saves.
 
+Livery also writes the library as a [Tailor](https://github.com/heathbrownkeyworks/Tailor) 3.0 import file, `Data\SKSE\Plugins\Livery\tailor-export.json`, at every game start and after every Create New or Update Existing. To take your outfits into Tailor, copy it into `Data\SKSE\Plugins\Tailor\` and import it in Tailor. An outfit needs at least one category to be in the file, since Tailor files every outfit under one. Tailor skips an outfit whose name it already has, so an outfit you update in Livery after importing it does not change in Tailor, and it skips an outfit with a piece from a plugin that is not loaded.
+
 Skins: **Tailor** matches [Tailor](https://github.com/heathbrownkeyworks/Tailor) 3.0's menus and uses the fonts Tailor ships (ImGui's default font without Tailor); **Vanilla** mimics the game's menus; **Nordic** mimics NORDIC UI, with its corner knot and heading rope. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\Livery\` with their licences.
 
 ### Limits

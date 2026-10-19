@@ -132,6 +132,13 @@ would have to be kept in step).
 - Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
+- Export to Tailor (`src/TailorExport.cpp`, self-contained so it can be removed): the
+  library as Tailor 3.0.1's import file (`TailorOutfitExport` version 1, Tailor
+  `src/outfit/OutfitTransfer.cpp`), `Data/SKSE/Plugins/Livery/tailor-export.json`, rewritten
+  after `Library::Load` read the file and after each `Create` / `Update`. Livery's categories
+  map to Tailor's keys (`heavy`, `light`, `clothing`, situations in lower case); an outfit
+  with none is left out, as Tailor's export does. The player copies the file into
+  `Data/SKSE/Plugins/Tailor`; Livery never writes into another mod's folder.
 - Settings: INI, as today.
 
 ## 5. Co-save
@@ -268,6 +275,6 @@ Each stage ends with an in-game check before the next starts.
    Situations page with its per-situation clear. Done.
 5. The player's situations (§7): the window's dropdown and Situations page, the poll
    skipping beast form, the mount rule for water. Done.
-6. Later, as needed: assignment export/import; an export to
-   Tailor's import JSON; user-defined conditions in the way of Skyrim Outfit Equipment
-   System NG.
+6. The export to Tailor's import JSON (§4).
+7. Later, as needed: assignment export/import; user-defined conditions in the way of
+   Skyrim Outfit Equipment System NG.
