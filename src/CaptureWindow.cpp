@@ -11,8 +11,9 @@
 //                  handed to onPieceToggled; the Live Preview tick, handed to onPreviewOn /
 //                  onPreviewOff in an SKSE task that also freezes or unfreezes the game;
 //                  Load Outfit... at the count line's right end (greyed while the
-//                  library has no outfits); Create New / Update Existing / Assign /
-//                  Release / Cancel; Assign and Release hand over to onAssign / onRelease
+//                  library has no outfits); the Assign for dropdown (Default or a situation);
+//                  Create New / Update Existing / Assign / Release / Cancel; Assign and
+//                  Release hand over to onAssign / onRelease
 //   Name page    - name, categories and gender of the new outfit; Create / Back
 //   Outfit browser - Search over Filter, above both outfit pages' list in its column, in
 //                  the small font (OutfitBrowser.cpp narrows and orders it); Escape first
@@ -61,6 +62,7 @@ namespace
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kNotAssigned = "Livery does not dress this character.";
+	constexpr const char* kNeedSavedOutfit = "Load a saved outfit first: a situation outfit comes from the library.";
 	constexpr const char* kNoOutfits = "No outfits in the library.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
 	// Frames the window's place is pinned after Open or a page change: an
@@ -136,6 +138,7 @@ namespace
 		int                             selectedOutfit = -1;   // index into request.existingOutfits, -1 for none
 		int                             previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
 		int                             loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
+		int                             assignFor = 0;         // what Assign is for: 0 the default, else the index into request.situations plus one
 		OutfitBrowser::State            browser;               // search, filter and sort of the Load and Update pages' outfit list
 		int                             recentreFrames = 0;    // frames left to pin the window to its place
 		std::optional<ImVec2>           placeCentre;           // where a pinned window's centre goes; none for the start place
@@ -582,7 +585,8 @@ namespace
 
 	// --- Pieces page ----------------------------------------------------------
 
-	void SelectOutfit(State& a_state, int a_index);  // Update page
+	void SelectOutfit(State& a_state, int a_index);             // Update page
+	bool DrawCategoryRow(const char* a_label, bool& a_ticked);  // Name page
 
 	// Ticking a piece unticks the ticked ones sharing a body slot with it, as
 	// equipping it takes them off; their onPieceToggled tasks go first.
@@ -750,6 +754,43 @@ namespace
 		}
 	}
 
+	// The id of the outfit last loaded when the ticks are exactly its pieces, else 0.
+	std::uint32_t TickedOutfitId(const State& a_state)
+	{
+		if (a_state.loadedOutfit < 0) {
+			return 0;
+		}
+		const auto& outfit = OutfitAt(a_state, a_state.loadedOutfit);
+		return TickedPieces(a_state) == outfit.pieces ? outfit.id : 0;
+	}
+
+	// "Assign for": Default or one of request.situations, as a single-choice dropdown;
+	// nothing when the request offers no situations. A situation outfit comes from the
+	// library, so Assign then needs the ticks to be a loaded outfit (DrawPiecesButtons).
+	void DrawAssignForField(State& a_state)
+	{
+		const auto& situations = a_state.request.situations;
+		if (situations.empty()) {
+			return;
+		}
+		const auto label = [&situations](int a_choice) { return a_choice == 0 ? "Default" : situations[static_cast<std::size_t>(a_choice) - 1].c_str(); };
+		Theme::LabelText("Assign for");
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		const bool open = Theme::BeginCombo("##assignFor", ImGuiComboFlags_HeightLargest);
+		if (open) {
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
+			for (int choice = 0; choice <= static_cast<int>(situations.size()); ++choice) {
+				bool ticked = a_state.assignFor == choice;
+				if (DrawCategoryRow(label(choice), ticked)) {
+					a_state.assignFor = choice;
+					ImGui::CloseCurrentPopup();
+				}
+			}
+			ImGui::PopStyleVar();
+		}
+		Theme::EndCombo(open, label(a_state.assignFor));
+	}
+
 	// The widest button row of the Pieces page, which sets the page's least width.
 	float PiecesButtonsWidth()
 	{
@@ -770,17 +811,19 @@ namespace
 	// Create New / Update Existing / Assign / Release / Cancel centred below a gap;
 	// `a_load` is a click on the count line's Load Outfit... (DrawPieceList).
 	// The two save pages and Assign act on the ticked pieces, so they need at least
-	// one; Release needs an assignment (Request::onRelease).
+	// one; Assign for a situation needs them to be a loaded outfit; Release needs an
+	// assignment (Request::onRelease).
 	PiecesAction DrawPiecesButtons(const State& a_state, bool a_load)
 	{
 		BeginButtonRow({ "Create New", "Update Existing", "Assign", "Release", "Cancel" });
 		const char* noOutfits = a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr;
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
+		const char* noSavedOutfit = a_state.assignFor != 0 && TickedOutfitId(a_state) == 0 ? kNeedSavedOutfit : nullptr;
 		const bool  create = ReasonButton("Create New", noPiece);
 		ImGui::SameLine();
 		const bool update = ReasonButton("Update Existing", noPiece ? noPiece : noOutfits);
 		ImGui::SameLine();
-		const bool assign = ReasonButton("Assign", noPiece);
+		const bool assign = ReasonButton("Assign", noPiece ? noPiece : noSavedOutfit);
 		ImGui::SameLine();
 		const bool release = ReasonButton("Release", a_state.request.onRelease ? nullptr : kNotAssigned);
 		ImGui::SameLine();
@@ -808,22 +851,13 @@ namespace
 		return cancel ? PiecesAction::kCancel : PiecesAction::kNone;
 	}
 
-	// The id of the outfit last loaded when the ticks are exactly its pieces, else 0.
-	std::uint32_t TickedOutfitId(const State& a_state)
-	{
-		if (a_state.loadedOutfit < 0) {
-			return 0;
-		}
-		const auto& outfit = OutfitAt(a_state, a_state.loadedOutfit);
-		return TickedPieces(a_state) == outfit.pieces ? outfit.id : 0;
-	}
-
 	void RequestAssign(State& a_state)
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		auto onAssign = a_state.request.onAssign;
-		SKSE::GetTaskInterface()->AddTask([onAssign, pieces = TickedPieces(a_state), outfit = TickedOutfitId(a_state)] { onAssign(pieces, outfit); });
+		SKSE::GetTaskInterface()->AddTask([onAssign, pieces = TickedPieces(a_state), outfit = TickedOutfitId(a_state),
+											  situation = static_cast<std::size_t>(a_state.assignFor)] { onAssign(pieces, outfit, situation); });
 	}
 
 	void RequestRelease(State& a_state)
@@ -842,6 +876,7 @@ namespace
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state);
+		DrawAssignForField(a_state);
 		const auto action = DrawPiecesButtons(a_state, load);
 		EndButtonRow();
 		ImGui::EndDisabled();
@@ -1671,6 +1706,7 @@ namespace CaptureWindow
 			state.selectedOutfit = -1;
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
+			state.assignFor = 0;
 			OutfitBrowser::Reset(state.browser, state.request);
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place

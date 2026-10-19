@@ -98,6 +98,7 @@ else()
         src/Plugin.cpp
         src/PreviewCamera.cpp
         src/Settings.cpp
+        src/Situations.cpp
         src/Theme.cpp
         src/TradeFilter.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"

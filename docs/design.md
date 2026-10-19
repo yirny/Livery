@@ -7,7 +7,7 @@ is Livery - Immersive Outfit Management (`livery.dll`, `Livery.ini`, `Livery.log
 its ImGui window, input hook, theme, preview camera and inventory code; the Tailor API
 dependency went away in stage 2. The dressing core is `src/Dressing.cpp`, the
 assignments and co-save `src/Assignments.cpp`, the library `src/Library.cpp`, the trade-menu
-filter `src/TradeFilter.cpp`.
+filter `src/TradeFilter.cpp`, the situations and their poll `src/Situations.cpp`.
 
 ## 1. Goals, in priority order
 
@@ -48,6 +48,10 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
 put on armor they own there (a helmet, a shield). Accepted for now.
+
+The outfit Assign gives is the actor's default. An outfit chosen for a situation (§7)
+replaces it while the situation lasts, by the same steps: the worn pieces are released
+(copies removed, the actor's own pieces back on) and the new outfit is dressed.
 
 Never through `TESNPC::defaultOutfit` (DOFT): `Actor::SetDefaultOutfit` writes an NPC_
 change form into the save, a runtime 0xFF outfit does not survive a load,
@@ -131,20 +135,26 @@ would have to be kept in step).
 
 ## 5. Co-save
 
-Co-save id `LVRY`, one record `ASGN` (version 2; version 1, which has no outfit id and
-no own pieces, is still read), read in the SKSE load callback, cleared on revert:
+Co-save id `LVRY`, one record `ASGN` (version 3; versions 1 and 2 are still read), read
+in the SKSE load callback, cleared on revert:
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
-  pieces Livery put on them, each as its instance key `(armor FormID, ExtraUniqueID
+  pieces Livery has on them, each as its instance key `(armor FormID, ExtraUniqueID
   baseID, uniqueID)` and two flags: Livery added the copy, Livery set its lock. NPCs
   are locked, the player never, so no per-actor lock flag is stored. Then the instance
   keys of their own copies Livery took off (§2 step 4).
-- The library outfit id the pieces came from, 0 when the ticked pieces were not exactly
-  a saved outfit; the window names the outfit from it. An edit of the library reaches an
-  actor only when the player assigns again.
-- A piece or own copy whose plugin is gone is dropped at load, and an assignment left
-  without pieces. A key whose instance is gone is skipped whenever the actor is dressed
-  or released.
+- The default outfit: the library outfit id the pieces came from, 0 when the ticked
+  pieces were not exactly a saved outfit, and its armor FormIDs, so it can go back on
+  after a situation outfit. Then one library outfit id per situation (§7, in
+  `Situations::kChoosable` order), 0 for none, and which of them the pieces are for
+  (one byte). The window names the outfits from the ids. An edit of the library
+  reaches the default only when the player assigns again; a situation outfit is read
+  from the library each time it goes on.
+- Version 1 has no outfit id and no own pieces; versions 1 and 2 have no default armor
+  and no situations: their pieces' armor becomes the default.
+- A piece, own copy or default armor whose plugin is gone is dropped at load, and an
+  assignment with nothing on the actor and no situation chosen. A key whose instance is
+  gone is skipped whenever the actor is dressed or released.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
 can come later if sharing across characters is wanted.
@@ -171,7 +181,58 @@ can come later if sharing across characters is wanted.
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
 
-## 7. Plan
+## 7. Situations
+
+An assigned actor can have a library outfit per situation: Town, Home, Sleep, Swimming,
+Warm (`Situations::kChoosable`). The default, what Assign gives, is worn where none of
+them applies. The window's Pieces page has an **Assign for** dropdown: Default assigns the
+ticked pieces as before; a situation needs the ticks to be a loaded library outfit and
+records its id for that situation, since the outfit is read from the library each time
+it goes on. An actor can have situation outfits without a default and then wears their
+own clothes outside them. Release forgets the choices with the rest. NPCs only for now:
+the player's dropdown is hidden (Tailor's player handling defers changes around menus,
+mounts and loads, which is a stage of its own).
+
+### Detection (`Situations::Evaluate`)
+
+The situations an actor is in, the most specific first (`Situations::Applicable`); the
+first one they have an outfit for is worn, else the default. The rules are Tailor 3.0's
+(`src/events/SituationHandler.cpp` and its policy headers) and have not been verified in
+game beyond Tailor's own use:
+
+- In combat: none, so a fight is fought in the default outfit.
+- Swimming: the actor state's swimming flag, or the engine reports a water height
+  relevant to them no lower than 40 units under their feet (wading counts).
+- Sleep: sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
+  and mounts), or on furniture flagged CanSleep.
+- Warm: in an exterior cell and the weather is cloudy, rainy or snowy (while the sky
+  blends weathers, the last one decides until the new one is halfway in), or the sky's
+  weather region, the one around the player, has snow weathers for at least a quarter
+  of its weather chance (its clear days are its own).
+- Home: the current location has `LocTypePlayerHouse`, or `LocTypeHouse` for an NPC.
+  Town follows it, so a home without a Home outfit wears the Town one.
+- Town: `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling` or
+  `LocTypeInn`. Keywords keep their editor IDs at runtime and are found by them.
+
+A situation is thus an ordered list of conditions; user-defined conditions, as Skyrim
+Outfit Equipment System NG offers them, would extend this list.
+
+### Switching
+
+A thread (`std::jthread`, no hook) queues one SKSE task per second. The task does nothing
+while the game is paused, the loading menu is up, the capture window is open or a preview
+is on, since a redress would undo the preview's restore. For each actor with a situation
+outfit who is 3D-loaded and alive it evaluates the situations and, when they differ from
+the last poll's, calls `Assignments::WearFor`, which redresses only when the resolved
+outfit differs from the one worn (`worn` in the record). One redress per poll: when the
+weather turns for everyone, the others follow at the next polls. A change is acted on
+once: a situation outfit that puts nothing on falls back to the default and is not tried
+again until the situations change. Assign and the dropdown dress for the current
+situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
+`kNewGame`, forgetting what it last saw. The record's `pieces` describe whatever is worn,
+so a situation outfit is kept on, locked and put back at 3D load like the default.
+
+## 8. Plan
 
 Each stage ends with an in-game check before the next starts.
 
@@ -185,5 +246,7 @@ Each stage ends with an in-game check before the next starts.
    capture hotkey defaults to F10. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
    the mod's own data. Done.
 3. The trade-menu filter hook (§3). Done.
-4. Later, as needed: situation switching (town, home, sleep...), assignment export/import,
-   an export to Tailor's import JSON.
+4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown. Done.
+5. Later, as needed: a Situations page in the window (per-situation clear, an overview);
+   the player's situations; assignment export/import; an export to Tailor's import JSON;
+   user-defined conditions in the way of Skyrim Outfit Equipment System NG.
