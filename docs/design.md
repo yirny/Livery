@@ -177,6 +177,10 @@ can come later if sharing across characters is wanted.
   `ExtraOutfitItem` kept, the 3D unchanged); a non-outfit copy kept it.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
+- Situation outfits on a follower (§7): Town in a town and the default outside it; Warm
+  outdoors in cloudy, rainy or snowy weather (a region that is not snowy); the default
+  during a fight and the situation outfit after it; the choices and the switching survive
+  save and load; a version 2 co-save record is read.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
@@ -197,8 +201,9 @@ mounts and loads, which is a stage of its own).
 
 The situations an actor is in, the most specific first (`Situations::Applicable`); the
 first one they have an outfit for is worn, else the default. The rules are Tailor 3.0's
-(`src/events/SituationHandler.cpp` and its policy headers) and have not been verified in
-game beyond Tailor's own use:
+(`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
+(§6): Town, Warm by weather, combat. Not yet: Home, Sleep, Swimming, Warm by a snowy
+region. The rules:
 
 - In combat: none, so a fight is fought in the default outfit.
 - Swimming: the actor state's swimming flag, or the engine reports a water height
