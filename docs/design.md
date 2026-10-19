@@ -181,6 +181,9 @@ can come later if sharing across characters is wanted.
   outdoors in cloudy, rainy or snowy weather (a region that is not snowy); the default
   during a fight and the situation outfit after it; the choices and the switching survive
   save and load; a version 2 co-save record is read.
+- The Situations page (§7): two situations cleared in one Apply; Town cleared while in
+  a town put the default back on at once; the cleared choices stayed cleared across save
+  and load.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
@@ -256,8 +259,8 @@ Each stage ends with an in-game check before the next starts.
    capture hotkey defaults to F10. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
    the mod's own data. Done.
 3. The trade-menu filter hook (§3). Done.
-4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown (done);
-   the Situations page with its per-situation clear (built, in-game check pending).
+4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown, the
+   Situations page with its per-situation clear. Done.
 5. Later, as needed: the player's situations; assignment export/import; an export to
    Tailor's import JSON; user-defined conditions in the way of Skyrim Outfit Equipment
    System NG.
