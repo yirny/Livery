@@ -9,8 +9,8 @@
 //   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies
 //   Co-save     - save, load (versions 1 to 3), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
-//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / SetSituation / WearFor /
-//                 ActorsWithSituations / Unassign / ChoicesOf / SuspendLocks / ResumeLocks /
+//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / SetSituation /
+//                 ClearSituations / WearFor / ActorsWithSituations / Unassign / ChoicesOf / SuspendLocks / ResumeLocks /
 //                 MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
 
@@ -675,6 +675,30 @@ namespace Assignments
 		}
 	}
 
+	void ClearSituations(RE::Actor& a_actor, const std::vector<Situations::Situation>& a_situations)
+	{
+		const auto id = a_actor.GetFormID();
+		auto*      assignment = FindAssignment(id);
+		if (!assignment || a_situations.empty()) {
+			return;
+		}
+		if (a_actor.IsDead()) {
+			Notify(std::format("Livery: {} is dead.", NameOf(a_actor)));
+			return;
+		}
+
+		std::string names;
+		for (const auto situation : a_situations) {
+			assignment->situations[Situations::Index(situation)] = 0;
+			names += std::format("{}{}", names.empty() ? "" : ", ", Situations::Name(situation));
+		}
+		// Only a cleared situation they wear changes the outfit they resolve to.
+		Redress(*assignment, a_actor, Situations::Evaluate(a_actor), false);
+		DropIfEmpty(id);
+		SyncManaged();
+		Notify(std::format("Livery: {} has no outfit for {} any more.", NameOf(a_actor), names));
+	}
+
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now)
 	{
 		auto* assignment = FindAssignment(a_actor.GetFormID());
@@ -717,6 +741,7 @@ namespace Assignments
 		}
 		return Choices{
 			.dressed = !assignment->pieces.empty(),
+			.hasDefault = !assignment->defaultArmor.empty(),
 			.defaultOutfit = assignment->defaultOutfit,
 			.situations = assignment->situations,
 			.worn = assignment->worn,

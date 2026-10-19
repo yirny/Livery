@@ -193,8 +193,13 @@ them applies. The window's Pieces page has an **Assign for** dropdown: Default a
 ticked pieces as before; a situation needs the ticks to be a loaded library outfit and
 records its id for that situation, since the outfit is read from the library each time
 it goes on. An actor can have situation outfits without a default and then wears their
-own clothes outside them. Release forgets the choices with the rest. NPCs only for now:
-the player's dropdown is hidden (Tailor's player handling defers changes around menus,
+own clothes outside them. Release forgets the choices with the rest. The **Situations...**
+link on the dropdown's label line, greyed while no situation has an outfit, opens the
+Situations page: the default's and each situation's outfit, the one worn marked. Clear
+marks a situation; Apply closes the window and forgets the marked ones at once
+(`Assignments::ClearSituations`, one redress, one HUD message). The default has no Clear:
+Release ends it. NPCs only for now:
+the player's dropdown and Situations page are hidden (Tailor's player handling defers changes around menus,
 mounts and loads, which is a stage of its own).
 
 ### Detection (`Situations::Evaluate`)
@@ -251,7 +256,8 @@ Each stage ends with an in-game check before the next starts.
    capture hotkey defaults to F10. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
    the mod's own data. Done.
 3. The trade-menu filter hook (§3). Done.
-4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown. Done.
-5. Later, as needed: a Situations page in the window (per-situation clear, an overview);
-   the player's situations; assignment export/import; an export to Tailor's import JSON;
-   user-defined conditions in the way of Skyrim Outfit Equipment System NG.
+4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown (done);
+   the Situations page with its per-situation clear (built, in-game check pending).
+5. Later, as needed: the player's situations; assignment export/import; an export to
+   Tailor's import JSON; user-defined conditions in the way of Skyrim Outfit Equipment
+   System NG.
