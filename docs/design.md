@@ -195,6 +195,8 @@ can come later if sharing across characters is wanted.
 - Situation outfits on the player (§7): Town in Whiterun, Warm by weather, and Swimming
   when wading on foot; no redress while a werewolf, and the right outfit on after turning
   back; wading on horseback is not Swimming; the choices survive save and load.
+- The export to Tailor (§4): written at game start and after Create / Update; Tailor 3.0.1
+  imported the file copied into `Data/SKSE/Plugins/Tailor`.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
