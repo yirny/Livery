@@ -21,7 +21,7 @@ namespace Library
 	// A category an outfit can be in, as the capture window offers it.
 	struct Category
 	{
-		const char* group;  // CaptureWindow::kClassGroup or "Situation"
+		const char* group;  // CaptureWindow::kClassGroup
 		const char* name;   // as the file stores it
 	};
 
@@ -48,7 +48,7 @@ namespace Library
 	// Armor") are read as today's; the file is not written here.
 	void Load();
 
-	// The categories the window offers, in display order: classes, then situations.
+	// The categories the window offers, in display order: SkyUI's classes.
 	std::span<const Category> Categories();
 
 	// Contract: pointers and references into the library go stale at the next Create or Update.
@@ -66,8 +66,9 @@ namespace Library
 		const std::vector<std::string>& a_categories);
 
 	// Replaces the outfit's loaded pieces with `a_armor` (pieces whose plugin or form is not
-	// loaded stay) and the categories the window offers with `a_categories`, then writes the
-	// file; its name and gender stay. Refuses as Create does, having changed nothing.
-	std::optional<std::string> Update(std::uint32_t a_id, const std::vector<RE::TESObjectARMO*>& a_armor,
+	// loaded stay), the categories the window offers with `a_categories`, and its name and
+	// gender, then writes the file. Refuses as Create does, having changed nothing; a name is
+	// taken when another outfit has it.
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor,
 		const std::vector<std::string>& a_categories);
 }

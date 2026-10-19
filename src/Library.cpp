@@ -17,7 +17,6 @@
 
 #include "ArmorInfo.h"
 #include "CaptureWindow.h"
-#include "TailorExport.h"
 #include "Utils.h"
 
 #include <nlohmann/json.hpp>
@@ -43,19 +42,14 @@ namespace
 	constexpr RE::FormID    kMaxLightLocalID = 0xFFF;  // the same for a light plugin
 	constexpr const char*   kUnreadable = "Livery could not read outfits.json, so it changes nothing (see Livery.log).";
 
-	// SkyUI's armor classes (ArmorInfo), then Tailor's situation categories.
+	// SkyUI's armor classes (ArmorInfo). Older files also hold situation categories
+	// (Adventuring, Town, ...), which are no longer offered and stay in them as they are.
 	using ArmorInfo::ArmorClass;
-	constexpr std::array<Library::Category, 10> kCategories{ {
+	constexpr std::array<Library::Category, 4> kCategories{ {
 		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kLight) },
 		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kHeavy) },
 		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kClothing) },
 		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kJewelry) },
-		{ "Situation", "Adventuring" },
-		{ "Situation", "Town" },
-		{ "Situation", "Home" },
-		{ "Situation", "Sleep" },
-		{ "Situation", "Swimming" },
-		{ "Situation", "Warm" },
 	} };
 
 	// Class names files written before the SkyUI classes hold, and what Load reads them as.
@@ -351,7 +345,6 @@ namespace Library
 		g_nextId = nextId;
 		g_writable = true;
 		logger::info("Loaded {} outfit(s) from outfits.json", g_outfits.size());
-		TailorExport::Write(g_outfits);  // Tailor export; remove with TailorExport.cpp
 	}
 
 	std::span<const Category> Categories()
@@ -419,12 +412,12 @@ namespace Library
 		}
 		g_outfits = std::move(outfits);
 		++g_nextId;
-		TailorExport::Write(g_outfits);  // Tailor export; remove with TailorExport.cpp
 		return std::nullopt;
 	}
 
-	// Contract: as Create; the new pieces are checked before the old ones go.
-	std::optional<std::string> Update(std::uint32_t a_id, const std::vector<RE::TESObjectARMO*>& a_armor, const std::vector<std::string>& a_categories)
+	// Contract: as Create; the new pieces and the name are checked before anything changes.
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor,
+		const std::vector<std::string>& a_categories)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -433,11 +426,20 @@ namespace Library
 		if (found == g_outfits.end()) {
 			return "The outfit no longer exists.";
 		}
+		if (a_name.empty()) {
+			return "Enter a name.";
+		}
+		// Its own name, in another case, is free to take.
+		if (const auto* named = FindByName(a_name); named && named->id != a_id) {
+			return std::format("An outfit named \"{}\" already exists.", a_name);
+		}
 		std::vector<PieceRef> pieces;
 		if (auto problem = ToPieces(a_armor, pieces)) {
 			return problem;
 		}
 		Outfit updated = *found;
+		updated.name = std::string{ a_name };
+		updated.gender = a_gender;
 		// This load order cannot tell what a piece of a missing plugin was, so it stays.
 		std::erase_if(updated.pieces, [](const PieceRef& piece) { return ArmorOf(piece) != nullptr; });
 		updated.pieces.insert(updated.pieces.begin(), pieces.begin(), pieces.end());
@@ -450,7 +452,6 @@ namespace Library
 			return problem;
 		}
 		g_outfits = std::move(outfits);
-		TailorExport::Write(g_outfits);  // Tailor export; remove with TailorExport.cpp
 		return std::nullopt;
 	}
 }
