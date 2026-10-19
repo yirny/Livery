@@ -36,17 +36,24 @@ namespace Assignments
 	// Contract: game thread; no preview is on (OutfitPreview::End ran).
 	void Assign(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_armor, std::uint32_t a_outfit);
 
-	// Chooses the library outfit `a_outfit` for one of their situations (0 forgets the
-	// choice) and dresses them for their situations now, as Assign does. Without a default
-	// outfit they wear their own clothes outside the chosen situations. Shows a HUD message.
-	// Contract: game thread; no preview is on; `a_situation` is not kDefault.
-	void SetSituation(RE::Actor& a_actor, Situations::Situation a_situation, std::uint32_t a_outfit);
+	// What the capture window's Save page changes for one actor (docs/ui-redesign.md §4):
+	// the rows that get the library outfit `outfit` and those that lose what they have, each
+	// a situation or kDefault for the default. A situation outfit is read from the library
+	// each time it goes on; the default keeps `armor`, the outfit's pieces as they are now.
+	// Without a default they wear their own clothes where no chosen situation applies.
+	struct Changes
+	{
+		std::uint32_t                      outfit = 0;
+		std::vector<RE::TESObjectARMO*>    armor;
+		std::vector<Situations::Situation> assign;
+		std::vector<Situations::Situation> remove;
+	};
 
-	// Forgets the outfits chosen for these situations and dresses them for their situations
-	// now, once for all of them. Nothing for an actor Livery does not dress. Shows one HUD
-	// message.
-	// Contract: game thread; no preview is on; no entry is kDefault.
-	void ClearSituations(RE::Actor& a_actor, const std::vector<Situations::Situation>& a_situations);
+	// Makes every change, then dresses them once, anew, for their situations now, so an
+	// outfit whose pieces changed goes on even for the situation they already wear. Shows one
+	// HUD message.
+	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
+	void Change(RE::Actor& a_actor, const Changes& a_changes);
 
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
 	// first situation they have an outfit for, else the default. A situation outfit that

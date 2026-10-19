@@ -227,6 +227,12 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool TextButton(const char* label);
 
+	// One tab of a row of text-only tabs: its label in the body font, in full colour while
+	// selected or hovered and half transparent otherwise. Returns true when clicked. Faded
+	// and inert inside BeginDisabled.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool TextTab(const char* label, bool selected);
+
 	// The body font at a smaller size, for controls that sit beside others
 	// (the outfit browser's). Pair them in the same window: ImGui checks that a
 	// window ends with the font stack it began with.

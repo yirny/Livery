@@ -132,13 +132,10 @@ would have to be kept in step).
 - Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
-- Export to Tailor (`src/TailorExport.cpp`, self-contained so it can be removed): the
-  library as Tailor 3.0.1's import file (`TailorOutfitExport` version 1, Tailor
-  `src/outfit/OutfitTransfer.cpp`), `Data/SKSE/Plugins/Livery/tailor-export.json`, rewritten
-  after `Library::Load` read the file and after each `Create` / `Update`. Livery's categories
-  map to Tailor's keys (`heavy`, `light`, `clothing`, situations in lower case); an outfit
-  with none is left out, as Tailor's export does. The player copies the file into
-  `Data/SKSE/Plugins/Tailor`; Livery never writes into another mod's folder.
+- Categories: SkyUI's four classes (`ArmorInfo.h`). The situation categories older files
+  hold stay in them, not offered; situations are per actor (§7), not in the library.
+- `Library::Update` replaces pieces, classes, name and gender; a name is taken when another
+  outfit has it (ASCII case ignored).
 - Settings: INI, as today.
 
 ## 5. Co-save
@@ -189,14 +186,11 @@ can come later if sharing across characters is wanted.
   outdoors in cloudy, rainy or snowy weather (a region that is not snowy); the default
   during a fight and the situation outfit after it; the choices and the switching survive
   save and load; a version 2 co-save record is read.
-- `Assignments::ClearSituations` (§7): two situations cleared in one call; Town cleared
-  while in a town put the default back on at once; the cleared choices stayed cleared across save
-  and load.
+- Clearing situation choices (§7): two cleared at once; Town cleared while in a town put
+  the default back on at once; the cleared choices stayed cleared across save and load.
 - Situation outfits on the player (§7): Town in Whiterun, Warm by weather, and Swimming
   when wading on foot; no redress while a werewolf, and the right outfit on after turning
   back; wading on horseback is not Swimming; the choices survive save and load.
-- The export to Tailor (§4): written at game start and after Create / Update; Tailor 3.0.1
-  imported the file copied into `Data/SKSE/Plugins/Tailor`.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
@@ -205,12 +199,13 @@ can come later if sharing across characters is wanted.
 
 An assigned actor can have a library outfit per situation: Town, Home, Sleep, Swimming,
 Warm (`Situations::kChoosable`). The default, what the window's Apply gives, is worn
-where none of them applies. A situation records a library outfit's id
-(`Assignments::SetSituation`), since the outfit is read from the library each time it goes
-on. An actor can have situation outfits without a default and then wears their own clothes
-outside them. Restore Original Outfit forgets the choices with the rest. The capture window
-has no control that chooses or clears a situation outfit until its Save page
-(docs/ui-redesign.md §4); the choices in a save keep working, the player's too.
+where none of them applies. A situation records a library outfit's id, since the outfit is
+read from the library each time it goes on; the default keeps the armor it was given. The
+Save page's "wears it for" rows set and clear the default and the situations for the
+captured actor in one `Assignments::Change`, after the library write, with one forced
+redress. An actor can have situation outfits without a default and then wears their own
+clothes outside them. Restore Original Outfit forgets the choices with the rest. The
+player has the same rows.
 
 ### Detection (`Situations::Evaluate`)
 
@@ -250,8 +245,8 @@ on), it evaluates the situations and, when they differ from the last poll's, cal
 outfit differs from the one worn (`worn` in the record). One redress per poll: when the
 weather turns for everyone, the others follow at the next polls. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
-again until the situations change. Apply dresses for the current situations at
-once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
+again until the situations change. Apply and the Save page dress for the current
+situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
 `kNewGame`, forgetting what it last saw. The record's `pieces` describe whatever is worn,
 so a situation outfit is kept on, locked and put back at 3D load like the default.
 
@@ -273,15 +268,13 @@ Each stage ends with an in-game check before the next starts.
    Situations page with its per-situation clear. Done.
 5. The player's situations (§7): the window's dropdown and Situations page, the poll
    skipping beast form, the mount rule for water. Done.
-6. The export to Tailor's import JSON (§4). Done.
-7. Rework the capture window's existing pages (docs/ui-redesign.md). Step 1, the Capture
-   page: built, not yet checked in game.
-8. An Outfit Management window: Delete and Rename for library outfits. Delete must deal
-   with the assignments and situation choices that name the outfit; Rename needs the
-   no-rename rule in CLAUDE.md §2.1 rewritten.
-9. A Situation Management window: user-defined conditions in the way of Skyrim Outfit
+6. Rework the capture window's existing pages (docs/ui-redesign.md). Step 1, the Capture
+   page: done. Step 2, the Save page: built, not yet checked in game.
+7. An Outfit Management window: Delete for library outfits, which must deal with the
+   assignments and situation choices that name the outfit (rename is on the Save page).
+8. A Situation Management window: user-defined conditions in the way of Skyrim Outfit
    Equipment System NG, extending `Situations::Applicable` (§7).
-10. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
-    the window open, then New Game; the player's left-hand weapon back after a shield
-    preview; tempered player gear after Cancel; a follower's given armor gone after Load
-    Outfit + Cancel (seen while Tailor managed her).
+9. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
+   the window open, then New Game; the player's left-hand weapon back after a shield
+   preview; tempered player gear after Cancel; a follower's given armor gone after Load
+   Outfit + Cancel (seen while Tailor managed her).

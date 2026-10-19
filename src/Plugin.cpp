@@ -3,7 +3,7 @@
 // FILE MAP
 //   Constants      - slots that decide an outfit's armor class and gender
 //   Library writes - SaveOutfit adds the outfit to Livery's library (Library); UpdateOutfit
-//                    replaces a confirmed existing outfit's pieces and categories
+//                    replaces a confirmed existing outfit's pieces, classes, name and gender
 //   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
 //                    outfit pages, through OutfitPreview, seen through PreviewCamera, while the
 //                    window's Live Preview tick is on; saving is off and an NPC is held where they
@@ -13,7 +13,8 @@
 //                    armor (and for an NPC the player's, per the settings), each piece with its group and
 //                    SkyUI's Type and Class (ArmorInfo), detect the class, list the library's outfits (adding
 //                    their pieces nobody carries), then open the window with the worn pieces ticked (or save
-//                    those under an automatic name where the overlay is unavailable); the window's Apply and
+//                    those under an automatic name where the overlay is unavailable); the window's Save
+//                    writes the library, then changes the actor's rows (Assignments::Change); Apply and
 //                    Restore Original Outfit go to Assignments
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
 //   Messaging      - outfit library, settings page, sink and menu registration, ready state, the
@@ -106,24 +107,29 @@ namespace
 		return picked;
 	}
 
-	// Contract: game thread; the user confirmed replacing this outfit's pieces and
-	// categories. Its pieces whose plugin is not loaded stay in it; the HUD message
-	// says how many.
+	// Contract: game thread; the user confirmed this outfit's update in the Save page's popup.
+	// Its pieces whose plugin is not loaded stay in it; the HUD message says how many, and its
+	// old name when it is renamed.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::vector<RE::TESObjectARMO*>& armors, const std::vector<std::string>& categories)
+	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, int gender, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<std::string>& categories)
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
 			return "The outfit no longer exists.";
 		}
-		const auto  name = outfit->name;  // the update leaves `outfit` stale
+		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
 		Library::LoadedPieces(*outfit, &unloaded);
-		if (auto error = Library::Update(id, armors, categories)) {
+		if (auto error = Library::Update(id, name, gender, armors, categories)) {
 			return error;
 		}
-		Notify(unloaded ? std::format("Livery: updated {} ({} pieces); {} piece(s) from plugins that are not loaded stay in it.", name, armors.size(), unloaded) :
-						  std::format("Livery: updated {} ({} pieces).", name, armors.size()));
+		auto text = name == oldName ? std::format("Livery: updated {} ({} pieces)", name, armors.size()) :
+		                              std::format("Livery: updated {}, renamed from {} ({} pieces)", name, oldName, armors.size());
+		if (unloaded) {
+			text += std::format("; {} piece(s) from plugins that are not loaded stay in it", unloaded);
+		}
+		Notify(text + ".");
 		return std::nullopt;
 	}
 
@@ -475,7 +481,7 @@ namespace
 		std::vector<CaptureWindow::ExistingOutfit> outfits;
 		outfits.reserve(library.size());
 		for (const auto* stored : library) {
-			CaptureWindow::ExistingOutfit outfit{ .name = stored->name, .id = stored->id };
+			CaptureWindow::ExistingOutfit outfit{ .name = stored->name, .id = stored->id, .gender = stored->gender };
 			for (const auto& category : categories) {
 				if (std::ranges::find(stored->categories, category.name) != stored->categories.end()) {
 					outfit.categories.push_back(category.name);
@@ -564,6 +570,57 @@ namespace
 		};
 	}
 
+	// A row of the Save page's "wears it for" as Assignments names it: Default, then the
+	// situations in Situations::kChoosable order.
+	Situations::Situation RowSituation(std::size_t row)
+	{
+		return row == 0 ? Situations::Situation::kDefault : Situations::kChoosable[row - 1];
+	}
+
+	// The Save page: its "wears it for" rows with what the actor has in each now, and the
+	// save. The library is written first; only once it took the outfit does the window close,
+	// which ends the preview, and do the rows change, in one call that redresses once.
+	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
+	// failed write assigns nothing (CLAUDE.md §2.1).
+	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::optional<Assignments::Choices>& choices)
+	{
+		for (const auto situation : Situations::kChoosable) {
+			request.situations.push_back(Situations::Name(situation));
+		}
+		request.assigned.resize(Situations::kChoosable.size() + 1);
+		if (choices) {
+			request.assigned[0] = { choices->hasDefault, choices->defaultOutfit };
+			for (std::size_t i = 0; i < choices->situations.size(); ++i) {
+				request.assigned[i + 1] = { choices->situations[i] != 0, choices->situations[i] };
+			}
+		}
+		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
+			const auto picked = PickPieces(armors, save.pieces);
+			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, save.gender, picked, save.categories) :
+			                                 SaveOutfit(save.name, picked, save.categories, save.gender);
+			if (error) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			const auto* saved = save.outfit ? Library::Find(save.outfit) : Library::FindByName(save.name);
+			const auto  outfit = saved ? saved->id : 0;
+			CaptureWindow::Close();
+			const auto target = handle.get();
+			if (outfit == 0 || !target || (save.assign.empty() && save.remove.empty())) {
+				return;
+			}
+			Assignments::Changes changes{ .outfit = outfit, .armor = picked };
+			for (const auto row : save.assign) {
+				changes.assign.push_back(RowSituation(row));
+			}
+			for (const auto row : save.remove) {
+				changes.remove.push_back(RowSituation(row));
+			}
+			Assignments::Change(*target, changes);
+		};
+	}
+
 	// The player's armor under From Player's Inventory, for an NPC: the forms the NPC does
 	// not carry, which are listed once, under the NPC's own headings.
 	// Contract: game thread; `armors` matches `pieces` index for index.
@@ -616,6 +673,7 @@ namespace
 		AddPlayerPieces(actor, armors, request.pieces);
 		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
 		AttachAssignment(request, actor, armors, choices);
+		AttachSave(request, actor, armors, choices);
 		AttachPreview(request, actor, armors);
 		// Every close, whatever closed the window, ends the preview, lets saving back on
 		// and lets an NPC walk again.
@@ -624,21 +682,6 @@ namespace
 			OutfitPreview::End();
 			AllowSaving();
 			MovementHold::End();
-		};
-		request.onSave = [armors](const std::string& name, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories,
-							 int gender) {
-			if (const auto error = SaveOutfit(name, PickPieces(armors, pieces), categories, gender)) {
-				CaptureWindow::SetError(*error);
-			} else {
-				CaptureWindow::Close();
-			}
-		};
-		request.onUpdate = [armors = std::move(armors)](std::uint32_t id, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories) {
-			if (const auto error = UpdateOutfit(id, PickPieces(armors, pieces), categories)) {
-				CaptureWindow::SetError(*error);
-			} else {
-				CaptureWindow::Close();
-			}
 		};
 		BlockSaving();
 		MovementHold::Begin(actor);

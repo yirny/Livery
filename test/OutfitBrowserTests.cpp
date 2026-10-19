@@ -8,7 +8,8 @@
 
 namespace
 {
-	// Request::categories as Plugin.cpp builds it: classes, situations, custom ones.
+	// Request::categories as Plugin.cpp builds it (the classes), with a second group the
+	// browser treats the same way.
 	CaptureWindow::Request MakeRequest()
 	{
 		CaptureWindow::Request request;
@@ -17,17 +18,16 @@ namespace
 			{ CaptureWindow::kClassGroup, "Heavy" },
 			{ CaptureWindow::kClassGroup, "Clothing" },
 			{ CaptureWindow::kClassGroup, "Jewelry" },
-			{ "Situation", "Adventuring" },
-			{ "Situation", "Town" },
-			{ "Situation", "Swimming" },
-			{ "Custom Category", "Favourites" },
+			{ "Custom Category", "Adventuring" },
+			{ "Custom Category", "Town" },
+			{ "Custom Category", "Swimming" },
 		};
 		request.existingOutfits = {
 			{ "iron set", { "Heavy", "Adventuring" }, {} },
 			{ "Guard Uniform", { "Light", "Adventuring", "Swimming" }, {} },
 			{ "Town Dress", { "Clothing", "Town" }, {} },
 			{ "Bare", {}, {} },
-			{ "Scout", { "Light", "Adventuring", "Town", "Favourites" }, {} },
+			{ "Scout", { "Light", "Jewelry", "Adventuring", "Town" }, {} },
 		};
 		return request;
 	}
@@ -80,19 +80,16 @@ TEST_CASE("Filter rows follow the groups, each with its No row", "[browser]")
 		labels.push_back(row.label);
 	}
 	CHECK(labels == std::vector<std::string>{ "Light", "Heavy", "Clothing", "Jewelry", "No Class", "Adventuring", "Town", "Swimming",
-						"No Situation", "Favourites", "No Custom Category" });
+						"No Custom Category" });
 }
 
 TEST_CASE("No custom category means no Custom Category rows", "[browser]")
 {
 	auto request = MakeRequest();
-	request.categories.pop_back();
-	for (auto& outfit : request.existingOutfits) {
-		std::erase(outfit.categories, "Favourites");
-	}
+	request.categories.resize(4);  // the classes only, as Plugin.cpp offers them
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	CHECK(state.filter.back().label == "No Situation");
+	CHECK(state.filter.back().label == "No Class");
 }
 
 TEST_CASE("Search matches part of the name, ignoring ASCII case", "[browser]")
@@ -140,7 +137,7 @@ TEST_CASE("A No row matches outfits in none of its group's categories", "[browse
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	Tick(state, "No Situation");
+	Tick(state, "No Custom Category");
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare" });
 
@@ -160,24 +157,13 @@ TEST_CASE("Search and filter combine", "[browser]")
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set", "Scout" });
 }
 
-TEST_CASE("Class sort: the library's class order, then situation, then name", "[browser]")
+TEST_CASE("Class sort: the library's class order, then name", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
 	state.sort = OutfitBrowser::SortKey::kClass;
 	OutfitBrowser::Refresh(state, request);
-	// Light: Adventuring + Town (Scout) before Adventuring + Swimming (Guard Uniform).
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Scout", "Guard Uniform", "iron set", "Town Dress", "Bare" });
-}
-
-TEST_CASE("Situation sort: the library's situation order, then class, then name", "[browser]")
-{
-	const auto           request = MakeRequest();
-	OutfitBrowser::State state;
-	OutfitBrowser::Reset(state, request);
-	state.sort = OutfitBrowser::SortKey::kSituation;
-	OutfitBrowser::Refresh(state, request);
-	// Adventuring alone, then Adventuring + Town, then Adventuring + Swimming; no situation last.
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set", "Scout", "Guard Uniform", "Town Dress", "Bare" });
+	// Light alone (Guard Uniform) before Light + Jewelry (Scout); no class last; other groups play no part.
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Guard Uniform", "Scout", "iron set", "Town Dress", "Bare" });
 }

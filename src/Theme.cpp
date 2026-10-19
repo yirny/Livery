@@ -1389,6 +1389,18 @@ namespace Theme
 		return g_skin == Skin::kTailor ? TailorRow(a_cells, a_columnX, a_ticked) : InventoryRow(a_cells, a_columnX, a_ticked);
 	}
 
+	bool TextTab(const char* a_label, bool a_selected)
+	{
+		constexpr float kUnselectedAlpha = 0.5f;  // "half transparent" (docs/ui-redesign.md §4)
+
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)));
+		const float  alpha = a_selected || ImGui::IsItemHovered() ? 1.0f : kUnselectedAlpha;
+		ImGui::GetWindowDrawList()->AddText(topLeft, ImGui::GetColorU32(ImGuiCol_Text, alpha), a_label);
+		return clicked;
+	}
+
 	bool TextButton(const char* a_label)
 	{
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
