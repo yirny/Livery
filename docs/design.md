@@ -277,6 +277,14 @@ Each stage ends with an in-game check before the next starts.
    Situations page with its per-situation clear. Done.
 5. The player's situations (§7): the window's dropdown and Situations page, the poll
    skipping beast form, the mount rule for water. Done.
-6. The export to Tailor's import JSON (§4).
-7. Later, as needed: assignment export/import; user-defined conditions in the way of
-   Skyrim Outfit Equipment System NG.
+6. The export to Tailor's import JSON (§4). Done.
+7. Rework the capture window's existing pages.
+8. An Outfit Management window: Delete and Rename for library outfits. Delete must deal
+   with the assignments and situation choices that name the outfit; Rename needs the
+   no-rename rule in CLAUDE.md §2.1 rewritten.
+9. A Situation Management window: user-defined conditions in the way of Skyrim Outfit
+   Equipment System NG, extending `Situations::Applicable` (§7).
+10. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
+    the window open, then New Game; the player's left-hand weapon back after a shield
+    preview; tempered player gear after Cancel; a follower's given armor gone after Load
+    Outfit + Cancel (seen while Tailor managed her).
