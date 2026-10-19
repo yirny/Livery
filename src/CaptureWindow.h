@@ -81,6 +81,7 @@ namespace CaptureWindow
 		std::vector<CategoryOption> categories;            // offered in the multi-select dropdown
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Update Existing page, in display order
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
+		std::vector<std::string>    situations;            // offered in the Assign for dropdown after Default; empty hides it
 
 		// Runs on the game thread with the trimmed, non-empty name, the indices
 		// into `pieces` the user left ticked (ascending, never empty), the
@@ -99,10 +100,11 @@ namespace CaptureWindow
 		std::function<void(std::uint32_t id, const std::vector<std::size_t>& pieces, const std::vector<std::string>& categories)> onUpdate;
 
 		// Runs on the game thread when the user presses Assign, with the ticked indices
-		// into `pieces` (ascending, never empty) and the id of the outfit last loaded
-		// when the ticks are exactly its pieces, else 0. It must end by calling Close()
-		// or SetError().
-		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit)> onAssign;
+		// into `pieces` (ascending, never empty), the id of the outfit last loaded when
+		// the ticks are exactly its pieces, else 0, and what the outfit is assigned for:
+		// 0 for the default, else the index into `situations` plus one, with `outfit`
+		// then never 0. It must end by calling Close() or SetError().
+		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit, std::size_t situation)> onAssign;
 
 		// Runs on the game thread when the user presses Release. Empty when Livery does
 		// not dress the character, which greys the button. It must end by calling

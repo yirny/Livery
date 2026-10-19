@@ -15,7 +15,8 @@
 //                    an automatic name where the overlay is unavailable); the window's Assign and Release
 //                    go to Assignments
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
-//   Messaging      - outfit library, settings page, sink and menu registration, ready state
+//   Messaging      - outfit library, settings page, sink and menu registration, ready state, the
+//                    situation poll (Situations) around loads
 //   Entry          - log, settings, co-save, trampoline, hooks (overlay, trade-menu filter)
 #include "PCH.h"
 
@@ -27,6 +28,7 @@
 #include "OutfitPreview.h"
 #include "PreviewCamera.h"
 #include "Settings.h"
+#include "Situations.h"
 #include "TradeFilter.h"
 
 #include <algorithm>
@@ -436,25 +438,65 @@ namespace
 		return outfits;
 	}
 
-	// The window's Assign and Release, and the line under the actor's name: the outfit
-	// Livery dresses them in. Both buttons close the window first, so the preview has put
-	// back what they wore before Livery dresses or releases them.
+	// Names a library outfit for the summary line, or says it is gone.
+	std::string QuotedOutfitName(std::uint32_t id)
+	{
+		const auto* stored = Library::Find(id);
+		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the library";
+	}
+
+	// The line under the actor's name: what Livery has on them, and the outfits chosen for
+	// their situations.
+	std::string DescribeAssignment(const Assignments::Choices& choices)
+	{
+		using Situations::Situation;
+		std::string text = "Not dressed by Livery right now.";
+		if (choices.dressed) {
+			const bool forSituation = choices.worn != Situation::kDefault;
+			const auto outfit = forSituation ? choices.situations[Situations::Index(choices.worn)] : choices.defaultOutfit;
+			text = outfit ? std::format("Dressed by Livery in {}", QuotedOutfitName(outfit)) : "Dressed by Livery";
+			text += forSituation ? std::format(" for {}.", Situations::Name(choices.worn)) : ".";
+		}
+		std::string chosen;
+		for (const auto situation : Situations::kChoosable) {
+			if (const auto outfit = choices.situations[Situations::Index(situation)]) {
+				chosen += std::format("{}{} {}", chosen.empty() ? " " : ", ", Situations::Name(situation), QuotedOutfitName(outfit));
+			}
+		}
+		return chosen.empty() ? text : text + chosen + ".";
+	}
+
+	// The window's Assign and Release, and the line under the actor's name. Assign dresses
+	// them in the ticked pieces by default, or chooses the loaded outfit for a situation
+	// (Situations; NPCs only, so the player's dropdown stays hidden). Both buttons close the
+	// window first, so the preview has put back what they wore before Livery dresses or
+	// releases them.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
 	{
 		const auto handle = actor.GetHandle();
-		request.onAssign = [handle, armors](const std::vector<std::size_t>& pieces, std::uint32_t outfit) {
+		if (!actor.IsPlayerRef()) {
+			for (const auto situation : Situations::kChoosable) {
+				request.situations.push_back(Situations::Name(situation));
+			}
+		}
+		request.onAssign = [handle, armors](const std::vector<std::size_t>& pieces, std::uint32_t outfit, std::size_t situation) {
 			CaptureWindow::Close();
-			if (const auto target = handle.get()) {
+			const auto target = handle.get();
+			if (!target) {
+				return;
+			}
+			if (situation == 0) {
 				Assignments::Assign(*target, PickPieces(armors, pieces), outfit);
+			} else {
+				Assignments::SetSituation(*target, Situations::kChoosable[situation - 1], outfit);
 			}
 		};
-		const auto outfit = Assignments::OutfitOf(actor.GetFormID());
-		if (!outfit) {
+		const auto choices = Assignments::ChoicesOf(actor.GetFormID());
+		if (!choices) {
 			return;  // Release stays greyed
 		}
-		const auto* stored = *outfit ? Library::Find(*outfit) : nullptr;
-		request.actorSummary = stored ? std::format("Dressed by Livery in \"{}\".", stored->name) : "Dressed by Livery.";
+		request.actorSummary = DescribeAssignment(*choices);
 		request.onRelease = [handle] {
 			CaptureWindow::Close();
 			if (const auto target = handle.get()) {
@@ -655,6 +697,7 @@ namespace
 		case SKSE::MessagingInterface::kPreLoadGame:
 			g_ready = false;
 			g_target = {};
+			Situations::Stop();
 			// The world the preview was set in is being replaced, inventories included: drop
 			// the preview without dressing anyone.
 			OutfitPreview::Abandon();
@@ -667,6 +710,7 @@ namespace
 		case SKSE::MessagingInterface::kPostLoadGame:
 			g_ready = true;
 			g_target = {};
+			Situations::Start();
 			break;
 
 		default:
