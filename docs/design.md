@@ -185,9 +185,9 @@ can come later if sharing across characters is wanted.
 - The Situations page (§7): two situations cleared in one Apply; Town cleared while in
   a town put the default back on at once; the cleared choices stayed cleared across save
   and load.
-- Situation outfits on the player (§7): Town in Whiterun and Warm by weather; no redress
-  while a werewolf, and the right outfit on after turning back; wading on horseback is
-  not Swimming; the choices survive save and load.
+- Situation outfits on the player (§7): Town in Whiterun, Warm by weather, and Swimming
+  when wading on foot; no redress while a werewolf, and the right outfit on after turning
+  back; wading on horseback is not Swimming; the choices survive save and load.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
@@ -212,8 +212,8 @@ Release ends it. The player has the same dropdown and page.
 The situations an actor is in, the most specific first (`Situations::Applicable`); the
 first one they have an outfit for is worn, else the default. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
-(§6): Town, Warm by weather, combat. Not yet: Home, Sleep, Swimming, Warm by a snowy
-region. The rules:
+(§6): Town, Warm by weather, combat, Swimming by wading. Not yet: Home, Sleep, Warm by a
+snowy region. The rules:
 
 - In combat: none, so a fight is fought in the default outfit.
 - Swimming: the actor state's swimming flag, or the engine reports a water height
