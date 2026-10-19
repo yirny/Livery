@@ -506,19 +506,16 @@ namespace
 
 	// The window's Assign and Release, the line under the actor's name and the Situations
 	// page. Assign dresses them in the ticked pieces by default, or chooses the loaded outfit
-	// for a situation (Situations; NPCs only, so the player's dropdown and page stay
-	// hidden). Both buttons close the window first, so the preview has put back what they
-	// wore before Livery dresses or releases them.
+	// for a situation (Situations), the player's as an NPC's. Both buttons close the window
+	// first, so the preview has put back what they wore before Livery dresses or releases them.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
 	{
 		const auto handle = actor.GetHandle();
-		if (!actor.IsPlayerRef()) {
-			for (const auto situation : Situations::kChoosable) {
-				request.situations.push_back(Situations::Name(situation));
-			}
-			request.situationOutfits.resize(request.situations.size());
+		for (const auto situation : Situations::kChoosable) {
+			request.situations.push_back(Situations::Name(situation));
 		}
+		request.situationOutfits.resize(request.situations.size());
 		request.onAssign = [handle, armors](const std::vector<std::size_t>& pieces, std::uint32_t outfit, std::size_t situation) {
 			CaptureWindow::Close();
 			const auto target = handle.get();
@@ -536,9 +533,7 @@ namespace
 			return;  // Release and the Situations page's link stay greyed
 		}
 		request.actorSummary = DescribeAssignment(*choices);
-		if (!actor.IsPlayerRef()) {
-			AttachSituations(request, *choices, handle);
-		}
+		AttachSituations(request, *choices, handle);
 		request.onRelease = [handle] {
 			CaptureWindow::Close();
 			if (const auto target = handle.get()) {

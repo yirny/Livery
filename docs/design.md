@@ -87,7 +87,8 @@ says so), so a lock would be needed anyway.
 Same dressing path, three differences: no lock (a locked piece cannot be taken off in
 the inventory menu, verified); adding pieces the player lacks is OFF by default,
 switchable in the settings (`[Player] AddMissingPieces`) with a warning that it creates
-items; nothing is put back on the player when they load.
+items; nothing is put back on the player when they load. Situation outfits (§7) switch
+on the player as on an NPC, unlocked like the default, and not in beast form.
 
 ### Contracts
 
@@ -201,9 +202,7 @@ link on the dropdown's label line, greyed while no situation has an outfit, open
 Situations page: the default's and each situation's outfit, the one worn marked. Clear
 marks a situation; Apply closes the window and forgets the marked ones at once
 (`Assignments::ClearSituations`, one redress, one HUD message). The default has no Clear:
-Release ends it. NPCs only for now:
-the player's dropdown and Situations page are hidden (Tailor's player handling defers changes around menus,
-mounts and loads, which is a stage of its own).
+Release ends it. The player has the same dropdown and page.
 
 ### Detection (`Situations::Evaluate`)
 
@@ -215,9 +214,11 @@ region. The rules:
 
 - In combat: none, so a fight is fought in the default outfit.
 - Swimming: the actor state's swimming flag, or the engine reports a water height
-  relevant to them no lower than 40 units under their feet (wading counts).
+  relevant to them no lower than 40 units under their feet (wading counts). On a mount
+  only the swimming flag counts: a rider's feet are above the water the horse wades.
 - Sleep: sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
-  and mounts), or on furniture flagged CanSleep.
+  and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
+  bed (Tailor's note in `SituationHandler.cpp`), so the player's Sleep needs a mod that does.
 - Warm: in an exterior cell and the weather is cloudy, rainy or snowy (while the sky
   blends weathers, the last one decides until the new one is halfway in), or the sky's
   weather region, the one around the player, has snow weathers for at least a quarter
@@ -235,8 +236,9 @@ Outfit Equipment System NG offers them, would extend this list.
 A thread (`std::jthread`, no hook) queues one SKSE task per second. The task does nothing
 while the game is paused, the loading menu is up, the capture window is open or a preview
 is on, since a redress would undo the preview's restore. For each actor with a situation
-outfit who is 3D-loaded and alive it evaluates the situations and, when they differ from
-the last poll's, calls `Assignments::WearFor`, which redresses only when the resolved
+outfit who is 3D-loaded and alive, the player not in beast form (a race that is not
+playable: werewolf, Vampire Lord; the transformation takes the gear off and puts it back
+on), it evaluates the situations and, when they differ from the last poll's, calls `Assignments::WearFor`, which redresses only when the resolved
 outfit differs from the one worn (`worn` in the record). One redress per poll: when the
 weather turns for everyone, the others follow at the next polls. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
@@ -261,6 +263,8 @@ Each stage ends with an in-game check before the next starts.
 3. The trade-menu filter hook (§3). Done.
 4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown, the
    Situations page with its per-situation clear. Done.
-5. Later, as needed: the player's situations; assignment export/import; an export to
+5. The player's situations (§7): the window's dropdown and Situations page, the poll
+   skipping beast form, the mount rule for water.
+6. Later, as needed: assignment export/import; an export to
    Tailor's import JSON; user-defined conditions in the way of Skyrim Outfit Equipment
    System NG.

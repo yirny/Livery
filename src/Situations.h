@@ -11,8 +11,8 @@ namespace RE
 }
 
 // The situations an actor can have an outfit for besides their default (docs/design.md §7),
-// how the ones an actor is in are told, and the poll that redresses assigned NPCs when
-// they change (Assignments::WearFor).
+// how the ones an actor is in are told, and the poll that redresses assigned actors, the
+// player included, when they change (Assignments::WearFor).
 //
 // Contract: Evaluate runs on the game thread. Start and Stop run from the SKSE message
 // handler, on the game thread; the poll thread touches no game state and only queues
@@ -60,7 +60,7 @@ namespace Situations
 	// Contract: game thread.
 	Applicable Evaluate(RE::Actor& a_actor);
 
-	// The poll that keeps assigned NPCs dressed for their situations: Start at
+	// The poll that keeps assigned actors dressed for their situations: Start at
 	// kPostLoadGame and kNewGame, Stop at kPreLoadGame.
 	void Start();
 	void Stop();
