@@ -884,13 +884,22 @@ namespace
 	{
 		const auto handle = actor.GetHandle();
 		const auto actorID = actor.GetFormID();
-		request.onManageUpdate = [handle, actorID, armors](const CaptureWindow::SaveRequest& edit) {
+		// Update and Apply: the outfit as written becomes their Default once the window, closing
+		// first, has ended the preview, as Apply to #{Name} makes it.
+		request.onManageUpdate = [handle, actorID, armors](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
 			if (const auto error = UpdateOutfit(edit.outfit, edit.name, edit.gender, picked, edit.categories)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
 			const auto target = handle.get();
+			if (apply) {
+				CaptureWindow::Close();
+				if (target) {
+					Assignments::Assign(*target, picked, edit.outfit);
+				}
+				return;
+			}
 			if (target && WornAs(Assignments::ChoicesOf(actorID), edit.outfit) != Worn::kNone) {
 				RedressCaptured(*target, { actorID, edit.outfit }, picked);
 			}
