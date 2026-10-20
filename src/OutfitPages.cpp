@@ -173,40 +173,29 @@ namespace CaptureWindow::Internal
 
 	// --- Outfit lists ---------------------------------------------------------
 
-	bool OffersSort(const State& a_state, const SortOption& a_option)
-	{
-		return OutfitBrowser::OffersSort(a_state.request, a_option.key);
-	}
-
 	// The Sort dropdown's rows, the current key highlighted with no tick mark;
-	// choosing one closes the popup. A zero-high spacer as wide as the widest
-	// row keeps the popup, which starts as narrow as its frame, from cutting a
-	// row's label. Returns true when the key changed.
-	bool DrawSortRows(const State& a_state, OutfitBrowser::State& a_browser)
+	// choosing one sorts by it (OutfitBrowser::SetSort) and closes the popup. A
+	// zero-high spacer as wide as the widest row keeps the popup, which starts as
+	// narrow as its frame, from cutting a row's label.
+	void DrawSortRows(const State& a_state, OutfitBrowser::State& a_browser)
 	{
 		const auto& style = ImGui::GetStyle();
 		float       widest = 0.0f;
 		for (const auto& option : kSortOptions) {
-			if (OffersSort(a_state, option)) {
-				widest = (std::max)(widest, ImGui::CalcTextSize(option.label).x);
-			}
+			widest = (std::max)(widest, ImGui::CalcTextSize(option.label).x);
 		}
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));  // rows carry their own gap
 		ImGui::Dummy(ImVec2(widest + style.FramePadding.x * 2.0f, 0.0f));
-		bool changed = false;
 		for (const auto& option : kSortOptions) {
-			if (!OffersSort(a_state, option)) {
-				continue;
-			}
 			bool ticked = a_browser.sort == option.key;
 			if (DrawCategoryRow(option.label, ticked, false)) {
-				changed = a_browser.sort != option.key;
-				a_browser.sort = option.key;
+				if (a_browser.sort != option.key) {
+					OutfitBrowser::SetSort(a_browser, a_state.request, option.key);
+				}
 				ImGui::CloseCurrentPopup();
 			}
 		}
 		ImGui::PopStyleVar();
-		return changed;
 	}
 
 	// "Sort by <key>" and the skin's arrow, bare, in the small font and greyed
@@ -214,8 +203,7 @@ namespace CaptureWindow::Internal
 	// its text's bottom on the label's. Its width fits the longest key, so
 	// switching keys does not move it. It leaves the cursor where the label
 	// did, so the list below does not move.
-	// Returns true when the key changed.
-	bool DrawSortCombo(const State& a_state, OutfitBrowser::State& a_browser)
+	void DrawSortCombo(const State& a_state, OutfitBrowser::State& a_browser)
 	{
 		const ImVec2 labelMax = ImGui::GetItemRectMax();
 		const ImVec2 after = ImGui::GetCursorScreenPos();
@@ -227,9 +215,6 @@ namespace CaptureWindow::Internal
 		float                       width = 0.0f;
 		std::string                 current;
 		for (const auto& option : kSortOptions) {
-			if (!OffersSort(a_state, option)) {
-				continue;
-			}
 			width = (std::max)(width, Theme::ComboWidth(preview(option).c_str(), style));
 			if (option.key == a_browser.sort) {
 				current = preview(option);
@@ -238,11 +223,12 @@ namespace CaptureWindow::Internal
 		ImGui::SetCursorScreenPos(ImVec2(right - width, labelMax.y - Theme::FieldHeight(style)));
 		ImGui::SetNextItemWidth(width);
 		const bool open = Theme::BeginCombo("##sort", ImGuiComboFlags_None, style);
-		const bool changed = open && DrawSortRows(a_state, a_browser);
+		if (open) {
+			DrawSortRows(a_state, a_browser);
+		}
 		Theme::EndCombo(open, current.c_str(), style);
 		Theme::PopSmallFont();
 		ImGui::SetCursorScreenPos(after);
-		return changed;
 	}
 
 	// Height of the outfit list with every library outfit and every heading of the sort in
@@ -273,26 +259,25 @@ namespace CaptureWindow::Internal
 		return Theme::OutfitRow(outfit.name.c_str(), outfit.gender, tags, a_tagsWidth, a_selected);
 	}
 
-	// Left column of the outfit pages: the library's outfits that pass the
+	// Left column of the outfit pages: the wardrobe's outfits that pass the
 	// browser, in its order, under the sort's headings, `a_selected`
 	// highlighted, under a label with the Sort dropdown, and Show Categories
-	// under the list. The list stays as tall as the whole library, so narrowing
-	// it does not move the buttons; `a_reserved` is the browser's height
-	// (ListHeight). Returns the index into request.existingOutfits of the one
-	// clicked, or -1; a click plays the focus sound.
+	// under the list. A click on a heading folds its outfits away or back. The
+	// list stays as tall as the whole wardrobe, so narrowing or folding it does
+	// not move the buttons; `a_reserved` is the browser's height (ListHeight).
+	// Returns the index into request.existingOutfits of the one clicked, or -1;
+	// a click plays the focus sound.
 	// Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto& visible = a_browser.visible;
 		if (visible.size() == outfits.size()) {
-			Theme::LabelText(std::format("{} outfit(s) in the library", outfits.size()).c_str());
+			Theme::LabelText(std::format("{} outfit(s) in the wardrobe", outfits.size()).c_str());
 		} else {
 			Theme::LabelText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
 		}
-		if (DrawSortCombo(a_state, a_browser)) {
-			OutfitBrowser::Refresh(a_browser, a_state.request);
-		}
+		DrawSortCombo(a_state, a_browser);
 		PushListRowSpacing();  // the piece list's row gap; popped before EndList, as there
 		const float tagsWidth = Theme::OutfitTagsWidth();
 		// Show Categories, under the list, takes a frame's height too.
@@ -303,12 +288,21 @@ namespace CaptureWindow::Internal
 				ImGui::TextDisabled("No outfit matches.");
 			}
 			const std::string* heading = nullptr;  // the last one drawn
+			bool               folded = false;     // its outfits are folded away
 			for (const int index : visible) {
 				const auto& own = a_browser.headings[static_cast<std::size_t>(index)];
 				if (!own.empty() && (!heading || *heading != own)) {
-					Theme::ListHeading(own.c_str());
+					folded = OutfitBrowser::IsFolded(a_browser, own);
+					if (Theme::FoldHeading(own.c_str(), !folded)) {
+						QueueMenuSound(kFocusSound);
+						OutfitBrowser::ToggleFolded(a_browser, own);
+						folded = !folded;
+					}
 				}
 				heading = &own;
+				if (folded) {
+					continue;
+				}
 				ImGui::PushID(index);
 				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index)) {
 					clicked = index;
@@ -371,8 +365,8 @@ namespace CaptureWindow::Internal
 		DrawPieceNames(a_state, a_outfit.pieces);
 	}
 
-	// Right column of the Load and Select pages: the selected outfit's name, Armor Classes
-	// and pieces, read only; `a_hint` while none is selected.
+	// Right column of the Load and Select pages: the selected outfit's name, categories and
+	// pieces, read only; `a_hint` while none is selected.
 	void DrawOutfitDetails(const State& a_state, int a_selected, const char* a_hint)
 	{
 		if (!DrawSelectedName(a_state, a_selected, a_hint)) {
@@ -750,9 +744,9 @@ namespace CaptureWindow::Internal
 		}
 		if (classesChanged) {
 			if (const auto classes = TickedCategories(a_state, form.classTicked.get()); classes.empty()) {
-				ImGui::TextUnformatted("It will have no Armor Class.");
+				ImGui::TextUnformatted("It will have no Category.");
 			} else {
-				ImGui::TextUnformatted(std::format("Its Armor Class becomes: {}.", JoinNames(classes)).c_str());
+				ImGui::TextUnformatted(std::format("Its Category becomes: {}.", JoinNames(classes)).c_str());
 			}
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
@@ -808,7 +802,7 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		ImGui::TextUnformatted(std::format("Remove \"{}\" from the library?", outfit.name).c_str());
+		ImGui::TextUnformatted(std::format("Remove \"{}\" from the wardrobe?", outfit.name).c_str());
 		if (!outfit.users.empty()) {
 			ImGui::TextUnformatted("It is used by:");
 			for (const auto& user : outfit.users) {

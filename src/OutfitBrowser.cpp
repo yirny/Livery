@@ -4,7 +4,8 @@
 //   Constants - the gender sort's headings
 //   Helpers   - name matching and ordering, the categories an outfit is in, filter rows,
 //               group keys and headings
-//   Browser   - Reset / Rebuild / Refresh / OffersSort and the search and filter accessors
+//   Browser   - Reset / Rebuild / Refresh / SetSort, the folded headings, and the
+//               search and filter accessors
 #include "OutfitBrowser.h"
 
 #include <algorithm>
@@ -52,8 +53,6 @@ namespace
 		switch (a_key) {
 		case OutfitBrowser::SortKey::kClass:
 			return CaptureWindow::kClassGroup;
-		case OutfitBrowser::SortKey::kCustom:
-			return CaptureWindow::kCustomGroup;
 		case OutfitBrowser::SortKey::kSituation:
 			return CaptureWindow::kSituationGroup;
 		case OutfitBrowser::SortKey::kName:
@@ -72,7 +71,8 @@ namespace
 	}
 
 	// Indices into Request::categories the outfit is in, ascending: the stored categories by
-	// name, the situations by the actor's rows. A custom category may share a situation's name.
+	// name, the situations by the actor's rows. A stored category the window does not offer
+	// (an older file's situation category) matches no row, even one sharing its name.
 	std::vector<int> CategoriesOf(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
 	{
 		const auto&      options = a_request.categories;
@@ -166,7 +166,7 @@ namespace
 	}
 
 	// One run of rows per run of Request::categories sharing a group, so a group
-	// with no category (no custom ones) gets no rows, not even its "No" row.
+	// with no category gets no rows, not even its "No" row.
 	std::vector<OutfitBrowser::FilterOption> FilterRows(const CaptureWindow::Request& a_request)
 	{
 		const auto&                              options = a_request.categories;
@@ -190,14 +190,12 @@ namespace OutfitBrowser
 	{
 		a_state.search.fill('\0');
 		a_state.sort = SortKey::kName;
+		a_state.folded.clear();
 		Rebuild(a_state, a_request);
 	}
 
 	void Rebuild(State& a_state, const CaptureWindow::Request& a_request)
 	{
-		if (!OffersSort(a_request, a_state.sort)) {
-			a_state.sort = SortKey::kName;
-		}
 		a_state.filter = FilterRows(a_request);
 		a_state.filterTicked = std::make_unique<bool[]>(a_state.filter.size());  // all false
 
@@ -255,10 +253,25 @@ namespace OutfitBrowser
 		std::ranges::sort(a_state.visible, before);
 	}
 
-	bool OffersSort(const CaptureWindow::Request& a_request, SortKey a_key)
+	void SetSort(State& a_state, const CaptureWindow::Request& a_request, SortKey a_key)
 	{
-		const auto isCustom = [](const CaptureWindow::CategoryOption& a_option) { return a_option.group == CaptureWindow::kCustomGroup; };
-		return a_key != SortKey::kCustom || std::ranges::any_of(a_request.categories, isCustom);
+		a_state.sort = a_key;
+		a_state.folded.clear();
+		Refresh(a_state, a_request);
+	}
+
+	bool IsFolded(const State& a_state, const std::string& a_heading)
+	{
+		return std::ranges::find(a_state.folded, a_heading) != a_state.folded.end();
+	}
+
+	void ToggleFolded(State& a_state, const std::string& a_heading)
+	{
+		if (const auto found = std::ranges::find(a_state.folded, a_heading); found != a_state.folded.end()) {
+			a_state.folded.erase(found);
+		} else {
+			a_state.folded.push_back(a_heading);
+		}
 	}
 
 	bool IsSearching(const State& a_state)

@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
-// Search, filter and sort of the library outfits listed on the Load Outfit and
-// Update Existing pages, and each outfit's tags and heading (see OutfitBrowser.cpp).
+// Search, filter and sort of the library outfits listed on the outfit pages, each outfit's
+// tags and heading, and the headings folded away (see OutfitBrowser.cpp).
 // Pure logic with no ImGui or SKSE, so the unit tests build it.
 //
 // Contract: a State belongs to one Request: call Reset with it before anything
@@ -24,8 +24,7 @@ namespace OutfitBrowser
 	{
 		kName,      // name only
 		kGender,    // Female, Male, then Unisex
-		kClass,     // the outfit's Armor Classes (CaptureWindow::kClassGroup)
-		kCustom,    // its custom categories (kCustomGroup)
+		kClass,     // the outfit's categories (CaptureWindow::kClassGroup)
 		kSituation  // the actor's rows holding it (kSituationGroup)
 	};
 
@@ -51,6 +50,8 @@ namespace OutfitBrowser
 		std::vector<std::string> headings;
 		// Distinct headings among every outfit's, so the list's height does not follow the search.
 		std::size_t headingCount = 0;
+		// The headings whose outfits the list folds away; empty after Reset and SetSort.
+		std::vector<std::string> folded;
 	};
 
 	// Everything listed, by name, nothing typed or ticked.
@@ -61,12 +62,15 @@ namespace OutfitBrowser
 	void Refresh(State& state, const CaptureWindow::Request& request);
 
 	// For a request whose outfits or categories changed (CaptureWindow::SetOutfits): keeps
-	// the search, and the sort while it is still offered (else Name), clears the filter's
-	// ticks, then refreshes.
+	// the search, the sort and the folded headings, clears the filter's ticks, then refreshes.
 	void Rebuild(State& state, const CaptureWindow::Request& request);
 
-	// False for kCustom while no outfit has a custom category; the Sort dropdown leaves it out.
-	bool OffersSort(const CaptureWindow::Request& request, SortKey key);
+	// Sorts by `key` with every heading unfolded, then refreshes.
+	void SetSort(State& state, const CaptureWindow::Request& request, SortKey key);
+
+	// Whether the outfits under `heading` are folded away; a click on the heading toggles it.
+	bool IsFolded(const State& state, const std::string& heading);
+	void ToggleFolded(State& state, const std::string& heading);
 
 	bool IsSearching(const State& state);
 	bool IsFiltering(const State& state);
