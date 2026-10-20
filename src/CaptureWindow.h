@@ -150,6 +150,9 @@ namespace CaptureWindow
 		// by calling Close() or SetError().
 		std::function<void()> onRestore;
 
+		// Manage Outfits' Update (docs/outfit-management-ui.md §4); empty greys the button.
+		std::function<void(const SaveRequest& edit)> onManageUpdate;
+
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns
 		// "" once the preview is on, or why it cannot be (the tick then stays

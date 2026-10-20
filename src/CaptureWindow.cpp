@@ -6,11 +6,13 @@
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game while Live Preview is off)
 //   Input        - QueueInput translates engine events and moves the game's cursor;
 //                  FeedInput hands them and the cursor position to ImGui
-//   Draw         - page switching, shared list and button-row helpers; mouse and
-//                  key input over the game goes to onViewInput
-//   Capture page - the actor's pieces under a heading per group (their Livery outfit, other
-//                  worn, carried, the player's, the loaded outfit's), in Name / Type / Class
-//                  columns sorted by a click on a column label, each tick handed to
+//   Draw         - page switching, shared list and button-row helpers; the tab column
+//                  (Inventory, Manage Outfits) and its rule beside the Inventory page and
+//                  Manage Outfits; mouse and key input over the game goes to onViewInput
+//   Capture page - the Inventory page: the actor's pieces under a heading per group (their
+//                  Livery outfit, other worn, carried, the player's, the loaded outfit's), in
+//                  Name / Type / Class columns sorted by a click on a column label (the piece
+//                  list the Edit page shows too, PieceList), each tick handed to
 //                  onPieceToggled; under the list the count line; the Live Preview tick,
 //                  handed to onPreviewOn / onPreviewOff in an SKSE task that also freezes or
 //                  unfreezes the game; Load / Save / Apply / Cancel (Load greyed while the
@@ -23,7 +25,8 @@
 //                  situations); a popup before taking over a row another outfit holds, the
 //                  Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
 //                  fills the Update tab from the Select page's choice
-//   Outfit pages - the outfit browser and lists, the Load and Select pages: OutfitPages.cpp
+//   Outfit pages - the outfit browser and lists, the Load, Select, Manage Outfits and Edit
+//                  pages: OutfitPages.cpp
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
@@ -265,22 +268,6 @@ namespace CaptureWindow::Internal
 		return true;
 	}
 
-	std::vector<std::size_t> TickedPieces(const State& a_state)
-	{
-		std::vector<std::size_t> ticked;
-		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
-			if (a_state.pieceTicked[i]) {
-				ticked.push_back(i);
-			}
-		}
-		return ticked;
-	}
-
-	std::size_t CountTickedPieces(const State& a_state)
-	{
-		return TickedPieces(a_state).size();
-	}
-
 	const CaptureWindow::ExistingOutfit& OutfitAt(const State& a_state, int a_index)
 	{
 		return a_state.request.existingOutfits[static_cast<std::size_t>(a_index)];
@@ -291,18 +278,48 @@ namespace CaptureWindow::Internal
 		return std::ranges::binary_search(a_outfit.pieces, a_piece);
 	}
 
-	// Pieces someone carries, and those of the loaded outfit.
-	bool IsListed(const State& a_state, std::size_t a_piece)
+	// The Inventory page's list: its ticks, the loaded outfit's pieces nobody carries under
+	// the heading LoadOutfit set.
+	PieceList InventoryPieces(const State& a_state)
 	{
-		return a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kNotCarried ||
-		       (a_state.loadedOutfit >= 0 && HasPiece(OutfitAt(a_state, a_state.loadedOutfit), a_piece));
+		const auto* loaded = a_state.loadedOutfit >= 0 ? &OutfitAt(a_state, a_state.loadedOutfit).pieces : nullptr;
+		return { a_state.pieceTicked.get(), loaded, &a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] };
 	}
 
-	std::size_t CountListedPieces(const State& a_state)
+	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list)
+	{
+		std::vector<std::size_t> ticked;
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			if (a_list.ticked[i]) {
+				ticked.push_back(i);
+			}
+		}
+		return ticked;
+	}
+
+	// The Inventory page's ticks, which Save and Apply act on.
+	std::vector<std::size_t> TickedPieces(const State& a_state)
+	{
+		return Ticked(a_state, InventoryPieces(a_state));
+	}
+
+	std::size_t CountTickedPieces(const State& a_state)
+	{
+		return TickedPieces(a_state).size();
+	}
+
+	// Pieces someone carries, and the list's other ones.
+	bool IsListed(const State& a_state, const PieceList& a_list, std::size_t a_piece)
+	{
+		return a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kNotCarried ||
+		       (a_list.shown && std::ranges::binary_search(*a_list.shown, a_piece));
+	}
+
+	std::size_t CountListedPieces(const State& a_state, const PieceList& a_list)
 	{
 		std::size_t listed = 0;
 		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
-			listed += IsListed(a_state, i) ? 1 : 0;
+			listed += IsListed(a_state, a_list, i) ? 1 : 0;
 		}
 		return listed;
 	}
@@ -437,6 +454,52 @@ namespace CaptureWindow::Internal
 	void RequestCancel()
 	{
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
+	}
+
+	// The Inventory page and Manage Outfits have the tab column at the window's left edge;
+	// the pages they lead to do not.
+	bool HasTabs(Page a_page)
+	{
+		return a_page == Page::kCapture || a_page == Page::kManage;
+	}
+
+	// Inventory, then Manage Outfits. A click on the other tab switches pages, keeping every
+	// page's ticks and edits (EnterManagePage, LeaveManagePage).
+	void DrawTabColumn(State& a_state)
+	{
+		const bool inventory = a_state.page == Page::kCapture;
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		if (Theme::Tab(Theme::TabIcon::kInventory, "Inventory", inventory) && !inventory) {
+			QueueMenuSound(kFocusSound);
+			LeaveManagePage(a_state);
+		}
+		if (Theme::Tab(Theme::TabIcon::kOutfits, "Manage Outfits", !inventory) && inventory) {
+			QueueMenuSound(kFocusSound);
+			EnterManagePage(a_state);
+		}
+		ImGui::EndDisabled();
+	}
+
+	// The page's heading: the Inventory page's own title, Manage Outfits' and the Edit page's
+	// with no summary line, the others the actor's name. Each over the summary line.
+	void DrawTitle(const State& a_state)
+	{
+		switch (a_state.page) {
+		case Page::kCapture:
+			Theme::HeadingText(a_state.captureTitle.c_str(), a_state.request.actorSummary.c_str());
+			break;
+		case Page::kManage:
+			Theme::HeadingText("Manage Outfits");
+			break;
+		case Page::kEdit:
+			Theme::HeadingText(a_state.editTitle.c_str());
+			break;
+		case Page::kSave:
+		case Page::kLoad:
+		case Page::kSelect:
+			Theme::HeadingText(a_state.request.actorName.c_str(), a_state.request.actorSummary.c_str());
+			break;
+		}
 	}
 
 	// Input over the game goes to onViewInput, in one SKSE task per frame that
@@ -601,15 +664,15 @@ namespace CaptureWindow::Internal
 
 	// Ticking a piece unticks the ticked ones sharing a body slot with it, as
 	// equipping it takes them off; their onPieceToggled tasks go first.
-	void UntickSharingSlots(State& a_state, std::size_t a_index)
+	void UntickSharingSlots(State& a_state, const PieceList& a_list, std::size_t a_index)
 	{
 		const auto& pieces = a_state.request.pieces;
 		const auto& onToggled = a_state.request.onPieceToggled;
 		for (std::size_t j = 0; j < pieces.size(); ++j) {
-			if (j == a_index || !a_state.pieceTicked[j] || (pieces[j].slots & pieces[a_index].slots) == 0) {
+			if (j == a_index || !a_list.ticked[j] || (pieces[j].slots & pieces[a_index].slots) == 0) {
 				continue;
 			}
-			a_state.pieceTicked[j] = false;
+			a_list.ticked[j] = false;
 			if (onToggled) {
 				SKSE::GetTaskInterface()->AddTask([onToggled, j] { onToggled(j, false); });
 			}
@@ -617,11 +680,11 @@ namespace CaptureWindow::Internal
 	}
 
 	// The groups that have a listed piece, so their headings show.
-	std::size_t CountListedGroups(const State& a_state)
+	std::size_t CountListedGroups(const State& a_state, const PieceList& a_list)
 	{
 		std::array<bool, kPieceGroupCount> listed{};
 		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
-			if (IsListed(a_state, i)) {
+			if (IsListed(a_state, a_list, i)) {
 				listed[GroupIndex(a_state.request.pieces[i].group)] = true;
 			}
 		}
@@ -630,9 +693,11 @@ namespace CaptureWindow::Internal
 
 	// A group's heading inside the list: greyed, in the small font, left of the names. The
 	// player's group explains on hover what Apply does with its pieces and what it leaves out.
-	void DrawGroupHeading(const State& a_state, CaptureWindow::PieceGroup a_group)
+	void DrawGroupHeading(const State& a_state, const PieceList& a_list, CaptureWindow::PieceGroup a_group)
 	{
-		Theme::ListHeading(a_state.headings[GroupIndex(a_group)].c_str());
+		const bool  notCarried = a_group == CaptureWindow::PieceGroup::kNotCarried;
+		const auto& heading = notCarried ? *a_list.heading : a_state.headings[GroupIndex(a_group)];
+		Theme::ListHeading(heading.c_str());
 		if (a_group != CaptureWindow::PieceGroup::kPlayer || !ImGui::IsItemHovered()) {
 			return;
 		}
@@ -648,21 +713,22 @@ namespace CaptureWindow::Internal
 
 	// Height of the piece list with every listed piece and heading in view, capped as
 	// ListHeight caps it. Contract: called with the list's row spacing pushed.
-	float PieceListHeight(const State& a_state)
+	float PieceListHeight(const State& a_state, const PieceList& a_list)
 	{
 		const float spacing = ImGui::GetStyle().ItemSpacing.y;
-		const float rowsHeight = static_cast<float>(CountListedPieces(a_state)) * (ImGui::GetFrameHeight() + spacing) +
-		                         static_cast<float>(CountListedGroups(a_state)) * (Theme::ListHeadingHeight() + spacing);
+		const float rowsHeight = static_cast<float>(CountListedPieces(a_state, a_list)) * (ImGui::GetFrameHeight() + spacing) +
+		                         static_cast<float>(CountListedGroups(a_state, a_list)) * (Theme::ListHeadingHeight() + spacing);
 		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing());
 	}
 
 	// The column labels, then the listed pieces under their groups' headings, a tick row
 	// each; unticked pieces are left out of the outfit. A click on a label sorts by its
-	// column, a second one reverses the order. Each tick goes to onPieceToggled (the live
-	// preview) in its own SKSE task, queued in click order.
-	// Contract: a piece that is not listed is never ticked: only Load ticks a piece
-	// nobody carries, and the next Load sets every tick again.
-	void DrawPieceRows(State& a_state)
+	// column, a second one reverses the order (both pages share the order). Each tick goes
+	// to onPieceToggled (the live preview) in its own SKSE task, queued in click order.
+	// Contract: a piece that is not listed is never ticked: on the Inventory page only Load
+	// ticks a piece nobody carries, and the next Load sets every tick again; the Edit page
+	// lists every edited piece it opened with.
+	void DrawPieceRows(State& a_state, const PieceList& a_list)
 	{
 		const auto& pieces = a_state.request.pieces;
 		const auto& onToggled = a_state.request.onPieceToggled;
@@ -674,25 +740,25 @@ namespace CaptureWindow::Internal
 			SortPieces(a_state);
 		}
 		PushListRowSpacing();  // popped before EndList, so the gap below the list is the normal one
-		if (Theme::BeginList("pieces", PieceListHeight(a_state))) {
+		if (Theme::BeginList("pieces", PieceListHeight(a_state, a_list))) {
 			std::size_t group = kPieceGroupCount;  // none drawn yet
 			for (const auto i : a_state.pieceOrder) {
-				if (!IsListed(a_state, i)) {
+				if (!IsListed(a_state, a_list, i)) {
 					continue;
 				}
 				if (GroupIndex(pieces[i].group) != group) {
 					group = GroupIndex(pieces[i].group);
-					DrawGroupHeading(a_state, pieces[i].group);
+					DrawGroupHeading(a_state, a_list, pieces[i].group);
 				}
 				ImGui::PushID(static_cast<int>(i));
 				const std::array<const char*, 3> cells{ pieces[i].name.c_str(), pieces[i].type.c_str(), pieces[i].armorClass.c_str() };
-				if (Theme::TickRow(cells, columnX, &a_state.pieceTicked[i])) {
+				if (Theme::TickRow(cells, columnX, &a_list.ticked[i])) {
 					QueueMenuSound(kFocusSound);
-					if (a_state.pieceTicked[i]) {
-						UntickSharingSlots(a_state, i);
+					if (a_list.ticked[i]) {
+						UntickSharingSlots(a_state, a_list, i);
 					}
 					if (onToggled) {
-						SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_state.pieceTicked[i]] { onToggled(i, ticked); });
+						SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_list.ticked[i]] { onToggled(i, ticked); });
 					}
 				}
 				ImGui::PopID();
@@ -703,10 +769,11 @@ namespace CaptureWindow::Internal
 	}
 
 	// The count line under the list.
-	void DrawPieceCount(const State& a_state)
+	void DrawPieceCount(const State& a_state, const PieceList& a_list)
 	{
-		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), CountListedPieces(a_state)).c_str());
-		if (CountTickedPieces(a_state) == 0) {
+		const auto ticked = Ticked(a_state, a_list).size();
+		Theme::LabelText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str());
+		if (ticked == 0) {
 			ImGui::TextDisabled(kNeedPiece);
 		}
 	}
@@ -779,10 +846,10 @@ namespace CaptureWindow::Internal
 	}
 
 	// The Live Preview tick: greyed, with the reason on hover, when the preview
-	// cannot be on; each click queues ApplyPreviewToggle with the ticked pieces
-	// of that moment, so the piece clicks queued after it apply on top. A "(?)"
-	// beside it explains the preview and its camera controls on hover.
-	void DrawPreviewToggle(State& a_state)
+	// cannot be on; each click queues ApplyPreviewToggle with the list's ticked
+	// pieces of that moment, so the piece clicks queued after it apply on top. A
+	// "(?)" beside it explains the preview and its camera controls on hover.
+	void DrawPreviewToggle(State& a_state, const PieceList& a_list)
 	{
 		const auto& note = a_state.request.previewNote;
 		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
@@ -806,7 +873,7 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kFocusSound);
 			a_state.previewBusy = true;
 			SKSE::GetTaskInterface()->AddTask(
-				[session = a_state.session, on, pieces = TickedPieces(a_state)] { ApplyPreviewToggle(session, on, pieces); });
+				[session = a_state.session, on, pieces = Ticked(a_state, a_list)] { ApplyPreviewToggle(session, on, pieces); });
 		}
 	}
 
@@ -1009,12 +1076,13 @@ namespace CaptureWindow::Internal
 	void DrawCapturePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
-		DrawPieceRows(a_state);
-		DrawPieceCount(a_state);
+		const auto list = InventoryPieces(a_state);
+		DrawPieceRows(a_state, list);
+		DrawPieceCount(a_state, list);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
-		DrawPreviewToggle(a_state);
+		DrawPreviewToggle(a_state, list);
 		const auto action = DrawCaptureButtons(a_state);
 		EndButtonRow();
 		ImGui::EndDisabled();
@@ -1256,10 +1324,10 @@ namespace CaptureWindow::Internal
 		return clicked;
 	}
 
-	// The tab's name field. Returns true when the user pressed Enter with a name typed. The
-	// empty field shows kNeedName; a failed save turns it red with the message on hover,
-	// until the name is edited.
-	bool DrawNameField(State& a_state, SaveForm& a_form)
+	// An outfit's name field (a Save page tab's, Manage Outfits'). Returns true when the user
+	// pressed Enter with a name typed. The empty field shows kNeedName; a failed save turns it
+	// red with the message on hover, until the name is edited.
+	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name)
 	{
 		Theme::LabelText("Outfit name");
 		ImGui::SetNextItemWidth(-FLT_MIN);
@@ -1269,7 +1337,7 @@ namespace CaptureWindow::Internal
 		}
 		const bool              failed = !a_state.error.empty();
 		const Theme::FieldStyle style{ .look = failed ? Theme::FieldLook::kError : Theme::FieldLook::kNormal };
-		const bool              enter = Theme::InputText("##name", a_form.name.data(), a_form.name.size(), ImGuiInputTextFlags_EnterReturnsTrue, kNeedName, style);
+		const bool              enter = Theme::InputText("##name", a_name.data(), a_name.size(), ImGuiInputTextFlags_EnterReturnsTrue, kNeedName, style);
 		if (failed) {
 			if (ImGui::IsItemEdited()) {
 				a_state.error.clear();
@@ -1277,7 +1345,7 @@ namespace CaptureWindow::Internal
 				ImGui::SetTooltip("%s", a_state.error.c_str());
 			}
 		}
-		return enter && !Trimmed(a_form.name.data()).empty();
+		return enter && !Trimmed(a_name.data()).empty();
 	}
 
 	// The Armor Classes request.categories offers, as one row of checkboxes.
@@ -1541,7 +1609,7 @@ namespace CaptureWindow::Internal
 		const int tab = DrawSaveTabs(a_state);
 		auto&     form = ActiveForm(a_state);
 		ImGui::PushID(a_state.updateTab ? "update" : "create");
-		const bool enter = DrawNameField(a_state, form);
+		const bool enter = DrawNameField(a_state, form.name);
 		DrawClassField(a_state, form.classTicked.get());
 		DrawGenderField(form.gender);
 		DrawWearsForField(a_state, form);
@@ -1658,8 +1726,15 @@ namespace CaptureWindow
 			SortPieces(state);
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
-			OutfitBrowser::Reset(state.browser, state.request);
+			for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser }) {
+				OutfitBrowser::Reset(*browser, state.request);
+			}
 			state.showCategories = true;
+			state.manage = { .classTicked = std::make_unique<bool[]>(categories) };
+			state.discardFor = -1;
+			state.openUnsaved = false;
+			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
+			state.editShown.clear();
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
 			state.userMoved = false;
@@ -1697,6 +1772,7 @@ namespace CaptureWindow
 			state.request = {};
 			state.createForm = {};
 			state.updateForm = {};
+			state.manage = {};
 			state.pending.clear();
 		}
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
@@ -1797,12 +1873,16 @@ namespace CaptureWindow
 		}
 
 		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
-		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load and Update pages
+		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, Select and Manage Outfits pages
 		constexpr float kNarrowWidthRatio = 0.53f;  // of the screen height, for the one-column pages
-		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kSelect;
+		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kSelect || state.page == Page::kManage;
 		float           width = io.DisplaySize.y * (twoColumns ? kWindowWidthRatio : kNarrowWidthRatio);
 		if (state.page == Page::kCapture) {
 			width = (std::max)(width, CaptureButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
+		}
+		const bool tabs = HasTabs(state.page);
+		if (tabs) {
+			width += Theme::TabColumnWidth();  // the page keeps its own width beside the column
 		}
 		const bool pinned = PlaceWindow(state, io, width);
 		// Width is fixed every frame; the height follows the content (a zero
@@ -1825,8 +1905,15 @@ namespace CaptureWindow
 		state.windowSize = ImGui::GetWindowSize();
 		Theme::DecorateWindow();
 
-		const auto& title = state.page == Page::kCapture ? state.captureTitle : state.request.actorName;
-		Theme::HeadingText(title.c_str(), state.request.actorSummary.c_str());
+		// The tab column, then the page in a group beside it, so the page's own widths and
+		// centring start after the column; the rule runs the window's height between them.
+		const ImVec2 contentTop = ImGui::GetCursorScreenPos();
+		if (tabs) {
+			DrawTabColumn(state);
+			ImGui::SetCursorScreenPos(ImVec2(contentTop.x + Theme::TabColumnWidth(), contentTop.y));
+			ImGui::BeginGroup();
+		}
+		DrawTitle(state);
 		switch (state.page) {
 		case Page::kCapture:
 			DrawCapturePage(state);
@@ -1840,6 +1927,17 @@ namespace CaptureWindow
 		case Page::kSelect:
 			DrawSelectPage(state);
 			break;
+		case Page::kManage:
+			DrawManagePage(state);
+			break;
+		case Page::kEdit:
+			DrawEditPage(state);
+			break;
+		}
+		if (tabs) {
+			ImGui::EndGroup();
+			const float padding = ImGui::GetStyle().WindowPadding.y;
+			Theme::TabRule(contentTop.x, contentTop.y - padding, ImGui::GetItemRectMax().y + padding);
 		}
 		ImGui::End();
 		ForwardViewInput(state);

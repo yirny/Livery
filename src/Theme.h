@@ -254,6 +254,30 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool TextTab(const char* label, bool selected);
 
+	// The tab column's icons, drawn in lines, so they scale with the resolution and take
+	// the skin's colours.
+	enum class TabIcon
+	{
+		kInventory,  // a backpack
+		kOutfits     // a dress form: a padded torso on a stand
+	};
+
+	// One tab of the column at the window's left edge, a square: the icon in the text
+	// colour on a faint fill while selected, else in LabelText's grey (Tailor's ghost) and
+	// lit while hovered, with `name` as a tooltip. Returns true when clicked. Faded and
+	// inert inside BeginDisabled.
+	// Contract: `name` is the ImGui ID.
+	bool Tab(TabIcon icon, const char* name, bool selected);
+
+	// From the content's left edge, where the tabs start, to where the page beside them
+	// starts: the tabs, a gap, the rule and the window's padding.
+	float TabColumnWidth();
+
+	// The rule between the tab column, whose tabs start at `left`, and the page, from `top`
+	// to `bottom` (screen pixels): Tailor's 1px border colour, Vanilla's 2px rule, NORDIC
+	// UI's level-up rope (1px of its rule colour without the texture).
+	void TabRule(float left, float top, float bottom);
+
 	// The body font at a smaller size, for controls that sit beside others
 	// (the outfit browser's). Pair them in the same window: ImGui checks that a
 	// window ends with the font stack it began with.

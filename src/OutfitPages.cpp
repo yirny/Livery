@@ -4,20 +4,29 @@
 // Inventory and Save pages, CaptureWindowInternal.h for the state they share).
 //
 // FILE MAP
-//   Outfit browser - Search (and Filter, hidden by kShowFilter), above both outfit pages'
+//   Outfit browser - Search (and Filter, hidden by kShowFilter), above an outfit page's
 //                  list in its column, in the small font (OutfitBrowser.cpp narrows and
-//                  orders it); Escape first clears the search
+//                  orders it); each page has its own; Escape first clears the search
 //   Outfit lists - the library outfit list with its Sort dropdown, the sort's headings and
 //                  each outfit's tags (off with Show Categories under it), the selected
 //                  outfit's name (or a hint while none is) and its piece list, which
-//                  both outfit pages share;
-//                  on both, the selected outfit is on the preview, and a second
-//                  click on it, or Back, shows the ticks again
+//                  the outfit pages share;
+//                  on the Load and Select pages the selected outfit is on the preview,
+//                  and a second click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
 //                  pieces and returns (greyed while none of them is loaded)
 //   Select page  - the Update tab's outfit selection: library outfits and the selected
 //                  one's details; Select fills the Update tab (ChooseOutfit), Cancel
 //                  leaves it as it was
+//   Manage Outfits - the tab beside the Inventory page: library outfits and the selected
+//                  one's name, Armor Classes, gender and pieces, edited in place and kept
+//                  for one outfit at a time (Discard changes / Keep editing before another
+//                  is selected); the edited outfit on the preview; Update (greyed without
+//                  Request::onManageUpdate), Cancel (Discard and close / Stay with unsaved
+//                  edits); the Unsaved changes notice on leaving for the Inventory tab
+//   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks
+//                  and Live Preview; Use Ticked Pieces makes them the edited pieces, Back
+//                  leaves them; nothing is written
 #include "PCH.h"
 
 #include "CaptureWindowInternal.h"
@@ -28,8 +37,10 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cstring>
 #include <format>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace CaptureWindow::Internal
@@ -46,21 +57,20 @@ namespace CaptureWindow::Internal
 	// in the accent while text is typed. Escape with text typed clears it, the
 	// field active or not (EscapeClearsAll does it while active); with none
 	// typed it is Back.
-	void DrawSearchField(State& a_state, BrowserInput& a_input)
+	void DrawSearchField(OutfitBrowser::State& a_browser, BrowserInput& a_input)
 	{
-		auto& browser = a_state.browser;
-		a_input.escapeTaken = OutfitBrowser::IsSearching(browser) && ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
+		a_input.escapeTaken = OutfitBrowser::IsSearching(a_browser) && ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
 		                      !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 
-		const Theme::FieldStyle style{ .look = OutfitBrowser::IsSearching(browser) ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal,
+		const Theme::FieldStyle style{ .look = OutfitBrowser::IsSearching(a_browser) ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal,
 			.shape = Theme::FieldShape::kUnderlined,
 			.icon = Theme::FieldIcon::kSearch };
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		ImGui::SetNextItemAllowOverlap();  // the clear button sits on its right end
-		a_input.changed |= Theme::InputText("##search", browser.search.data(), browser.search.size(), ImGuiInputTextFlags_EscapeClearsAll,
+		a_input.changed |= Theme::InputText("##search", a_browser.search.data(), a_browser.search.size(), ImGuiInputTextFlags_EscapeClearsAll,
 			"Search by outfit name", style);
 		bool clear = a_input.escapeTaken;
-		if (OutfitBrowser::IsSearching(browser)) {
+		if (OutfitBrowser::IsSearching(a_browser)) {
 			const ImVec2 fieldMin = ImGui::GetItemRectMin();
 			const ImVec2 fieldMax = ImGui::GetItemRectMax();
 			const float  side = fieldMax.y - fieldMin.y;
@@ -71,21 +81,20 @@ namespace CaptureWindow::Internal
 			}
 		}
 		if (clear) {
-			OutfitBrowser::ClearSearch(browser);
+			OutfitBrowser::ClearSearch(a_browser);
 			a_input.changed = true;
 		}
 	}
 
 	// The Filter dropdown's rows under a grey heading per group, lined up with
 	// the rows' text.
-	void DrawFilterRows(State& a_state, BrowserInput& a_input)
+	void DrawFilterRows(OutfitBrowser::State& a_browser, BrowserInput& a_input)
 	{
-		auto&       browser = a_state.browser;
 		const auto& style = ImGui::GetStyle();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));  // rows carry their own gap
-		for (std::size_t i = 0; i < browser.filter.size(); ++i) {
-			const auto& row = browser.filter[i];
-			if (i == 0 || row.group != browser.filter[i - 1].group) {
+		for (std::size_t i = 0; i < a_browser.filter.size(); ++i) {
+			const auto& row = a_browser.filter[i];
+			if (i == 0 || row.group != a_browser.filter[i - 1].group) {
 				if (i > 0) {
 					ImGui::Dummy(ImVec2(0.0f, style.ItemInnerSpacing.y));
 				}
@@ -93,7 +102,7 @@ namespace CaptureWindow::Internal
 				ImGui::TextDisabled("%s", row.group.c_str());
 			}
 			ImGui::PushID(static_cast<int>(i));
-			a_input.changed |= DrawCategoryRow(row.label.c_str(), browser.filterTicked[i]);
+			a_input.changed |= DrawCategoryRow(row.label.c_str(), a_browser.filterTicked[i]);
 			ImGui::PopID();
 		}
 		ImGui::PopStyleVar();
@@ -103,10 +112,9 @@ namespace CaptureWindow::Internal
 	// its rule in the accent while a row is ticked, narrowed by the clear
 	// button beside it so the button keeps clear of the skin's arrow. With
 	// nothing ticked it shows a greyed hint and the button is greyed out.
-	void DrawFilterField(State& a_state, BrowserInput& a_input)
+	void DrawFilterField(OutfitBrowser::State& a_browser, BrowserInput& a_input)
 	{
-		auto&                   browser = a_state.browser;
-		const bool              filtering = OutfitBrowser::IsFiltering(browser);
+		const bool              filtering = OutfitBrowser::IsFiltering(a_browser);
 		const Theme::FieldStyle style{ .look = filtering ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal,
 			.shape = Theme::FieldShape::kUnderlined,
 			.icon = Theme::FieldIcon::kFilter,
@@ -114,10 +122,10 @@ namespace CaptureWindow::Internal
 		const float             side = Theme::FieldHeight(style);
 		const float             gap = ImGui::GetStyle().ItemInnerSpacing.x;
 		ImGui::SetNextItemWidth((std::max)(0.0f, ImGui::GetContentRegionAvail().x - side - gap));
-		const std::string preview = filtering ? OutfitBrowser::FilterPreview(browser) : "Filter by category";
+		const std::string preview = filtering ? OutfitBrowser::FilterPreview(a_browser) : "Filter by category";
 		const bool        open = Theme::BeginCombo("##filter", ImGuiComboFlags_HeightLargest, style);
 		if (open) {
-			DrawFilterRows(a_state, a_input);
+			DrawFilterRows(a_browser, a_input);
 		}
 		Theme::EndCombo(open, preview.c_str(), style);
 
@@ -125,7 +133,7 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(!filtering);
 		if (Theme::ClearButton("##clearFilter", side)) {
 			QueueMenuSound(kFocusSound);
-			OutfitBrowser::ClearFilter(browser);
+			OutfitBrowser::ClearFilter(a_browser);
 			a_input.changed = true;
 		}
 		ImGui::EndDisabled();
@@ -139,7 +147,7 @@ namespace CaptureWindow::Internal
 
 	// Search over Filter (while kShowFilter), in the small font, with no labels, at the top
 	// of the outfit list's column; refreshes the list only when one of them changed.
-	BrowserControls DrawBrowserControls(State& a_state)
+	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser)
 	{
 		constexpr float kGapBelowRow = 4.0f;  // pixels at 1080p, under the row on top of the item spacing
 
@@ -148,15 +156,15 @@ namespace CaptureWindow::Internal
 		BrowserInput input;
 		ImGui::PushID("browser");
 		Theme::PushSmallFont();
-		DrawSearchField(a_state, input);
+		DrawSearchField(a_browser, input);
 		if (kShowFilter) {
-			DrawFilterField(a_state, input);
+			DrawFilterField(a_browser, input);
 		}
 		Theme::PopSmallFont();
 		ImGui::PopID();
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kGapBelowRow * Theme::Scale());
 		if (input.changed) {
-			OutfitBrowser::Refresh(a_state.browser, a_state.request);
+			OutfitBrowser::Refresh(a_browser, a_state.request);
 		}
 		return { input.escapeTaken, ImGui::GetCursorPosY() - top };
 	}
@@ -172,7 +180,7 @@ namespace CaptureWindow::Internal
 	// choosing one closes the popup. A zero-high spacer as wide as the widest
 	// row keeps the popup, which starts as narrow as its frame, from cutting a
 	// row's label. Returns true when the key changed.
-	bool DrawSortRows(State& a_state)
+	bool DrawSortRows(const State& a_state, OutfitBrowser::State& a_browser)
 	{
 		const auto& style = ImGui::GetStyle();
 		float       widest = 0.0f;
@@ -188,10 +196,10 @@ namespace CaptureWindow::Internal
 			if (!OffersSort(a_state, option)) {
 				continue;
 			}
-			bool ticked = a_state.browser.sort == option.key;
+			bool ticked = a_browser.sort == option.key;
 			if (DrawCategoryRow(option.label, ticked, false)) {
-				changed = a_state.browser.sort != option.key;
-				a_state.browser.sort = option.key;
+				changed = a_browser.sort != option.key;
+				a_browser.sort = option.key;
 				ImGui::CloseCurrentPopup();
 			}
 		}
@@ -205,7 +213,7 @@ namespace CaptureWindow::Internal
 	// switching keys does not move it. It leaves the cursor where the label
 	// did, so the list below does not move.
 	// Returns true when the key changed.
-	bool DrawSortCombo(State& a_state)
+	bool DrawSortCombo(const State& a_state, OutfitBrowser::State& a_browser)
 	{
 		const ImVec2 labelMax = ImGui::GetItemRectMax();
 		const ImVec2 after = ImGui::GetCursorScreenPos();
@@ -221,14 +229,14 @@ namespace CaptureWindow::Internal
 				continue;
 			}
 			width = (std::max)(width, Theme::ComboWidth(preview(option).c_str(), style));
-			if (option.key == a_state.browser.sort) {
+			if (option.key == a_browser.sort) {
 				current = preview(option);
 			}
 		}
 		ImGui::SetCursorScreenPos(ImVec2(right - width, labelMax.y - Theme::FieldHeight(style)));
 		ImGui::SetNextItemWidth(width);
 		const bool open = Theme::BeginCombo("##sort", ImGuiComboFlags_None, style);
-		const bool changed = open && DrawSortRows(a_state);
+		const bool changed = open && DrawSortRows(a_state, a_browser);
 		Theme::EndCombo(open, current.c_str(), style);
 		Theme::PopSmallFont();
 		ImGui::SetCursorScreenPos(after);
@@ -239,56 +247,54 @@ namespace CaptureWindow::Internal
 	// view, capped as ListHeight caps it, so narrowing the list does not move the buttons.
 	// Contract: called with the list's row spacing pushed, outside BeginList at its indent
 	// (`a_tagsWidth` is Theme::OutfitTagsWidth there).
-	float OutfitListHeight(const State& a_state, float a_tagsWidth, float a_reserved)
+	float OutfitListHeight(const State& a_state, const OutfitBrowser::State& a_browser, float a_tagsWidth, float a_reserved)
 	{
-		const auto& browser = a_state.browser;
 		const auto& outfits = a_state.request.existingOutfits;
 		const float spacing = ImGui::GetStyle().ItemSpacing.y;
 		const float minHeight = Theme::SelectRowHeight() + spacing;
-		float       rows = static_cast<float>(browser.headingCount) * (Theme::ListHeadingHeight() + spacing);
+		float       rows = static_cast<float>(a_browser.headingCount) * (Theme::ListHeadingHeight() + spacing);
 		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			const float row = a_state.showCategories ? Theme::OutfitRowHeight(outfits[i].gender, browser.tags[i], a_tagsWidth) : Theme::SelectRowHeight();
+			const float row = a_state.showCategories ? Theme::OutfitRowHeight(outfits[i].gender, a_browser.tags[i], a_tagsWidth) : Theme::SelectRowHeight();
 			rows += row + spacing;
 		}
 		return FittedListHeight((std::max)(rows, minHeight), minHeight, a_reserved);
 	}
 
 	// One outfit of the list: its name, with its tags under it while Show Categories is on.
-	bool DrawOutfitRow(const State& a_state, int a_index, float a_tagsWidth, bool a_selected)
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected)
 	{
 		const auto& outfit = OutfitAt(a_state, a_index);
 		if (!a_state.showCategories) {
 			return Theme::SelectRow(outfit.name.c_str(), a_selected);
 		}
-		const auto& tags = a_state.browser.tags[static_cast<std::size_t>(a_index)];
+		const auto& tags = a_browser.tags[static_cast<std::size_t>(a_index)];
 		return Theme::OutfitRow(outfit.name.c_str(), outfit.gender, tags, a_tagsWidth, a_selected);
 	}
 
-	// Left column of the Load and Update pages: the library's outfits that pass
-	// the browser, in its order, under the sort's headings, `a_selected`
+	// Left column of the outfit pages: the library's outfits that pass the
+	// browser, in its order, under the sort's headings, `a_selected`
 	// highlighted, under a label with the Sort dropdown, and Show Categories
 	// under the list. The list stays as tall as the whole library, so narrowing
 	// it does not move the buttons; `a_reserved` is the browser's height
 	// (ListHeight). Returns the index into request.existingOutfits of the one
 	// clicked, or -1; a click plays the focus sound.
 	// Names are shown as they are (Theme::SelectRow).
-	int DrawOutfitList(State& a_state, int a_selected, float a_reserved)
+	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
-		const auto& browser = a_state.browser;
-		const auto& visible = browser.visible;
+		const auto& visible = a_browser.visible;
 		if (visible.size() == outfits.size()) {
 			Theme::LabelText(std::format("{} outfit(s) in the library", outfits.size()).c_str());
 		} else {
 			Theme::LabelText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
 		}
-		if (DrawSortCombo(a_state)) {
-			OutfitBrowser::Refresh(a_state.browser, a_state.request);
+		if (DrawSortCombo(a_state, a_browser)) {
+			OutfitBrowser::Refresh(a_browser, a_state.request);
 		}
 		PushListRowSpacing();  // the piece list's row gap; popped before EndList, as there
 		const float tagsWidth = Theme::OutfitTagsWidth();
 		// Show Categories, under the list, takes a frame's height too.
-		const float listHeight = OutfitListHeight(a_state, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
+		const float listHeight = OutfitListHeight(a_state, a_browser, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
 			if (visible.empty()) {
@@ -296,13 +302,13 @@ namespace CaptureWindow::Internal
 			}
 			const std::string* heading = nullptr;  // the last one drawn
 			for (const int index : visible) {
-				const auto& own = browser.headings[static_cast<std::size_t>(index)];
+				const auto& own = a_browser.headings[static_cast<std::size_t>(index)];
 				if (!own.empty() && (!heading || *heading != own)) {
 					Theme::ListHeading(own.c_str());
 				}
 				heading = &own;
 				ImGui::PushID(index);
-				if (DrawOutfitRow(a_state, index, tagsWidth, a_selected == index)) {
+				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index)) {
 					clicked = index;
 				}
 				ImGui::PopID();
@@ -334,24 +340,33 @@ namespace CaptureWindow::Internal
 		return true;
 	}
 
-	// The outfit's pieces as the library had them when the window opened, in rows
-	// laid out as the outfit list's beside it. The count includes the pieces
-	// whose plugin is not loaded, which have no row.
-	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
+	// An outfit's piece count line. The count includes the pieces whose plugin is not
+	// loaded, which stay in the outfit but have no row.
+	std::string PieceCountText(std::size_t a_loaded, std::size_t a_unloaded)
 	{
-		const auto total = a_outfit.pieces.size() + a_outfit.unloadedPieces;
-		const auto count = a_outfit.unloadedPieces ? std::format("{} piece(s), {} not loaded", total, a_outfit.unloadedPieces) :
-		                                             std::format("{} piece(s)", total);
-		Theme::LabelText(count.c_str());
+		const auto total = a_loaded + a_unloaded;
+		return a_unloaded ? std::format("{} piece(s), {} not loaded", total, a_unloaded) : std::format("{} piece(s)", total);
+	}
+
+	// Pieces' names in read-only rows laid out as the outfit list's beside them.
+	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces)
+	{
 		PushListRowSpacing();  // as the outfit list beside it
-		const float listHeight = ListHeight(a_outfit.pieces.size(), Theme::SelectRowHeight() + ImGui::GetStyle().ItemSpacing.y);
+		const float listHeight = ListHeight(a_pieces.size(), Theme::SelectRowHeight() + ImGui::GetStyle().ItemSpacing.y);
 		if (Theme::BeginList("outfitPieces", listHeight)) {
-			for (const auto index : a_outfit.pieces) {
+			for (const auto index : a_pieces) {
 				Theme::TextRow(a_state.request.pieces[index].name.c_str());
 			}
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
+	}
+
+	// The outfit's pieces as the library had them when the window opened.
+	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
+	{
+		Theme::LabelText(PieceCountText(a_outfit.pieces.size(), a_outfit.unloadedPieces).c_str());
+		DrawPieceNames(a_state, a_outfit.pieces);
 	}
 
 	// Right column of the Load and Select pages: the selected outfit's name, Armor Classes
@@ -421,8 +436,8 @@ namespace CaptureWindow::Internal
 		int             clicked = -1;
 		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
-			controls = DrawBrowserControls(a_state);
-			clicked = DrawOutfitList(a_state, a_state.previewedOutfit, controls.height);
+			controls = DrawBrowserControls(a_state, a_state.loadBrowser);
+			clicked = DrawOutfitList(a_state, a_state.loadBrowser, a_state.previewedOutfit, controls.height);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			DrawOutfitDetails(a_state, a_state.previewedOutfit, "Select an outfit to load");
@@ -488,8 +503,8 @@ namespace CaptureWindow::Internal
 		int             clicked = -1;
 		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
-			controls = DrawBrowserControls(a_state);
-			clicked = DrawOutfitList(a_state, a_state.selectingOutfit, controls.height);
+			controls = DrawBrowserControls(a_state, a_state.selectBrowser);
+			clicked = DrawOutfitList(a_state, a_state.selectBrowser, a_state.selectingOutfit, controls.height);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			DrawOutfitDetails(a_state, a_state.selectingOutfit, "Select an outfit to update");
@@ -513,5 +528,300 @@ namespace CaptureWindow::Internal
 			ChooseOutfit(a_state, a_state.selectingOutfit);
 		}
 		GoToPage(a_state, Page::kSave);
+	}
+
+	// --- Manage Outfits -------------------------------------------------------
+	//
+	// The tab beside the Inventory page. The edits belong to the selected outfit and stay
+	// until another is selected or the window closes; the preview shows them, or the
+	// Inventory page's ticks while none is selected.
+
+	bool IsInClass(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::CategoryOption& a_option)
+	{
+		return IsClass(a_option) && std::ranges::find(a_outfit.categories, a_option.name) != a_outfit.categories.end();
+	}
+
+	// Starts the edits of outfit `a_index` (-1 for none) from what the library has.
+	void SelectManaged(State& a_state, int a_index)
+	{
+		auto& form = a_state.manage;
+		form.outfit = a_index;
+		a_state.error.clear();
+		if (a_index < 0) {
+			form.pieces.clear();
+			QueuePreview(a_state, TickedPieces(a_state));
+			return;
+		}
+		const auto& outfit = OutfitAt(a_state, a_index);
+		const auto& options = a_state.request.categories;
+		form.name.fill('\0');
+		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
+		for (std::size_t i = 0; i < options.size(); ++i) {
+			form.classTicked[i] = IsInClass(outfit, options[i]);
+		}
+		form.gender = outfit.gender;
+		form.pieces = outfit.pieces;
+		QueuePreview(a_state, form.pieces);
+	}
+
+	// The selected outfit's edits differ from the library: its trimmed name, Armor Classes,
+	// gender or loaded pieces.
+	bool HasUnsavedEdits(const State& a_state)
+	{
+		const auto& form = a_state.manage;
+		if (form.outfit < 0) {
+			return false;
+		}
+		const auto& outfit = OutfitAt(a_state, form.outfit);
+		if (Trimmed(form.name.data()) != outfit.name || form.gender != outfit.gender || form.pieces != outfit.pieces) {
+			return true;
+		}
+		const auto& options = a_state.request.categories;
+		for (std::size_t i = 0; i < options.size(); ++i) {
+			if (IsClass(options[i]) && form.classTicked[i] != IsInClass(outfit, options[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// The line every unsaved-edits popup shows. Contract: an outfit is selected.
+	std::string UnsavedText(const State& a_state)
+	{
+		return std::format("You have unsaved changes for \"{}\".", OutfitAt(a_state, a_state.manage.outfit).name);
+	}
+
+	void ShowInventoryPage(State& a_state)
+	{
+		if (a_state.manage.outfit >= 0) {
+			QueuePreview(a_state, TickedPieces(a_state));
+		}
+		GoToPage(a_state, Page::kCapture);
+	}
+
+	void EnterManagePage(State& a_state)
+	{
+		if (a_state.manage.outfit >= 0) {
+			QueuePreview(a_state, a_state.manage.pieces);
+		}
+		GoToPage(a_state, Page::kManage);
+	}
+
+	void LeaveManagePage(State& a_state)
+	{
+		if (HasUnsavedEdits(a_state)) {
+			a_state.openUnsaved = true;  // DrawManagePage opens it in its own ID scope
+			return;
+		}
+		ShowInventoryPage(a_state);
+	}
+
+	// Right column: the selected outfit's name, Armor Classes, gender and pieces as edited,
+	// under a count line ending in Edit. No "wears it for": assignments belong to the Save
+	// page. Returns true when Edit is clicked.
+	bool DrawManageForm(State& a_state)
+	{
+		auto& form = a_state.manage;
+		if (form.outfit < 0) {
+			Theme::LabelText("Select an outfit to edit");
+			return false;
+		}
+		DrawNameField(a_state, form.name);
+		DrawClassField(a_state, form.classTicked.get());
+		DrawGenderField(form.gender);
+		Theme::LabelText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str());
+		const bool edit = Theme::LabelLink("Edit");
+		DrawPieceNames(a_state, form.pieces);
+		return edit;
+	}
+
+	enum class ManageAction
+	{
+		kNone,
+		kUpdate,
+		kCancel
+	};
+
+	// Update / Cancel centred below a gap. Update needs Request::onManageUpdate, unsaved
+	// edits and a name. a_escapeTaken: the browser used this frame's Escape.
+	ManageAction DrawManageButtons(const State& a_state, bool a_escapeTaken)
+	{
+		const char* noUpdate = nullptr;
+		if (!HasUnsavedEdits(a_state)) {
+			noUpdate = a_state.manage.outfit < 0 ? kNeedOutfit : kNoChanges;
+		} else if (Trimmed(a_state.manage.name.data()).empty()) {
+			noUpdate = kNeedName;
+		}
+		BeginButtonRow({ "Update", "Cancel" });
+		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
+		const bool update = ReasonButton("Update", noUpdate);
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+		const bool cancel = Theme::Button("Cancel") || escape;
+
+		if (update) {
+			return ManageAction::kUpdate;
+		}
+		return cancel ? ManageAction::kCancel : ManageAction::kNone;
+	}
+
+	enum class UnsavedChoice
+	{
+		kNone,
+		kFirst,
+		kSecond
+	};
+
+	// A popup with UnsavedText and buttons `a_first` and, unless null, `a_second`; Escape is
+	// the last button.
+	UnsavedChoice DrawUnsavedPopup(const State& a_state, const char* a_id, const char* a_first, const char* a_second)
+	{
+		if (!BeginModal(a_id)) {
+			return UnsavedChoice::kNone;
+		}
+		if (a_state.manage.outfit < 0) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return UnsavedChoice::kNone;
+		}
+		ImGui::TextUnformatted(UnsavedText(a_state).c_str());
+		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		bool       first = false;
+		bool       second = false;
+		if (a_second) {
+			BeginButtonRow({ a_first, a_second });
+			first = Theme::Button(a_first);
+			ImGui::SameLine();
+			second = Theme::Button(a_second) || escape;
+		} else {
+			BeginButtonRow({ a_first });
+			first = Theme::Button(a_first) || escape;
+		}
+		EndButtonRow();
+		if (first || second) {
+			QueueMenuSound(first ? kOkSound : kCancelSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return first ? UnsavedChoice::kFirst : (second ? UnsavedChoice::kSecond : UnsavedChoice::kNone);
+	}
+
+	void OpenEditPage(State& a_state);
+
+	// The edits' popups, each opened by the page in its own ID scope.
+	void DrawManagePopups(State& a_state)
+	{
+		if (DrawUnsavedPopup(a_state, kDiscardPopup, "Discard changes", "Keep editing") == UnsavedChoice::kFirst) {
+			SelectManaged(a_state, a_state.discardFor);
+		}
+		if (DrawUnsavedPopup(a_state, kDiscardClosePopup, "Discard and close", "Stay") == UnsavedChoice::kFirst) {
+			RequestCancel();
+		}
+		if (DrawUnsavedPopup(a_state, kUnsavedPopup, "OK", nullptr) == UnsavedChoice::kFirst) {
+			ShowInventoryPage(a_state);
+		}
+	}
+
+	// Selecting an outfit starts its edits and shows it on the preview; a second click on
+	// it deselects it. Either asks first while the selected one has unsaved edits.
+	void DrawManagePage(State& a_state)
+	{
+		if (std::exchange(a_state.openUnsaved, false)) {
+			ImGui::OpenPopup(kUnsavedPopup);
+		}
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		BrowserControls controls;
+		int             clicked = -1;
+		bool            edit = false;
+		if (BeginColumns("manage")) {
+			ImGui::TableNextColumn();
+			controls = DrawBrowserControls(a_state, a_state.manageBrowser);
+			clicked = DrawOutfitList(a_state, a_state.manageBrowser, a_state.manage.outfit, controls.height);
+			ImGui::TableNextColumn();
+			ResetCellBaseline();
+			edit = DrawManageForm(a_state);
+			EndColumns();
+		}
+		if (!a_state.error.empty()) {
+			DrawError(a_state.error);
+		}
+		const auto action = DrawManageButtons(a_state, controls.escapeTaken);
+		EndButtonRow();
+		ImGui::EndDisabled();
+
+		if (clicked >= 0) {
+			const int target = clicked == a_state.manage.outfit ? -1 : clicked;
+			if (HasUnsavedEdits(a_state)) {
+				a_state.discardFor = target;
+				ImGui::OpenPopup(kDiscardPopup);
+			} else {
+				SelectManaged(a_state, target);
+			}
+		}
+		if (edit) {
+			QueueMenuSound(kOkSound);
+			OpenEditPage(a_state);
+		}
+		if (action == ManageAction::kCancel) {
+			if (HasUnsavedEdits(a_state)) {
+				ImGui::OpenPopup(kDiscardClosePopup);
+			} else {
+				QueueMenuSound(kCancelSound);
+				RequestCancel();
+			}
+		}
+		DrawManagePopups(a_state);
+	}
+
+	// --- Edit page ------------------------------------------------------------
+
+	PieceList EditPieces(const State& a_state)
+	{
+		return { a_state.editTicked.get(), &a_state.editShown, &a_state.editShownHeading };
+	}
+
+	// Ticks exactly the edited pieces, which the preview already shows; they stay listed
+	// while the page is open, those nobody carries under the outfit's heading. The
+	// Inventory page's ticks stay as they were.
+	void OpenEditPage(State& a_state)
+	{
+		const auto& form = a_state.manage;
+		const auto& name = OutfitAt(a_state, form.outfit).name;
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			a_state.editTicked[i] = std::ranges::binary_search(form.pieces, i);
+		}
+		a_state.editShown = form.pieces;
+		a_state.editTitle = std::format("Edit \"{}\"", name);
+		a_state.editShownHeading = std::format("From \"{}\" (Not Carried)", name);
+		GoToPage(a_state, Page::kEdit);
+	}
+
+	// Use Ticked Pieces makes the ticks the edited pieces, which the preview already shows;
+	// Back and Escape leave them, and the preview shows them again. Nothing is written.
+	void DrawEditPage(State& a_state)
+	{
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		const auto list = EditPieces(a_state);
+		DrawPieceRows(a_state, list);
+		DrawPieceCount(a_state, list);
+		DrawPreviewToggle(a_state, list);
+		BeginButtonRow({ "Use Ticked Pieces", "Back" });
+		const auto ticked = Ticked(a_state, list);
+		const bool use = ReasonButton("Use Ticked Pieces", ticked.empty() ? kNeedPiece : nullptr);
+		ImGui::SameLine();
+		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		EndButtonRow();
+		ImGui::EndDisabled();
+
+		if (use) {
+			QueueMenuSound(kOkSound);
+			a_state.manage.pieces = ticked;
+			GoToPage(a_state, Page::kManage);
+		} else if (back) {
+			QueueMenuSound(kCancelSound);
+			QueuePreview(a_state, a_state.manage.pieces);
+			GoToPage(a_state, Page::kManage);
+		}
 	}
 }

@@ -13,3 +13,8 @@ colours; the plugin draws it untinted. Same author and permission as above.
 nordic-select-arrow.png is NORDIC UI's MCM selected-page arrow (interface/skyui/configpanel.swf,
 symbol SubListEntry, child activeIndicator), rendered from its vector shape as a
 white alpha mask; the plugin tints it at draw time. Same author and permission as above.
+
+nordic-rope.png is one repeat of the twisted rope beside the level-up menu's attribute
+prompt (interface/levelupmenu.swf, shape 13, its left rope), rendered from its vector
+shape as a white alpha mask that tiles vertically; the plugin tints it at draw time.
+Same author and permission as above.
