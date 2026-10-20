@@ -30,7 +30,7 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 
 - **Edit:** `src/`, `test/`; build config per §1 high impact.
 - **Docs:** update `README.md` and `docs/` when a code change makes them stale. Exception: `docs/nexus-page.md` (and the Nexus section of `README.md`, `scripts/generate-nexus-page.py`) only when the user asks.
-- **Never edit:** `lib/commonlibsse-ng`, `lib/vcpkg` (submodules; bump only via `scripts/update.sh` on request); `build/`.
+- **Never edit:** `lib/commonlibsse-ng`, `lib/vcpkg` (submodules; bump only via `scripts/update.sh` on request); `build/`; `docs/archive/` (the user's raw drafts, kept for people: do not read them either; `.claude/settings.json` denies Read there).
 - **Ask first:** `.github/`, `scripts/`, `lefthook.yml`, lint configs (`.clang-format`, `.clang-tidy`, `.vale*`, `dprint.json`).
 - **Never touch outside the repo:** the Skyrim install, MO2 mods / profiles / overwrite, other mods' data files — give the user steps instead. Deploy only to `build/msvc/deploy/` unless the user set `DEPLOY_DIR_OVERRIDE`.
 - `lib/commonlibsse-ng/CLAUDE.md` and `AGENTS.md` describe upstream library development; they do not apply here. Read `lib/` only as reference.
