@@ -12,7 +12,7 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
 - The piece list is grouped under headings, in this fixed order, a heading with no piece hidden:
   1. `From #{Name}'s Outfit ("#{Outfit}")`: worn pieces Livery put on from a library outfit,
      named by the outfit worn now (the default's or the worn situation's).
-  2. `From #{Name}'s Outfit (Not in Library)`: worn pieces Livery put on that are not a saved
+  2. `From #{Name}'s Outfit (Not in Wardrobe)`: worn pieces Livery put on that are not a saved
      outfit (outfit id 0, or the outfit has left the library).
   3. `From #{Name}'s Outfit (Unmanaged)`: worn pieces Livery did not put on.
   4. `From #{Name}'s Inventory`: carried, not worn.
