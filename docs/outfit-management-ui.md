@@ -31,9 +31,20 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   Female or Male (Unisex has none), Category, Situation, wrapping onto more lines when they
   do not fit. Tailor draws each tag as a framed chip, as Tailor 3.0's outfit list does;
   Vanilla and Nordic as plain text, comma separated.
-- Hover: Tailor fills a hovered row in its muted brown; Vanilla and Nordic light it with a
-  soft white ellipse fading out to the row's edges, as SkyUI lights its MCM title bar (a
-  texture made at load, `Theme::LoadTextures`), the dropdowns' rows too.
+- Hover, in every list and in the dropdowns' rows: Tailor fills a hovered row in its muted
+  brown; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
+  lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
+  NORDIC UI's list selection line under it (skyui/inventorylists.swf, `ItemsListEntry`'s
+  `selectIndicator`, shape 1: a thin wedge pointed at its left end, #e5e5e5 fading from 0.4
+  to nothing), from the shape's points in code, stretched across the row, as thick as the
+  shape is in a 28-unit entry of the frame height.
+- Selected (a single-choice row, a ticked piece, a ticked dropdown row): Tailor fills it
+  faintly amber; Vanilla lays the piece list's white bar fading in from the left over it;
+  Nordic shows no fill. The mark: NORDIC UI's MCM page arrow on single-choice and dropdown
+  rows in Vanilla and Nordic (Nordic's 4px larger, its window padding 32px), the equipped
+  mark on piece rows; Nordic puts the arrow on a ticked dropdown row too, at its start.
+- A multi-choice dropdown row: Vanilla and Nordic draw the game's checkbox at the row's start
+  (after Nordic's arrow), then the label; Tailor a check mark at its right end.
 - A `Show Categories` tick under the list, on each time the window opens; off, rows show the
   name only.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
@@ -58,6 +69,14 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   - Save: `Save the ticked pieces as a new outfit, or into an existing one.`
   - Apply: `Dress #{Name} in the ticked pieces.`
   - Cancel: none.
+- `Restore Original Outfit (?)`, while Livery dresses the actor, sits at the right end of
+  the count line in its font and colour, lit on hover; the `(?)` is inside its click area
+  and hovering it shows the help. A button with a `(?)` (the Apply popup's `No, just apply`)
+  draws it inside its frame.
+- Vanilla and Nordic draw text fields and dropdowns underlined, not framed. A text field has
+  a grey pen at its right end, white while the field or the pen is hovered or the field is
+  being typed in; a click on the pen starts typing, so the click area is the field's. A
+  dropdown's arrow is grey, white while hovered or open.
 
 ## 3. Tab column (step 2)
 
@@ -101,8 +120,7 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   (random picks, docs/ui-redesign.md §7, will skip it). The window stays open with the rows
   rebuilt (`SetOutfits` with `keepEdits`, so the edits stay), and the Save page's Update tab
   ticks follow the rows changed for its outfit. Nothing is written to the library.
-- Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Cancel` (`Exit` with no unsaved
-  edits).
+- Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Exit`.
   - Update: greyed until the outfit differs from the library (trimmed name, Category,
     gender, pieces), and with an empty name (`kNeedName`). A popup lists what changes
     (pieces, Category, rename, gender), as the Save page's Update tab does, then the
@@ -111,18 +129,22 @@ and the Manage Outfits page. Each page keeps its own search and sort.
     nothing and shows the error. On success the window stays open: the list is rebuilt
     (`CaptureWindow::SetOutfits`), the edits are cleared, the outfit stays selected (found
     by id), and the captured actor is redressed when they wear it (§6).
-  - Apply to #{Name}: the outfit as the library has it becomes the actor's Default
-    (`Request::onManageApply`, `Assignments::Assign(pieces, id)`), then the window closes, as
-    the Inventory page's Apply does; nothing moves from the player's inventory. Greyed with
-    no outfit selected, with unsaved edits (`Update or discard your changes first.`) and
-    when none of its pieces is loaded.
-  - Cancel with unsaved edits asks `Discard changes` / `Keep editing`; Discard starts the
-    edits again from the library and the page stays. With none the button reads `Exit` and
-    closes the window. Escape does what the button does (it first clears a search, as on the
-    Load page).
+  - Apply to #{Name}: the outfit becomes the actor's Default (`Request::onManageApply`,
+    `Assignments::Assign(pieces, id)`), then the window closes, as the Inventory page's
+    Apply does; nothing moves from the player's inventory. With unsaved edits it first asks
+    `Update and apply?`: `Save your changes to "#{Outfit}", then apply it to #{Name}?` and
+    the Update popup's change lines, then `Update and Apply` / `Cancel`. Update and Apply
+    hands the edits to `onManageUpdate` with `apply`: the library write first, as Update's
+    (CLAUDE.md §2.1); a refused or failed one assigns nothing and shows the error; then the
+    window closes and the outfit as written becomes the Default. Greyed with no outfit
+    selected, with no edited piece (`kNoLoadedPiece`), and with unsaved edits and an empty
+    name (`kNeedName`).
+  - Exit closes the window; with unsaved edits it first asks `Discard changes and exit` /
+    `Back`. Escape does what Exit does (it first clears a search, as on the Load page).
 - Leaving for the Inventory tab with unsaved edits shows
-  `You have unsaved changes for "#{Outfit}".` with `OK`; the edits stay. Closing the window
-  from the Inventory page (Save, Apply, Restore, Cancel) drops them without asking.
+  `You have unsaved changes for "#{Outfit}".` with `OK` / `Back`: OK switches and the edits
+  stay, Back stays on Manage Outfits. Closing the window from the Inventory page (Save,
+  Apply, Restore, Cancel) drops them without asking.
 
 ### Edit page
 
@@ -198,7 +220,9 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
 - `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it; `Record`.
 - `Theme`: the tab column, its icons and rule (Nordic's rope texture), the outfit row with
   tags (Tailor's chips), the folding headings of a sorted outfit list (`FoldHeading`), the
-  rows' hover fill (`HoverFill` for dropdown rows), a label's `(?)` (`LabelHelpMark`).
+  rows' fills and NORDIC UI's line, the dropdown rows (`DropdownRow`), a label's `(?)`
+  (`LabelHelpMark`), a link with its `(?)` (`LabelHelpLink`), a button with one
+  (`HelpButton`), the underlined fields with the pen.
 - `Plugin.cpp`: the two category groups for `Request::categories` and each outfit, the
   Manage Outfits handlers, the redress queue (§6).
 
@@ -216,7 +240,9 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
   pieces; the assignments survive save and load.
 - Situations and Apply: ticking a free situation, then one another outfit holds (Replace,
   Cancel), with unsaved edits kept; the actor dressed for them at close, Live Preview on and
-  off; Apply to #{Name} closes and dresses; Cancel with and without edits.
+  off; Apply to #{Name} closes and dresses, with unsaved edits after Update and Apply (a
+  taken name refused, nothing assigned); Exit with and without edits; leaving for the
+  Inventory tab with edits, OK and Back.
 
 ## 9. Later
 
