@@ -61,6 +61,11 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
 	bool LabelLink(const char* label);
 
+	// A greyed "(?)" right after the label just laid out (call it right after LabelText), in
+	// LabelText's font, keeping its line's gap below. Returns true while hovered, for the
+	// caller's tooltip.
+	bool LabelHelpMark();
+
 	// Extra room above a field, on top of the item spacing; LabelText adds it
 	// itself, so call it only before a field that has no label.
 	void SectionGap();

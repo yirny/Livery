@@ -757,7 +757,8 @@ namespace
 	struct PendingRedress
 	{
 		RE::FormID    actor = 0;
-		std::uint32_t updated = 0;  // the outfit Update changed; 0 when a situation outfit they wear left the library
+		std::uint32_t updated = 0;      // the outfit Update changed; 0 when a situation outfit they wear left the library
+		bool          refresh = false;  // their situation rows changed (Assignments::Record): dressed anew for them
 
 		friend bool operator==(const PendingRedress&, const PendingRedress&) = default;
 	};
@@ -814,11 +815,14 @@ namespace
 	}
 
 	// An updated outfit as RedressFor puts it on; a situation outfit gone from the library
-	// gives way to what applies now: another situation's outfit, or the default.
+	// gives way to what applies now: another situation's outfit, or the default; changed
+	// situation rows dress them anew for the situations they are in.
 	// Contract: game thread; no preview is on.
 	void RunRedress(RE::Actor& actor, const PendingRedress& redress)
 	{
-		if (redress.updated != 0) {
+		if (redress.refresh) {
+			Assignments::Refresh(actor, {});
+		} else if (redress.updated != 0) {
 			RedressFor(actor, redress.updated);
 		} else {
 			Assignments::WearFor(actor, Situations::Evaluate(actor));
@@ -851,7 +855,7 @@ namespace
 	{
 		for (const auto& redress : std::exchange(g_redressAtClose, {})) {
 			auto* actor = RE::TESForm::LookupByID<RE::Actor>(redress.actor);
-			if (!actor || (redress.updated == 0 && (!actor->Is3DLoaded() || actor->IsDead()))) {
+			if (!actor || (redress.updated == 0 && !redress.refresh && (!actor->Is3DLoaded() || actor->IsDead()))) {
 				continue;
 			}
 			RunRedress(*actor, redress);
@@ -870,10 +874,11 @@ namespace
 		return list;
 	}
 
-	// Manage Outfits' Update and Remove. The library is written first; a refused or failed
-	// write changes nothing, assigns nothing and redresses no one (CLAUDE.md §2.1). Then the
-	// actors are redressed (RedressCaptured, QueueRedress), and the window, still open, shows
-	// the library as written.
+	// Manage Outfits' Update and Remove, its situation rows and its Apply. Update and Remove
+	// write the library first; a refused or failed write changes nothing, assigns nothing and
+	// redresses no one (CLAUDE.md §2.1). Then the actors are redressed (RedressCaptured,
+	// QueueRedress), and the window, still open, shows the library as written. The situation
+	// rows and Apply write nothing to the library.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachManage(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
 	{
@@ -912,6 +917,47 @@ namespace
 				}
 			}
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
+		};
+		// "Situations for #{Name}": the row is recorded at once and they are dressed for it when
+		// the window closes, after its preview ended. No library write.
+		request.onManageAssign = [handle, actorID, armors](std::uint32_t outfit, std::size_t row, bool on) {
+			const auto target = handle.get();
+			if (!target) {
+				CaptureWindow::SetError("The character is out of reach.");
+				return;
+			}
+			if (!Library::Find(outfit)) {
+				CaptureWindow::SetError("The outfit no longer exists.");
+				return;
+			}
+			Assignments::Changes changes{ .outfit = outfit };
+			(on ? changes.assign : changes.remove).push_back(RowSituation(row));
+			if (!Assignments::Record(*target, changes)) {
+				CaptureWindow::SetError("Livery cannot dress this character.");
+				return;
+			}
+			QueueRedress({ .actor = actorID, .refresh = true });
+			auto list = CurrentOutfitList(actorID, armors);
+			list.keepEdits = true;
+			CaptureWindow::SetOutfits(std::move(list));
+		};
+		// Apply to #{Name}: the outfit as the library has it becomes their Default, as the
+		// Inventory page's Apply makes the ticks it; the window closes first, ending the preview.
+		request.onManageApply = [handle](std::uint32_t outfit) {
+			const auto* stored = Library::Find(outfit);
+			if (!stored) {
+				CaptureWindow::SetError("The outfit no longer exists.");
+				return;
+			}
+			const auto pieces = Library::LoadedPieces(*stored);
+			if (pieces.empty()) {
+				CaptureWindow::SetError("None of its pieces is loaded.");
+				return;
+			}
+			CaptureWindow::Close();
+			if (const auto target = handle.get()) {
+				Assignments::Assign(*target, pieces, outfit);
+			}
 		};
 	}
 
