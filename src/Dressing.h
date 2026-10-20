@@ -77,4 +77,12 @@ namespace Dressing
 
 	// The playable armor they wear, each form once.
 	std::vector<RE::TESObjectARMO*> WornArmor(RE::Actor& actor);
+
+	// Moves one copy of each armor from the player to `npc` with its extra data (enchantment,
+	// tempering), as the container menu moves an item: an unworn copy, enchanted, else the most
+	// tempered, else plain; the worn copy only with `allowWorn` and no other to give. Returns the
+	// armor that did not reach `npc`, read from its inventory again after the moves.
+	// Contract: game thread; `npc` is not the player. A moved copy is the NPC's own from then on:
+	// Dress puts it on without counting it `added`, so Release leaves it with them.
+	std::vector<RE::TESObjectARMO*> MoveFromPlayer(RE::Actor& player, RE::Actor& npc, const std::vector<RE::TESObjectARMO*>& armor, bool allowWorn);
 }
