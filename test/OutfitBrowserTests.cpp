@@ -10,12 +10,12 @@
 namespace
 {
 	using CaptureWindow::kClassGroup;
-	using CaptureWindow::kCustomGroup;
 	using CaptureWindow::kSituationGroup;
 
-	// Request::categories as Plugin.cpp builds it: the Armor Classes, the custom categories by
-	// name, then Default and the situations, one per row of `assigned`. The custom Town and
-	// the situation Town are different categories.
+	// Request::categories as Plugin.cpp builds it: the categories the window offers, then
+	// Default and the situations, one per row of `assigned`. The outfits also store an older
+	// file's categories (Adventuring, Swimming, Town), which the window does not offer: the
+	// stored Town is not the situation Town.
 	CaptureWindow::Request MakeRequest()
 	{
 		CaptureWindow::Request request;
@@ -23,9 +23,6 @@ namespace
 			{ kClassGroup, "Light" },
 			{ kClassGroup, "Heavy" },
 			{ kClassGroup, "Clothing" },
-			{ kCustomGroup, "Adventuring" },
-			{ kCustomGroup, "Swimming" },
-			{ kCustomGroup, "Town" },
 			{ kSituationGroup, "Default" },
 			{ kSituationGroup, "Town" },
 			{ kSituationGroup, "Home" },
@@ -42,14 +39,6 @@ namespace
 		};
 		// Default, Town, Home, Sleep, Swimming, Warm. Home holds pieces that are not a saved outfit.
 		request.assigned = { { true, 3 }, { true, 5 }, { true, 0 }, { true, 3 }, { true, 2 }, { false, 0 } };
-		return request;
-	}
-
-	// MakeRequest with no custom category: the classes and the situations only.
-	CaptureWindow::Request MakeRequestWithoutCustom()
-	{
-		auto request = MakeRequest();
-		std::erase_if(request.categories, [](const CaptureWindow::CategoryOption& option) { return option.group == kCustomGroup; });
 		return request;
 	}
 
@@ -73,8 +62,7 @@ namespace
 
 	void Sort(OutfitBrowser::State& state, const CaptureWindow::Request& request, OutfitBrowser::SortKey key)
 	{
-		state.sort = key;
-		OutfitBrowser::Refresh(state, request);
+		OutfitBrowser::SetSort(state, request, key);
 	}
 
 	void Tick(OutfitBrowser::State& state, const std::string& group, const std::string& label)
@@ -108,14 +96,15 @@ TEST_CASE("Reset lists every outfit by name, ignoring case", "[browser]")
 	CHECK(OutfitBrowser::FilterPreview(state) == "Any category");
 }
 
-TEST_CASE("Tags: Armor Classes, custom categories, then the rows holding the outfit", "[browser]")
+TEST_CASE("Tags: categories, then the rows holding the outfit; unoffered stored categories stay out", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	CHECK(state.tags[4] == std::vector<std::string>{ "Light", "Heavy", "Adventuring", "Town", "Town" });  // Scout
-	CHECK(state.tags[2] == std::vector<std::string>{ "Clothing", "Town", "Default", "Sleep" });           // Town Dress
-	CHECK(state.tags[3].empty());                                                                         // Bare
+	CHECK(state.tags[4] == std::vector<std::string>{ "Light", "Heavy", "Town" });        // Scout: the situation Town
+	CHECK(state.tags[2] == std::vector<std::string>{ "Clothing", "Default", "Sleep" });  // Town Dress
+	CHECK(state.tags[1] == std::vector<std::string>{ "Light", "Swimming" });             // Guard Uniform
+	CHECK(state.tags[3].empty());                                                        // Bare
 }
 
 TEST_CASE("Filter rows follow the groups, each with its No row", "[browser]")
@@ -127,23 +116,8 @@ TEST_CASE("Filter rows follow the groups, each with its No row", "[browser]")
 	for (const auto& row : state.filter) {
 		labels.push_back(row.label);
 	}
-	CHECK(labels == std::vector<std::string>{ "Light", "Heavy", "Clothing", "No Armor Class", "Adventuring", "Swimming", "Town",
-						"No Custom Category", "Default", "Town", "Home", "Sleep", "Swimming", "Warm", "No Situation" });
-}
-
-TEST_CASE("No custom category: no Custom Category rows or sort", "[browser]")
-{
-	const auto           request = MakeRequestWithoutCustom();
-	OutfitBrowser::State state;
-	OutfitBrowser::Reset(state, request);
-	CHECK(std::ranges::none_of(state.filter, [](const OutfitBrowser::FilterOption& row) { return row.group == kCustomGroup; }));
-	CHECK_FALSE(OutfitBrowser::OffersSort(request, OutfitBrowser::SortKey::kCustom));
-	CHECK(OutfitBrowser::OffersSort(request, OutfitBrowser::SortKey::kClass));
-	CHECK(OutfitBrowser::OffersSort(request, OutfitBrowser::SortKey::kSituation));
-	CHECK(OutfitBrowser::OffersSort(MakeRequest(), OutfitBrowser::SortKey::kCustom));
-
-	// The situations still follow the rows once the custom categories are gone.
-	CHECK(state.tags[2] == std::vector<std::string>{ "Clothing", "Default", "Sleep" });  // Town Dress
+	CHECK(labels == std::vector<std::string>{ "Light", "Heavy", "Clothing", "No Category", "Default", "Town", "Home", "Sleep", "Swimming", "Warm",
+						"No Situation" });
 }
 
 TEST_CASE("Search matches part of the name, ignoring ASCII case", "[browser]")
@@ -175,7 +149,7 @@ TEST_CASE("Filter: any ticked row within a group, every ticked group", "[browser
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Guard Uniform", "iron set", "Scout" });
 
-	Tick(state, kCustomGroup, "Town");
+	Tick(state, kSituationGroup, "Town");
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Scout" });
 	CHECK(OutfitBrowser::FilterPreview(state) == "Light, Heavy, Town");
@@ -191,13 +165,13 @@ TEST_CASE("A No row matches outfits in none of its group's categories", "[browse
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	Tick(state, kCustomGroup, "No Custom Category");
+	Tick(state, kClassGroup, "No Category");
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare" });
 
-	Tick(state, kCustomGroup, "Town");
+	Tick(state, kClassGroup, "Clothing");
 	OutfitBrowser::Refresh(state, request);
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare", "Scout", "Town Dress" });
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare", "Town Dress" });
 }
 
 TEST_CASE("Search and filter combine", "[browser]")
@@ -205,7 +179,7 @@ TEST_CASE("Search and filter combine", "[browser]")
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	Tick(state, kCustomGroup, "Adventuring");
+	Tick(state, kClassGroup, "Heavy");
 	Search(state, "s");
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set", "Scout" });
@@ -222,27 +196,16 @@ TEST_CASE("Gender sort: Female, Male, Unisex, then name", "[browser]")
 	CHECK(state.headingCount == 3);
 }
 
-TEST_CASE("Armor Class sort: the classes' order, then name", "[browser]")
+TEST_CASE("Category sort: the categories' order, then name", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
 	Sort(state, request, OutfitBrowser::SortKey::kClass);
-	// Light alone before Light + Heavy; no class last; other groups play no part.
+	// Light alone before Light + Heavy; no category last; the situations play no part.
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Guard Uniform", "Scout", "iron set", "Town Dress", "Bare" });
-	CHECK(VisibleHeadings(state) == std::vector<std::string>{ "Light", "Light, Heavy", "Heavy", "Clothing", "No Armor Class" });
+	CHECK(VisibleHeadings(state) == std::vector<std::string>{ "Light", "Light, Heavy", "Heavy", "Clothing", "No Category" });
 	CHECK(state.headingCount == 5);
-}
-
-TEST_CASE("Custom Category sort: by name, then the outfit's name", "[browser]")
-{
-	const auto           request = MakeRequest();
-	OutfitBrowser::State state;
-	OutfitBrowser::Reset(state, request);
-	Sort(state, request, OutfitBrowser::SortKey::kCustom);
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set", "Guard Uniform", "Scout", "Town Dress", "Bare" });
-	CHECK(VisibleHeadings(state) ==
-		  std::vector<std::string>{ "Adventuring", "Adventuring, Swimming", "Adventuring, Town", "Town", "No Custom Category" });
 }
 
 TEST_CASE("Situation sort: Default, then the situations' order", "[browser]")
@@ -262,7 +225,7 @@ TEST_CASE("Rebuild keeps the search and sort for changed outfits", "[browser]")
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
 	Search(state, "s");
-	Tick(state, kCustomGroup, "Town");
+	Tick(state, kClassGroup, "Light");
 	Sort(state, request, OutfitBrowser::SortKey::kClass);
 
 	request.existingOutfits[0].name = "Steel Set";  // iron set, renamed and made Light
@@ -271,21 +234,34 @@ TEST_CASE("Rebuild keeps the search and sort for changed outfits", "[browser]")
 	CHECK(OutfitBrowser::IsSearching(state));
 	CHECK_FALSE(OutfitBrowser::IsFiltering(state));
 	CHECK(state.sort == OutfitBrowser::SortKey::kClass);
-	CHECK(state.tags[0] == std::vector<std::string>{ "Light", "Adventuring" });
+	CHECK(state.tags[0] == std::vector<std::string>{ "Light" });
 	// "s" matches Steel Set, Scout and Town Dress: Light, then Light + Heavy, then Clothing.
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Steel Set", "Scout", "Town Dress" });
 }
 
-TEST_CASE("Rebuild falls back to Name when the sort is no longer offered", "[browser]")
+TEST_CASE("Folded headings: toggled one by one, kept by Rebuild, cleared by SetSort and Reset", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	Sort(state, request, OutfitBrowser::SortKey::kCustom);
-	const auto withoutCustom = MakeRequestWithoutCustom();
-	OutfitBrowser::Rebuild(state, withoutCustom);
-	CHECK(state.sort == OutfitBrowser::SortKey::kName);
-	CHECK(state.headingCount == 0);
+	Sort(state, request, OutfitBrowser::SortKey::kClass);
+	OutfitBrowser::ToggleFolded(state, "Heavy");
+	OutfitBrowser::ToggleFolded(state, "Clothing");
+	OutfitBrowser::ToggleFolded(state, "Clothing");
+	CHECK(OutfitBrowser::IsFolded(state, "Heavy"));
+	CHECK_FALSE(OutfitBrowser::IsFolded(state, "Clothing"));
+	CHECK_FALSE(OutfitBrowser::IsFolded(state, "Light, Heavy"));
+
+	OutfitBrowser::Rebuild(state, request);
+	CHECK(OutfitBrowser::IsFolded(state, "Heavy"));
+	// The list skips folded outfits as it draws them; the browser still lists every one.
+	CHECK(state.visible.size() == request.existingOutfits.size());
+
+	Sort(state, request, OutfitBrowser::SortKey::kGender);
+	CHECK(state.folded.empty());
+	OutfitBrowser::ToggleFolded(state, "Male");
+	OutfitBrowser::Reset(state, request);
+	CHECK(state.folded.empty());
 }
 
 TEST_CASE("The heading count covers the outfits the search hides", "[browser]")

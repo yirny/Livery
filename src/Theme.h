@@ -50,7 +50,7 @@ namespace Theme
 	// Nordic, plain text in Tailor. Opens a field with SectionGap and sits a
 	// little closer to the control below it than the item spacing would.
 	// Contract: every field label goes through here, a list's count line
-	// ("2 of 5 piece(s) selected", "12 outfit(s) in the library") included.
+	// ("2 of 5 piece(s) selected", "12 outfit(s) in the wardrobe") included.
 	void LabelText(const char* text);
 
 	// A clickable label at the right end of the line just laid out (call it
@@ -144,6 +144,19 @@ namespace Theme
 	// Contract: ListHeading inside BeginList.
 	void  ListHeading(const char* text);
 	float ListHeadingHeight();
+
+	// A sorted outfit list's heading, ListHeadingHeight tall, that folds the rows under it
+	// away: a chevron pointing down while `open` and right while folded, then the text, both in
+	// ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
+	// then a rule in the list's rule colour to the list's right end. The whole row is the click
+	// target; returns true when clicked, and the caller folds or unfolds.
+	// Contract: inside BeginList; the text is shown as is and is the row's ImGui ID.
+	bool FoldHeading(const char* text, bool open);
+
+	// The fill of a hovered row outside a list (a dropdown's rows), from `left`, `top` to
+	// `right`, `bottom` (screen pixels): as a list row's hover, Tailor's muted brown with the
+	// frame's rounding, Vanilla's and Nordic's soft white ellipse.
+	void HoverFill(float left, float top, float right, float bottom);
 
 	// A SelectRow with the outfit's tags under its name in the small font, wrapping onto
 	// more lines within `tagsWidth` (OutfitTagsWidth): its gender first unless unisex (-1
@@ -272,6 +285,12 @@ namespace Theme
 	// From the content's left edge, where the tabs start, to where the page beside them
 	// starts: the tabs, a gap, the rule and the window's padding.
 	float TabColumnWidth();
+
+	// Where the tabs go, in pixels from the content's top-left corner: each tab's left edge,
+	// so it is centred between the window's left edge and the rule (negative, into the
+	// window's padding), and the first tab's top (Nordic: below the corner knot).
+	float TabOffsetX();
+	float TabTopGap();
 
 	// The rule between the tab column, whose tabs start at `left`, and the page, from `top`
 	// to `bottom` (screen pixels): Tailor's 1px border colour, Vanilla's 2px rule, NORDIC

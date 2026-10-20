@@ -41,7 +41,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
-	constexpr const char* kNoOutfits = "No outfits in the library.";
+	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
 	constexpr const char* kNoChanges = "No changes to save.";
 	// Frames the window's place is pinned after Open or a page change: an
@@ -52,17 +52,16 @@ namespace CaptureWindow::Internal
 	constexpr std::size_t kPieceGroupCount = static_cast<std::size_t>(CaptureWindow::PieceGroup::kNotCarried) + 1;
 	using GroupHeadings = std::array<std::string, kPieceGroupCount>;
 
-	// The outfit lists' Sort dropdown, in its order; OutfitBrowser::OffersSort leaves rows out.
+	// The outfit lists' Sort dropdown, in its order.
 	struct SortOption
 	{
 		const char*            label;
 		OutfitBrowser::SortKey key;
 	};
-	constexpr std::array<SortOption, 5> kSortOptions{ {
+	constexpr std::array<SortOption, 4> kSortOptions{ {
 		{ "Name", OutfitBrowser::SortKey::kName },
 		{ "Gender", OutfitBrowser::SortKey::kGender },
 		{ CaptureWindow::kClassGroup, OutfitBrowser::SortKey::kClass },
-		{ CaptureWindow::kCustomGroup, OutfitBrowser::SortKey::kCustom },
 		{ CaptureWindow::kSituationGroup, OutfitBrowser::SortKey::kSituation },
 	} };
 
@@ -86,7 +85,7 @@ namespace CaptureWindow::Internal
 	constexpr int                        kNameColumn = 0;
 	constexpr int                        kTypeColumn = 1;
 	constexpr int                        kClassColumn = 2;
-	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Class" };
+	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Category" };
 
 	// Sound descriptors in Skyrim.esm, whose load index is always 00.
 	constexpr RE::FormID kOpenSound = 0x0003F2BD;    // UIMenuBladeOpenSD

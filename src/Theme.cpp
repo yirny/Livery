@@ -6,10 +6,12 @@
 //   Styles     - one ImGuiStyle per skin and its resolution scale
 //   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow (white
 //                alpha masks), the game's and NORDIC UI's equipped-item marks,
-//                the game's checkbox and dropdown arrow
+//                the game's checkbox and dropdown arrow; the row hover glow, made
+//                in code
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame;
 //                list rows (Tailor's tick row, the SkyUI-style tick row of the
-//                Vanilla and Nordic skins); the dropdown arrows; the game's
+//                Vanilla and Nordic skins) and their hover fill (Vanilla's and
+//                Nordic's soft ellipse); the dropdown arrows; the game's
 //                checkbox of the Vanilla and Nordic skins; the fainter field
 //                border; the selected single-choice row's mark; an outfit row's
 //                tags (Tailor 3.0's chips and gender pills, or grey text)
@@ -17,8 +19,8 @@
 //                LabelLink's plus-in-square mark
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets, the
 //                lists between rules (BeginList / EndList) and their columns
-//                (HeaderRow over multi-column tick rows), list headings and
-//                outfit rows with tags
+//                (HeaderRow over multi-column tick rows), list headings (and the
+//                outfit lists' folding ones) and outfit rows with tags
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
 // TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
@@ -179,6 +181,7 @@ namespace
 	Ornament    g_checkMark{ nullptr, ImVec2(16.5f, 16.5f) };        // its tick, centred on the box (the game's ratio)
 	Ornament    g_dropdownArrow{ nullptr, ImVec2(13.0f, 16.0f) };    // the game's option stepper arrow, turned to point down
 	Ornament    g_selectArrow{ nullptr, ImVec2(15.0f, 16.0f) };      // NORDIC UI's MCM page arrow, a white mask tinted on draw
+	Ornament    g_hoverGlow{ nullptr, ImVec2(0.0f, 0.0f) };          // a white ellipse fading out to its edges (MakeHoverGlow), stretched over a hovered row
 
 	const SkinFonts& FontFilesOf(Theme::Skin a_skin)
 	{
@@ -367,6 +370,36 @@ namespace
 		}
 	}
 
+	// A white ellipse filling the texture, opaque at its centre and fading to nothing at its
+	// edges, made here rather than shipped: stretched over a hovered row, it lights the row
+	// as SkyUI lights its MCM title bar.
+	// Contract: render thread, on the game's D3D11 device; the view lives as long as the
+	// process. Stays null (with a warning) when the device refuses it.
+	void MakeHoverGlow(ID3D11Device* a_device)
+	{
+		constexpr UINT  kWidth = 128;  // texels; drawn stretched and filtered, so a small one stays smooth
+		constexpr UINT  kHeight = 32;
+		constexpr float kFalloff = 3.0f;  // of the Gaussian: how fast it fades from the centre
+
+		const float               edge = std::exp(-kFalloff);  // the Gaussian at the ellipse's edge, taken off so it ends at 0
+		std::vector<std::uint8_t> pixels(static_cast<std::size_t>(kWidth) * kHeight * 4);
+		for (UINT y = 0; y < kHeight; ++y) {
+			for (UINT x = 0; x < kWidth; ++x) {
+				const float dx = (static_cast<float>(x) + 0.5f) / kWidth * 2.0f - 1.0f;
+				const float dy = (static_cast<float>(y) + 0.5f) / kHeight * 2.0f - 1.0f;
+				const float r2 = dx * dx + dy * dy;
+				const float alpha = r2 < 1.0f ? (std::exp(-kFalloff * r2) - edge) / (1.0f - edge) : 0.0f;
+				auto*       texel = &pixels[(static_cast<std::size_t>(y) * kWidth + x) * 4];
+				texel[0] = texel[1] = texel[2] = 255;
+				texel[3] = static_cast<std::uint8_t>(std::lround(alpha * 255.0f));
+			}
+		}
+		if (const auto hr = CreateTexture(a_device, kWidth, kHeight, pixels.data(), g_hoverGlow.view.GetAddressOf()); FAILED(hr)) {
+			g_hoverGlow.view.Reset();
+			logger::warn("Could not make the row hover texture (HRESULT {:#x}); hovered rows get a flat tint instead", static_cast<unsigned>(hr));
+		}
+	}
+
 	// --- Styles ---------------------------------------------------------------
 
 	// Tailor's own curve, shared by every skin: 1 up to 1080p, growing to 1.75
@@ -478,9 +511,10 @@ namespace
 		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
 		set(ImGuiCol_Text, kWhite);
 		set(ImGuiCol_TextDisabled, kDim);
-		set(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 200));
+		set(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 204));  // 0.8 opaque
 		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, 0));
 		set(ImGuiCol_PopupBg, IM_COL32(0, 0, 0, 235));
+		set(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 51));  // a faint black (0.2) behind a popup
 		set(ImGuiCol_TitleBg, kGlass);
 		set(ImGuiCol_TitleBgActive, kGlass);
 		set(ImGuiCol_TitleBgCollapsed, kGlass);
@@ -520,9 +554,10 @@ namespace
 		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
 		set(ImGuiCol_Text, kNordicText);
 		set(ImGuiCol_TextDisabled, kNordicLabel);
-		set(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 190));
+		set(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 204));  // 0.8 opaque
 		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, 0));
 		set(ImGuiCol_PopupBg, IM_COL32(10, 10, 10, 235));
+		set(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 51));  // a faint black (0.2) behind a popup
 		set(ImGuiCol_Border, kNordicRule);
 		set(ImGuiCol_FrameBg, kGrey1);
 		set(ImGuiCol_FrameBgHovered, kGrey2);
@@ -687,6 +722,20 @@ namespace
 		return row;
 	}
 
+	// The fill of a hovered row from `a_min` to `a_max` (screen pixels): Tailor's muted
+	// brown, or in Vanilla and Nordic the hover glow stretched over it, a soft white
+	// ellipse brightest at the row's centre (a flat tint without the texture).
+	void DrawRowHover(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_rounding)
+	{
+		constexpr int kGlowAlpha = 64;  // of the glow's centre, out of 255
+
+		if (g_skin == Theme::Skin::kTailor || !g_hoverGlow.view) {
+			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_HeaderHovered), a_rounding);
+			return;
+		}
+		a_draw->AddImage(g_hoverGlow.Id(), a_min, a_max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(IM_COL32(255, 255, 255, kGlowAlpha)));
+	}
+
 	// A tick row's cells, each at its column (Theme::HeaderRow) from `a_textX`,
 	// centred on `a_midY`; one too long for its column ends in an ellipsis.
 	void DrawCells(ImDrawList* a_draw, float a_textX, float a_midY, float a_right, std::span<const char* const> a_cells,
@@ -722,7 +771,7 @@ namespace
 			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_Header));
 		}
 		if (row.hovered) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
+			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 		if (*a_ticked) {
 			draw->AddRectFilled(row.fillMin, ImVec2(row.fillMin.x + kTailorRuleWidth * g_scale, row.fillMax.y), ImGui::GetColorU32(kAmber));
@@ -758,7 +807,7 @@ namespace
 			draw->AddRectFilledMultiColor(row.fillMin, row.fillMax, clear, white, white, clear);
 		}
 		if (row.hovered) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
+			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 
 		const bool      nordic = g_skin == Theme::Skin::kNordic;
@@ -1296,6 +1345,7 @@ namespace Theme
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-dropdown.png", g_dropdownArrow);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-select-arrow.png", g_selectArrow);
 		}
+		MakeHoverGlow(a_device);
 		wic.Reset();
 		if (SUCCEEDED(init)) {
 			::CoUninitialize();
@@ -1581,6 +1631,21 @@ namespace Theme
 		return (kTabSide + kTabRuleGap) * g_scale + TabRuleWidth() + ImGui::GetStyle().WindowPadding.x;
 	}
 
+	// The tab's centre goes halfway between the window's left edge (the window's padding left
+	// of the content) and the rule's middle (TabRule).
+	float TabOffsetX()
+	{
+		const float ruleMiddle = (kTabSide + kTabRuleGap) * g_scale + TabRuleWidth() * 0.5f;
+		return (ruleMiddle - ImGui::GetStyle().WindowPadding.x) * 0.5f - kTabSide * g_scale * 0.5f;
+	}
+
+	float TabTopGap()
+	{
+		constexpr float kNordicTopGap = 8.0f;  // pixels at 1080p, below the corner knot
+
+		return g_skin == Skin::kNordic ? kNordicTopGap * g_scale : 0.0f;
+	}
+
 	// The rope is tiled from the top, its last repeat cut short at the bottom. The clip rect
 	// is the rule's own, so it reaches the window's edges across its padding.
 	void TabRule(float a_left, float a_top, float a_bottom)
@@ -1799,11 +1864,11 @@ namespace Theme
 		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
 		const float   textX = row.min.x + row.inset + RowTextShift();
 		auto*         draw = ImGui::GetWindowDrawList();
-		if (a_selected || row.hovered) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(a_selected ? ImGuiCol_Header : ImGuiCol_HeaderHovered));
-		}
 		if (a_selected) {
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_Header));
 			DrawSelectMark(draw, row, textX);
+		} else if (row.hovered) {
+			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
@@ -1824,6 +1889,45 @@ namespace Theme
 		TextRow(a_text);
 		ImGui::PopStyleColor();
 		PopSmallFont();
+	}
+
+	// The chevron sits where ListHeading's text would start, the text after it; the rule ends
+	// where the rows' fills end.
+	bool FoldHeading(const char* a_text, bool a_open)
+	{
+		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the font size
+		constexpr float kRulePad = 4.0f;       // pixels at 1080p, from the text to the rule and from the rule to the list's right end
+
+		PushSmallFont();
+		const ListRow row = LayOutListRow(a_text, SelectRowHeight());
+		const float   side = ImGui::GetFontSize() * kChevronRatio;
+		const float   midY = (row.min.y + row.max.y) * 0.5f;
+		const float   left = row.min.x + row.inset + RowTextShift();
+		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
+		const float   thick = (std::max)(1.0f, 1.5f * g_scale);
+		auto*         draw = ImGui::GetWindowDrawList();
+		if (a_open) {
+			const ImVec2 points[] = { { left, midY - side * 0.25f }, { left + side * 0.5f, midY + side * 0.25f }, { left + side, midY - side * 0.25f } };
+			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
+		} else {
+			const ImVec2 points[] = { { left + side * 0.25f, midY - side * 0.5f }, { left + side * 0.75f, midY }, { left + side * 0.25f, midY + side * 0.5f } };
+			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
+		}
+		const float textX = left + side + ImGui::GetStyle().ItemInnerSpacing.x;
+		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), color, a_text);
+		const float ruleLeft = textX + ImGui::CalcTextSize(a_text).x + kRulePad * g_scale;
+		const float ruleRight = row.fillMax.x - kRulePad * g_scale;
+		if (ruleRight > ruleLeft) {
+			const float y = std::floor(midY) + 0.5f;  // on a pixel's centre, so a 1px line stays sharp
+			draw->AddLine(ImVec2(ruleLeft, y), ImVec2(ruleRight, y), ImGui::GetColorU32(ImGuiCol_Border));
+		}
+		PopSmallFont();
+		return row.pressed;
+	}
+
+	void HoverFill(float a_left, float a_top, float a_right, float a_bottom)
+	{
+		DrawRowHover(ImGui::GetWindowDrawList(), ImVec2(a_left, a_top), ImVec2(a_right, a_bottom), ImGui::GetStyle().FrameRounding);
 	}
 
 	float ListHeadingHeight()
@@ -1855,13 +1959,13 @@ namespace Theme
 		const float   textX = row.min.x + row.inset + RowTextShift();
 		const float   textY = row.min.y + kSelectRowPadY * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
-		if (a_selected || row.hovered) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(a_selected ? ImGuiCol_Header : ImGuiCol_HeaderHovered));
-		}
 		if (a_selected) {
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_Header));
 			ListRow nameLine = row;
 			nameLine.max.y = row.min.y + SelectRowHeight();
 			DrawSelectMark(draw, nameLine, textX);
+		} else if (row.hovered) {
+			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 		draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
 		const float tagsY = textY + ImGui::GetTextLineHeight() + kOutfitTagsGap * g_scale;
