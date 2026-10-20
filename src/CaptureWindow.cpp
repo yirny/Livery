@@ -625,7 +625,8 @@ namespace CaptureWindow::Internal
 		const auto& name = request.actorName;
 		auto&       headings = a_state.headings;
 		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("From {}'s Outfit (\"{}\")", name, request.outfitName);
-		headings[GroupIndex(Group::kWorn)] = std::format("From {}'s Outfit (Not from a Saved Outfit)", name);
+		headings[GroupIndex(Group::kNotInLibrary)] = std::format("From {}'s Outfit (Not in Library)", name);
+		headings[GroupIndex(Group::kUnmanaged)] = std::format("From {}'s Outfit (Unmanaged)", name);
 		headings[GroupIndex(Group::kCarried)] = std::format("From {}'s Inventory", name);
 		headings[GroupIndex(Group::kPlayer)] = "From Player's Inventory (?)";
 		headings[GroupIndex(Group::kNotCarried)].clear();
@@ -673,8 +674,8 @@ namespace CaptureWindow::Internal
 	}
 
 	// After SetOutfits: the pieces Livery put on from Request::wornOutfit keep their heading
-	// under the outfit's name now. When it has left the library they join the other worn
-	// pieces, and Apply no longer offers to update it.
+	// under the outfit's name now. When it has left the library they move under the
+	// Not in Library heading, and Apply no longer offers to update it.
 	void FollowWornOutfit(State& a_state)
 	{
 		auto& request = a_state.request;
@@ -690,7 +691,7 @@ namespace CaptureWindow::Internal
 		request.outfitName.clear();
 		for (auto& piece : request.pieces) {
 			if (piece.group == CaptureWindow::PieceGroup::kLiveryOutfit) {
-				piece.group = CaptureWindow::PieceGroup::kWorn;
+				piece.group = CaptureWindow::PieceGroup::kNotInLibrary;
 			}
 		}
 		SortPieces(a_state);
