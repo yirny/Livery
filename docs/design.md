@@ -287,7 +287,8 @@ Each stage ends with an in-game check before the next starts.
    skipping beast form, the mount rule for water. Done.
 6. Rework the capture window's existing pages (docs/ui-redesign.md). Step 1, the Capture
    page: done. Step 2, the Save page: done. Step 3, Apply (its popup and the transfer from
-   the player): built, not yet checked in game.
+   the player): done; that quest items stay out of the player's list is not yet checked in
+   game.
 7. An Outfit Management window: Delete for library outfits, which must deal with the
    assignments and situation choices that name the outfit (rename is on the Save page).
 8. A Situation Management window: user-defined conditions in the way of Skyrim Outfit
