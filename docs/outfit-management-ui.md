@@ -15,33 +15,38 @@ Docs call it the Inventory page; code identifiers stay.
 The outfit list shared by the Load page, the Save page's outfit selection (the Select page)
 and the Manage Outfits page. Each page keeps its own search and sort.
 
-- Wording: `Armor Class` everywhere (the Save page's field, the details column, the sort
-  option, the filter group) except the piece list's column header, which stays `Class`.
-- Categories: Light, Heavy, Clothing. Jewelry leaves the categories; the piece list's Class
-  column keeps it. `Library::Load` drops a stored `Jewelry` in memory; the file loses it at
-  the next write. The suggested class skips Jewelry pieces as it skips Other; with none
-  left, Clothing.
-- Three category groups, in this order:
-  - Armor Class: the classes above, which the Save page and Manage Outfits edit.
-  - Custom Category: every stored category that is not an Armor Class, across the library,
-    by name. Older files' situation categories (Adventuring, Town, ...) are custom
-    categories now. Read only until the custom category UI (design.md §8).
+- Wording: `Category` everywhere (the Save page's field, the details column, the sort
+  option, the filter group, the piece list's column header); the window calls the library
+  the wardrobe (`12 outfit(s) in the wardrobe`, `Not in Wardrobe`).
+- Categories: Light, Heavy, Clothing. Jewelry leaves the categories; the piece list's
+  Category column keeps it. `Library::Load` drops a stored `Jewelry` in memory; the file
+  loses it at the next write. The suggested category skips Jewelry pieces as it skips Other;
+  with none left, Clothing. Other stored categories (older files' Adventuring, Town, ...)
+  stay in the file, unshown, until categories can be added (design.md §8).
+- Two category groups, in this order:
+  - Category: the categories above, which the Save page and Manage Outfits edit.
   - Situation: the captured actor's "wears it for" rows that hold the outfit (Default and
     the situations), from `Request::assigned`. Never stored in the library.
 - Each row: the name, then under it, in the small font and grey, its tags in this order:
-  Female or Male (Unisex has none), Armor Class, Custom Category, Situation, wrapping onto
-  more lines when they do not fit. Tailor draws each tag as a framed chip, as Tailor 3.0's
-  outfit list does; Vanilla and Nordic as plain text, comma separated.
+  Female or Male (Unisex has none), Category, Situation, wrapping onto more lines when they
+  do not fit. Tailor draws each tag as a framed chip, as Tailor 3.0's outfit list does;
+  Vanilla and Nordic as plain text, comma separated.
+- Hover: Tailor fills a hovered row in its muted brown; Vanilla and Nordic light it with a
+  soft white ellipse fading out to the row's edges, as SkyUI lights its MCM title bar (a
+  texture made at load, `Theme::LoadTextures`), the dropdowns' rows too.
 - A `Show Categories` tick under the list, on each time the window opens; off, rows show the
   name only.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
-- `Sort by`: Name, Gender, Armor Class, Custom Category (offered only while some outfit has
-  one), Situation. Every key but Name puts headings in the list: the outfit's categories in
-  that group joined with `, ` (`Town, Swimming`), in the group's order (Light, Heavy,
-  Clothing; Default, then `Situations::kChoosable`; custom ones by name). Gender's headings
-  are Female, Male, Unisex, in that order. Outfits with none of the group's categories come
-  last under `No Armor Class`, `No Custom Category` or `No Situation`. Within a heading, by
-  name.
+- `Sort by`: Name, Gender, Category, Situation. Every key but Name puts headings in the
+  list: the outfit's categories in that group joined with `, ` (`Town, Swimming`), in the
+  group's order (Light, Heavy, Clothing; Default, then `Situations::kChoosable`). Gender's
+  headings are Female, Male, Unisex, in that order. Outfits with none of the group's
+  categories come last under `No Category` or `No Situation`. Within a heading, by name.
+- A heading has a chevron on its left, pointing down while open and right while folded, and
+  a rule in the list's rule colour from 4px after its text to 4px short of the list's right
+  end. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
+  by heading text). Every heading is open when the window opens and when the sort changes;
+  the list keeps the height of the whole library.
 - Headings and tag text are computed when the list is refreshed, never per frame.
 
 ## 2. Inventory page (step 1)
@@ -62,6 +67,8 @@ and the Manage Outfits page. Each page keeps its own search and sort.
 - Icons only, drawn as ImDrawList lines, so they scale with the resolution and take the
   skin's colours: the selected tab in the text colour on a faint fill, the others in
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
+- Each tab is centred between the window's left edge and the rule. Nordic's start 8px
+  lower, clear of the corner knot.
 - Shown on the Inventory and Manage Outfits pages only; the Load, Save, Select and Edit
   pages have none.
 - Switching tabs keeps everything: the Inventory page's ticks and Manage Outfits' edits stay
@@ -76,8 +83,11 @@ and the Manage Outfits page. Each page keeps its own search and sort.
 
 - Title `Manage Outfits`, no summary line. Two columns as on the Load page: the outfit list
   (§1) on the left; on the right the selected outfit, editable:
-  - name, Armor Class and gender, as the Save page's fields. No "wears it for": assignments
-    belong to the Save page and, later, the Situation Management window.
+  - name, Category and gender, as the Save page's fields.
+  - `Situations for #{Name}` with a `(?)` (the choices are this actor's own; other
+    characters keep theirs), over a multi-select dropdown of the situations (not Default)
+    the captured actor wears the outfit for, its frame naming them (`Town, Warm`) or `None`.
+    They are the actor's rows, no part of the edits (§6).
   - its pieces, read only, under a count line ending in `Edit` (`Theme::LabelLink`). The
     count includes pieces from plugins that are not loaded, which stay in the outfit.
 - With an empty library the page shows the empty list.
@@ -85,17 +95,31 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   has unsaved edits asks `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited; with none selected, the Inventory page's
   ticks.
-- Buttons `Update`, `Remove` (step 3), `Cancel`.
-  - Update: greyed until the outfit differs from the library (trimmed name, Armor Class,
+- A tick in the Situations dropdown changes the row at once through
+  `Request::onManageAssign`. A row another outfit holds first closes the dropdown and asks
+  `#{Name} already has an outfit for Town:` / `Town: "A" → "B"` with `Replace` / `Cancel`
+  (random picks, docs/ui-redesign.md §7, will skip it). The window stays open with the rows
+  rebuilt (`SetOutfits` with `keepEdits`, so the edits stay), and the Save page's Update tab
+  ticks follow the rows changed for its outfit. Nothing is written to the library.
+- Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Cancel` (`Exit` with no unsaved
+  edits).
+  - Update: greyed until the outfit differs from the library (trimmed name, Category,
     gender, pieces), and with an empty name (`kNeedName`). A popup lists what changes
-    (pieces, Armor Class, rename, gender), as the Save page's Update tab does, then the
+    (pieces, Category, rename, gender), as the Save page's Update tab does, then the
     window hands over to `Request::onManageUpdate`. CLAUDE.md §2.1 applies: a name another
     outfit has (ASCII case ignored) is refused, and a refused or failed write changes
     nothing and shows the error. On success the window stays open: the list is rebuilt
     (`CaptureWindow::SetOutfits`), the edits are cleared, the outfit stays selected (found
     by id), and the captured actor is redressed when they wear it (§6).
-  - Cancel and Escape close the window (Escape first clears a search, as on the Load page).
-    With unsaved edits they first ask `Discard and close` / `Stay`.
+  - Apply to #{Name}: the outfit as the library has it becomes the actor's Default
+    (`Request::onManageApply`, `Assignments::Assign(pieces, id)`), then the window closes, as
+    the Inventory page's Apply does; nothing moves from the player's inventory. Greyed with
+    no outfit selected, with unsaved edits (`Update or discard your changes first.`) and
+    when none of its pieces is loaded.
+  - Cancel with unsaved edits asks `Discard changes` / `Keep editing`; Discard starts the
+    edits again from the library and the page stays. With none the button reads `Exit` and
+    closes the window. Escape does what the button does (it first clears a search, as on the
+    Load page).
 - Leaving for the Inventory tab with unsaved edits shows
   `You have unsaved changes for "#{Outfit}".` with `OK`; the edits stay. Closing the window
   from the Inventory page (Save, Apply, Restore, Cancel) drops them without asking.
@@ -150,6 +174,11 @@ they lack); nothing moves from the player's inventory. Not worn now: nothing, si
 situation outfit is read from the library each time it goes on and a default from it keeps
 its pieces until assigned again. Remove: §5.
 
+A situation row of `Situations for #{Name}` is recorded at once, Live Preview on or off
+(`Assignments::Record`, which changes the rows and dresses no one), and the captured actor
+is dressed anew for their situations in `onClose` (`Assignments::Refresh`, queued as above).
+Apply to #{Name} closes the window first, so it assigns with the preview ended.
+
 ## 7. Code
 
 - `src/CaptureWindow.cpp` (about 2400 lines) splits at the start of step 2, in a move-only
@@ -159,23 +188,25 @@ its pieces until assigned again. Remove: §5.
 - `CaptureWindow`: pages for Manage Outfits and Edit; `SetOutfits` (the rebuilt outfits,
   categories and rows, the window's indices into them found again by id); a call that greys
   Live Preview with a reason; `Request::onManageUpdate` and, in step 3, `onManageRemove` and
-  each outfit's users for Remove's popup.
-- `OutfitBrowser`: sort keys Name, Gender, Armor Class, Custom Category, Situation; per
-  outfit its heading and tag text. Unit tests cover the keys, the headings and a library
-  without custom categories.
+  each outfit's users for Remove's popup; `onManageAssign` and `onManageApply`, and
+  `OutfitList::keepEdits`.
+- `OutfitBrowser`: sort keys Name, Gender, Category, Situation (`SetSort`); per outfit its
+  heading and tag text; the folded headings. Unit tests cover the keys, the headings, the
+  stored categories the window does not offer and the folding.
 - `Library`: Jewelry out of `Categories()` and dropped at Load; `Remove` (step 3), written
   through the temporary file as Create and Update are.
-- `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it.
+- `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it; `Record`.
 - `Theme`: the tab column, its icons and rule (Nordic's rope texture), the outfit row with
-  tags (Tailor's chips), the headings of a sorted outfit list.
-- `Plugin.cpp`: the three category groups for `Request::categories` and each outfit, the
+  tags (Tailor's chips), the folding headings of a sorted outfit list (`FoldHeading`), the
+  rows' hover fill (`HoverFill` for dropdown rows), a label's `(?)` (`LabelHelpMark`).
+- `Plugin.cpp`: the two category groups for `Request::categories` and each outfit, the
   Manage Outfits handlers, the redress queue (§6).
 
 ## 8. Checks
 
-- Step 1: each sort's headings; Show Categories off; a library without custom categories
-  (no Custom Category sort); Load from its button; an old outfit with Jewelry loads without
-  it; the three skins.
+- Step 1: each sort's headings, folded and unfolded; Show Categories off; an old file's
+  situation categories stay unshown; Load from its button; an old outfit with Jewelry loads
+  without it; the three skins.
 - Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
   rebuilt list; a taken name refused; Edit, Use Ticked Pieces and Back; the three warnings;
   Update of the outfit the captured actor wears, with Live Preview on (at once) and off (at
@@ -183,8 +214,11 @@ its pieces until assigned again. Remove: §5.
 - Step 3: Remove of an outfit in use lists its users; the captured actor wearing it for a
   situation changes at once (Live Preview on) or at close; a default from it keeps its
   pieces; the assignments survive save and load.
+- Situations and Apply: ticking a free situation, then one another outfit holds (Replace,
+  Cancel), with unsaved edits kept; the actor dressed for them at close, Live Preview on and
+  off; Apply to #{Name} closes and dresses; Cancel with and without edits.
 
 ## 9. Later
 
-- A UI for custom categories (design.md §8).
+- Adding categories beyond Light, Heavy and Clothing (design.md §8).
 - The Manage Situations tab, with the Situation Management window.
