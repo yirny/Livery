@@ -127,16 +127,15 @@ namespace Theme
 	// or hovered, its text a little right of the list's indent; returns true
 	// when clicked. A selected row is marked left of its text: NORDIC UI's MCM
 	// page arrow in Vanilla and Nordic, Tailor's amber rule on its left edge.
-	// Lay rows out SelectRowGap apart (pixels on the back buffer).
+	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's
 	// ImGui ID, so PushID around rows whose labels may repeat.
 	bool  SelectRow(const char* label, bool selected);
 	float SelectRowHeight();
-	float SelectRowGap();
 
 	// A read-only row laid out as SelectRow lays out its text, with no fill or
 	// click, so a plain list lines up with a single-choice one beside it.
-	// Lay rows out SelectRowGap apart.
+	// Lay rows out ListRowGap apart.
 	// Contract: inside BeginList.
 	void TextRow(const char* label);
 
@@ -151,7 +150,7 @@ namespace Theme
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
 	// Nordic as grey text, comma separated. With no tag it is laid out as a SelectRow.
-	// OutfitRowHeight is its height. Lay rows out SelectRowGap apart.
+	// OutfitRowHeight is its height. Lay rows out ListRowGap apart.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.
 	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected);

@@ -1681,12 +1681,6 @@ namespace Theme
 		return ImGui::GetTextLineHeight() + kSelectRowPadY * 2.0f * g_scale;
 	}
 
-	float SelectRowGap()
-	{
-		constexpr float kSelectRowGap = 2.0f;  // pixels at 1080p, between two rows' fills
-		return kSelectRowGap * g_scale;
-	}
-
 	bool SelectRow(const char* a_label, bool a_selected)
 	{
 		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
