@@ -86,32 +86,15 @@ namespace
 		return {};
 	}
 
-	bool IsArmorClass(std::string_view category)
-	{
-		return std::ranges::any_of(Library::Categories(), [category](const Library::Category& offered) { return category == offered.name; });
-	}
-
-	// Request::categories' three groups: the Armor Classes, every other category the
-	// library's outfits hold, by name (ASCII case ignored), then Default and the situations
-	// in Situations::kChoosable order, one per row of Request::assigned (AttachSave).
-	// Contract: game thread (reads the library).
+	// Request::categories' two groups: the categories the window offers (Library::Categories),
+	// then Default and the situations in Situations::kChoosable order, one per row of
+	// Request::assigned (AttachSave). Other categories an outfit stores (an older file's
+	// situation categories) stay in the file, unshown.
 	std::vector<CaptureWindow::CategoryOption> CategoryGroups()
 	{
 		std::vector<CaptureWindow::CategoryOption> categories;
 		for (const auto& [group, name] : Library::Categories()) {
 			categories.push_back({ group, name });
-		}
-		std::vector<std::string> custom;
-		for (const auto& outfit : Library::Outfits()) {
-			for (const auto& category : outfit.categories) {
-				if (!IsArmorClass(category) && std::ranges::find(custom, category) == custom.end()) {
-					custom.push_back(category);
-				}
-			}
-		}
-		std::ranges::sort(custom, [](const std::string& a, const std::string& b) { return _stricmp(a.c_str(), b.c_str()) < 0; });
-		for (auto& name : custom) {
-			categories.push_back({ CaptureWindow::kCustomGroup, std::move(name) });
 		}
 		categories.push_back({ CaptureWindow::kSituationGroup, Situations::Name(Situations::Situation::kDefault) });
 		for (const auto situation : Situations::kChoosable) {
@@ -541,7 +524,7 @@ namespace
 	}
 
 	// The library's outfits in case-insensitive name order, each with its stored
-	// categories (Armor Classes and custom ones), who has it, and its loaded pieces as indices from
+	// categories (the window shows only those it offers), who has it, and its loaded pieces as indices from
 	// `indexOf`, which leaves out armor it returns nullopt for.
 	// Contract: game thread (resolves the library's pieces to armor forms).
 	std::vector<CaptureWindow::ExistingOutfit> ListOutfits(const std::function<std::optional<std::size_t>(RE::TESObjectARMO*)>& indexOf)
@@ -599,28 +582,20 @@ namespace
 	std::string QuotedOutfitName(std::uint32_t id)
 	{
 		const auto* stored = Library::Find(id);
-		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the library";
+		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the wardrobe";
 	}
 
-	// The line under the actor's name: what Livery has on them, and the outfits chosen for
-	// their situations.
+	// The line under the actor's name: what Livery has on them now, and the situation it is
+	// for when it is not the default.
 	std::string DescribeAssignment(const Assignments::Choices& choices)
 	{
-		using Situations::Situation;
-		std::string text = "Not dressed by Livery right now.";
-		if (choices.dressed) {
-			const bool forSituation = choices.worn != Situation::kDefault;
-			const auto outfit = forSituation ? choices.situations[Situations::Index(choices.worn)] : choices.defaultOutfit;
-			text = outfit ? std::format("Dressed by Livery in {}", QuotedOutfitName(outfit)) : "Dressed by Livery";
-			text += forSituation ? std::format(" for {}.", Situations::Name(choices.worn)) : ".";
+		if (!choices.dressed) {
+			return "Not dressed by Livery right now.";
 		}
-		std::string chosen;
-		for (const auto situation : Situations::kChoosable) {
-			if (const auto outfit = choices.situations[Situations::Index(situation)]) {
-				chosen += std::format("{}{} {}", chosen.empty() ? " " : ", ", Situations::Name(situation), QuotedOutfitName(outfit));
-			}
-		}
-		return chosen.empty() ? text : text + chosen + ".";
+		const bool forSituation = choices.worn != Situations::Situation::kDefault;
+		const auto outfit = forSituation ? choices.situations[Situations::Index(choices.worn)] : choices.defaultOutfit;
+		const auto text = outfit ? std::format("Dressed by Livery in {}", QuotedOutfitName(outfit)) : std::string("Dressed by Livery");
+		return text + (forSituation ? std::format(" for {}.", Situations::Name(choices.worn)) : ".");
 	}
 
 	// The library outfit Livery has on them now (the default's, or the worn situation's), for

@@ -171,7 +171,7 @@ namespace
 	std::string QuotedOutfitName(std::uint32_t a_outfit)
 	{
 		const auto* stored = Library::Find(a_outfit);
-		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the library";
+		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the wardrobe";
 	}
 
 	// --- Dressing -------------------------------------------------------------

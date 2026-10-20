@@ -27,16 +27,15 @@ namespace RE
 namespace CaptureWindow
 {
 	// The groups of Request::categories, in their order (docs/outfit-management-ui.md §1).
-	// The Armor Classes (Library::Categories) are the Save page's row of checkboxes.
-	constexpr const char* kClassGroup = "Armor Class";
-	// Every other category the library's outfits hold, by name; read only in the window.
-	constexpr const char* kCustomGroup = "Custom Category";
+	// The categories (Library::Categories: Light, Heavy, Clothing) are the Save page's row of
+	// checkboxes.
+	constexpr const char* kClassGroup = "Category";
 	// Default and the situations: the actor's "wears it for" rows. Never stored in the library.
 	constexpr const char* kSituationGroup = "Situation";
 
 	struct CategoryOption
 	{
-		std::string group;             // kClassGroup, kCustomGroup or kSituationGroup
+		std::string group;             // kClassGroup or kSituationGroup
 		std::string name;              // the category's name as the library stores it; a row's name for kSituationGroup
 		bool        selected = false;  // kClassGroup: initial state of its tick on the Create tab
 	};
@@ -46,7 +45,7 @@ namespace CaptureWindow
 	enum class PieceGroup
 	{
 		kLiveryOutfit,  // worn, put on by Livery from the library outfit Request::outfitName names
-		kNotInLibrary,  // worn, put on by Livery, not a library outfit (outfit id 0, or the outfit left the library)
+		kNotInLibrary,  // worn, put on by Livery, not a library outfit (outfit id 0, or the outfit left the library); "Not in Wardrobe"
 		kUnmanaged,     // worn, not put on by Livery
 		kCarried,       // in the actor's inventory, not worn
 		kPlayer,        // an NPC's window only: in the player's inventory, not the NPC's
@@ -84,7 +83,7 @@ namespace CaptureWindow
 	struct ExistingOutfit
 	{
 		std::string              name;
-		std::vector<std::string> categories;  // the stored ones: Armor Classes and custom; the Update tab starts its ticks from them
+		std::vector<std::string> categories;  // the stored ones; the Update tab starts its ticks from them, and those the window does not offer stay unshown
 		std::vector<std::size_t> pieces;      // indices into Request::pieces of its loaded pieces, ascending, no repeats
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
@@ -111,7 +110,7 @@ namespace CaptureWindow
 		std::string              name;        // trimmed, non-empty
 		int                      gender = -1;
 		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
-		std::vector<std::string> categories;  // the ticked Armor Classes, in the order of Request::categories, maybe none
+		std::vector<std::string> categories;  // the ticked categories (kClassGroup), in the order of Request::categories, maybe none
 		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row taken by another outfit only after Replace
 		std::vector<std::size_t> remove;      // Update only: rows that had the outfit and are unticked, ascending
 	};
@@ -127,9 +126,9 @@ namespace CaptureWindow
 		bool               previewOn = false;  // Live Preview is on as the window opens; off, the window freezes the game
 		std::string        previewNote;        // why Live Preview cannot be on, shown over its greyed tick; "" when it can
 		std::string        suggestedName;      // initial text of the name field
-		// One run per group, in the groups' order: the Armor Classes, the custom categories, then
-		// kSituationGroup with one entry per row of `assigned`, in its order. The outfit lists
-		// tag and sort by them; the Save page ticks only the Armor Classes.
+		// One run per group, in the groups' order: kClassGroup's categories, then kSituationGroup
+		// with one entry per row of `assigned`, in its order. The outfit lists tag and sort by
+		// them; the Save page ticks only kClassGroup's.
 		std::vector<CategoryOption> categories;
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Load page and the Update tab's selection, in display order
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female

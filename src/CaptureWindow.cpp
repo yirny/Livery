@@ -11,7 +11,7 @@
 //                  Manage Outfits; mouse and key input over the game goes to onViewInput
 //   Capture page - the Inventory page: the actor's pieces under a heading per group (their
 //                  Livery outfit, other worn, carried, the player's, the loaded outfit's), in
-//                  Name / Type / Class columns sorted by a click on a column label (the piece
+//                  Name / Type / Category columns sorted by a click on a column label (the piece
 //                  list the Edit page shows too, PieceList), each tick handed to
 //                  onPieceToggled; under the list the count line; the Live Preview tick,
 //                  handed to onPreviewOn / onPreviewOff in an SKSE task that also freezes or
@@ -21,7 +21,7 @@
 //                  library outfit Livery has on the actor (Yes updates it); Apply and Restore
 //                  hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
-//                  name, Armor Classes, gender and "wears it for" rows (Default, the
+//                  name, categories, gender and "wears it for" rows (Default, the
 //                  situations); a popup before taking over a row another outfit holds, the
 //                  Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
 //                  fills the Update tab from the Select page's choice
@@ -489,16 +489,21 @@ namespace CaptureWindow::Internal
 		return a_page == Page::kCapture || a_page == Page::kManage;
 	}
 
-	// Inventory, then Manage Outfits. A click on the other tab switches pages, keeping every
-	// page's ticks and edits (EnterManagePage, LeaveManagePage).
+	// Inventory, then Manage Outfits, each centred between the window's left edge and the
+	// rule. A click on the other tab switches pages, keeping every page's ticks and edits
+	// (EnterManagePage, LeaveManagePage).
 	void DrawTabColumn(State& a_state)
 	{
-		const bool inventory = a_state.page == Page::kCapture;
+		const bool   inventory = a_state.page == Page::kCapture;
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		const float  left = origin.x + Theme::TabOffsetX();
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		ImGui::SetCursorScreenPos(ImVec2(left, origin.y + Theme::TabTopGap()));
 		if (Theme::Tab(Theme::TabIcon::kInventory, "Inventory", inventory) && !inventory) {
 			QueueMenuSound(kFocusSound);
 			LeaveManagePage(a_state);
 		}
+		ImGui::SetCursorScreenPos(ImVec2(left, ImGui::GetCursorScreenPos().y));  // a new line starts at the content's left edge
 		if (Theme::Tab(Theme::TabIcon::kOutfits, "Manage Outfits", !inventory) && inventory) {
 			QueueMenuSound(kFocusSound);
 			EnterManagePage(a_state);
@@ -625,7 +630,7 @@ namespace CaptureWindow::Internal
 		const auto& name = request.actorName;
 		auto&       headings = a_state.headings;
 		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("From {}'s Outfit (\"{}\")", name, request.outfitName);
-		headings[GroupIndex(Group::kNotInLibrary)] = std::format("From {}'s Outfit (Not in Library)", name);
+		headings[GroupIndex(Group::kNotInLibrary)] = std::format("From {}'s Outfit (Not in Wardrobe)", name);
 		headings[GroupIndex(Group::kUnmanaged)] = std::format("From {}'s Outfit (Unmanaged)", name);
 		headings[GroupIndex(Group::kCarried)] = std::format("From {}'s Inventory", name);
 		headings[GroupIndex(Group::kPlayer)] = "From Player's Inventory (?)";
@@ -675,7 +680,7 @@ namespace CaptureWindow::Internal
 
 	// After SetOutfits: the pieces Livery put on from Request::wornOutfit keep their heading
 	// under the outfit's name now. When it has left the library they move under the
-	// Not in Library heading, and Apply no longer offers to update it.
+	// Not in Wardrobe heading, and Apply no longer offers to update it.
 	void FollowWornOutfit(State& a_state)
 	{
 		auto& request = a_state.request;
@@ -1093,7 +1098,7 @@ namespace CaptureWindow::Internal
 		ImGui::TextDisabled("%s", kHelpMark);
 		if (ImGui::IsItemHovered()) {
 			DrawHelpTooltip(std::format(
-				"The ticked pieces become {}'s Default without a saved outfit, so editing the library does not "
+				"The ticked pieces become {}'s Default without a saved outfit, so editing the wardrobe does not "
 				"change them. While a situation outfit is worn, the new Default shows only when that situation ends.",
 				request.actorName));
 		}
@@ -1213,8 +1218,10 @@ namespace CaptureWindow::Internal
 		const ImVec2 topLeft(hitTopLeft.x, hitTopLeft.y + halfGap);
 		const ImVec2 bottomRight(hitTopLeft.x + size.x, hitTopLeft.y + size.y - halfGap);
 		auto*        draw = ImGui::GetWindowDrawList();
-		if (a_ticked || hovered) {
-			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(a_ticked ? ImGuiCol_Header : ImGuiCol_HeaderHovered), style.FrameRounding);
+		if (a_ticked) {
+			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_Header), style.FrameRounding);
+		} else if (hovered) {
+			Theme::HoverFill(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
 		}
 		const ImU32  textColour = ImGui::GetColorU32(a_ticked ? ImGuiCol_CheckMark : ImGuiCol_Text);
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -1311,7 +1318,7 @@ namespace CaptureWindow::Internal
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, a_outfit, &CaptureWindow::ExistingOutfit::id);
-		return found != outfits.end() ? std::format("\"{}\"", found->name) : std::string("an outfit no longer in the library");
+		return found != outfits.end() ? std::format("\"{}\"", found->name) : std::string("an outfit no longer in the wardrobe");
 	}
 
 	// What row `a_row` holds now, as the replace popup names it.
@@ -1326,8 +1333,9 @@ namespace CaptureWindow::Internal
 		return a_option.group == CaptureWindow::kClassGroup;
 	}
 
-	// Contract: the Armor Classes only. Library::Update replaces only those and keeps the
-	// custom categories, and the situations are never stored in the library.
+	// Contract: kClassGroup's categories only. Library::Update replaces only those and keeps
+	// the stored categories the window does not offer, and the situations are never stored
+	// in the library.
 	std::vector<std::string> TickedCategories(const State& a_state, const bool* a_ticked)
 	{
 		std::vector<std::string> ticked;
@@ -1399,7 +1407,7 @@ namespace CaptureWindow::Internal
 		return enter && !Trimmed(a_name.data()).empty();
 	}
 
-	// The Armor Classes request.categories offers, as one row of checkboxes.
+	// The categories request.categories offers (kClassGroup), as one row of checkboxes.
 	void DrawClassField(const State& a_state, bool* a_ticked)
 	{
 		const auto& options = a_state.request.categories;
@@ -1566,9 +1574,9 @@ namespace CaptureWindow::Internal
 			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 		if (const auto classes = TickedCategories(a_state, form.classTicked.get()); classes.empty()) {
-			ImGui::TextUnformatted("It will have no Armor Class.");
+			ImGui::TextUnformatted("It will have no Category.");
 		} else {
-			ImGui::TextUnformatted(std::format("Its Armor Class becomes: {}.", JoinNames(classes)).c_str());
+			ImGui::TextUnformatted(std::format("Its Category becomes: {}.", JoinNames(classes)).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
