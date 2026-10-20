@@ -21,9 +21,10 @@
 //   Manage Outfits - the tab beside the Inventory page: library outfits and the selected
 //                  one's name, Armor Classes, gender and pieces, edited in place and kept
 //                  for one outfit at a time (Discard changes / Keep editing before another
-//                  is selected); the edited outfit on the preview; Update (greyed without
-//                  Request::onManageUpdate), Cancel (Discard and close / Stay with unsaved
-//                  edits); the Unsaved changes notice on leaving for the Inventory tab
+//                  is selected); the edited outfit on the preview; Update lists the changes
+//                  (Save changes?) and hands them to onManageUpdate, Cancel asks Discard and
+//                  close / Stay with unsaved edits; the Unsaved changes notice on leaving
+//                  for the Inventory tab
 //   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks
 //                  and Live Preview; Use Ticked Pieces makes them the edited pieces, Back
 //                  leaves them; nothing is written
@@ -541,15 +542,13 @@ namespace CaptureWindow::Internal
 		return IsClass(a_option) && std::ranges::find(a_outfit.categories, a_option.name) != a_outfit.categories.end();
 	}
 
-	// Starts the edits of outfit `a_index` (-1 for none) from what the library has.
-	void SelectManaged(State& a_state, int a_index)
+	void FillManageForm(State& a_state, int a_index)
 	{
 		auto& form = a_state.manage;
 		form.outfit = a_index;
 		a_state.error.clear();
 		if (a_index < 0) {
 			form.pieces.clear();
-			QueuePreview(a_state, TickedPieces(a_state));
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_index);
@@ -561,7 +560,14 @@ namespace CaptureWindow::Internal
 		}
 		form.gender = outfit.gender;
 		form.pieces = outfit.pieces;
-		QueuePreview(a_state, form.pieces);
+	}
+
+	// Starts the edits of outfit `a_index` (-1 for none) and shows it on the preview, or
+	// the Inventory page's ticks with none selected.
+	void SelectManaged(State& a_state, int a_index)
+	{
+		FillManageForm(a_state, a_index);
+		QueuePreview(a_state, a_index >= 0 ? a_state.manage.pieces : TickedPieces(a_state));
 	}
 
 	// The selected outfit's edits differ from the library: its trimmed name, Armor Classes,
@@ -709,9 +715,81 @@ namespace CaptureWindow::Internal
 
 	void OpenEditPage(State& a_state);
 
+	// What the update changes, one line each, as the Save page's Update tab lists it:
+	// the pieces, the Armor Classes, a rename, the gender. Returns true on Confirm.
+	bool DrawManageConfirmPopup(const State& a_state)
+	{
+		if (!BeginModal(kManageConfirmPopup)) {
+			return false;
+		}
+		const auto& form = a_state.manage;
+		if (form.outfit < 0) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return false;
+		}
+		const auto& outfit = OutfitAt(a_state, form.outfit);
+		ImGui::TextUnformatted(std::format("Save your changes to \"{}\"?", outfit.name).c_str());
+		if (form.pieces != outfit.pieces) {
+			ImGui::TextUnformatted(std::format("Its {} piece(s) become the {} edited piece(s).", outfit.pieces.size(), form.pieces.size()).c_str());
+		}
+		const auto& options = a_state.request.categories;
+		bool        classesChanged = false;
+		for (std::size_t i = 0; i < options.size(); ++i) {
+			classesChanged = classesChanged || (IsClass(options[i]) && form.classTicked[i] != IsInClass(outfit, options[i]));
+		}
+		if (classesChanged) {
+			if (const auto classes = TickedCategories(a_state, form.classTicked.get()); classes.empty()) {
+				ImGui::TextUnformatted("It will have no Armor Class.");
+			} else {
+				ImGui::TextUnformatted(std::format("Its Armor Class becomes: {}.", JoinNames(classes)).c_str());
+			}
+		}
+		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
+			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
+		}
+		if (form.gender != outfit.gender) {
+			ImGui::TextUnformatted(std::format("Its gender becomes {}.", GenderName(form.gender)).c_str());
+		}
+		if (outfit.unloadedPieces) {
+			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+		}
+		BeginButtonRow({ "Confirm", "Cancel" });
+		const bool confirm = Theme::Button("Confirm");
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		if (confirm || cancel) {
+			QueueMenuSound(confirm ? kOkSound : kCancelSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return confirm;
+	}
+
+	// Hands the edits to onManageUpdate, which writes the library and ends with SetOutfits
+	// or SetError; until then the page is greyed.
+	// Contract: the handler writes nothing for a refused name or a failed write (CLAUDE.md §2.1).
+	void RequestManageUpdate(State& a_state)
+	{
+		const auto& form = a_state.manage;
+		a_state.status = Status::kSaving;
+		a_state.error.clear();
+		CaptureWindow::SaveRequest edit{ .outfit = OutfitAt(a_state, form.outfit).id,
+			.name = Trimmed(form.name.data()),
+			.gender = form.gender,
+			.pieces = form.pieces,
+			.categories = TickedCategories(a_state, form.classTicked.get()) };
+		auto                       onUpdate = a_state.request.onManageUpdate;
+		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit)] { onUpdate(edit); });
+	}
+
 	// The edits' popups, each opened by the page in its own ID scope.
 	void DrawManagePopups(State& a_state)
 	{
+		if (DrawManageConfirmPopup(a_state)) {
+			RequestManageUpdate(a_state);
+		}
 		if (DrawUnsavedPopup(a_state, kDiscardPopup, "Discard changes", "Keep editing") == UnsavedChoice::kFirst) {
 			SelectManaged(a_state, a_state.discardFor);
 		}
@@ -763,7 +841,10 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kOkSound);
 			OpenEditPage(a_state);
 		}
-		if (action == ManageAction::kCancel) {
+		if (action == ManageAction::kUpdate) {
+			QueueMenuSound(kOkSound);
+			ImGui::OpenPopup(kManageConfirmPopup);
+		} else if (action == ManageAction::kCancel) {
 			if (HasUnsavedEdits(a_state)) {
 				ImGui::OpenPopup(kDiscardClosePopup);
 			} else {

@@ -13,14 +13,15 @@ namespace RE
 
 // The "name this outfit" window drawn with ImGui (see CaptureWindow.cpp).
 //
-// Contract: Open, Close and SetError run on the game thread; FeedInput and
-// Draw run in the capture menu's PostDisplay (Hooks.cpp); QueueInput runs on
-// the game thread from the input dispatch hook. All state is guarded by one
-// mutex. Nothing here touches the outfit library or the assignments: the Save
-// page's Create and Update hand the outfit and the rows to change to
-// Request::onSave, Apply and Restore Original Outfit go to Request::onApply and
-// Request::onRestore, each piece tick to Request::onPieceToggled, each outfit
-// selected on the Load page and the Update tab's selection to
+// Contract: Open, Close, SetError, SetOutfits and RefusePreview run on the game
+// thread; FeedInput and Draw run in the capture menu's PostDisplay (Hooks.cpp);
+// QueueInput runs on the game thread from the input dispatch hook. All state is
+// guarded by one mutex. Nothing here touches the outfit library or the
+// assignments: the Save page's Create and Update hand the outfit and the rows to
+// change to Request::onSave, Manage Outfits' Update the outfit to
+// Request::onManageUpdate, Apply and Restore Original Outfit go to
+// Request::onApply and Request::onRestore, each piece tick to
+// Request::onPieceToggled, each outfit selected on the outfit pages to
 // Request::onPreviewPieces and the Live Preview tick to Request::onPreviewOn /
 // onPreviewOff, in an SKSE task.
 namespace CaptureWindow
@@ -150,7 +151,10 @@ namespace CaptureWindow
 		// by calling Close() or SetError().
 		std::function<void()> onRestore;
 
-		// Manage Outfits' Update (docs/outfit-management-ui.md §4); empty greys the button.
+		// Runs on the game thread when the user confirms Manage Outfits' Update: `edit` holds
+		// the outfit, its new name, gender, pieces and Armor Classes, and no rows. The window
+		// stays open: it must end by calling SetOutfits() with the library as written, or
+		// SetError() when the write was refused or failed. Empty greys Update.
 		std::function<void(const SaveRequest& edit)> onManageUpdate;
 
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
@@ -187,10 +191,32 @@ namespace CaptureWindow
 		std::function<void()> onClose;
 	};
 
+	// What SetOutfits replaces in the open window's Request, as Open had them.
+	struct OutfitList
+	{
+		std::vector<ExistingOutfit> existingOutfits;  // indices into Request::pieces as the window has them
+		std::vector<CategoryOption> categories;
+		std::vector<RowAssignment>  assigned;
+		std::string                 outfitName;
+		std::string                 actorSummary;
+	};
+
 	void Open(Request request);
 	void Close();
 	void SetError(const std::string& message);
 	bool IsOpen();
+
+	// Ends a Manage Outfits change the library took: the window shows `list` and lets the
+	// user edit again. The pages' selections, the loaded outfit and the Update tab's outfit
+	// are found again by id (none when gone), each list keeps its search and sort, the
+	// Inventory page drops ticks on pieces it no longer lists, and Manage Outfits' edits
+	// start again from the library.
+	void SetOutfits(OutfitList list);
+
+	// The live preview could not start again after a change made while it was on: the
+	// Live Preview tick goes off and greys with `reason`, and the game freezes, as when
+	// it cannot start at Open.
+	void RefusePreview(const std::string& reason);
 
 	// Also moves the game's cursor from the mouse moves, except during a drag
 	// over the game, whose moves go to onViewInput instead: the game itself sees

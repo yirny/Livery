@@ -256,6 +256,38 @@ TEST_CASE("Situation sort: Default, then the situations' order", "[browser]")
 	CHECK(state.headingCount == 4);
 }
 
+TEST_CASE("Rebuild keeps the search and sort for changed outfits", "[browser]")
+{
+	auto                 request = MakeRequest();
+	OutfitBrowser::State state;
+	OutfitBrowser::Reset(state, request);
+	Search(state, "s");
+	Tick(state, kCustomGroup, "Town");
+	Sort(state, request, OutfitBrowser::SortKey::kClass);
+
+	request.existingOutfits[0].name = "Steel Set";  // iron set, renamed and made Light
+	request.existingOutfits[0].categories = { "Light", "Adventuring" };
+	OutfitBrowser::Rebuild(state, request);
+	CHECK(OutfitBrowser::IsSearching(state));
+	CHECK_FALSE(OutfitBrowser::IsFiltering(state));
+	CHECK(state.sort == OutfitBrowser::SortKey::kClass);
+	CHECK(state.tags[0] == std::vector<std::string>{ "Light", "Adventuring" });
+	// "s" matches Steel Set, Scout and Town Dress: Light, then Light + Heavy, then Clothing.
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Steel Set", "Scout", "Town Dress" });
+}
+
+TEST_CASE("Rebuild falls back to Name when the sort is no longer offered", "[browser]")
+{
+	const auto           request = MakeRequest();
+	OutfitBrowser::State state;
+	OutfitBrowser::Reset(state, request);
+	Sort(state, request, OutfitBrowser::SortKey::kCustom);
+	const auto withoutCustom = MakeRequestWithoutCustom();
+	OutfitBrowser::Rebuild(state, withoutCustom);
+	CHECK(state.sort == OutfitBrowser::SortKey::kName);
+	CHECK(state.headingCount == 0);
+}
+
 TEST_CASE("The heading count covers the outfits the search hides", "[browser]")
 {
 	const auto           request = MakeRequest();

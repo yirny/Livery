@@ -35,6 +35,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
 	constexpr const char* kDiscardClosePopup = "Discard changes?###discardClose";
 	constexpr const char* kUnsavedPopup = "Unsaved changes";
+	constexpr const char* kManageConfirmPopup = "Save changes?";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
@@ -223,6 +224,9 @@ namespace CaptureWindow::Internal
 	void                     DrawClassField(const State& a_state, bool* a_ticked);
 	void                     DrawGenderField(int& a_gender);
 	bool                     BeginModal(const char* a_id);
+	std::vector<std::string> TickedCategories(const State& a_state, const bool* a_ticked);
+	const char*              GenderName(int a_gender);
+	void                     SetGroupHeadings(State& a_state);
 
 	void                                 QueueMenuSound(RE::FormID a_sound);
 	void                                 GoToPage(State& a_state, Page a_page);
@@ -257,4 +261,8 @@ namespace CaptureWindow::Internal
 	// first shows the Unsaved changes notice while the selected outfit has unsaved edits.
 	void EnterManagePage(State& a_state);
 	void LeaveManagePage(State& a_state);
+
+	// Starts Manage Outfits' edits of outfit `a_index` (-1 for none) from the library,
+	// without touching the preview.
+	void FillManageForm(State& a_state, int a_index);
 }

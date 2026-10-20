@@ -278,6 +278,32 @@ namespace CaptureWindow::Internal
 		return std::ranges::binary_search(a_outfit.pieces, a_piece);
 	}
 
+	// Index into request.existingOutfits of library outfit `a_id`; -1 for none or 0.
+	int IndexOfOutfit(const State& a_state, std::uint32_t a_id)
+	{
+		const auto& outfits = a_state.request.existingOutfits;
+		const auto  found = std::ranges::find(outfits, a_id, &CaptureWindow::ExistingOutfit::id);
+		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
+	}
+
+	// Ticks of the categories `a_old` moved onto `a_new`, matched by group and name: a
+	// category that is gone takes its tick with it, a new one starts unticked.
+	std::unique_ptr<bool[]> RemapTicks(const std::vector<CaptureWindow::CategoryOption>& a_old, const bool* a_ticks,
+		const std::vector<CaptureWindow::CategoryOption>& a_new)
+	{
+		auto ticks = std::make_unique<bool[]>(a_new.size());  // all false
+		if (!a_ticks) {
+			return ticks;
+		}
+		for (std::size_t i = 0; i < a_new.size(); ++i) {
+			const auto found = std::ranges::find_if(a_old, [&](const CaptureWindow::CategoryOption& a_option) {
+				return a_option.group == a_new[i].group && a_option.name == a_new[i].name;
+			});
+			ticks[i] = found != a_old.end() && a_ticks[found - a_old.begin()];
+		}
+		return ticks;
+	}
+
 	// The Inventory page's list: its ticks, the loaded outfit's pieces nobody carries under
 	// the heading LoadOutfit set.
 	PieceList InventoryPieces(const State& a_state)
@@ -1277,11 +1303,11 @@ namespace CaptureWindow::Internal
 
 	// Contract: the Armor Classes only. Library::Update replaces only those and keeps the
 	// custom categories, and the situations are never stored in the library.
-	std::vector<std::string> TickedCategories(const State& a_state, const SaveForm& a_form)
+	std::vector<std::string> TickedCategories(const State& a_state, const bool* a_ticked)
 	{
 		std::vector<std::string> ticked;
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
-			if (IsClass(a_state.request.categories[i]) && a_form.classTicked[i]) {
+			if (IsClass(a_state.request.categories[i]) && a_ticked[i]) {
 				ticked.push_back(a_state.request.categories[i].name);
 			}
 		}
@@ -1514,7 +1540,7 @@ namespace CaptureWindow::Internal
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
-		if (const auto classes = TickedCategories(a_state, form); classes.empty()) {
+		if (const auto classes = TickedCategories(a_state, form.classTicked.get()); classes.empty()) {
 			ImGui::TextUnformatted("It will have no Armor Class.");
 		} else {
 			ImGui::TextUnformatted(std::format("Its Armor Class becomes: {}.", JoinNames(classes)).c_str());
@@ -1558,7 +1584,7 @@ namespace CaptureWindow::Internal
 			.name = Trimmed(form.name.data()),
 			.gender = form.gender,
 			.pieces = TickedPieces(a_state),
-			.categories = TickedCategories(a_state, form),
+			.categories = TickedCategories(a_state, form.classTicked.get()),
 			.assign = AssignedRows(a_state),
 			.remove = a_state.updateTab ? RemovedRows(a_state) : std::vector<std::size_t>{} };
 		auto                       onSave = a_state.request.onSave;
@@ -1799,6 +1825,69 @@ namespace CaptureWindow
 	bool IsOpen()
 	{
 		return g_open;
+	}
+
+	void SetOutfits(OutfitList a_list)
+	{
+		auto&                  state = GetState();
+		const std::scoped_lock lock(state.mutex);
+		if (state.status == Status::kClosed) {
+			return;
+		}
+		const auto idOf = [&state](int a_index) { return a_index >= 0 ? OutfitAt(state, a_index).id : std::uint32_t{ 0 }; };
+		const auto previewed = idOf(state.previewedOutfit);
+		const auto loaded = idOf(state.loadedOutfit);
+		const auto chosen = idOf(state.chosenOutfit);
+		const auto selecting = idOf(state.selectingOutfit);
+		const auto managed = idOf(state.manage.outfit);
+
+		auto& request = state.request;
+		for (auto* ticks : { &state.createForm.classTicked, &state.updateForm.classTicked, &state.manage.classTicked }) {
+			*ticks = RemapTicks(request.categories, ticks->get(), a_list.categories);
+		}
+		request.existingOutfits = std::move(a_list.existingOutfits);
+		request.categories = std::move(a_list.categories);
+		request.assigned = std::move(a_list.assigned);
+		request.outfitName = std::move(a_list.outfitName);
+		request.actorSummary = std::move(a_list.actorSummary);
+
+		state.previewedOutfit = IndexOfOutfit(state, previewed);
+		state.loadedOutfit = IndexOfOutfit(state, loaded);
+		state.chosenOutfit = IndexOfOutfit(state, chosen);
+		state.selectingOutfit = IndexOfOutfit(state, selecting);
+		for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser }) {
+			OutfitBrowser::Rebuild(*browser, request);
+		}
+		SetGroupHeadings(state);
+		if (state.loadedOutfit >= 0) {
+			state.headings[GroupIndex(PieceGroup::kNotCarried)] = std::format("From \"{}\" (Not Carried)", OutfitAt(state, state.loadedOutfit).name);
+		}
+		// DrawPieceRows' contract: a piece the Inventory page does not list is never ticked.
+		const auto inventory = InventoryPieces(state);
+		for (std::size_t i = 0; i < request.pieces.size(); ++i) {
+			if (inventory.ticked[i] && !IsListed(state, inventory, i)) {
+				inventory.ticked[i] = false;
+			}
+		}
+		FillManageForm(state, IndexOfOutfit(state, managed));
+		state.discardFor = -1;
+		state.status = Status::kEditing;
+	}
+
+	void RefusePreview(const std::string& a_reason)
+	{
+		auto& state = GetState();
+		{
+			const std::scoped_lock lock(state.mutex);
+			if (state.status == Status::kClosed) {
+				return;
+			}
+			state.previewOn = false;
+			state.previewBusy = false;
+			state.request.previewNote = a_reason;
+			state.frozeGame = true;
+		}
+		SetGameFrozen(true);
 	}
 
 	// --- Input (game thread) --------------------------------------------------
