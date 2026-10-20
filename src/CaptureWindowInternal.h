@@ -2,9 +2,10 @@
 #pragma once
 
 // The capture window's constants, state and shared helpers, private to CaptureWindow.cpp
-// (the window, the Inventory and Save pages) and OutfitPages.cpp (the outfit browser and
-// lists, the Load and Select pages). The helpers are defined in CaptureWindow.cpp, the
-// pages in OutfitPages.cpp; each definition carries its comment.
+// (the window and its tab column, the Inventory and Save pages) and OutfitPages.cpp (the
+// outfit browser and lists, the Load, Select, Manage Outfits and Edit pages). The helpers
+// are defined in CaptureWindow.cpp, the pages in OutfitPages.cpp; each definition carries
+// its comment.
 //
 // Contract: included after PCH.h. The functions that take a State run with State::mutex
 // held: the draw functions in the capture menu's PostDisplay, as CaptureWindow.h describes.
@@ -30,12 +31,17 @@ namespace CaptureWindow::Internal
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kReplacePopup = "Replace outfits?";
 	constexpr const char* kApplyPopup = "Update the outfit?";
+	// Manage Outfits' popups. The two that discard share a title, told apart after "###".
+	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
+	constexpr const char* kDiscardClosePopup = "Discard changes?###discardClose";
+	constexpr const char* kUnsavedPopup = "Unsaved changes";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kNoOutfits = "No outfits in the library.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
+	constexpr const char* kNoChanges = "No changes to save.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -95,10 +101,12 @@ namespace CaptureWindow::Internal
 
 	enum class Page
 	{
-		kCapture,
+		kCapture,  // the Inventory page
 		kSave,
 		kLoad,
-		kSelect
+		kSelect,
+		kManage,  // Manage Outfits
+		kEdit     // Manage Outfits' piece editor
 	};
 
 	struct InputRecord
@@ -128,6 +136,17 @@ namespace CaptureWindow::Internal
 		std::unique_ptr<bool[]>         wearsFor;     // one per row of "wears it for" (request.assigned)
 	};
 
+	// Manage Outfits' edits of the selected outfit, kept while the window is open; selecting
+	// another outfit starts them again from the library.
+	struct ManageForm
+	{
+		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
+		std::array<char, kNameCapacity> name{};
+		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only the Armor Classes' are used
+		int                             gender = -1;  // -1 unisex, 0 male, 1 female
+		std::vector<std::size_t>        pieces;       // its loaded pieces as edited: indices into request.pieces, ascending
+	};
+
 	struct State
 	{
 		std::mutex               mutex;
@@ -155,11 +174,20 @@ namespace CaptureWindow::Internal
 		bool                     sortDescending = false;
 		int                      previewedOutfit = -1;   // on the Load page: index into request.existingOutfits, -1 for none
 		int                      loadedOutfit = -1;      // the last one loaded: index into request.existingOutfits, -1 for none
-		OutfitBrowser::State     browser;                // search, filter and sort of the Load and Select pages' outfit list
+		OutfitBrowser::State     loadBrowser;            // search, filter and sort of the Load page's outfit list
+		OutfitBrowser::State     selectBrowser;          // the Select page's
+		OutfitBrowser::State     manageBrowser;          // Manage Outfits'
 		bool                     showCategories = true;  // the outfit lists show each outfit's tags (Show Categories)
-		int                      recentreFrames = 0;     // frames left to pin the window to its place
-		std::optional<ImVec2>    placeCentre;            // where a pinned window's centre goes; none for the start place
-		ImVec2                   windowPos{};            // of the window in the last frame drawn
+		ManageForm               manage;
+		int                      discardFor = -1;      // the outfit to select once Discard changes is chosen: index, -1 for none
+		bool                     openUnsaved = false;  // open the Unsaved changes popup on the next frame (Manage Outfits)
+		std::unique_ptr<bool[]>  editTicked;           // the Edit page's ticks, one per request.pieces
+		std::vector<std::size_t> editShown;            // the edited pieces it opened with, so those nobody carries stay listed
+		std::string              editTitle;            // "Edit \"#{Outfit}\""
+		std::string              editShownHeading;     // over those nobody carries: "From \"#{Outfit}\" (Not Carried)"
+		int                      recentreFrames = 0;   // frames left to pin the window to its place
+		std::optional<ImVec2>    placeCentre;          // where a pinned window's centre goes; none for the start place
+		ImVec2                   windowPos{};          // of the window in the last frame drawn
 		ImVec2                   windowSize{};
 		bool                     userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
 		unsigned                 session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
@@ -171,7 +199,30 @@ namespace CaptureWindow::Internal
 		float                    viewDragY = 0.0f;
 	};
 
+	// The piece list a page shows (DrawPieceRows): the Inventory page's ticks with the
+	// pieces of the outfit last loaded, or the Edit page's own ticks with the edited pieces
+	// it opened with. Pieces someone carries are always listed.
+	struct PieceList
+	{
+		bool*                           ticked;   // one per request.pieces (bool* for Theme::TickRow)
+		const std::vector<std::size_t>* shown;    // the other pieces listed: indices into request.pieces, ascending; null for none
+		const std::string*              heading;  // over those that nobody carries
+	};
+
 	// --- Shared helpers (CaptureWindow.cpp) -----------------------------------
+
+	PieceList                InventoryPieces(const State& a_state);
+	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
+	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
+	void                     DrawPieceCount(const State& a_state, const PieceList& a_list);
+	void                     DrawPreviewToggle(State& a_state, const PieceList& a_list);
+	std::string              Trimmed(const char* a_text);
+	void                     DrawError(const std::string& a_message);
+	void                     RequestCancel();
+	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name);
+	void                     DrawClassField(const State& a_state, bool* a_ticked);
+	void                     DrawGenderField(int& a_gender);
+	bool                     BeginModal(const char* a_id);
 
 	void                                 QueueMenuSound(RE::FormID a_sound);
 	void                                 GoToPage(State& a_state, Page a_page);
@@ -199,4 +250,11 @@ namespace CaptureWindow::Internal
 
 	void DrawLoadPage(State& a_state);
 	void DrawSelectPage(State& a_state);
+	void DrawManagePage(State& a_state);
+	void DrawEditPage(State& a_state);
+
+	// The tab column's switches: to Manage Outfits from the Inventory page, and back, which
+	// first shows the Unsaved changes notice while the selected outfit has unsaved edits.
+	void EnterManagePage(State& a_state);
+	void LeaveManagePage(State& a_state);
 }
