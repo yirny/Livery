@@ -10,8 +10,8 @@ namespace RE
 
 // The live preview's camera (see PreviewCamera.cpp): the engine's free camera,
 // as the tfc console command gives it, with the engine's own input off. It
-// starts where the camera is and moves only as the window reports mouse and
-// key input over the game (CaptureWindow::ViewInput).
+// starts where the camera is, looking the same way, and moves only as the
+// window reports mouse and key input over the game (CaptureWindow::ViewInput).
 //
 // Contract: every function runs on the game thread.
 namespace PreviewCamera
@@ -25,6 +25,7 @@ namespace PreviewCamera
 	// Applies one frame of input. Does nothing without Begin.
 	void Move(const CaptureWindow::ViewInput& input);
 
-	// Puts back everything Begin changed; does nothing when Begin did not take the camera.
+	// Puts back everything Begin changed, the third person camera's turn around
+	// the player included; does nothing when Begin did not take the camera.
 	void End();
 }

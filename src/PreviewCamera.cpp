@@ -3,8 +3,8 @@
 // FILE MAP
 //   Constants  - speeds and sensitivities
 //   State      - what Begin changed, kept for End
-//   Helpers    - free camera fields, the toggle that keeps the control switches,
-//                facing an actor who is off the centre of the view
+//   Helpers    - free camera fields, the third person state, the toggle that
+//                keeps the control switches
 //   API        - Begin / Move / End
 //
 // Entering and leaving the free camera follows Tailor 3.0's own outfit preview
@@ -54,6 +54,8 @@ namespace
 		RE::BSTSmartPointer<RE::TESCameraState> previousState;
 		FreeCameraFields                        freeFields;
 		bool                                    forcedThirdPerson = false;                   // the player was in first person
+		bool                                    restoreOrbit = false;                        // the game was in third person, so End puts `orbit` back
+		RE::NiPoint2                            orbit;                                       // ThirdPersonState::freeRotation as Begin found it
 		RE::ActorHandle                         actor;                                       // the previewed actor, which a left drag turns around
 		float                                   pitch = 0.0f;                                // radians in -kMaxPitch..kMaxPitch, positive looks down
 		bool                                    invertY = false;                             // the game's Invert Y Axis option, for a left drag up and down
@@ -87,6 +89,16 @@ namespace
 	RE::FreeCameraState* FreeState(RE::PlayerCamera& camera)
 	{
 		return static_cast<RE::FreeCameraState*>(camera.GetRuntimeData().cameraStates[RE::CameraState::kFree].get());
+	}
+
+	RE::ThirdPersonState* ThirdState(RE::PlayerCamera& camera)
+	{
+		return static_cast<RE::ThirdPersonState*>(camera.GetRuntimeData().cameraStates[RE::CameraState::kThirdPerson].get());
+	}
+
+	float Degrees(float radians)
+	{
+		return radians * 180.0f / std::numbers::pi_v<float>;
 	}
 
 	FreeCameraFields ReadFields(RE::FreeCameraState& state)
@@ -153,43 +165,6 @@ namespace
 			controls->SetControlsState(enabled, stored);
 		}
 	}
-
-	// Turns the view to the actor only on an axis where it is clearly off: the
-	// heading when the actor's middle is more than kMaxHeadingOff to one side,
-	// the pitch when the view's centre misses the actor between feet and head.
-	// An ordinary third person view is left as it is; one placed over a shoulder
-	// (SmoothCam, fOverShoulderPosX) is turned. The camera's place never changes.
-	// Returns true when the view was turned.
-	bool FaceActorIfOffCenter(RE::FreeCameraState& free, RE::Actor& actor, float& pitch)
-	{
-		// Radians; roughly a seventh of the screen width off centre at a 65 degree horizontal field of view.
-		constexpr float kMaxHeadingOff = 10.0f * std::numbers::pi_v<float> / 180.0f;
-		const auto      feet = actor.GetPosition();
-		const float     height = actor.GetHeight();
-		const float     dx = feet.x - free.translation.x;
-		const float     dy = feet.y - free.translation.y;
-		const float     flat = std::sqrt(dx * dx + dy * dy);
-		if (flat == 0.0f) {
-			return false;  // straight above or below: there is no heading to face
-		}
-
-		bool        turned = false;
-		const float heading = std::atan2(dx, dy);  // heading 0 faces +Y (see Move)
-		if (std::abs(std::remainder(heading - free.rotation.y, 2.0f * std::numbers::pi_v<float>)) > kMaxHeadingOff) {
-			free.rotation.y = heading;
-			turned = true;
-		}
-		// Positive pitch looks down, so the head is the smaller angle.
-		const float below = free.translation.z - feet.z;
-		const float toHead = std::atan2(below - height, flat);
-		const float toFeet = std::atan2(below, flat);
-		if (pitch < toHead || pitch > toFeet) {
-			pitch = std::clamp(std::atan2(below - height * 0.5f, flat), -kMaxPitch, kMaxPitch);
-			free.rotation.x = pitch;
-			turned = true;
-		}
-		return turned;
-	}
 }
 
 namespace PreviewCamera
@@ -215,7 +190,13 @@ namespace PreviewCamera
 			session.forcedThirdPerson = true;
 		}
 
-		// The free camera starts where the camera is; its fields are kept only to put them back.
+		// The way back to third person sets the camera's turn around the player to
+		// zero, so End puts back the one it has now.
+		if (auto* third = ThirdState(*camera); third && camera->IsInThirdPerson() && !session.forcedThirdPerson) {
+			session.orbit = third->freeRotation;
+			session.restoreOrbit = true;
+		}
+		// The free camera starts where the camera is, looking the same way; its fields are kept only to put them back.
 		session.previousState = camera->currentState;
 		session.freeFields = ReadFields(*free);
 		ToggleFreeCamera(*camera);
@@ -238,13 +219,12 @@ namespace PreviewCamera
 		session.actor = actor.GetHandle();
 		// Brought into -pi..pi once: the engine may keep the angle as 0..2pi.
 		session.pitch = std::clamp(std::remainder(free->rotation.x, 2.0f * std::numbers::pi_v<float>), -kMaxPitch, kMaxPitch);
-		const bool faced = FaceActorIfOffCenter(*free, actor, session.pitch);
 		session.invertY = ReadInvertY();
 		session.lookRadiansPerPixel = ReadLookRadiansPerPixel();
 		session.active = true;
 		g_session = std::move(session);
-		logger::info("Preview camera on {:08X} (invert Y: {}, look {:.6f} rad/px, turned to the actor: {})", actor.GetFormID(),
-			g_session.invertY ? "on" : "off", g_session.lookRadiansPerPixel, faced ? "yes" : "no");
+		logger::info("Preview camera on {:08X} (invert Y: {}, look {:.6f} rad/px)", actor.GetFormID(), g_session.invertY ? "on" : "off",
+			g_session.lookRadiansPerPixel);
 		return true;
 	}
 
@@ -304,6 +284,14 @@ namespace PreviewCamera
 		ToggleFreeCamera(*camera);
 		if (session.previousState && camera->currentState.get() != session.previousState.get()) {
 			camera->SetState(session.previousState.get());
+		}
+		// Contract: after the switch back, which leaves the turn around the player
+		// at zero (seen in game), so it is written once the state is current.
+		auto* third = session.restoreOrbit && camera->IsInThirdPerson() ? ThirdState(*camera) : nullptr;
+		if (third) {
+			logger::info("Preview camera off: the turn around the player put back (the game had moved it by heading {:+.1f} deg, pitch {:+.1f} deg)",
+				Degrees(third->freeRotation.x - session.orbit.x), Degrees(third->freeRotation.y - session.orbit.y));
+			third->freeRotation = session.orbit;
 		}
 		if (session.forcedThirdPerson) {
 			camera->ForceFirstPerson();
