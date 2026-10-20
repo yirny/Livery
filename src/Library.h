@@ -53,7 +53,8 @@ namespace Library
 	// Update replaces only these; an outfit's other categories stay.
 	std::span<const Category> Categories();
 
-	// Contract: pointers and references into the library go stale at the next Create or Update.
+	// Contract: pointers and references into the library go stale at the next Create, Update
+	// or Remove.
 	const std::vector<Outfit>& Outfits();
 	const Outfit*              Find(std::uint32_t a_id);
 	const Outfit*              FindByName(std::string_view a_name);  // ASCII case ignored
@@ -73,4 +74,8 @@ namespace Library
 	// taken when another outfit has it.
 	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor,
 		const std::vector<std::string>& a_categories);
+
+	// Takes the outfit out and writes the file; its id is never given again. Returns why it
+	// refused, having changed nothing: the outfit is gone already, or a file it cannot write.
+	std::optional<std::string> Remove(std::uint32_t a_id);
 }

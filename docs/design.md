@@ -156,6 +156,9 @@ would have to be kept in step).
   in the library.
 - `Library::Update` replaces pieces, Armor Classes, name and gender and keeps the custom
   categories; a name is taken when another outfit has it (ASCII case ignored).
+- `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
+  then clears its situation rows in this save, and a default from it keeps its pieces with
+  outfit id 0. Other saves' rows naming it put nothing on and fall back to the default (§7).
 - Settings: INI, as today.
 
 ## 5. Co-save
@@ -259,7 +262,7 @@ Outfit Equipment System NG offers them, would extend this list.
 A thread (`std::jthread`, no hook) queues one SKSE task per second. The task does nothing
 while the game is paused, the loading menu is up, the capture window is open or a preview
 is on, since a redress would undo the preview's restore. For each actor with a situation
-outfit who is 3D-loaded and alive, the player not in beast form (a race that is not
+outfit, or still wearing one whose row a Remove cleared, who is 3D-loaded and alive, the player not in beast form (a race that is not
 playable: werewolf, Vampire Lord; the transformation takes the gear off and puts it back
 on), it evaluates the situations and, when they differ from the last poll's, calls `Assignments::WearFor`, which redresses only when the resolved
 outfit differs from the one worn (`worn` in the record). One redress per poll: when the

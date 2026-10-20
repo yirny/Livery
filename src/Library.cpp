@@ -5,7 +5,7 @@
 //   State     - the outfits as read, the next id, whether the file may be written
 //   Helpers   - armor to piece and back
 //   File      - parse (all or nothing), serialise, write through a temporary file
-//   API       - Load / Categories / Outfits / Find / FindByName / LoadedPieces / Create / Update
+//   API       - Load / Categories / Outfits / Find / FindByName / LoadedPieces / Create / Update / Remove
 //
 // outfits.json, version 1:
 //   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard", "gender": -1,
@@ -450,6 +450,23 @@ namespace Library
 
 		auto outfits = g_outfits;
 		outfits[static_cast<std::size_t>(found - g_outfits.begin())] = std::move(updated);
+		if (auto problem = WriteLibrary(outfits, g_nextId)) {
+			return problem;
+		}
+		g_outfits = std::move(outfits);
+		return std::nullopt;
+	}
+
+	// Contract: as Create; nextId stays, so the id is never reused.
+	std::optional<std::string> Remove(std::uint32_t a_id)
+	{
+		if (!g_writable) {
+			return kUnreadable;
+		}
+		auto outfits = g_outfits;
+		if (std::erase_if(outfits, [a_id](const Outfit& a_outfit) { return a_outfit.id == a_id; }) == 0) {
+			return "The outfit no longer exists.";
+		}
 		if (auto problem = WriteLibrary(outfits, g_nextId)) {
 			return problem;
 		}

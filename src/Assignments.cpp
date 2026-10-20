@@ -10,8 +10,8 @@
 //   Co-save     - save, load (versions 1 to 3), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
 //   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / Refresh / WearFor /
-//                 ActorsWithSituations / Unassign / ChoicesOf / SuspendLocks / ResumeLocks /
-//                 MarkAddedCopies / UnmarkAddedCopies
+//                 ActorsWithSituations / UsesOf / ForgetOutfit / Unassign / ChoicesOf / SuspendLocks /
+//                 ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -736,14 +736,17 @@ namespace Assignments
 
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now)
 	{
-		auto* assignment = FindAssignment(a_actor.GetFormID());
+		const auto id = a_actor.GetFormID();
+		auto*      assignment = FindAssignment(id);
 		if (!assignment) {
 			return false;
 		}
 		if (!Redress(*assignment, a_actor, a_now, false)) {
 			return false;
 		}
-		logger::info("Dressed {:08X} for {}: {} piece(s) on", a_actor.GetFormID(), Situations::Name(assignment->worn), assignment->pieces.size());
+		logger::info("Dressed {:08X} for {}: {} piece(s) on", id, Situations::Name(assignment->worn), assignment->pieces.size());
+		DropIfEmpty(id);  // a situation outfit gone from their rows (ForgetOutfit) may leave nothing
+		SyncManaged();
 		return true;
 	}
 
@@ -751,11 +754,57 @@ namespace Assignments
 	{
 		std::vector<RE::FormID> actors;
 		for (const auto& assignment : g_assignments) {
-			if (HasSituations(assignment)) {
+			if (HasSituations(assignment) || assignment.worn != Situation::kDefault) {
 				actors.push_back(assignment.actor);
 			}
 		}
 		return actors;
+	}
+
+	std::vector<Use> UsesOf(std::uint32_t a_outfit)
+	{
+		std::vector<Use> uses;
+		if (a_outfit == 0) {
+			return uses;
+		}
+		for (const auto& assignment : g_assignments) {
+			Use use{ .actor = assignment.actor };
+			if (assignment.defaultOutfit == a_outfit && !assignment.defaultArmor.empty()) {
+				use.rows.push_back(Situation::kDefault);
+			}
+			for (const auto situation : Situations::kChoosable) {
+				if (assignment.situations[Situations::Index(situation)] == a_outfit) {
+					use.rows.push_back(situation);
+				}
+			}
+			if (!use.rows.empty()) {
+				uses.push_back(std::move(use));
+			}
+		}
+		return uses;
+	}
+
+	// The pieces worn for a cleared row stay on until the next dressing (WearFor), which
+	// ActorsWithSituations keeps the poll watching for.
+	std::vector<RE::FormID> ForgetOutfit(std::uint32_t a_outfit)
+	{
+		std::vector<RE::FormID> wearing;
+		if (a_outfit == 0) {
+			return wearing;
+		}
+		for (auto& assignment : g_assignments) {
+			const bool forSituation = assignment.worn != Situation::kDefault;
+			if (forSituation && assignment.situations[Situations::Index(assignment.worn)] == a_outfit && !assignment.pieces.empty()) {
+				wearing.push_back(assignment.actor);
+			}
+			std::ranges::replace(assignment.situations, a_outfit, std::uint32_t{ 0 });
+			if (assignment.defaultOutfit == a_outfit) {
+				assignment.defaultOutfit = 0;
+			}
+		}
+		std::erase_if(g_assignments, [](const Assignment& a_assignment) { return a_assignment.pieces.empty() && !HasSituations(a_assignment); });
+		SyncManaged();
+		return wearing;
 	}
 
 	void Unassign(RE::Actor& a_actor)

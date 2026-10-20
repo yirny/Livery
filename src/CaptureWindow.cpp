@@ -672,6 +672,30 @@ namespace CaptureWindow::Internal
 		});
 	}
 
+	// After SetOutfits: the pieces Livery put on from Request::wornOutfit keep their heading
+	// under the outfit's name now. When it has left the library they join the other worn
+	// pieces, and Apply no longer offers to update it.
+	void FollowWornOutfit(State& a_state)
+	{
+		auto& request = a_state.request;
+		if (request.wornOutfit == 0) {
+			return;
+		}
+		if (const int index = IndexOfOutfit(a_state, request.wornOutfit); index >= 0) {
+			request.outfitName = OutfitAt(a_state, index).name;
+			return;
+		}
+		request.wornOutfit = 0;
+		request.wornSituation.clear();
+		request.outfitName.clear();
+		for (auto& piece : request.pieces) {
+			if (piece.group == CaptureWindow::PieceGroup::kLiveryOutfit) {
+				piece.group = CaptureWindow::PieceGroup::kWorn;
+			}
+		}
+		SortPieces(a_state);
+	}
+
 	// Name takes what Type and Class leave at the list's right end, each of them as wide
 	// as its widest text, or its label with room for the sort arrow.
 	std::array<float, 3> ColumnPositions(const State& a_state)
@@ -1848,16 +1872,19 @@ namespace CaptureWindow
 		request.existingOutfits = std::move(a_list.existingOutfits);
 		request.categories = std::move(a_list.categories);
 		request.assigned = std::move(a_list.assigned);
-		request.outfitName = std::move(a_list.outfitName);
 		request.actorSummary = std::move(a_list.actorSummary);
 
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
 		state.loadedOutfit = IndexOfOutfit(state, loaded);
 		state.chosenOutfit = IndexOfOutfit(state, chosen);
 		state.selectingOutfit = IndexOfOutfit(state, selecting);
+		if (chosen != 0 && state.chosenOutfit < 0) {
+			state.updateTab = false;  // the Save page's Update tab has no outfit left to update
+		}
 		for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser }) {
 			OutfitBrowser::Rebuild(*browser, request);
 		}
+		FollowWornOutfit(state);
 		SetGroupHeadings(state);
 		if (state.loadedOutfit >= 0) {
 			state.headings[GroupIndex(PieceGroup::kNotCarried)] = std::format("From \"{}\" (Not Carried)", OutfitAt(state, state.loadedOutfit).name);
@@ -1870,6 +1897,9 @@ namespace CaptureWindow
 			}
 		}
 		FillManageForm(state, IndexOfOutfit(state, managed));
+		if (managed != 0 && state.manage.outfit < 0) {
+			QueuePreview(state, TickedPieces(state));
+		}
 		state.discardFor = -1;
 		state.status = Status::kEditing;
 	}

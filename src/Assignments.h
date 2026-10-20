@@ -64,12 +64,33 @@ namespace Assignments
 
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
 	// first situation they have an outfit for, else the default. A situation outfit that
-	// puts nothing on falls back to the default. Returns whether they were redressed.
+	// puts nothing on falls back to the default. An assignment left with nothing on them
+	// and no situation chosen ends. Returns whether they were redressed.
 	// Contract: game thread; no preview is on (the poll checks).
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now);
 
-	// The actors with an outfit chosen for at least one situation. Contract: game thread.
+	// The actors the situation poll watches: those with an outfit chosen for at least one
+	// situation, and those still wearing one whose row ForgetOutfit cleared, whom their
+	// next dressing takes out of it. Contract: game thread.
 	std::vector<RE::FormID> ActorsWithSituations();
+
+	// Who has library outfit `a_outfit`, for the capture window's Remove: each actor with
+	// the rows it is theirs for, Default (pieces from it) first, then the situations in
+	// Situations::kChoosable order. Contract: game thread.
+	struct Use
+	{
+		RE::FormID                         actor = 0;
+		std::vector<Situations::Situation> rows;
+	};
+	std::vector<Use> UsesOf(std::uint32_t a_outfit);
+
+	// The outfit has left the library: every situation row holding it is cleared, and a
+	// default from it keeps its pieces as pieces that are not a saved outfit (id 0). An
+	// assignment left with nothing on them and no situation chosen ends. Nobody is
+	// redressed here; returns the actors wearing it for a situation now, whom WearFor
+	// takes out of it (the actors not in memory at their next situation change).
+	// Contract: game thread.
+	std::vector<RE::FormID> ForgetOutfit(std::uint32_t a_outfit);
 
 	// Ends their assignment, situation choices included: Livery's locks and copies go,
 	// their own pieces it took off go back on. Nothing for an actor Livery does not dress.

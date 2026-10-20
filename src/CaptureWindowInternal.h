@@ -36,6 +36,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kDiscardClosePopup = "Discard changes?###discardClose";
 	constexpr const char* kUnsavedPopup = "Unsaved changes";
 	constexpr const char* kManageConfirmPopup = "Save changes?";
+	constexpr const char* kRemovePopup = "Remove outfit?";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
