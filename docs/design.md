@@ -149,13 +149,14 @@ would have to be kept in step).
 - Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
-- Categories: the Armor Classes Light, Heavy and Clothing (SkyUI's classes in `ArmorInfo.h`
-  but Jewelry, which `Library::Load` drops in memory). Every other stored category is a
-  custom category: older files' situation categories (Adventuring, Town, ...) are custom
-  now; the window shows them, edits none (§8 item 8). Situations are per actor (§7), not
-  in the library.
-- `Library::Update` replaces pieces, Armor Classes, name and gender and keeps the custom
-  categories; a name is taken when another outfit has it (ASCII case ignored).
+- Categories (the window's Category; the window calls the library the wardrobe): Light,
+  Heavy and Clothing, SkyUI's armor classes in `ArmorInfo.h` but Jewelry, which
+  `Library::Load` drops in memory. Other stored categories (older files' situation
+  categories: Adventuring, Town, ...) stay in the file and are not shown (§8 item 8).
+  Situations are per actor (§7), not in the library.
+- `Library::Update` replaces pieces, the categories the window offers, name and gender, and
+  keeps the other stored categories; a name is taken when another outfit has it (ASCII case
+  ignored).
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
   then clears its situation rows in this save, and a default from it keeps its pieces with
   outfit id 0. Other saves' rows naming it put nothing on and fall back to the default (§7).
@@ -226,8 +227,11 @@ where none of them applies. A situation records a library outfit's id, since the
 read from the library each time it goes on; the default keeps the armor it was given. The
 Save page's "wears it for" rows set and clear the default and the situations for the
 captured actor in one `Assignments::Change`, after the library write, with one forced
-redress. An actor can have situation outfits without a default and then wears their own
-clothes outside them. Restore Original Outfit forgets the choices with the rest. The
+redress. Manage Outfits' `Situations for #{Name}` changes one situation row of the selected
+outfit at once (`Assignments::Record`, no redress) and the actor is dressed for it when the
+window closes (`Assignments::Refresh`); its `Apply to #{Name}` makes the outfit the default
+as Apply does. An actor can have situation outfits without a default and then wears their
+own clothes outside them. Restore Original Outfit forgets the choices with the rest. The
 player has the same rows.
 
 ### Detection (`Situations::Evaluate`)
@@ -268,8 +272,9 @@ on), it evaluates the situations and, when they differ from the last poll's, cal
 outfit differs from the one worn (`worn` in the record). One redress per poll: when the
 weather turns for everyone, the others follow at the next polls. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
-again until the situations change. Apply and the Save page dress for the current
-situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
+again until the situations change. With `[Situations] NotifyChanges` on (off by default),
+each such redress shows a HUD message naming what they wear now. Apply and the Save page
+dress for the current situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
 `kNewGame`, forgetting what it last saw. The record's `pieces` describe whatever is worn,
 so a situation outfit is kept on, locked and put back at 3D load like the default.
 
@@ -300,8 +305,9 @@ Each stage ends with an in-game check before the next starts.
    Manage Outfits page with Update, the captured actor redressed while the window is open
    (§6 there): done. Step 3, Remove, which deals with the assignments and situation
    choices that name the outfit: done.
-8. A UI for custom categories: add, rename and remove an outfit's categories other than its
-   Armor Class, which the outfit list shows and sorts by from item 7's step 1.
+8. Adding categories beyond Light, Heavy and Clothing (a separate task), which the outfit
+   list would show and sort by as it does those three; the stored categories the window does
+   not offer stay unshown until then.
 9. A Situation Management window: user-defined conditions in the way of Skyrim Outfit
    Equipment System NG, extending `Situations::Applicable` (§7).
 10. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
