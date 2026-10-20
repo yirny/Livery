@@ -299,7 +299,7 @@ Each stage ends with an in-game check before the next starts.
    outfit list and the Inventory page's buttons: done. Step 2, the tab column and the
    Manage Outfits page with Update, the captured actor redressed while the window is open
    (§6 there): done. Step 3, Remove, which deals with the assignments and situation
-   choices that name the outfit.
+   choices that name the outfit: done.
 8. A UI for custom categories: add, rename and remove an outfit's categories other than its
    Armor Class, which the outfit list shows and sorts by from item 7's step 1.
 9. A Situation Management window: user-defined conditions in the way of Skyrim Outfit
