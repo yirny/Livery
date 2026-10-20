@@ -55,6 +55,13 @@ namespace Assignments
 	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
 	void Change(RE::Actor& a_actor, const Changes& a_changes);
 
+	// Dresses them anew for their situations now, even in the outfit they already wear, so a
+	// library outfit whose pieces just changed goes on at once; `a_leaveOut` stays out of this
+	// dressing only (pieces that could not be moved to them). Nothing for an actor Livery does
+	// not dress. Shows a HUD message.
+	// Contract: game thread; no preview is on (OutfitPreview::End ran).
+	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut);
+
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
 	// first situation they have an outfit for, else the default. A situation outfit that
 	// puts nothing on falls back to the default. Returns whether they were redressed.

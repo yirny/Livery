@@ -3,9 +3,10 @@
 // FILE MAP
 //   Inventory - armor copies with extra data, found again by ExtraUniqueID; the lock; the
 //               outfit-item mark for the trade-menu filter
-//   Equip     - choose an instance per piece, put it on, take off the rest
+//   Equip     - choose an instance per piece, put it on, take off the rest; choose the
+//               player's copy to give away
 //   API       - Dress / PutBackOn / Release / PutBack / MarkAsOutfitItems / UnmarkOutfitItems /
-//               WornArmor
+//               WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -222,6 +223,49 @@ namespace
 		}
 		if (best) {
 			return Instance{ best };
+		}
+		return std::nullopt;
+	}
+
+	// The player's copy of `armor` to give away, ranked as PickInstance ranks the unworn ones
+	// (enchanted, most tempered, plain); the worn copy only with `allowWorn` and no other.
+	// An unworn locked copy is skipped: the NPC could not put it on. nullopt for none.
+	std::optional<Instance> PickCopyToGive(RE::Actor& player, RE::TESObjectARMO& armor, bool allowWorn)
+	{
+		RE::ExtraDataList* best = nullptr;
+		RE::ExtraDataList* worn = nullptr;
+		bool               bestEnchanted = false;
+		float              bestHealth = 0.0f;
+		std::int32_t       listed = 0;  // copies on extra lists, skipped ones included
+		for (const auto& copy : Copies(player, &armor)) {
+			listed += copy.extra->GetCount();
+			if (copy.extra->GetWorn()) {
+				worn = copy.extra;
+				continue;
+			}
+			if (IsLocked(*copy.extra)) {
+				continue;
+			}
+			const bool  enchanted = copy.extra->HasType<RE::ExtraEnchantment>();
+			const auto* health = copy.extra->GetByType<RE::ExtraHealth>();
+			const float tempered = health ? health->health : 1.0f;  // 1 = not tempered
+			if (!best || enchanted > bestEnchanted || (enchanted == bestEnchanted && tempered > bestHealth)) {
+				best = copy.extra;
+				bestEnchanted = enchanted;
+				bestHealth = tempered;
+			}
+		}
+		if (best && (bestEnchanted || bestHealth > 1.0f)) {
+			return Instance{ best };
+		}
+		if (CountOf(player, armor) > listed) {
+			return Instance{};  // a plain copy, which has no extra list
+		}
+		if (best) {
+			return Instance{ best };
+		}
+		if (worn && allowWorn) {
+			return Instance{ worn };
 		}
 		return std::nullopt;
 	}
@@ -451,5 +495,24 @@ namespace Dressing
 			}
 		}
 		return worn;
+	}
+
+	std::vector<RE::TESObjectARMO*> MoveFromPlayer(RE::Actor& player, RE::Actor& npc, const std::vector<RE::TESObjectARMO*>& armor, bool allowWorn)
+	{
+		std::vector<RE::TESObjectARMO*> notMoved;
+		for (auto* piece : armor) {
+			if (!piece) {
+				continue;
+			}
+			const auto before = CountOf(npc, *piece);
+			// The extra list is used at once: the move rebuilds the player's lists.
+			if (const auto instance = PickCopyToGive(player, *piece, allowWorn)) {
+				player.RemoveItem(piece, 1, RE::ITEM_REMOVE_REASON::kStoreInContainer, instance->extra, &npc);
+			}
+			if (CountOf(npc, *piece) <= before) {
+				notMoved.push_back(piece);
+			}
+		}
+		return notMoved;
 	}
 }
