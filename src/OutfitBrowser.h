@@ -60,6 +60,11 @@ namespace OutfitBrowser
 	// filterTicked or sort.
 	void Refresh(State& state, const CaptureWindow::Request& request);
 
+	// For a request whose outfits or categories changed (CaptureWindow::SetOutfits): keeps
+	// the search, and the sort while it is still offered (else Name), clears the filter's
+	// ticks, then refreshes.
+	void Rebuild(State& state, const CaptureWindow::Request& request);
+
 	// False for kCustom while no outfit has a custom category; the Sort dropdown leaves it out.
 	bool OffersSort(const CaptureWindow::Request& request, SortKey key);
 
