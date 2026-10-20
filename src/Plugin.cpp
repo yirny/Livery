@@ -963,10 +963,10 @@ namespace
 
 	// Contract: game thread (library reads that hand out armor forms run here, so
 	// the window itself never calls the library).
-	// Every inventory piece is listed, the worn ones under the outfit Livery put on them or
-	// the other worn pieces' heading; worn ones start ticked and decide the suggested class
-	// and gender. For an NPC the player's armor follows (AddPlayerPieces), then the library
-	// outfits' other pieces, for Load Outfit.
+	// Every inventory piece is listed, the worn ones under the library outfit Livery put on
+	// them, Livery's pieces that are not one, or those Livery did not put on; worn ones start
+	// ticked and decide the suggested class and gender. For an NPC the player's armor follows
+	// (AddPlayerPieces), then the library outfits' other pieces, for Load Outfit.
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
 		using Group = CaptureWindow::PieceGroup;
@@ -992,8 +992,8 @@ namespace
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& [armor, isWorn] : inventory) {
-			const bool fromLivery = livery && isWorn && std::ranges::find(choices->wornArmor, armor->GetFormID()) != choices->wornArmor.end();
-			const auto group = !isWorn ? Group::kCarried : (fromLivery ? Group::kLiveryOutfit : Group::kWorn);
+			const bool byLivery = choices && isWorn && std::ranges::find(choices->wornArmor, armor->GetFormID()) != choices->wornArmor.end();
+			const auto group = !isWorn ? Group::kCarried : (!byLivery ? Group::kUnmanaged : (livery ? Group::kLiveryOutfit : Group::kNotInLibrary));
 			request.pieces.push_back(MakePiece(*armor, group, isWorn && !LooksLikeWig(*armor)));
 			armors.push_back(armor);
 		}

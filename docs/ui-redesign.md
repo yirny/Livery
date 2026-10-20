@@ -11,13 +11,14 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
 - Title: `#{Name}'s Inventory`, `#{Name}` the actor's name. The summary line under it stays.
 - The piece list is grouped under headings, in this fixed order, a heading with no piece hidden:
   1. `From #{Name}'s Outfit ("#{Outfit}")`: worn pieces Livery put on from a library outfit,
-     named by the outfit worn now (the default's or the worn situation's). Pieces Livery put on
-     that are not a saved outfit (outfit id 0) are not Livery's outfit and go under 2.
-  2. `From #{Name}'s Outfit (Not from a Saved Outfit)`: the other worn pieces.
-  3. `From #{Name}'s Inventory`: carried, not worn.
-  4. `From Player's Inventory` (NPC target only): the player's armor, per the settings (§2);
-     a form the NPC also carries is listed once, under 1–3.
-  5. `From "#{Outfit}" (Not Carried)`: pieces of the loaded outfit nobody carries, listed while
+     named by the outfit worn now (the default's or the worn situation's).
+  2. `From #{Name}'s Outfit (Not in Library)`: worn pieces Livery put on that are not a saved
+     outfit (outfit id 0, or the outfit has left the library).
+  3. `From #{Name}'s Outfit (Unmanaged)`: worn pieces Livery did not put on.
+  4. `From #{Name}'s Inventory`: carried, not worn.
+  5. `From Player's Inventory` (NPC target only): the player's armor, per the settings (§2);
+     a form the NPC also carries is listed once, under 1–4.
+  6. `From "#{Outfit}" (Not Carried)`: pieces of the loaded outfit nobody carries, listed while
      it is loaded (today's `owned == false` rows).
 - Three columns: Name, Type, Class. Strings and rules are SkyUI's: Type from the biped slots,
   Class Light / Heavy / Clothing / Jewelry, taken from the SkyUI source (schlangster/skyui on
