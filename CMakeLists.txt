@@ -94,6 +94,7 @@ else()
         src/Library.cpp
         src/MovementHold.cpp
         src/OutfitBrowser.cpp
+        src/OutfitPages.cpp
         src/OutfitPreview.cpp
         src/Plugin.cpp
         src/PreviewCamera.cpp

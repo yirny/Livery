@@ -1,0 +1,202 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+
+// The capture window's constants, state and shared helpers, private to CaptureWindow.cpp
+// (the window, the Inventory and Save pages) and OutfitPages.cpp (the outfit browser and
+// lists, the Load and Select pages). The helpers are defined in CaptureWindow.cpp, the
+// pages in OutfitPages.cpp; each definition carries its comment.
+//
+// Contract: included after PCH.h. The functions that take a State run with State::mutex
+// held: the draw functions in the capture menu's PostDisplay, as CaptureWindow.h describes.
+
+#include "CaptureWindow.h"
+#include "OutfitBrowser.h"
+
+#include <imgui.h>
+
+#include <array>
+#include <cstddef>
+#include <initializer_list>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace CaptureWindow::Internal
+{
+	constexpr std::size_t kNameCapacity = 64;                 // bytes, UTF-8, including the terminator
+	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
+	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
+	constexpr const char* kReplacePopup = "Replace outfits?";
+	constexpr const char* kApplyPopup = "Update the outfit?";
+	// Reasons a button is greyed out, shown on hover (and in the empty name field).
+	constexpr const char* kNeedName = "Enter a name.";
+	constexpr const char* kNeedPiece = "Tick at least one piece.";
+	constexpr const char* kNeedOutfit = "Select an outfit.";
+	constexpr const char* kNoOutfits = "No outfits in the library.";
+	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
+	// Frames the window's place is pinned after Open or a page change: an
+	// auto-resized window fits new content a frame late, and PlaceWindow sees
+	// the fitted height a frame after that.
+	constexpr int kRecentreFrames = 3;
+	// One heading per CaptureWindow::PieceGroup.
+	constexpr std::size_t kPieceGroupCount = static_cast<std::size_t>(CaptureWindow::PieceGroup::kNotCarried) + 1;
+	using GroupHeadings = std::array<std::string, kPieceGroupCount>;
+
+	// The outfit lists' Sort dropdown, in its order; OutfitBrowser::OffersSort leaves rows out.
+	struct SortOption
+	{
+		const char*            label;
+		OutfitBrowser::SortKey key;
+	};
+	constexpr std::array<SortOption, 5> kSortOptions{ {
+		{ "Name", OutfitBrowser::SortKey::kName },
+		{ "Gender", OutfitBrowser::SortKey::kGender },
+		{ CaptureWindow::kClassGroup, OutfitBrowser::SortKey::kClass },
+		{ CaptureWindow::kCustomGroup, OutfitBrowser::SortKey::kCustom },
+		{ CaptureWindow::kSituationGroup, OutfitBrowser::SortKey::kSituation },
+	} };
+
+	// The outfit browser's Filter dropdown, hidden for now; its code stays, as it is likely
+	// to return (docs/outfit-management-ui.md §1).
+	constexpr bool kShowFilter = false;
+
+	// The Save page's gender radio buttons, in their order.
+	struct GenderOption
+	{
+		const char* label;
+		int         value;  // as the library stores it
+	};
+	constexpr std::array<GenderOption, 3> kGenderOptions{ {
+		{ "Unisex", -1 },
+		{ "Male", 0 },
+		{ "Female", 1 },
+	} };
+
+	// The piece list's columns, in their order (State::sortColumn).
+	constexpr int                        kNameColumn = 0;
+	constexpr int                        kTypeColumn = 1;
+	constexpr int                        kClassColumn = 2;
+	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Class" };
+
+	// Sound descriptors in Skyrim.esm, whose load index is always 00.
+	constexpr RE::FormID kOpenSound = 0x0003F2BD;    // UIMenuBladeOpenSD
+	constexpr RE::FormID kOkSound = 0x0003C751;      // UIMenuOKSD
+	constexpr RE::FormID kCancelSound = 0x0003C752;  // UIMenuCancelSD
+	constexpr RE::FormID kFocusSound = 0x0003C759;   // UIMenuFocus
+
+	enum class Status
+	{
+		kClosed,
+		kEditing,
+		kSaving  // Create, Confirm, Apply or Restore Original Outfit pressed; waiting for the handler to Close() or SetError()
+	};
+
+	enum class Page
+	{
+		kCapture,
+		kSave,
+		kLoad,
+		kSelect
+	};
+
+	struct InputRecord
+	{
+		enum class Kind
+		{
+			kKey,
+			kMouseButton,
+			kMouseWheel,
+			kChar
+		};
+		Kind  kind;
+		int   code;  // ImGuiKey / mouse button / character
+		bool  down;
+		float wheel;  // wheel steps
+	};
+
+	// --- State ----------------------------------------------------------------
+
+	// One tab of the Save page: what it saves, kept while the window is open. bool[] because
+	// Theme::Checkbox needs bool*.
+	struct SaveForm
+	{
+		std::array<char, kNameCapacity> name{};
+		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only the Armor Classes' are used
+		int                             gender = -1;  // -1 unisex, 0 male, 1 female
+		std::unique_ptr<bool[]>         wearsFor;     // one per row of "wears it for" (request.assigned)
+	};
+
+	struct State
+	{
+		std::mutex               mutex;
+		Status                   status = Status::kClosed;
+		CaptureWindow::Request   request;
+		std::unique_ptr<bool[]>  pieceTicked;  // one per request.pieces; bool[] because Theme::TickRow needs bool*
+		SaveForm                 createForm;
+		SaveForm                 updateForm;
+		bool                     updateTab = false;     // the Save page shows the Update tab
+		int                      chosenOutfit = -1;     // the Update tab's outfit: index into request.existingOutfits, -1 for none yet
+		int                      selectingOutfit = -1;  // on the Select page: index into request.existingOutfits, -1 for none
+		bool                     keepTaken = false;     // the replace popup's Keep: rows another outfit holds stay out of the save
+		bool                     openConfirm = false;   // open the Update tab's confirm popup on the next frame
+		std::string              wearsForLabel;         // "#{Name} wears it for"
+		std::string              error;
+		bool                     focusNameField = false;
+		std::vector<InputRecord> pending;
+		bool                     resetImGui = false;  // set by Open, handled on the next frame
+		Page                     page = Page::kCapture;
+		std::string              captureTitle;    // the Capture page's title line
+		std::string              applyTooltip;    // "Dress #{Name} in the ticked pieces."
+		GroupHeadings            headings;        // over each group's pieces (CaptureWindow::PieceGroup)
+		std::vector<std::size_t> pieceOrder;      // indices into request.pieces as the list shows them (SortPieces)
+		int                      sortColumn = 0;  // the piece list's sorted column: Name, Type or Class
+		bool                     sortDescending = false;
+		int                      previewedOutfit = -1;   // on the Load page: index into request.existingOutfits, -1 for none
+		int                      loadedOutfit = -1;      // the last one loaded: index into request.existingOutfits, -1 for none
+		OutfitBrowser::State     browser;                // search, filter and sort of the Load and Select pages' outfit list
+		bool                     showCategories = true;  // the outfit lists show each outfit's tags (Show Categories)
+		int                      recentreFrames = 0;     // frames left to pin the window to its place
+		std::optional<ImVec2>    placeCentre;            // where a pinned window's centre goes; none for the start place
+		ImVec2                   windowPos{};            // of the window in the last frame drawn
+		ImVec2                   windowSize{};
+		bool                     userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
+		unsigned                 session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
+		bool                     previewOn = false;    // Live Preview is on
+		bool                     previewBusy = false;  // a Live Preview tick waits for its SKSE task
+		bool                     frozeGame = false;    // the window froze the game (Live Preview off), so Close unfreezes it
+		int                      viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
+		float                    viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
+		float                    viewDragY = 0.0f;
+	};
+
+	// --- Shared helpers (CaptureWindow.cpp) -----------------------------------
+
+	void                                 QueueMenuSound(RE::FormID a_sound);
+	void                                 GoToPage(State& a_state, Page a_page);
+	std::vector<std::size_t>             TickedPieces(const State& a_state);
+	const CaptureWindow::ExistingOutfit& OutfitAt(const State& a_state, int a_index);
+	bool                                 HasPiece(const CaptureWindow::ExistingOutfit& a_outfit, std::size_t a_piece);
+	void                                 QueuePreview(const State& a_state, std::vector<std::size_t> a_pieces);
+	void                                 PreviewOutfitOrTicks(const State& a_state, int a_outfit);
+	float                                FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved = 0.0f);
+	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
+	void                                 PushListRowSpacing();
+	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr);
+	void                                 BeginButtonRow(std::initializer_list<const char*> a_labels);
+	void                                 EndButtonRow();
+	void                                 ResetCellBaseline();
+	bool                                 BeginColumns(const char* a_id);
+	void                                 EndColumns();
+	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
+	std::string                          JoinNames(const std::vector<std::string>& a_names);
+	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
+	bool                                 IsClass(const CaptureWindow::CategoryOption& a_option);
+	void                                 ChooseOutfit(State& a_state, int a_index);
+
+	// --- Pages (OutfitPages.cpp) ----------------------------------------------
+
+	void DrawLoadPage(State& a_state);
+	void DrawSelectPage(State& a_state);
+}
