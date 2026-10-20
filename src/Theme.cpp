@@ -89,6 +89,11 @@ namespace
 	// rule beside them (pixels at 1080p).
 	constexpr float kTabSide = 34.0f;
 	constexpr float kTabRuleGap = 8.0f;
+	// Vanilla's selection bar, white fading in from the left (a ticked piece row, a selected
+	// row): the alpha of its right end, out of 255.
+	constexpr int kSelectBarAlpha = 70;
+	// The help mark a button, link or label carries for its tooltip.
+	constexpr const char* kHelpMark = "(?)";
 	// How far right of the list's indent a list row's text sits in Vanilla and
 	// Nordic (pixels at 1080p); Tailor clears its rule instead (RowTextShift).
 	constexpr float kRowTextShift = 4.0f;
@@ -549,7 +554,7 @@ namespace
 
 		SetSquareFrames(a_style);
 		a_style.WindowBorderSize = 0.0f;
-		a_style.WindowPadding = ImVec2(28.0f, 22.0f);  // room for the corner ornaments
+		a_style.WindowPadding = ImVec2(32.0f, 22.0f);  // room for the corner ornaments and the larger select arrow (SelectArrowSize)
 
 		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
 		set(ImGuiCol_Text, kNordicText);
@@ -639,18 +644,37 @@ namespace
 		ImGui::Dummy(ImVec2(0.0f, height));
 	}
 
-	// NORDIC UI's main-menu button: a frame with pointed ends, grey at rest,
-	// white with a grey fill when hovered, brighter while held.
-	float PointedButtonWidth(const char* a_label)
+	// A button's text: its label, then, when `a_help`, a space and the greyed help mark.
+	float ButtonTextWidth(const char* a_label, bool a_help)
 	{
-		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f + ImGui::GetFrameHeight();
+		const float label = ImGui::CalcTextSize(a_label).x;
+		return a_help ? label + ImGui::CalcTextSize(" ").x + ImGui::CalcTextSize(kHelpMark).x : label;
 	}
 
-	bool PointedButton(const char* a_label)
+	// That text centred in the button from `a_min` to `a_max` (screen pixels).
+	void DrawButtonText(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, const char* a_label, bool a_help)
+	{
+		const float  height = ImGui::GetTextLineHeight();
+		const ImVec2 at(a_min.x + (a_max.x - a_min.x - ButtonTextWidth(a_label, a_help)) * 0.5f, (a_min.y + a_max.y - height) * 0.5f);
+		a_draw->AddText(at, ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		if (a_help) {
+			const float markX = at.x + ImGui::CalcTextSize(a_label).x + ImGui::CalcTextSize(" ").x;
+			a_draw->AddText(ImVec2(markX, at.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
+		}
+	}
+
+	// NORDIC UI's main-menu button: a frame with pointed ends, grey at rest,
+	// white with a grey fill when hovered, brighter while held. `a_help` puts the
+	// help mark after the label, inside the frame.
+	float PointedButtonWidth(const char* a_label, bool a_help = false)
+	{
+		return ButtonTextWidth(a_label, a_help) + ImGui::GetStyle().FramePadding.x * 2.0f + ImGui::GetFrameHeight();
+	}
+
+	bool PointedButton(const char* a_label, bool a_help = false)
 	{
 		const float  height = ImGui::GetFrameHeight();
-		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		const ImVec2 size(PointedButtonWidth(a_label), height);
+		const ImVec2 size(PointedButtonWidth(a_label, a_help), height);
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 
 		const bool pressed = ImGui::InvisibleButton(a_label, size);
@@ -668,7 +692,7 @@ namespace
 		}
 		const float thick = (std::max)(1.0f, g_scale) * (hovered ? 1.5f : 1.0f);
 		draw->AddPolyline(frame, 6, ImGui::GetColorU32(hovered ? kNordicText : kNordicOrnament), ImDrawFlags_Closed, thick);
-		draw->AddText(ImVec2(topLeft.x + (size.x - text.x) * 0.5f, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		DrawButtonText(draw, topLeft, bottomRight, a_label, a_help);
 		return pressed;
 	}
 
@@ -722,18 +746,112 @@ namespace
 		return row;
 	}
 
+	// NORDIC UI's list selection line (skyui/inventorylists.swf: ItemsListEntry's
+	// selectIndicator, shape 1) along the bottom of the row from `a_min` to `a_max` (screen
+	// pixels): a thin wedge, pointed at its left end, #e5e5e5 fading from 0.4 at the left to
+	// nothing at the right. The points are the shape's, in the units of the 28-unit entry it
+	// underlines, which the frame height stands for here. Across, the shape stretches to the
+	// row's width, as its scaling grid stretches it; its thickness stays.
+	void DrawNordicLine(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
+	{
+		constexpr float kEntryWidth = 526.8f;  // the entry the shape spans, in its units
+		constexpr float kEntryHeight = 28.0f;
+		constexpr float kTipX = 2.85f;  // the left point, on the line's bottom
+		constexpr float kTipY = 26.55f;
+		constexpr float kShoulderX = 51.9f;  // where the wedge reaches its full thickness
+		constexpr float kShoulderTop = 23.65f;
+		constexpr float kRightX = 525.5f;
+		constexpr float kRightTop = 24.05f;
+		constexpr float kBottom = 26.6f;
+		constexpr float kPeakAlpha = 0.396f;      // at the left end, from the sprite's colour transform
+		constexpr float kGrey = 229.0f / 255.0f;  // #e5e5e5
+
+		const float  unit = ImGui::GetFrameHeight() / kEntryHeight;
+		const float  across = (a_max.x - a_min.x) / kEntryWidth;
+		const float  top = a_max.y - kEntryHeight * unit;  // the entry's top, its bottom on the row's
+		const ImVec2 uv = ImGui::GetFontTexUvWhitePixel();
+		const auto   vertex = [&](float a_x, float a_y) {
+			const float fade = std::clamp((a_x - kTipX) / (kRightX - kTipX), 0.0f, 1.0f);
+			const ImU32 color = ImGui::GetColorU32(ImVec4(kGrey, kGrey, kGrey, kPeakAlpha * (1.0f - fade)));
+			a_draw->PrimWriteVtx(ImVec2(a_min.x + a_x * across, top + a_y * unit), uv, color);
+		};
+		a_draw->PrimReserve(9, 5);
+		const auto first = static_cast<ImDrawIdx>(a_draw->_VtxCurrentIdx);  // after PrimReserve, which may start a new vertex block
+		vertex(kTipX, kTipY);                                               // 0
+		vertex(kShoulderX, kShoulderTop);                                   // 1
+		vertex(kRightX, kRightTop);                                         // 2
+		vertex(kRightX, kBottom);                                           // 3
+		vertex(kShoulderX, kBottom);                                        // 4
+		for (const int index : { 0, 1, 4, 1, 2, 3, 1, 3, 4 }) {
+			a_draw->PrimWriteIdx(static_cast<ImDrawIdx>(first + index));
+		}
+	}
+
 	// The fill of a hovered row from `a_min` to `a_max` (screen pixels): Tailor's muted
-	// brown, or in Vanilla and Nordic the hover glow stretched over it, a soft white
-	// ellipse brightest at the row's centre (a flat tint without the texture).
+	// brown; Vanilla's hover glow stretched over it, a soft white ellipse brightest at the
+	// row's centre (a flat tint without the texture); Nordic's selection line under it.
 	void DrawRowHover(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_rounding)
 	{
 		constexpr int kGlowAlpha = 64;  // of the glow's centre, out of 255
 
+		if (g_skin == Theme::Skin::kNordic) {
+			DrawNordicLine(a_draw, a_min, a_max);
+			return;
+		}
 		if (g_skin == Theme::Skin::kTailor || !g_hoverGlow.view) {
 			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_HeaderHovered), a_rounding);
 			return;
 		}
 		a_draw->AddImage(g_hoverGlow.Id(), a_min, a_max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(IM_COL32(255, 255, 255, kGlowAlpha)));
+	}
+
+	// Vanilla's selection bar: white fading in from the left edge to the right, as SkyUI's
+	// inventory marks a row.
+	void DrawSelectBar(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
+	{
+		const ImU32 clear = ImGui::GetColorU32(IM_COL32(255, 255, 255, 0));
+		const ImU32 white = ImGui::GetColorU32(IM_COL32(255, 255, 255, kSelectBarAlpha));
+		a_draw->AddRectFilledMultiColor(a_min, a_max, clear, white, white, clear);
+	}
+
+	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Tailor's faint amber,
+	// Vanilla's selection bar, none in Nordic, whose arrow alone tells it. Hovered: the hover
+	// fill over an unselected row, and Nordic's line under any row.
+	void DrawRowFills(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, bool a_selected, bool a_hovered, float a_rounding)
+	{
+		if (a_selected && g_skin == Theme::Skin::kTailor) {
+			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_Header), a_rounding);
+		} else if (a_selected && g_skin == Theme::Skin::kVanilla) {
+			DrawSelectBar(a_draw, a_min, a_max);
+		}
+		if (a_hovered && (!a_selected || g_skin == Theme::Skin::kNordic)) {
+			DrawRowHover(a_draw, a_min, a_max, a_rounding);
+		}
+	}
+
+	// NORDIC UI's MCM page arrow, which marks a selected row in Vanilla and Nordic, at its size
+	// on the back buffer: Nordic's is larger, as its window's padding is wider.
+	ImVec2 SelectArrowSize()
+	{
+		constexpr float kNordicGrowth = 4.0f;  // pixels at 1080p, as much as Nordic's window padding grew
+
+		const float grow = g_skin == Theme::Skin::kNordic ? kNordicGrowth : 0.0f;
+		return ImVec2((g_selectArrow.size.x + grow) * g_scale, (g_selectArrow.size.y + grow) * g_scale);
+	}
+
+	// That arrow centred on `a_centre` (screen pixels); a small triangle without the texture.
+	void DrawSelectArrow(ImDrawList* a_draw, ImVec2 a_centre)
+	{
+		const ImU32  tint = ImGui::GetColorU32(g_skin == Theme::Skin::kNordic ? kNordicOrnament : IM_COL32_WHITE);
+		const ImVec2 size = SelectArrowSize();
+		const ImVec2 topLeft(a_centre.x - size.x * 0.5f, a_centre.y - size.y * 0.5f);
+		if (g_selectArrow.view) {
+			a_draw->AddImage(g_selectArrow.Id(), topLeft, ImVec2(topLeft.x + size.x, topLeft.y + size.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+			return;
+		}
+		const float half = size.y * 0.3f;
+		a_draw->AddTriangleFilled(ImVec2(a_centre.x - half * 0.6f, a_centre.y - half), ImVec2(a_centre.x + half * 0.8f, a_centre.y),
+			ImVec2(a_centre.x - half * 0.6f, a_centre.y + half), tint);
 	}
 
 	// A tick row's cells, each at its column (Theme::HeaderRow) from `a_textX`,
@@ -781,14 +899,13 @@ namespace
 		return row.pressed;
 	}
 
-	// A SkyUI-style inventory row: while ticked, a white bar fading in from the
-	// left edge to the right and the skin's equipped mark at the left; a faint
-	// tint while hovered. The mark's column stays on unticked rows so the names
-	// line up. Without the texture the mark is a small filled triangle.
+	// A SkyUI-style inventory row: while ticked, the skin's equipped mark at the left, and in
+	// Vanilla its selection bar (Nordic marks it with the mark alone); the hover fill while
+	// hovered. The mark's column stays on unticked rows so the names line up. Without the
+	// texture the mark is a small filled triangle.
 	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
 	{
 		constexpr ImU32 kVanillaMark = IM_COL32(204, 204, 204, 255);  // the game's #cccccc
-		constexpr int   kBarAlpha = 70;                               // of the bar's white right end
 
 		const auto&   style = ImGui::GetStyle();
 		const float   height = ImGui::GetFrameHeight();
@@ -801,10 +918,8 @@ namespace
 		const ImVec2 bottomRight = row.max;
 		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
 		auto*        draw = ImGui::GetWindowDrawList();
-		if (*a_ticked) {
-			const ImU32 clear = IM_COL32(255, 255, 255, 0);
-			const ImU32 white = IM_COL32(255, 255, 255, kBarAlpha);
-			draw->AddRectFilledMultiColor(row.fillMin, row.fillMax, clear, white, white, clear);
+		if (*a_ticked && g_skin == Theme::Skin::kVanilla) {
+			DrawSelectBar(draw, row.fillMin, row.fillMax);
 		}
 		if (row.hovered) {
 			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
@@ -845,8 +960,9 @@ namespace
 		return ImVec2(g_dropdownArrow.size.x * g_scale, g_dropdownArrow.size.y * g_scale);
 	}
 
-	// Tailor's chevron, or the game's texture untinted but through the style alpha.
-	void DrawDropdownArrow(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_size)
+	// Tailor's chevron, or the game's texture tinted grey, white while `a_lit` (the dropdown
+	// hovered or open), through the style alpha.
+	void DrawDropdownArrow(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_size, bool a_lit)
 	{
 		if (HasOwnDropdownArrow()) {
 			const ImVec2 points[] = { a_topLeft, { a_topLeft.x + a_size.x * 0.5f, a_topLeft.y + a_size.y }, { a_topLeft.x + a_size.x, a_topLeft.y } };
@@ -854,7 +970,7 @@ namespace
 			return;
 		}
 		a_draw->AddImage(g_dropdownArrow.Id(), a_topLeft, ImVec2(a_topLeft.x + a_size.x, a_topLeft.y + a_size.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
-			ImGui::GetColorU32(IM_COL32_WHITE));
+			ImGui::GetColorU32(a_lit ? ImGuiCol_Text : ImGuiCol_TextDisabled));
 	}
 
 	// Vanilla and Nordic draw the game's checkbox when both of its textures loaded.
@@ -1003,18 +1119,79 @@ namespace
 		draw->AddPolyline(funnel, 6, color, ImDrawFlags_Closed, thickness);
 	}
 
+	// The style a field is drawn in: Vanilla and Nordic underline a boxed one, as the game's
+	// menus have no framed fields.
+	Theme::FieldStyle SkinnedStyle(const Theme::FieldStyle& a_style)
+	{
+		auto style = a_style;
+		if (g_skin != Theme::Skin::kTailor && style.shape == Theme::FieldShape::kBoxed) {
+			style.shape = Theme::FieldShape::kUnderlined;
+		}
+		return style;
+	}
+
+	// Room right of a text field for its pen (DrawFieldPen): the icon and a gap before it.
+	float PenRoom()
+	{
+		return ImGui::GetFontSize() * kFieldIconRatio + ImGui::GetStyle().ItemInnerSpacing.x;
+	}
+
+	// A pencil pointing down to the left, in lines, in the square from `a_topLeft`, `a_side`
+	// across. The points are fractions of the side: the tip, the body's four corners, the line
+	// where the tip's cone meets the body, and the band near the far end.
+	void DrawPenIcon(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color)
+	{
+		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the field icons'
+
+		const auto   at = [&](float a_x, float a_y) { return ImVec2(a_topLeft.x + a_side * a_x, a_topLeft.y + a_side * a_y); };
+		const float  thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
+		const ImVec2 outline[] = { at(0.10f, 0.90f), at(0.40f, 0.77f), at(0.91f, 0.26f), at(0.74f, 0.09f), at(0.23f, 0.60f) };
+		a_draw->AddPolyline(outline, 5, a_color, ImDrawFlags_Closed, thickness);
+		a_draw->AddLine(at(0.40f, 0.77f), at(0.23f, 0.60f), a_color, thickness);
+		a_draw->AddLine(at(0.79f, 0.38f), at(0.62f, 0.21f), a_color, thickness);
+	}
+
+	// Vanilla's and Nordic's pen on an underlined text field, in the room PenRoom left right
+	// of the field just submitted: grey, white while the field or the pen is hovered or the
+	// field is being typed in. A click on the pen starts typing in the field, so the click
+	// area is the field's whole width, as before. Returns the pen's right edge.
+	// Contract: right after the field's ImGui::InputText, which stays the last item for the
+	// caller's IsItem* calls (DrawNameField's IsItemEdited and IsItemHovered).
+	float DrawFieldPen(const char* a_id, ImVec2 a_fieldMin, ImVec2 a_fieldMax)
+	{
+		ImGuiContext&           g = *GImGui;
+		const ImGuiLastItemData field = g.LastItemData;
+		const bool              fieldLit = ImGui::IsItemHovered() || ImGui::IsItemActive();
+		const float             room = PenRoom();
+		const float             side = ImGui::GetFontSize() * kFieldIconRatio;
+		ImGui::SameLine(0.0f, 0.0f);
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		ImGui::PushID(a_id);
+		const bool clicked = ImGui::InvisibleButton("##pen", ImVec2(room, (std::max)(1.0f, a_fieldMax.y - a_fieldMin.y)));
+		const bool lit = fieldLit || ImGui::IsItemHovered();
+		ImGui::PopID();
+		if (clicked) {
+			ImGui::ActivateItemByID(field.ID);
+		}
+		g.LastItemData = field;
+		const ImVec2 iconTopLeft(topLeft.x + room - side, (a_fieldMin.y + a_fieldMax.y - side) * 0.5f);
+		DrawPenIcon(ImGui::GetWindowDrawList(), iconTopLeft, side, ImGui::GetColorU32(lit ? ImGuiCol_Text : ImGuiCol_TextDisabled));
+		return topLeft.x + room;
+	}
+
 	// A combo's preview, drawn for every skin (ImGuiComboFlags_CustomPreview):
 	// the field's rule and icon, the text clipped short of the arrow's column
 	// (greyed as a hint when the style says so), then the skin's own arrow, if
-	// it has one, at the right edge.
+	// it has one, at the right edge, lit while the combo is hovered or `a_open`.
 	// Contract: called right after the combo's BeginCombo / EndCombo block,
 	// where the combo frame is still the last item (BeginComboPreview asserts it).
-	void DrawComboPreview(const char* a_preview, const Theme::FieldStyle& a_style)
+	void DrawComboPreview(const char* a_preview, const Theme::FieldStyle& a_style, bool a_open)
 	{
 		const auto&  style = ImGui::GetStyle();
 		const ImVec2 frameMin = ImGui::GetItemRectMin();
 		const ImVec2 frameMax = ImGui::GetItemRectMax();
 		const bool   ownArrow = HasCustomDropdownArrow();
+		const bool   lit = a_open || ImGui::IsItemHovered();
 		const ImVec2 arrow = DropdownArrowSize();
 		const float  arrowLeft = frameMax.x - (a_style.shape == Theme::FieldShape::kBoxed ? style.FramePadding.x : 0.0f) - arrow.x;
 		// Without its own arrow, ImGui's arrow button already lies outside the preview's rect.
@@ -1039,7 +1216,7 @@ namespace
 
 		if (ownArrow) {
 			const float midY = (frameMin.y + frameMax.y) * 0.5f;
-			DrawDropdownArrow(ImGui::GetWindowDrawList(), ImVec2(arrowLeft, midY - arrow.y * 0.5f), arrow);
+			DrawDropdownArrow(ImGui::GetWindowDrawList(), ImVec2(arrowLeft, midY - arrow.y * 0.5f), arrow, lit);
 		}
 	}
 
@@ -1101,17 +1278,7 @@ namespace
 			return;
 		}
 		// Centred in the indent between the list's left edge and the text.
-		const ImU32  tint = ImGui::GetColorU32(g_skin == Theme::Skin::kNordic ? kNordicOrnament : IM_COL32_WHITE);
-		const ImVec2 size(g_selectArrow.size.x * g_scale, g_selectArrow.size.y * g_scale);
-		const ImVec2 centre((a_row.min.x + a_textX) * 0.5f, (a_row.min.y + a_row.max.y) * 0.5f);
-		const ImVec2 topLeft(centre.x - size.x * 0.5f, centre.y - size.y * 0.5f);
-		if (g_selectArrow.view) {
-			a_draw->AddImage(g_selectArrow.Id(), topLeft, ImVec2(topLeft.x + size.x, topLeft.y + size.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
-			return;
-		}
-		const float half = size.y * 0.3f;
-		a_draw->AddTriangleFilled(ImVec2(centre.x - half * 0.6f, centre.y - half), ImVec2(centre.x + half * 0.8f, centre.y),
-			ImVec2(centre.x - half * 0.6f, centre.y + half), tint);
+		DrawSelectArrow(a_draw, ImVec2((a_row.min.x + a_textX) * 0.5f, (a_row.min.y + a_row.max.y) * 0.5f));
 	}
 
 	constexpr ImU32 WithAlpha(ImU32 a_color, unsigned a_alpha)
@@ -1515,16 +1682,57 @@ namespace Theme
 		PushSmallFont();
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
 		PushLabelSpacing();  // the line's gap below stays LabelText's
-		ImGui::TextDisabled("(?)");
+		ImGui::TextDisabled("%s", kHelpMark);
 		const bool hovered = ImGui::IsItemHovered();
 		ImGui::PopStyleVar();
 		PopSmallFont();
 		return hovered;
 	}
 
+	// LabelLink's place and lighting with no plus mark, the help mark inside the click area.
+	bool LabelHelpLink(const char* a_label, bool* a_hovered)
+	{
+		PushSmallFont();
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const float  markX = text.x + ImGui::CalcTextSize(" ").x;
+		const float  width = markX + ImGui::CalcTextSize(kHelpMark).x;
+
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		PushLabelSpacing();  // the line's gap below stays LabelText's
+		const bool clicked = ImGui::InvisibleButton(a_label, ImVec2(width, (std::max)(1.0f, text.y)));
+		ImGui::PopStyleVar();
+
+		*a_hovered = ImGui::IsItemHovered();
+		auto* draw = ImGui::GetWindowDrawList();
+		draw->AddText(topLeft, LinkColor(*a_hovered), a_label);
+		draw->AddText(ImVec2(topLeft.x + markX, topLeft.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
+		PopSmallFont();
+		return clicked;
+	}
+
 	bool Button(const char* a_label)
 	{
 		return g_skin == Skin::kNordic ? PointedButton(a_label) : ImGui::Button(a_label);
+	}
+
+	// Tailor and Vanilla: ImGui's button with nothing in its label, sized for the text, which
+	// DrawButtonText draws in two colours.
+	bool HelpButton(const char* a_label, bool* a_hovered)
+	{
+		bool pressed = false;
+		if (g_skin == Skin::kNordic) {
+			pressed = PointedButton(a_label, true);
+		} else {
+			const auto& style = ImGui::GetStyle();
+			ImGui::PushID(a_label);
+			pressed = ImGui::Button("##help", ImVec2(ButtonTextWidth(a_label, true) + style.FramePadding.x * 2.0f, ImGui::GetFrameHeight()));
+			ImGui::PopID();
+			DrawButtonText(ImGui::GetWindowDrawList(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), a_label, true);
+		}
+		*a_hovered = ImGui::IsItemHovered();
+		return pressed;
 	}
 
 	float ButtonWidth(const char* a_label)
@@ -1681,15 +1889,6 @@ namespace Theme
 		draw->PopClipRect();
 	}
 
-	bool TextButton(const char* a_label)
-	{
-		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)));
-		ImGui::GetWindowDrawList()->AddText(topLeft, LinkColor(ImGui::IsItemHovered()), a_label);
-		return clicked;
-	}
-
 	bool Checkbox(const char* a_label, bool* a_value)
 	{
 		if (HasGameCheckbox()) {
@@ -1721,17 +1920,29 @@ namespace Theme
 
 	float FieldHeight(const FieldStyle& a_style)
 	{
-		return ImGui::GetFontSize() + FieldPadY(a_style.shape) * 2.0f;
+		return ImGui::GetFontSize() + FieldPadY(SkinnedStyle(a_style).shape) * 2.0f;
 	}
 
+	// A boxed field that Vanilla and Nordic underline gets the pen (DrawFieldPen) in room taken
+	// from its width; its rule runs under both.
 	bool InputText(const char* a_id, char* a_buffer, std::size_t a_size, int a_flags, const char* a_hint, const FieldStyle& a_style)
 	{
-		const auto pushed = PushFieldStyle(a_style);
+		const auto style = SkinnedStyle(a_style);
+		const bool pen = style.shape != a_style.shape;
+		if (pen) {
+			ImGui::SetNextItemWidth((std::max)(1.0f, ImGui::CalcItemWidth() - PenRoom()));
+		}
+		const auto pushed = PushFieldStyle(style);
 		const bool result = a_hint ? ImGui::InputTextWithHint(a_id, a_hint, a_buffer, a_size, a_flags) :
 		                             ImGui::InputText(a_id, a_buffer, a_size, a_flags);
 		PopFieldStyle(pushed);
-		DrawFieldRule(a_style, ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
-		DrawFieldIcon(a_style, ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+		const ImVec2 min = ImGui::GetItemRectMin();
+		ImVec2       max = ImGui::GetItemRectMax();
+		DrawFieldIcon(style, min, max);
+		if (pen) {
+			max.x = DrawFieldPen(a_id, min, max);
+		}
+		DrawFieldRule(style, min, max);
 		return result;
 	}
 
@@ -1740,22 +1951,12 @@ namespace Theme
 		return kErrorText;
 	}
 
-	bool DrawTickedBox(float a_right, float a_midY)
-	{
-		if (!HasGameCheckbox()) {
-			return false;
-		}
-		const ImVec2 box(g_checkBox.size.x * g_scale, g_checkBox.size.y * g_scale);
-		DrawGameCheckbox(ImGui::GetWindowDrawList(), ImVec2(a_right - box.x, a_midY - box.y * 0.5f), true);
-		return true;
-	}
-
 	bool BeginCombo(const char* a_id, int a_flags, const FieldStyle& a_style)
 	{
 		// The popup takes the window padding and border colour in force as BeginCombo opens it.
 		const ImVec2 padding = g_skin == Skin::kTailor ? kTailorDropdownPadding : kSquareDropdownPadding;
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding.x * g_scale, padding.y * g_scale));
-		const auto pushed = PushFieldStyle(a_style);
+		const auto pushed = PushFieldStyle(SkinnedStyle(a_style));
 		// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
 		const int  flags = a_flags | ImGuiComboFlags_CustomPreview | (HasCustomDropdownArrow() ? ImGuiComboFlags_NoArrowButton : 0);
 		const bool open = ImGui::BeginCombo(a_id, "", flags);
@@ -1769,17 +1970,18 @@ namespace Theme
 		if (a_open) {
 			ImGui::EndCombo();
 		}
-		DrawComboPreview(a_preview, a_style);
+		DrawComboPreview(a_preview, SkinnedStyle(a_style), a_open);
 	}
 
 	float ComboWidth(const char* a_preview, const FieldStyle& a_style)
 	{
 		const auto& style = ImGui::GetStyle();
-		const float text = FieldTextInset(a_style) + ImGui::CalcTextSize(a_preview).x;
+		const auto  field = SkinnedStyle(a_style);
+		const float text = FieldTextInset(field) + ImGui::CalcTextSize(a_preview).x;
 		if (!HasCustomDropdownArrow()) {
-			return text + FieldHeight(a_style);  // ImGui's square arrow button
+			return text + FieldHeight(field);  // ImGui's square arrow button
 		}
-		const float right = a_style.shape == FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
+		const float right = field.shape == FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
 		return text + style.ItemInnerSpacing.x + DropdownArrowSize().x + right;
 	}
 
@@ -1876,11 +2078,9 @@ namespace Theme
 		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
 		const float   textX = row.min.x + row.inset + RowTextShift();
 		auto*         draw = ImGui::GetWindowDrawList();
+		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		if (a_selected) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_Header));
 			DrawSelectMark(draw, row, textX);
-		} else if (row.hovered) {
-			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
@@ -1937,9 +2137,66 @@ namespace Theme
 		return row.pressed;
 	}
 
-	void HoverFill(float a_left, float a_top, float a_right, float a_bottom)
+	// Nordic's arrow column, then the checkbox at the row's start (Vanilla and Nordic, the
+	// game's box) or the check mark at its right end (Tailor, or a missing texture), then
+	// the label.
+	bool DropdownRow(const char* a_label, bool* a_ticked, bool a_checkbox)
 	{
-		DrawRowHover(ImGui::GetWindowDrawList(), ImVec2(a_left, a_top), ImVec2(a_right, a_bottom), ImGui::GetStyle().FrameRounding);
+		constexpr float kCheckRatio = 0.25f;  // half the check mark's width, of the font size
+
+		const auto&  style = ImGui::GetStyle();
+		const float  halfGap = ListRowGap(style.ItemInnerSpacing.y) * 0.5f;
+		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
+		const ImVec2 hitTopLeft = ImGui::GetCursorScreenPos();
+		const bool   clicked = ImGui::InvisibleButton(a_label, size);
+		const bool   hovered = ImGui::IsItemHovered();
+		if (clicked) {
+			*a_ticked = !*a_ticked;  // drawn as it is after the click
+		}
+		const bool ticked = *a_ticked;
+
+		const ImVec2 topLeft(hitTopLeft.x, hitTopLeft.y + halfGap);
+		const ImVec2 bottomRight(hitTopLeft.x + size.x, hitTopLeft.y + size.y - halfGap);
+		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
+		auto*        draw = ImGui::GetWindowDrawList();
+		DrawRowFills(draw, topLeft, bottomRight, ticked, hovered, style.FrameRounding);
+		float x = topLeft.x + style.FramePadding.x;
+		if (g_skin == Skin::kNordic) {
+			const float arrow = SelectArrowSize().x;
+			if (ticked) {
+				DrawSelectArrow(draw, ImVec2(x + arrow * 0.5f, midY));
+			}
+			x += arrow + style.ItemInnerSpacing.x;
+		}
+		const bool boxFirst = a_checkbox && HasGameCheckbox();
+		if (boxFirst) {
+			const ImVec2 box(g_checkBox.size.x * g_scale, g_checkBox.size.y * g_scale);
+			DrawGameCheckbox(draw, ImVec2(x, midY - box.y * 0.5f), ticked);
+			x += box.x + style.ItemInnerSpacing.x;
+		}
+		const ImU32  textColour = ImGui::GetColorU32(ticked ? ImGuiCol_CheckMark : ImGuiCol_Text);
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		draw->AddText(ImVec2(x, midY - text.y * 0.5f), textColour, a_label);
+		if (a_checkbox && ticked && !boxFirst) {
+			const float  right = bottomRight.x - style.FramePadding.x;
+			const float  mark = ImGui::GetFontSize() * kCheckRatio;
+			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
+			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
+		}
+		return clicked;
+	}
+
+	float DropdownRowWidth(const char* a_label, bool a_checkbox)
+	{
+		const auto& style = ImGui::GetStyle();
+		float       width = ImGui::CalcTextSize(a_label).x + style.FramePadding.x * 2.0f;
+		if (g_skin == Skin::kNordic) {
+			width += SelectArrowSize().x + style.ItemInnerSpacing.x;
+		}
+		if (a_checkbox && HasGameCheckbox()) {
+			width += g_checkBox.size.x * g_scale + style.ItemInnerSpacing.x;
+		}
+		return width;
 	}
 
 	float ListHeadingHeight()
@@ -1971,13 +2228,11 @@ namespace Theme
 		const float   textX = row.min.x + row.inset + RowTextShift();
 		const float   textY = row.min.y + kSelectRowPadY * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
+		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		if (a_selected) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_Header));
 			ListRow nameLine = row;
 			nameLine.max.y = row.min.y + SelectRowHeight();
 			DrawSelectMark(draw, nameLine, textX);
-		} else if (row.hovered) {
-			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 		draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
 		const float tagsY = textY + ImGui::GetTextLineHeight() + kOutfitTagsGap * g_scale;

@@ -31,10 +31,12 @@ namespace CaptureWindow::Internal
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kReplacePopup = "Replace outfits?";
 	constexpr const char* kApplyPopup = "Update the outfit?";
-	// Manage Outfits' popups.
-	constexpr const char* kDiscardPopup = "Discard changes?";
+	// Manage Outfits' popups. The two that discard share a title, told apart after "###".
+	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
+	constexpr const char* kDiscardExitPopup = "Discard changes?###discardExit";
 	constexpr const char* kUnsavedPopup = "Unsaved changes";
 	constexpr const char* kManageConfirmPopup = "Save changes?";
+	constexpr const char* kApplyChangesPopup = "Update and apply?";
 	constexpr const char* kRemovePopup = "Remove outfit?";
 	constexpr const char* kManageReplacePopup = "Replace outfit?";
 	constexpr const char* kArrow = "\xE2\x86\x92";  // U+2192, UTF-8: the replace popups' `Town: "A" → "B"`
@@ -45,7 +47,6 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
 	constexpr const char* kNoChanges = "No changes to save.";
-	constexpr const char* kUpdateFirst = "Update or discard your changes first.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -222,7 +223,7 @@ namespace CaptureWindow::Internal
 	PieceList                InventoryPieces(const State& a_state);
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
-	void                     DrawPieceCount(const State& a_state, const PieceList& a_list);
+	bool                     DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withRestore = false);
 	void                     DrawPreviewToggle(State& a_state, const PieceList& a_list);
 	std::string              Trimmed(const char* a_text);
 	void                     DrawError(const std::string& a_message);

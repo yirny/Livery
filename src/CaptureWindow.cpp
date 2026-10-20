@@ -825,13 +825,29 @@ namespace CaptureWindow::Internal
 	}
 
 	// The count line under the list.
-	void DrawPieceCount(const State& a_state, const PieceList& a_list)
+	// The count line; on the Inventory page (`a_withRestore`), while Livery dresses the
+	// character (Request::onRestore), Restore Original Outfit and its "(?)" at its right end.
+	// Returns true when Restore is clicked.
+	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withRestore)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
 		Theme::LabelText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str());
+		bool restore = false;
+		if (a_withRestore && a_state.request.onRestore) {
+			bool hovered = false;
+			restore = Theme::LabelHelpLink("Restore Original Outfit", &hovered);
+			if (hovered) {
+				DrawHelpTooltip(std::format(
+					"Takes Livery's outfit off {0}: its locks go, the pieces it added are taken back, the clothes it took off go back on, "
+					"and its situation choices are forgotten. Items moved from your inventory stay with {0}. A slot whose own piece is "
+					"gone is left to the game, which may take a cell change or two to fill it.",
+					a_state.request.actorName));
+			}
+		}
 		if (ticked == 0) {
 			ImGui::TextDisabled(kNeedPiece);
 		}
+		return restore;
 	}
 
 	// Turns the live preview on or off and the game's freeze the other way.
@@ -960,32 +976,6 @@ namespace CaptureWindow::Internal
 		return ButtonRowWidth({ "Load", "Save", "Apply", "Cancel" });
 	}
 
-	// Restore Original Outfit and its "(?)", centred under the buttons, while Livery
-	// dresses the character (Request::onRestore); returns true when it is clicked.
-	bool DrawRestoreRow(const State& a_state)
-	{
-		constexpr const char* kLabel = "Restore Original Outfit";
-		constexpr const char* kHelpMark = "(?)";
-
-		if (!a_state.request.onRestore) {
-			return false;
-		}
-		const float width = ImGui::CalcTextSize(kLabel).x + ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize(kHelpMark).x;
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
-		const bool clicked = Theme::TextButton(kLabel);
-		ImGui::SameLine();
-		ImGui::TextDisabled("%s", kHelpMark);
-		if (ImGui::IsItemHovered()) {
-			const auto& name = a_state.request.actorName;
-			DrawHelpTooltip(std::format(
-				"Takes Livery's outfit off {0}: its locks go, the pieces it added are taken back, the clothes it took off go back on, "
-				"and its situation choices are forgotten. Items moved from your inventory stay with {0}. A slot whose own piece is "
-				"gone is left to the game, which may take a cell change or two to fill it.",
-				name));
-		}
-		return clicked;
-	}
-
 	enum class CaptureAction
 	{
 		kNone,
@@ -996,10 +986,10 @@ namespace CaptureWindow::Internal
 		kCancel
 	};
 
-	// Load / Save / Apply / Cancel centred below a gap, the Restore row under them. Load
-	// needs a library outfit; Save and Apply act on the ticked pieces, so they need at
-	// least one.
-	CaptureAction DrawCaptureButtons(const State& a_state)
+	// Load / Save / Apply / Cancel centred below a gap. Load needs a library outfit; Save
+	// and Apply act on the ticked pieces, so they need at least one. `a_restore`: Restore
+	// Original Outfit was clicked on the count line.
+	CaptureAction DrawCaptureButtons(const State& a_state, bool a_restore)
 	{
 		constexpr const char* kLoadTooltip = "Add a saved outfit's pieces to the list.";
 		constexpr const char* kSaveTooltip = "Save the ticked pieces as a new outfit, or into an existing one.";
@@ -1014,7 +1004,6 @@ namespace CaptureWindow::Internal
 		ImGui::SameLine();
 		// While the Apply popup is open, Escape is its own Cancel.
 		const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kApplyPopup));
-		const bool restore = DrawRestoreRow(a_state);
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Applying...");
@@ -1029,7 +1018,7 @@ namespace CaptureWindow::Internal
 		if (apply) {
 			return CaptureAction::kApply;
 		}
-		if (restore) {
+		if (a_restore) {
 			return CaptureAction::kRestore;
 		}
 		return cancel ? CaptureAction::kCancel : CaptureAction::kNone;
@@ -1068,11 +1057,11 @@ namespace CaptureWindow::Internal
 	};
 
 	// `Update "X" with the ticked pieces?`, naming the situation X is worn for, then Yes,
-	// No, just apply (with its "(?)") or Cancel.
+	// No, just apply (its "(?)" inside the button) or Cancel.
 	ApplyChoice DrawApplyPopup(const State& a_state)
 	{
 		constexpr const char* kJustApply = "No, just apply";
-		constexpr const char* kHelpMark = "(?)";
+		constexpr const char* kJustApplyWidth = "No, just apply (?)";  // what the button's width is measured on (Theme::HelpButton)
 
 		if (!BeginModal(kApplyPopup)) {
 			return ApplyChoice::kNone;
@@ -1089,14 +1078,12 @@ namespace CaptureWindow::Internal
 		if (!request.wornSituation.empty()) {
 			ImGui::TextUnformatted(std::format("\"{}\" is {}'s {} outfit.", outfit.name, request.actorName, request.wornSituation).c_str());
 		}
-		BeginButtonRow({ "Yes", kJustApply, kHelpMark, "Cancel" });
+		BeginButtonRow({ "Yes", kJustApplyWidth, "Cancel" });
 		const bool update = Theme::Button("Yes");
 		ImGui::SameLine();
-		const bool justApply = Theme::Button(kJustApply);
-		ImGui::SameLine();
-		ImGui::AlignTextToFramePadding();
-		ImGui::TextDisabled("%s", kHelpMark);
-		if (ImGui::IsItemHovered()) {
+		bool       helpHovered = false;
+		const bool justApply = Theme::HelpButton(kJustApply, &helpHovered);
+		if (helpHovered) {
 			DrawHelpTooltip(std::format(
 				"The ticked pieces become {}'s Default without a saved outfit, so editing the wardrobe does not "
 				"change them. While a situation outfit is worn, the new Default shows only when that situation ends.",
@@ -1134,12 +1121,12 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const auto list = InventoryPieces(a_state);
 		DrawPieceRows(a_state, list);
-		DrawPieceCount(a_state, list);
+		const bool restore = DrawPieceCount(a_state, list, true);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state, list);
-		const auto action = DrawCaptureButtons(a_state);
+		const auto action = DrawCaptureButtons(a_state, restore);
 		EndButtonRow();
 		ImGui::EndDisabled();
 
@@ -1194,46 +1181,18 @@ namespace CaptureWindow::Internal
 		return joined;
 	}
 
-	// One full-width option row: hover fill, a highlighted fill and accent text
-	// when ticked, with the game's ticked checkbox (Theme::DrawTickedBox) or else
-	// a check mark on the right unless `a_showMark` is false. An InvisibleButton
-	// does not close the combo popup, so the user can tick several rows in one go.
-	// The hit area also covers half the gap above and below the fill, so rows
-	// stacked with no item spacing leave no dead strip between them. Returns
-	// true when toggled.
+	// One full-width option row of a dropdown (Theme::DropdownRow): with `a_showMark` a row of
+	// a multi-choice dropdown, with its checkbox. It does not close the combo popup, so the
+	// user can tick several rows in one go. Plays the focus sound and returns true when
+	// toggled.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark)
 	{
-		const auto&  style = ImGui::GetStyle();
-		const float  halfGap = Theme::ListRowGap(style.ItemInnerSpacing.y) * 0.5f;
-		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
-		const ImVec2 hitTopLeft = ImGui::GetCursorScreenPos();
-		const bool   toggled = ImGui::InvisibleButton(a_label, size);
-		if (toggled) {
-			QueueMenuSound(kFocusSound);
-			a_ticked = !a_ticked;
+		if (!Theme::DropdownRow(a_label, &a_ticked, a_showMark)) {
+			return false;
 		}
-		const bool hovered = ImGui::IsItemHovered();
-
-		const ImVec2 topLeft(hitTopLeft.x, hitTopLeft.y + halfGap);
-		const ImVec2 bottomRight(hitTopLeft.x + size.x, hitTopLeft.y + size.y - halfGap);
-		auto*        draw = ImGui::GetWindowDrawList();
-		if (a_ticked) {
-			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_Header), style.FrameRounding);
-		} else if (hovered) {
-			Theme::HoverFill(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
-		}
-		const ImU32  textColour = ImGui::GetColorU32(a_ticked ? ImGuiCol_CheckMark : ImGuiCol_Text);
-		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
-		draw->AddText(ImVec2(topLeft.x + style.FramePadding.x, midY - text.y * 0.5f), textColour, a_label);
-		const float right = bottomRight.x - style.FramePadding.x;
-		if (a_ticked && a_showMark && !Theme::DrawTickedBox(right, midY)) {
-			const float  mark = ImGui::GetFontSize() * 0.25f;  // half width of the check mark
-			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
-			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
-		}
-		return toggled;
+		QueueMenuSound(kFocusSound);
+		return true;
 	}
 
 	// The rows of "wears it for": Default, then request.situations.

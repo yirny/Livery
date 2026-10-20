@@ -66,6 +66,13 @@ namespace Theme
 	// caller's tooltip.
 	bool LabelHelpMark();
 
+	// LabelLink without the plus mark, `label` followed inside its click area by a greyed
+	// "(?)": text only at the right end of the label line just laid out (call it right after
+	// LabelText), lit while hovered. `*hovered` tells the caller to show the help. Returns
+	// true when clicked. Faded and inert inside BeginDisabled.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool LabelHelpLink(const char* label, bool* hovered);
+
 	// Extra room above a field, on top of the item spacing; LabelText adds it
 	// itself, so call it only before a field that has no label.
 	void SectionGap();
@@ -76,6 +83,11 @@ namespace Theme
 
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
+
+	// Button with a greyed "(?)" after its label, inside its frame; `*hovered` tells the
+	// caller to show the help. It is as wide as Button(label + " (?)").
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool HelpButton(const char* label, bool* hovered);
 
 	// A square-cornered list of rows between a rule above and a rule below. The
 	// rules and the rows' fills span the content. In Tailor the whole list keeps
@@ -121,17 +133,19 @@ namespace Theme
 	// A row the user ticks on and off, one text per column; returns true when
 	// toggled. While ticked, Tailor fills it faintly amber with an amber rule on
 	// its left edge, as Tailor 3.0 marks a selected row; Vanilla and Nordic draw it
-	// like a SkyUI inventory row: the skin's equipped mark and a white bar fading
-	// in from the left.
+	// like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a white
+	// bar fading in from the left. Hovered: Tailor's brown, Vanilla's soft white
+	// ellipse, NORDIC UI's selection line under the row.
 	// Contract: inside BeginList, one cell per column; the cells are shown as is
 	// and the first is the row's ImGui ID, so PushID around rows whose first cells
 	// may repeat.
 	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked);
 
-	// A row of a single-choice list, SelectRowHeight tall: filled while selected
-	// or hovered, its text a little right of the list's indent; returns true
-	// when clicked. A selected row is marked left of its text: NORDIC UI's MCM
-	// page arrow in Vanilla and Nordic, Tailor's amber rule on its left edge.
+	// A row of a single-choice list, SelectRowHeight tall, its text a little right of the
+	// list's indent; returns true when clicked. A selected row is marked left of its text:
+	// NORDIC UI's MCM page arrow in Vanilla and Nordic, Tailor's amber rule on its left edge;
+	// Tailor also fills it, Vanilla lays the tick row's white bar over it, Nordic shows the
+	// arrow alone. A hovered row gets the tick row's hover fill.
 	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's
 	// ImGui ID, so PushID around rows whose labels may repeat.
@@ -158,10 +172,14 @@ namespace Theme
 	// Contract: inside BeginList; the text is shown as is and is the row's ImGui ID.
 	bool FoldHeading(const char* text, bool open);
 
-	// The fill of a hovered row outside a list (a dropdown's rows), from `left`, `top` to
-	// `right`, `bottom` (screen pixels): as a list row's hover, Tailor's muted brown with the
-	// frame's rounding, Vanilla's and Nordic's soft white ellipse.
-	void HoverFill(float left, float top, float right, float bottom);
+	// One row of a dropdown's popup, filled and hovered as SelectRow is; returns true when
+	// clicked, having toggled `*ticked`. `checkbox` makes it a row of a multi-choice dropdown:
+	// Vanilla and Nordic draw the game's checkbox at the row's start (Tailor, or a missing
+	// texture, a check mark at its right end while ticked). Nordic marks a ticked row with the
+	// select arrow left of all that. DropdownRowWidth is the width it needs for `label`.
+	// Contract: in the popup; the label is shown as is and is the row's ImGui ID.
+	bool  DropdownRow(const char* label, bool* ticked, bool checkbox);
+	float DropdownRowWidth(const char* label, bool checkbox);
 
 	// A SelectRow with the outfit's tags under its name in the small font, wrapping onto
 	// more lines within `tagsWidth` (OutfitTagsWidth): its gender first unless unisex (-1
@@ -203,7 +221,7 @@ namespace Theme
 
 	enum class FieldShape
 	{
-		kBoxed,       // the skin's frame (fainter in Vanilla and Nordic)
+		kBoxed,       // the skin's frame in Tailor; Vanilla and Nordic draw it kUnderlined, a text field with a pen at its right end
 		kUnderlined,  // no frame: one rule under the text, coloured as the frame would be; filled only while highlighted
 		kBare         // no fill, frame or rule, and as tall as the text
 	};
@@ -234,19 +252,13 @@ namespace Theme
 	// The red of error text and fields, packed as ImGui's ImU32.
 	unsigned ErrorColor();
 
-	// The game's ticked checkbox in the current window, its right edge at
-	// `right` and centred on `midY` (screen pixels). Returns false, drawing
-	// nothing, when the skin is not Vanilla or Nordic or the textures are
-	// missing, so the caller draws its own mark.
-	bool DrawTickedBox(float right, float midY);
-
 	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
 	// fill the popup only when BeginCombo returned true, then call EndCombo
 	// with that result, the preview and the same style; EndCombo draws the
 	// preview. Every skin gives the popup its own padding. Tailor replaces
 	// ImGui's arrow with a small amber chevron; Vanilla and Nordic replace it
-	// with the game's diamond stepper arrow, or keep ImGui's when its texture
-	// is missing, and draw the frame's and popup's border fainter.
+	// with the game's diamond stepper arrow, grey and white while hovered or open,
+	// or keep ImGui's when its texture is missing, and draw the popup's border fainter.
 	// `flags` are ImGuiComboFlags.
 	bool BeginCombo(const char* id, int flags, const FieldStyle& style = {});
 	void EndCombo(bool open, const char* preview, const FieldStyle& style = {});
@@ -259,12 +271,6 @@ namespace Theme
 	// Lay it over the right end of a field submitted with
 	// ImGui::SetNextItemAllowOverlap, or beside one, as tall as the field.
 	bool ClearButton(const char* id, float side);
-
-	// Text with no frame in the body font, in LabelText's colour and lit while
-	// hovered (white in Vanilla and Nordic, amber in Tailor). Returns true when
-	// clicked. Faded and inert inside BeginDisabled.
-	// Contract: the label is shown as is and is the ImGui ID.
-	bool TextButton(const char* label);
 
 	// One tab of a row of text-only tabs: its label in the body font, in full colour while
 	// selected or hovered and half transparent otherwise. Returns true when clicked. Faded

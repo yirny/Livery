@@ -158,8 +158,11 @@ namespace CaptureWindow
 		// Runs on the game thread when the user confirms Manage Outfits' Update: `edit` holds
 		// the outfit, its new name, gender, pieces and categories, and no rows. The window
 		// stays open: it must end by calling SetOutfits() with the library as written, or
-		// SetError() when the write was refused or failed. Empty greys Update.
-		std::function<void(const SaveRequest& edit)> onManageUpdate;
+		// SetError() when the write was refused or failed. With `apply` (Update and Apply,
+		// from Apply to #{Name} with unsaved edits) the outfit as written becomes the actor's
+		// Default instead, as onManageApply makes it, and it ends by calling Close(); a
+		// refused or failed write assigns nothing. Empty greys Update.
+		std::function<void(const SaveRequest& edit, bool apply)> onManageUpdate;
 
 		// Runs on the game thread when the user confirms Manage Outfits' Remove of library
 		// outfit `outfit`; `shown` are the Inventory page's ticks (indices into `pieces`), which
