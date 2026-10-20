@@ -1224,14 +1224,14 @@ namespace
 	}
 
 	// One full-width option row: hover fill, a highlighted fill and accent text
-	// with the game's ticked checkbox (Theme::DrawTickedBox) or else a check
-	// mark on the right when ticked. An InvisibleButton does not
-	// close the combo popup, so the user can tick several rows in one go.
+	// when ticked, with the game's ticked checkbox (Theme::DrawTickedBox) or else
+	// a check mark on the right unless `a_showMark` is false. An InvisibleButton
+	// does not close the combo popup, so the user can tick several rows in one go.
 	// The hit area also covers half the gap above and below the fill, so rows
 	// stacked with no item spacing leave no dead strip between them. Returns
 	// true when toggled.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
-	bool DrawCategoryRow(const char* a_label, bool& a_ticked)
+	bool DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true)
 	{
 		const auto&  style = ImGui::GetStyle();
 		const float  halfGap = Theme::ListRowGap(style.ItemInnerSpacing.y) * 0.5f;
@@ -1255,7 +1255,7 @@ namespace
 		const float  midY = (topLeft.y + bottomRight.y) * 0.5f;
 		draw->AddText(ImVec2(topLeft.x + style.FramePadding.x, midY - text.y * 0.5f), textColour, a_label);
 		const float right = bottomRight.x - style.FramePadding.x;
-		if (a_ticked && !Theme::DrawTickedBox(right, midY)) {
+		if (a_ticked && a_showMark && !Theme::DrawTickedBox(right, midY)) {
 			const float  mark = ImGui::GetFontSize() * 0.25f;  // half width of the check mark
 			const ImVec2 points[] = { { right - mark * 2.0f, midY }, { right - mark * 1.2f, midY + mark * 0.8f }, { right, midY - mark * 0.8f } };
 			draw->AddPolyline(points, 3, textColour, ImDrawFlags_None, (std::max)(1.0f, ImGui::GetFontSize() * 0.08f));
@@ -1872,10 +1872,10 @@ namespace
 		return OutfitBrowser::OffersSort(a_state.request, a_option.key);
 	}
 
-	// The Sort dropdown's rows, the current key ticked; choosing one closes the
-	// popup. A zero-high spacer as wide as the widest row keeps the popup,
-	// which starts as narrow as its frame, from crowding a row's tick onto its
-	// label. Returns true when the key changed.
+	// The Sort dropdown's rows, the current key highlighted with no tick mark;
+	// choosing one closes the popup. A zero-high spacer as wide as the widest
+	// row keeps the popup, which starts as narrow as its frame, from cutting a
+	// row's label. Returns true when the key changed.
 	bool DrawSortRows(State& a_state)
 	{
 		const auto& style = ImGui::GetStyle();
@@ -1886,14 +1886,14 @@ namespace
 			}
 		}
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));  // rows carry their own gap
-		ImGui::Dummy(ImVec2(widest + style.FramePadding.x * 2.0f + style.ItemInnerSpacing.x + ImGui::GetFrameHeight(), 0.0f));
+		ImGui::Dummy(ImVec2(widest + style.FramePadding.x * 2.0f, 0.0f));
 		bool changed = false;
 		for (const auto& option : kSortOptions) {
 			if (!OffersSort(a_state, option)) {
 				continue;
 			}
 			bool ticked = a_state.browser.sort == option.key;
-			if (DrawCategoryRow(option.label, ticked)) {
+			if (DrawCategoryRow(option.label, ticked, false)) {
 				changed = a_state.browser.sort != option.key;
 				a_state.browser.sort = option.key;
 				ImGui::CloseCurrentPopup();
@@ -1989,8 +1989,7 @@ namespace
 		if (DrawSortCombo(a_state)) {
 			OutfitBrowser::Refresh(a_state.browser, a_state.request);
 		}
-		const float gap = Theme::SelectRowGap();
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));
+		PushListRowSpacing();  // the piece list's row gap; popped before EndList, as there
 		const float tagsWidth = Theme::OutfitTagsWidth();
 		// Show Categories, under the list, takes a frame's height too.
 		const float listHeight = OutfitListHeight(a_state, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
@@ -2048,9 +2047,8 @@ namespace
 		const auto count = a_outfit.unloadedPieces ? std::format("{} piece(s), {} not loaded", total, a_outfit.unloadedPieces) :
 		                                             std::format("{} piece(s)", total);
 		Theme::LabelText(count.c_str());
-		const float gap = Theme::SelectRowGap();
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));
-		const float listHeight = ListHeight(a_outfit.pieces.size(), Theme::SelectRowHeight() + gap);
+		PushListRowSpacing();  // as the outfit list beside it
+		const float listHeight = ListHeight(a_outfit.pieces.size(), Theme::SelectRowHeight() + ImGui::GetStyle().ItemSpacing.y);
 		if (Theme::BeginList("outfitPieces", listHeight)) {
 			for (const auto index : a_outfit.pieces) {
 				Theme::TextRow(a_state.request.pieces[index].name.c_str());
