@@ -37,10 +37,11 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 
 ### 2.1 Outfit library safety
 
-The library (`outfits.json`, `src/Library.cpp`) is shared by every save and character, and the window has no delete: every write is permanent for the user.
+The library (`outfits.json`, `src/Library.cpp`) is shared by every save and character: every write is permanent for the user.
 
 - New outfit: an unused name (`Library::FindByName` first), at least one piece, the classes the user ticked. Validate before `Library::Create` so nothing is written for a refused request.
 - Change an existing outfit only through the Save page's Update tab, the Apply popup's Yes or Manage Outfits' Update popup, after the user confirmed it: `Library::Update` replaces its pieces and Armor Classes wholesale, and its name and gender as the user left them; its custom categories stay; a new name must be unused by any other outfit (ASCII case ignored); pieces from plugins that are not loaded stay in it. Manage Outfits redresses the captured actor only after the write took, and only when they wear the outfit.
+- Remove an outfit only through Manage Outfits' Remove popup, after the user saw who has it and confirmed: `Library::Remove` writes first, and a refused or failed write changes no assignment; then `Assignments::ForgetOutfit` clears its situation rows (a default from it keeps its pieces with outfit id 0), and those wearing it for a situation are redressed: the captured actor at once with Live Preview on, the others at the window's close or, out of reach, when they load.
 - Assign a saved outfit to the actor (Default or a situation) only for the `wears it for` rows the user ticked, and take over another outfit's row only after the user chose Replace — never by default. The library write comes first; a refused or failed write assigns nothing.
 - Never write a file that could not be read or that a newer version wrote (`Library::Load` sets the writable state once); write through a temporary file and a rename, so a failed write leaves the old file.
 - The live preview creates and writes nothing: it dresses through the inventory only.

@@ -22,9 +22,10 @@
 //                  one's name, Armor Classes, gender and pieces, edited in place and kept
 //                  for one outfit at a time (Discard changes / Keep editing before another
 //                  is selected); the edited outfit on the preview; Update lists the changes
-//                  (Save changes?) and hands them to onManageUpdate, Cancel asks Discard and
-//                  close / Stay with unsaved edits; the Unsaved changes notice on leaving
-//                  for the Inventory tab
+//                  (Save changes?) and hands them to onManageUpdate, Remove names who has
+//                  the outfit (Remove outfit?) and hands it to onManageRemove, Cancel asks
+//                  Discard and close / Stay with unsaved edits; the Unsaved changes notice
+//                  on leaving for the Inventory tab
 //   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks
 //                  and Live Preview; Use Ticked Pieces makes them the edited pieces, Back
 //                  leaves them; nothing is written
@@ -645,11 +646,13 @@ namespace CaptureWindow::Internal
 	{
 		kNone,
 		kUpdate,
+		kRemove,
 		kCancel
 	};
 
-	// Update / Cancel centred below a gap. Update needs Request::onManageUpdate, unsaved
-	// edits and a name. a_escapeTaken: the browser used this frame's Escape.
+	// Update / Remove / Cancel centred below a gap. Update needs Request::onManageUpdate,
+	// unsaved edits and a name; Remove needs Request::onManageRemove and a selected outfit.
+	// a_escapeTaken: the browser used this frame's Escape.
 	ManageAction DrawManageButtons(const State& a_state, bool a_escapeTaken)
 	{
 		const char* noUpdate = nullptr;
@@ -658,9 +661,13 @@ namespace CaptureWindow::Internal
 		} else if (Trimmed(a_state.manage.name.data()).empty()) {
 			noUpdate = kNeedName;
 		}
-		BeginButtonRow({ "Update", "Cancel" });
+		BeginButtonRow({ "Update", "Remove", "Cancel" });
 		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
 		const bool update = ReasonButton("Update", noUpdate);
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!a_state.request.onManageRemove);
+		const bool remove = ReasonButton("Remove", a_state.manage.outfit < 0 ? kNeedOutfit : nullptr);
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
@@ -668,6 +675,9 @@ namespace CaptureWindow::Internal
 
 		if (update) {
 			return ManageAction::kUpdate;
+		}
+		if (remove) {
+			return ManageAction::kRemove;
 		}
 		return cancel ? ManageAction::kCancel : ManageAction::kNone;
 	}
@@ -784,11 +794,62 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit)] { onUpdate(edit); });
 	}
 
+	// Names the outfit and who has it among Livery's assignments in this save, then Remove /
+	// Cancel. Returns true on Remove.
+	bool DrawRemovePopup(const State& a_state)
+	{
+		if (!BeginModal(kRemovePopup)) {
+			return false;
+		}
+		const auto& form = a_state.manage;
+		if (form.outfit < 0) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return false;
+		}
+		const auto& outfit = OutfitAt(a_state, form.outfit);
+		ImGui::TextUnformatted(std::format("Remove \"{}\" from the library?", outfit.name).c_str());
+		if (!outfit.users.empty()) {
+			ImGui::TextUnformatted("It is used by:");
+			for (const auto& user : outfit.users) {
+				ImGui::BulletText("%s", user.c_str());
+			}
+			ImGui::TextDisabled("Their situations without it fall back to the default; a default from it keeps its pieces.");
+		}
+		BeginButtonRow({ "Remove", "Cancel" });
+		const bool remove = Theme::Button("Remove");
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		if (remove || cancel) {
+			QueueMenuSound(remove ? kOkSound : kCancelSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return remove;
+	}
+
+	// Hands the outfit to onManageRemove with the Inventory page's ticks, which the preview
+	// shows once it is gone; until the handler ends with SetOutfits or SetError the page is
+	// greyed.
+	// Contract: the handler changes no assignment for a refused or failed write (CLAUDE.md §2.1).
+	void RequestManageRemove(State& a_state)
+	{
+		a_state.status = Status::kSaving;
+		a_state.error.clear();
+		auto onRemove = a_state.request.onManageRemove;
+		SKSE::GetTaskInterface()->AddTask(
+			[onRemove, outfit = OutfitAt(a_state, a_state.manage.outfit).id, shown = TickedPieces(a_state)] { onRemove(outfit, shown); });
+	}
+
 	// The edits' popups, each opened by the page in its own ID scope.
 	void DrawManagePopups(State& a_state)
 	{
 		if (DrawManageConfirmPopup(a_state)) {
 			RequestManageUpdate(a_state);
+		}
+		if (DrawRemovePopup(a_state)) {
+			RequestManageRemove(a_state);
 		}
 		if (DrawUnsavedPopup(a_state, kDiscardPopup, "Discard changes", "Keep editing") == UnsavedChoice::kFirst) {
 			SelectManaged(a_state, a_state.discardFor);
@@ -844,6 +905,9 @@ namespace CaptureWindow::Internal
 		if (action == ManageAction::kUpdate) {
 			QueueMenuSound(kOkSound);
 			ImGui::OpenPopup(kManageConfirmPopup);
+		} else if (action == ManageAction::kRemove) {
+			QueueMenuSound(kOkSound);
+			ImGui::OpenPopup(kRemovePopup);
 		} else if (action == ManageAction::kCancel) {
 			if (HasUnsavedEdits(a_state)) {
 				ImGui::OpenPopup(kDiscardClosePopup);
