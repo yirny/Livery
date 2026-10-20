@@ -42,6 +42,8 @@ namespace
 	constexpr auto kTransferSection = L"Transfer";
 	constexpr auto kMoveFromPlayerKey = L"MoveFromPlayer";
 	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
+	constexpr auto kSituationsSection = L"Situations";
+	constexpr auto kNotifyChangesKey = L"NotifyChanges";
 
 	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
 	constexpr float kMinSpeedPercent = 10.0f;
@@ -62,7 +64,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 12> kIniKeys{ {
+	constexpr std::array<IniKey, 13> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -107,6 +109,10 @@ namespace
 			L"1 = your favorites are left out of that list, as quest items always are.\n"
 			L"0 = your favorites are listed too.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kSituationsSection, kNotifyChangesKey, L"0",
+			L"1 = a message on screen tells you when a character changes outfit because a situation (Town, Warm, ...) began or ended.\n"
+			L"0 = they change without a message.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
 	} };
 
 	// A modifier is named by its left-hand code in the INI and the picker; either side counts.
@@ -148,6 +154,7 @@ namespace
 	std::atomic<bool>          g_showPlayerWorn{ false };
 	std::atomic<bool>          g_protectFavorites{ true };
 	std::atomic<bool>          g_moveFromPlayer{ true };
+	std::atomic<bool>          g_notifySituationChanges{ false };
 	std::filesystem::path      g_iniPath;  // set once by Load, read-only afterwards
 
 	const SkinOption& OptionOf(Theme::Skin a_skin)
@@ -479,6 +486,17 @@ namespace
 			SaveFlag(kTransferSection, kMoveFromPlayerKey, moveFromPlayer);
 			logger::info("MoveFromPlayer = {} (SKSE Menu Framework)", moveFromPlayer);
 		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		// Applies at once.
+		bool notifyChanges = g_notifySituationChanges.load();
+		if (ImGuiMCP::Checkbox("Show a message when a character changes outfit for a situation", &notifyChanges)) {
+			g_notifySituationChanges = notifyChanges;
+			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
+			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
+		}
 	}
 }
 
@@ -569,6 +587,11 @@ namespace Settings
 		g_moveFromPlayer = std::wstring_view{ value } != L"0";
 		logger::info("ShowPlayerInventory = {}, ShowPlayerWornPieces = {}, ProtectFavorites = {}, MoveFromPlayer = {}", g_showPlayerInventory.load(),
 			g_showPlayerWorn.load(), g_protectFavorites.load(), g_moveFromPlayer.load());
+
+		// A missing key keeps the default (off).
+		::GetPrivateProfileStringW(kSituationsSection, kNotifyChangesKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		g_notifySituationChanges = std::wstring_view{ value } == L"1";
+		logger::info("NotifyChanges = {}", g_notifySituationChanges.load());
 	}
 
 	void RegisterMenu()
@@ -646,5 +669,10 @@ namespace Settings
 	bool MoveFromPlayer()
 	{
 		return g_moveFromPlayer.load();
+	}
+
+	bool NotifySituationChanges()
+	{
+		return g_notifySituationChanges.load();
 	}
 }
