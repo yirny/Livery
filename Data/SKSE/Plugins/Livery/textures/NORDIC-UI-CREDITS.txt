@@ -18,3 +18,7 @@ nordic-rope.png is one repeat of the twisted rope beside the level-up menu's att
 prompt (interface/levelupmenu.swf, shape 13, its left rope), rendered from its vector
 shape as a white alpha mask that tiles vertically; the plugin tints it at draw time.
 Same author and permission as above.
+
+The Nordic skin's hover line is NORDIC UI's list selection line (interface/skyui/inventorylists.swf,
+symbol ItemsListEntry, child selectIndicator, shape 1). It ships as no image: the plugin draws
+the shape from its points and gradient in code. Same author and permission as above.
