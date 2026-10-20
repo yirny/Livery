@@ -18,8 +18,8 @@ namespace RE
 // QueueInput runs on the game thread from the input dispatch hook. All state is
 // guarded by one mutex. Nothing here touches the outfit library or the
 // assignments: the Save page's Create and Update hand the outfit and the rows to
-// change to Request::onSave, Manage Outfits' Update the outfit to
-// Request::onManageUpdate, Apply and Restore Original Outfit go to
+// change to Request::onSave, Manage Outfits' Update and Remove the outfit to
+// Request::onManageUpdate and onManageRemove, Apply and Restore Original Outfit go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
 // Request::onPreviewPieces and the Live Preview tick to Request::onPreviewOn /
@@ -79,7 +79,7 @@ namespace CaptureWindow
 		float seconds = 0.0f;      // the frame's length
 	};
 
-	// An outfit already in the library, listed on the Load page and the Update tab's selection.
+	// An outfit already in the library, listed on the outfit pages.
 	struct ExistingOutfit
 	{
 		std::string              name;
@@ -90,6 +90,9 @@ namespace CaptureWindow
 		std::size_t   unloadedPieces = 0;
 		std::uint32_t id = 0;       // the library's id, handed back in SaveRequest::outfit
 		int           gender = -1;  // -1 unisex, 0 male, 1 female
+		// Who has it among Livery's assignments in this save, one line each, for Remove's
+		// popup: "Lydia: Default, Town", the actor's FormID when not in memory.
+		std::vector<std::string> users;
 	};
 
 	// What one row of the Save page's "wears it for" field holds for the actor now.
@@ -157,6 +160,12 @@ namespace CaptureWindow
 		// SetError() when the write was refused or failed. Empty greys Update.
 		std::function<void(const SaveRequest& edit)> onManageUpdate;
 
+		// Runs on the game thread when the user confirms Manage Outfits' Remove of library
+		// outfit `outfit`; `shown` are the Inventory page's ticks (indices into `pieces`), which
+		// the preview shows once the outfit is gone. As onManageUpdate, it must end by calling
+		// SetOutfits() or SetError(). Empty greys Remove.
+		std::function<void(std::uint32_t outfit, const std::vector<std::size_t>& shown)> onManageRemove;
+
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns
 		// "" once the preview is on, or why it cannot be (the tick then stays
@@ -197,7 +206,6 @@ namespace CaptureWindow
 		std::vector<ExistingOutfit> existingOutfits;  // indices into Request::pieces as the window has them
 		std::vector<CategoryOption> categories;
 		std::vector<RowAssignment>  assigned;
-		std::string                 outfitName;
 		std::string                 actorSummary;
 	};
 
@@ -208,9 +216,12 @@ namespace CaptureWindow
 
 	// Ends a Manage Outfits change the library took: the window shows `list` and lets the
 	// user edit again. The pages' selections, the loaded outfit and the Update tab's outfit
-	// are found again by id (none when gone), each list keeps its search and sort, the
-	// Inventory page drops ticks on pieces it no longer lists, and Manage Outfits' edits
-	// start again from the library.
+	// are found again by id (none when gone, the Update tab then left), each list keeps its
+	// search and sort, the Inventory page drops ticks on pieces it no longer lists, and
+	// Manage Outfits' edits start again from the library, or the preview shows the
+	// Inventory page's ticks when its outfit is gone. The heading of the pieces Livery put on
+	// from Request::wornOutfit takes the outfit's name now; when the outfit is gone they
+	// join the other worn pieces and Apply no longer offers to update it.
 	void SetOutfits(OutfitList list);
 
 	// The live preview could not start again after a change made while it was on: the
