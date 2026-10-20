@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <span>
+#include <string>
 
 struct ID3D11Device;
 
@@ -138,6 +139,27 @@ namespace Theme
 	// Lay rows out SelectRowGap apart.
 	// Contract: inside BeginList.
 	void TextRow(const char* label);
+
+	// A heading inside a list: a TextRow in the small font, greyed (the piece list's
+	// groups, a sorted outfit list's headings). ListHeadingHeight is its height.
+	// Contract: ListHeading inside BeginList.
+	void  ListHeading(const char* text);
+	float ListHeadingHeight();
+
+	// A SelectRow with the outfit's tags under its name in the small font, wrapping onto
+	// more lines within `tagsWidth` (OutfitTagsWidth): its gender first unless unisex (-1
+	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
+	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
+	// Nordic as grey text, comma separated. With no tag it is laid out as a SelectRow.
+	// OutfitRowHeight is its height. Lay rows out SelectRowGap apart.
+	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
+	// ID, so PushID around rows whose names may repeat.
+	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected);
+	float OutfitRowHeight(int gender, std::span<const std::string> tags, float tagsWidth);
+
+	// Room for an outfit row's tags, from where its text starts to the list's right end.
+	// Contract: called outside BeginList, at the list's indent, as ColumnsWidth is.
+	float OutfitTagsWidth();
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Tailor a

@@ -18,7 +18,7 @@
 // calls here. Load runs once at kDataLoaded, before any other function.
 namespace Library
 {
-	// A category an outfit can be in, as the capture window offers it.
+	// An Armor Class an outfit can be in, as the capture window offers it.
 	struct Category
 	{
 		const char* group;  // CaptureWindow::kClassGroup
@@ -45,10 +45,12 @@ namespace Library
 	// Reads the file. A missing file is an empty library. A file that cannot be read, or
 	// that a newer version wrote, leaves the library empty and refuses every change, so
 	// the file is never overwritten. The class names of older files ("Light Armor", "Heavy
-	// Armor") are read as today's; the file is not written here.
+	// Armor") are read as today's, and Jewelry, no longer a category, is dropped; the file is
+	// not written here.
 	void Load();
 
-	// The categories the window offers, in display order: SkyUI's classes.
+	// The Armor Classes the window offers, in display order: SkyUI's classes but Jewelry.
+	// Update replaces only these; an outfit's other categories stay.
 	std::span<const Category> Categories();
 
 	// Contract: pointers and references into the library go stale at the next Create or Update.

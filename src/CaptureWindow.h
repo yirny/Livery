@@ -25,15 +25,19 @@ namespace RE
 // onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
-	// Group of the class categories (ArmorInfo's SkyUI classes), shown as a row of
-	// checkboxes rather than a dropdown.
-	constexpr const char* kClassGroup = "Class";
+	// The groups of Request::categories, in their order (docs/outfit-management-ui.md §1).
+	// The Armor Classes (Library::Categories) are the Save page's row of checkboxes.
+	constexpr const char* kClassGroup = "Armor Class";
+	// Every other category the library's outfits hold, by name; read only in the window.
+	constexpr const char* kCustomGroup = "Custom Category";
+	// Default and the situations: the actor's "wears it for" rows. Never stored in the library.
+	constexpr const char* kSituationGroup = "Situation";
 
 	struct CategoryOption
 	{
-		std::string group;             // label of the field it is listed in
-		std::string name;              // the category's name as the library stores it
-		bool        selected = false;  // initial state of its tick
+		std::string group;             // kClassGroup, kCustomGroup or kSituationGroup
+		std::string name;              // the category's name as the library stores it; a row's name for kSituationGroup
+		bool        selected = false;  // kClassGroup: initial state of its tick on the Create tab
 	};
 
 	// Where a piece comes from: the Capture page lists the pieces under one heading per
@@ -78,7 +82,7 @@ namespace CaptureWindow
 	struct ExistingOutfit
 	{
 		std::string              name;
-		std::vector<std::string> categories;  // the offered categories it is in; the Update tab starts its ticks from them
+		std::vector<std::string> categories;  // the stored ones: Armor Classes and custom; the Update tab starts its ticks from them
 		std::vector<std::size_t> pieces;      // indices into Request::pieces of its loaded pieces, ascending, no repeats
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
@@ -102,23 +106,26 @@ namespace CaptureWindow
 		std::string              name;        // trimmed, non-empty
 		int                      gender = -1;
 		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
-		std::vector<std::string> categories;  // ticked, in the order of Request::categories, maybe none
+		std::vector<std::string> categories;  // the ticked Armor Classes, in the order of Request::categories, maybe none
 		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row taken by another outfit only after Replace
 		std::vector<std::size_t> remove;      // Update only: rows that had the outfit and are unticked, ascending
 	};
 
 	struct Request
 	{
-		std::string                 actorName;             // the title line names them
-		std::string                 actorSummary;          // shown greyed under the title line; "" for none
-		std::string                 outfitName;            // the library outfit of PieceGroup::kLiveryOutfit's heading
-		std::uint32_t               wornOutfit = 0;        // that outfit's library id, which the Apply popup offers to update; 0 for none
-		std::string                 wornSituation;         // what it is worn for: a situation's name, "" for the default
-		std::vector<Piece>          pieces;                // shown as a checkbox list; Save and Apply need at least one ticked
-		bool                        previewOn = false;     // Live Preview is on as the window opens; off, the window freezes the game
-		std::string                 previewNote;           // why Live Preview cannot be on, shown over its greyed tick; "" when it can
-		std::string                 suggestedName;         // initial text of the name field
-		std::vector<CategoryOption> categories;            // offered as the Class checkboxes
+		std::string        actorName;          // the title line names them
+		std::string        actorSummary;       // shown greyed under the title line; "" for none
+		std::string        outfitName;         // the library outfit of PieceGroup::kLiveryOutfit's heading
+		std::uint32_t      wornOutfit = 0;     // that outfit's library id, which the Apply popup offers to update; 0 for none
+		std::string        wornSituation;      // what it is worn for: a situation's name, "" for the default
+		std::vector<Piece> pieces;             // shown as a checkbox list; Save and Apply need at least one ticked
+		bool               previewOn = false;  // Live Preview is on as the window opens; off, the window freezes the game
+		std::string        previewNote;        // why Live Preview cannot be on, shown over its greyed tick; "" when it can
+		std::string        suggestedName;      // initial text of the name field
+		// One run per group, in the groups' order: the Armor Classes, the custom categories, then
+		// kSituationGroup with one entry per row of `assigned`, in its order. The outfit lists
+		// tag and sort by them; the Save page ticks only the Armor Classes.
+		std::vector<CategoryOption> categories;
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Load page and the Update tab's selection, in display order
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
 		std::vector<std::string>    situations;            // the rows of "wears it for" after Default

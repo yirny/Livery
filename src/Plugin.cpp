@@ -44,6 +44,7 @@
 #include <format>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -78,11 +79,36 @@ namespace
 		return {};
 	}
 
-	std::vector<CaptureWindow::CategoryOption> AvailableCategories()
+	bool IsArmorClass(std::string_view category)
+	{
+		return std::ranges::any_of(Library::Categories(), [category](const Library::Category& offered) { return category == offered.name; });
+	}
+
+	// Request::categories' three groups: the Armor Classes, every other category the
+	// library's outfits hold, by name (ASCII case ignored), then Default and the situations
+	// in Situations::kChoosable order, one per row of Request::assigned (AttachSave).
+	// Contract: game thread (reads the library).
+	std::vector<CaptureWindow::CategoryOption> CategoryGroups()
 	{
 		std::vector<CaptureWindow::CategoryOption> categories;
 		for (const auto& [group, name] : Library::Categories()) {
 			categories.push_back({ group, name });
+		}
+		std::vector<std::string> custom;
+		for (const auto& outfit : Library::Outfits()) {
+			for (const auto& category : outfit.categories) {
+				if (!IsArmorClass(category) && std::ranges::find(custom, category) == custom.end()) {
+					custom.push_back(category);
+				}
+			}
+		}
+		std::ranges::sort(custom, [](const std::string& a, const std::string& b) { return _stricmp(a.c_str(), b.c_str()) < 0; });
+		for (auto& name : custom) {
+			categories.push_back({ CaptureWindow::kCustomGroup, std::move(name) });
+		}
+		categories.push_back({ CaptureWindow::kSituationGroup, Situations::Name(Situations::Situation::kDefault) });
+		for (const auto situation : Situations::kChoosable) {
+			categories.push_back({ CaptureWindow::kSituationGroup, Situations::Name(situation) });
 		}
 		return categories;
 	}
@@ -408,8 +434,9 @@ namespace
 		});
 	}
 
-	// Class category of an outfit: the SkyUI class (ArmorInfo) of the first piece found on a
-	// kSlotPriority slot that has one of the library's four; Clothing when none has.
+	// Armor Class of an outfit: the SkyUI class (ArmorInfo) of the first piece found on a
+	// kSlotPriority slot that has one of the library's three (Jewelry and Other skipped);
+	// Clothing when none has.
 	const char* DetectArmorClass(const std::vector<RE::TESObjectARMO*>& armors)
 	{
 		using ArmorInfo::ArmorClass;
@@ -419,7 +446,7 @@ namespace
 				if (!armor->HasPartOf(slot)) {
 					continue;
 				}
-				if (const auto armorClass = ArmorInfo::ClassOf(*armor); armorClass != ArmorClass::kOther) {
+				if (const auto armorClass = ArmorInfo::ClassOf(*armor); armorClass != ArmorClass::kOther && armorClass != ArmorClass::kJewelry) {
 					return ArmorInfo::ClassName(armorClass);
 				}
 			}
@@ -488,13 +515,12 @@ namespace
 		return armors.size() - 1;
 	}
 
-	// The library's outfits in case-insensitive name order, each with the offered
-	// categories it is in and its loaded pieces as indices into `armors`, which
-	// gains the pieces the actor does not carry (`pieces` matches it index for
-	// index).
+	// The library's outfits in case-insensitive name order, each with its stored
+	// categories (Armor Classes and custom ones) and its loaded pieces as indices into
+	// `armors`, which gains the pieces the actor does not carry (`pieces` matches it
+	// index for index).
 	// Contract: game thread (resolves the library's pieces to armor forms).
-	std::vector<CaptureWindow::ExistingOutfit> ExistingOutfits(const std::vector<CaptureWindow::CategoryOption>& categories,
-		std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
+	std::vector<CaptureWindow::ExistingOutfit> ExistingOutfits(std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
 	{
 		std::vector<const Library::Outfit*> library;
 		for (const auto& outfit : Library::Outfits()) {
@@ -505,12 +531,7 @@ namespace
 		std::vector<CaptureWindow::ExistingOutfit> outfits;
 		outfits.reserve(library.size());
 		for (const auto* stored : library) {
-			CaptureWindow::ExistingOutfit outfit{ .name = stored->name, .id = stored->id, .gender = stored->gender };
-			for (const auto& category : categories) {
-				if (std::ranges::find(stored->categories, category.name) != stored->categories.end()) {
-					outfit.categories.push_back(category.name);
-				}
-			}
+			CaptureWindow::ExistingOutfit outfit{ .name = stored->name, .categories = stored->categories, .id = stored->id, .gender = stored->gender };
 			// LoadedPieces lists each form once, so the indices do not repeat.
 			for (auto* armor : Library::LoadedPieces(*stored, &outfit.unloadedPieces)) {
 				outfit.pieces.push_back(PieceIndex(armor, armors, pieces));
@@ -729,11 +750,11 @@ namespace
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
 		request.suggestedName = NextAutomaticName();
-		request.categories = AvailableCategories();
+		request.categories = CategoryGroups();
 		const auto  worn = WornArmors(inventory);
 		const auto* armorClass = DetectArmorClass(worn);
 		for (auto& category : request.categories) {
-			category.selected = category.name == armorClass;
+			category.selected = category.group == CaptureWindow::kClassGroup && category.name == armorClass;
 		}
 		request.suggestedGender = DetectGender(worn);
 		const auto  choices = Assignments::ChoicesOf(actor.GetFormID());
@@ -754,7 +775,7 @@ namespace
 			armors.push_back(armor);
 		}
 		const auto offered = AddPlayerPieces(actor, armors, request.pieces);
-		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
+		request.existingOutfits = ExistingOutfits(armors, request.pieces);
 		AttachAssignment(request, actor, armors, offered, choices);
 		AttachSave(request, actor, armors, choices);
 		AttachPreview(request, actor, armors);
