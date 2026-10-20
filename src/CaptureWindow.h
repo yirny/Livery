@@ -112,6 +112,8 @@ namespace CaptureWindow
 		std::string                 actorName;             // the title line names them
 		std::string                 actorSummary;          // shown greyed under the title line; "" for none
 		std::string                 outfitName;            // the library outfit of PieceGroup::kLiveryOutfit's heading
+		std::uint32_t               wornOutfit = 0;        // that outfit's library id, which the Apply popup offers to update; 0 for none
+		std::string                 wornSituation;         // what it is worn for: a situation's name, "" for the default
 		std::vector<Piece>          pieces;                // shown as a checkbox list; Save and Apply need at least one ticked
 		bool                        previewOn = false;     // Live Preview is on as the window opens; off, the window freezes the game
 		std::string                 previewNote;           // why Live Preview cannot be on, shown over its greyed tick; "" when it can
@@ -121,17 +123,20 @@ namespace CaptureWindow
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
 		std::vector<std::string>    situations;            // the rows of "wears it for" after Default
 		std::vector<RowAssignment>  assigned;              // one per row: Default, then `situations`
+		// Apply moves PieceGroup::kPlayer pieces to the NPC; off, the NPC gets copies.
+		bool movesFromPlayer = true;
 
 		// Runs on the game thread when the user saves on the Save page: after Create,
 		// or after confirming the Update tab's popup. It must end by calling Close()
 		// (done) or SetError() (keep the window open).
 		std::function<void(const SaveRequest& save)> onSave;
 
-		// Runs on the game thread when the user presses Apply, with the ticked indices
-		// into `pieces` (ascending, never empty) and the id of the outfit last loaded
-		// when the ticks are exactly its pieces, else 0. It must end by calling Close()
-		// or SetError().
-		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit)> onApply;
+		// Runs on the game thread when the user applies the ticked pieces, with their indices
+		// into `pieces` (ascending, never empty) and `outfit`: with `updateWorn` (Yes in the
+		// Apply popup) `wornOutfit`, which the ticks are to replace the pieces of first; else
+		// the outfit last loaded, or `wornOutfit`, when the ticks are exactly its pieces, or 0.
+		// It must end by calling Close() or SetError().
+		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit, bool updateWorn)> onApply;
 
 		// Runs on the game thread when the user presses Restore Original Outfit. Empty
 		// when Livery has no pieces on the character, which hides the button. It must end

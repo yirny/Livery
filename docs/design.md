@@ -49,9 +49,26 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
 put on armor they own there (a helmet, a shield). Accepted for now.
 
+Pieces from the player's inventory (the window's `From Player's Inventory`) move to an NPC
+at Apply, before the dressing, when `[Transfer] MoveFromPlayer` is on
+(`Dressing::MoveFromPlayer`): `TESObjectREFR::RemoveItem(armor, 1, kStoreInContainer,
+extraList, npc)`, the container menu's path, so the instance keeps its extra data. The copy
+given is an unworn one ranked as step 1 ranks them, the worn one only with
+`ShowPlayerWornPieces` on and no other. The NPC's inventory is read again after the moves;
+a piece that did not arrive is left out of that dressing and counted on the HUD, never
+replaced by a copy. A moved instance is the NPC's own: step 1 picks it, it is not recorded
+as added, and Unassign leaves it with them. Quest items (`InventoryEntryData::IsQuestObject`)
+are never offered, favorites (`IsFavorited`) not while `ProtectFavorites` is on. The
+preview and the Save page move nothing.
+
 The outfit the window's Apply gives (`Assignments::Assign`) is the actor's default. An outfit chosen for a situation (§7)
 replaces it while the situation lasts, by the same steps: the worn pieces are released
-(copies removed, the actor's own pieces back on) and the new outfit is dressed.
+(copies removed, the actor's own pieces back on) and the new outfit is dressed. When the
+actor wears a library outfit and the ticks differ from it, Apply asks first: Yes updates
+that outfit's pieces (`Library::Update`, name, gender and classes kept), then the default
+gets the ticks with its id, or, for a situation outfit, `Assignments::Refresh` dresses the
+updated outfit with the default untouched; No assigns the ticks as a default that is not
+a saved outfit. The library write comes first; a failed one moves and assigns nothing.
 
 Never through `TESNPC::defaultOutfit` (DOFT): `Actor::SetDefaultOutfit` writes an NPC_
 change form into the save, a runtime 0xFF outfit does not survive a load,
@@ -269,7 +286,8 @@ Each stage ends with an in-game check before the next starts.
 5. The player's situations (§7): the window's dropdown and Situations page, the poll
    skipping beast form, the mount rule for water. Done.
 6. Rework the capture window's existing pages (docs/ui-redesign.md). Step 1, the Capture
-   page: done. Step 2, the Save page: built, not yet checked in game.
+   page: done. Step 2, the Save page: done. Step 3, Apply (its popup and the transfer from
+   the player): built, not yet checked in game.
 7. An Outfit Management window: Delete for library outfits, which must deal with the
    assignments and situation choices that name the outfit (rename is on the Save page).
 8. A Situation Management window: user-defined conditions in the way of Skyrim Outfit

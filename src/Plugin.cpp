@@ -3,7 +3,8 @@
 // FILE MAP
 //   Constants      - slots that decide an outfit's armor class and gender
 //   Library writes - SaveOutfit adds the outfit to Livery's library (Library); UpdateOutfit
-//                    replaces a confirmed existing outfit's pieces, classes, name and gender
+//                    replaces a confirmed existing outfit's pieces, classes, name and gender;
+//                    UpdateWornPieces only its pieces (the Apply popup's Yes)
 //   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
 //                    outfit pages, through OutfitPreview, seen through PreviewCamera, while the
 //                    window's Live Preview tick is on; saving is off and an NPC is held where they
@@ -14,8 +15,9 @@
 //                    SkyUI's Type and Class (ArmorInfo), detect the class, list the library's outfits (adding
 //                    their pieces nobody carries), then open the window with the worn pieces ticked (or save
 //                    those under an automatic name where the overlay is unavailable); the window's Save
-//                    writes the library, then changes the actor's rows (Assignments::Change); Apply and
-//                    Restore Original Outfit go to Assignments
+//                    writes the library, then changes the actor's rows (Assignments::Change); Apply moves
+//                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
+//                    and dresses them (Assignments); Restore Original Outfit goes to Assignments
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
 //   Messaging      - outfit library, settings page, sink and menu registration, ready state, the
 //                    situation poll (Situations) around loads
@@ -25,6 +27,7 @@
 #include "ArmorInfo.h"
 #include "Assignments.h"
 #include "CaptureWindow.h"
+#include "Dressing.h"
 #include "Hooks.h"
 #include "Library.h"
 #include "MovementHold.h"
@@ -131,6 +134,27 @@ namespace
 		}
 		Notify(text + ".");
 		return std::nullopt;
+	}
+
+	// Contract: game thread; the user chose Yes in the Apply popup for the library outfit
+	// Livery has on the actor. Only its pieces change; its name, gender and classes stay.
+	// Returns an error message, or nullopt on success (HUD message shown).
+	std::optional<std::string> UpdateWornPieces(std::uint32_t id, const std::vector<RE::TESObjectARMO*>& armors)
+	{
+		const auto* outfit = Library::Find(id);
+		if (!outfit) {
+			return "The outfit no longer exists.";
+		}
+		// Copied: the update leaves `outfit` stale.
+		const std::string        name = outfit->name;
+		const int                gender = outfit->gender;
+		std::vector<std::string> classes;
+		for (const auto& category : outfit->categories) {
+			if (std::ranges::any_of(Library::Categories(), [&category](const Library::Category& offered) { return category == offered.name; })) {
+				classes.push_back(category);
+			}
+		}
+		return UpdateOutfit(id, name, gender, armors, classes);
 	}
 
 	// --- Preview --------------------------------------------------------------
@@ -539,21 +563,72 @@ namespace
 		return id ? Library::Find(id) : nullptr;
 	}
 
+	// Moves the ticked pieces that came from the player's inventory (`offered`) to the NPC,
+	// when MoveFromPlayer is on, and says on the HUD how many went. Returns those that did
+	// not move, which the dressing then leaves out: never a copy in their place.
+	// Contract: game thread; the preview has ended (the window closed).
+	std::vector<RE::TESObjectARMO*> MovePlayerPieces(RE::Actor& npc, const std::vector<RE::TESObjectARMO*>& ticked, const std::vector<RE::TESObjectARMO*>& offered)
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		if (!player || npc.IsPlayerRef() || !Settings::MoveFromPlayer()) {
+			return {};
+		}
+		std::vector<RE::TESObjectARMO*> moving;
+		for (auto* armor : ticked) {
+			if (std::ranges::find(offered, armor) != offered.end()) {
+				moving.push_back(armor);
+			}
+		}
+		if (moving.empty()) {
+			return {};
+		}
+		auto        notMoved = Dressing::MoveFromPlayer(*player, npc, moving, Settings::ShowPlayerWornPieces());
+		const auto* name = npc.GetDisplayFullName();
+		auto        text = std::format("Livery: moved {} of {} piece(s) from you to {}", moving.size() - notMoved.size(), moving.size(), name && *name ? name : "them");
+		for (std::size_t i = 0; i < notMoved.size(); ++i) {
+			text += (i == 0 ? "; not moved: " : ", ") + DisplayName(*notMoved[i]);
+		}
+		Notify(text + ".");
+		return notMoved;
+	}
+
 	// The window's Apply and Restore Original Outfit, and the line under the actor's name.
-	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's;
-	// Restore, offered while Livery has pieces on them, ends what Livery chose for them. Both
-	// close the window first, so the preview has put back what they wore before Livery dresses
-	// or releases them.
-	// Contract: game thread; `armors` matches request.pieces index for index.
+	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
+	// those from the player's inventory (`offered`) moved to an NPC first; with Yes in its
+	// popup the worn library outfit takes the ticks before. Restore, offered while Livery has
+	// pieces on them, ends what Livery chose for them. Both close the window first, so the
+	// preview has put back what they wore before anything moves or Livery dresses them.
+	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
+	// failed library write moves and assigns nothing (CLAUDE.md §2.1).
 	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::optional<Assignments::Choices>& choices)
+		const std::vector<RE::TESObjectARMO*>& offered, const std::optional<Assignments::Choices>& choices)
 	{
 		const auto handle = actor.GetHandle();
-		request.onApply = [handle, armors](const std::vector<std::size_t>& pieces, std::uint32_t outfit) {
-			CaptureWindow::Close();
-			if (const auto target = handle.get()) {
-				Assignments::Assign(*target, PickPieces(armors, pieces), outfit);
+		const bool forSituation = !request.wornSituation.empty();
+		request.movesFromPlayer = Settings::MoveFromPlayer();
+		request.onApply = [handle, armors, offered, forSituation](const std::vector<std::size_t>& pieces, std::uint32_t outfit, bool updateWorn) {
+			const auto picked = PickPieces(armors, pieces);
+			if (updateWorn) {
+				if (const auto error = UpdateWornPieces(outfit, picked)) {
+					CaptureWindow::SetError(*error);
+					return;
+				}
 			}
+			CaptureWindow::Close();
+			const auto target = handle.get();
+			if (!target) {
+				return;
+			}
+			const auto notMoved = MovePlayerPieces(*target, picked, offered);
+			// A situation outfit is read from the library, so the update is what goes on;
+			// the default is not touched.
+			if (updateWorn && forSituation) {
+				Assignments::Refresh(*target, notMoved);
+				return;
+			}
+			auto dressed = picked;
+			std::erase_if(dressed, [&notMoved](const RE::TESObjectARMO* armor) { return std::ranges::find(notMoved, armor) != notMoved.end(); });
+			Assignments::Assign(*target, dressed, outfit);
 		};
 		if (!choices) {
 			return;
@@ -622,20 +697,24 @@ namespace
 	}
 
 	// The player's armor under From Player's Inventory, for an NPC: the forms the NPC does
-	// not carry, which are listed once, under the NPC's own headings.
+	// not carry; the others are listed once, under the NPC's own headings. Returns the armor
+	// it added.
 	// Contract: game thread; `armors` matches `pieces` index for index.
-	void AddPlayerPieces(RE::Actor& actor, std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
+	std::vector<RE::TESObjectARMO*> AddPlayerPieces(RE::Actor& actor, std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
 	{
-		auto* player = RE::PlayerCharacter::GetSingleton();
+		std::vector<RE::TESObjectARMO*> added;
+		auto*                           player = RE::PlayerCharacter::GetSingleton();
 		if (!player || actor.IsPlayerRef()) {
-			return;
+			return added;
 		}
 		for (auto* armor : OfferedPlayerArmor(*player)) {
 			if (std::ranges::find(armors, armor) == armors.end()) {
 				pieces.push_back(MakePiece(*armor, CaptureWindow::PieceGroup::kPlayer, false));
 				armors.push_back(armor);
+				added.push_back(armor);
 			}
 		}
+		return added;
 	}
 
 	// Contract: game thread (library reads that hand out armor forms run here, so
@@ -661,6 +740,10 @@ namespace
 		const auto* livery = WornLibraryOutfit(choices);
 		if (livery) {
 			request.outfitName = livery->name;
+			request.wornOutfit = livery->id;
+			if (choices->worn != Situations::Situation::kDefault) {
+				request.wornSituation = Situations::Name(choices->worn);
+			}
 		}
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
@@ -670,9 +753,9 @@ namespace
 			request.pieces.push_back(MakePiece(*armor, group, isWorn && !LooksLikeWig(*armor)));
 			armors.push_back(armor);
 		}
-		AddPlayerPieces(actor, armors, request.pieces);
+		const auto offered = AddPlayerPieces(actor, armors, request.pieces);
 		request.existingOutfits = ExistingOutfits(request.categories, armors, request.pieces);
-		AttachAssignment(request, actor, armors, choices);
+		AttachAssignment(request, actor, armors, offered, choices);
 		AttachSave(request, actor, armors, choices);
 		AttachPreview(request, actor, armors);
 		// Every close, whatever closed the window, ends the preview, lets saving back on

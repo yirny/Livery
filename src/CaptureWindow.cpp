@@ -14,8 +14,9 @@
 //                  right end (greyed while the library has no outfits); the Live Preview tick,
 //                  handed to onPreviewOn / onPreviewOff in an SKSE task that also freezes or
 //                  unfreezes the game; Save / Apply / Cancel, and Restore Original Outfit
-//                  under them while Livery dresses the actor; Apply and Restore hand over
-//                  to onApply / onRestore
+//                  under them while Livery dresses the actor; Apply asks first when the
+//                  ticks differ from the library outfit Livery has on the actor (Yes updates
+//                  it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
 //                  name, classes, gender and "wears it for" rows (Default, the situations);
 //                  a popup before taking over a row another outfit holds, the Update tab's
@@ -61,6 +62,7 @@ namespace
 	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kReplacePopup = "Replace outfits?";
+	constexpr const char* kApplyPopup = "Update the outfit?";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
@@ -628,6 +630,37 @@ namespace
 		}
 	}
 
+	// A help text in a tooltip, wrapped to a readable width.
+	void DrawHelpTooltip(const std::string& a_text)
+	{
+		constexpr float kWrapEms = 28.0f;  // the tooltip's text width, in font sizes
+
+		ImGui::BeginTooltip();
+		ImGui::PushTextWrapPos(ImGui::GetFontSize() * kWrapEms);
+		ImGui::TextUnformatted(a_text.c_str());
+		ImGui::PopTextWrapPos();
+		ImGui::EndTooltip();
+	}
+
+	// Opens a modal popup centred on the screen, in the skin; when it returns true, fill it
+	// and call ImGui::EndPopup.
+	// Contract: called every frame on the page that opens it: a modal that is open but not
+	// submitted stays invisible and still blocks the window.
+	bool BeginModal(const char* a_id)
+	{
+		const auto& io = ImGui::GetIO();
+		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+		auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
+		if (!Theme::HasTitleBar()) {
+			flags |= ImGuiWindowFlags_NoTitleBar;
+		}
+		if (!ImGui::BeginPopupModal(a_id, nullptr, flags)) {
+			return false;
+		}
+		Theme::DecorateWindow();
+		return true;
+	}
+
 	// --- Capture page ---------------------------------------------------------
 
 	std::size_t GroupIndex(CaptureWindow::PieceGroup a_group)
@@ -646,7 +679,7 @@ namespace
 		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("From {}'s Outfit (\"{}\")", name, request.outfitName);
 		headings[GroupIndex(Group::kWorn)] = std::format("From {}'s Outfit (Not from a Saved Outfit)", name);
 		headings[GroupIndex(Group::kCarried)] = std::format("From {}'s Inventory", name);
-		headings[GroupIndex(Group::kPlayer)] = "From Player's Inventory";
+		headings[GroupIndex(Group::kPlayer)] = "From Player's Inventory (?)";
 		headings[GroupIndex(Group::kNotCarried)].clear();
 	}
 
@@ -736,14 +769,26 @@ namespace
 		return static_cast<std::size_t>(std::ranges::count(listed, true));
 	}
 
-	// A group's heading inside the list: greyed, in the small font, left of the names.
-	void DrawGroupHeading(const std::string& a_heading)
+	// A group's heading inside the list: greyed, in the small font, left of the names. The
+	// player's group explains on hover what Apply does with its pieces and what it leaves out.
+	void DrawGroupHeading(const State& a_state, CaptureWindow::PieceGroup a_group)
 	{
 		Theme::PushSmallFont();
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-		Theme::TextRow(a_heading.c_str());
+		Theme::TextRow(a_state.headings[GroupIndex(a_group)].c_str());
 		ImGui::PopStyleColor();
 		Theme::PopSmallFont();
+		if (a_group != CaptureWindow::PieceGroup::kPlayer || !ImGui::IsItemHovered()) {
+			return;
+		}
+		const auto& name = a_state.request.actorName;
+		const auto  apply = a_state.request.movesFromPlayer ?
+		                        std::format(
+									"Apply moves the ticked pieces from your inventory to {0}, enchantments and tempering included; "
+									"they stay with {0} after Restore Original Outfit.",
+									name) :
+		                        std::format("Apply gives {} a new copy of each ticked piece; yours stay with you.", name);
+		DrawHelpTooltip(apply + " Quest items are never listed, and your favorites only while ProtectFavorites is off.");
 	}
 
 	// Height of the piece list with every listed piece and heading in view, capped as
@@ -785,7 +830,7 @@ namespace
 				}
 				if (GroupIndex(pieces[i].group) != group) {
 					group = GroupIndex(pieces[i].group);
-					DrawGroupHeading(a_state.headings[group]);
+					DrawGroupHeading(a_state, pieces[i].group);
 				}
 				ImGui::PushID(static_cast<int>(i));
 				const std::array<const char*, 3> cells{ pieces[i].name.c_str(), pieces[i].type.c_str(), pieces[i].armorClass.c_str() };
@@ -924,32 +969,31 @@ namespace
 		}
 	}
 
-	// The id of the outfit last loaded when the ticks are exactly its pieces, else 0.
+	// The library outfit Livery has on the actor: index into request.existingOutfits, -1 for none.
+	int WornOutfitIndex(const State& a_state)
+	{
+		const auto& outfits = a_state.request.existingOutfits;
+		const auto  found = std::ranges::find(outfits, a_state.request.wornOutfit, &CaptureWindow::ExistingOutfit::id);
+		return a_state.request.wornOutfit != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
+	}
+
+	// The id of the outfit last loaded, or else the one Livery has on the actor, when the
+	// ticks are exactly its pieces; 0 when neither is.
 	std::uint32_t TickedOutfitId(const State& a_state)
 	{
-		if (a_state.loadedOutfit < 0) {
-			return 0;
+		const auto ticked = TickedPieces(a_state);
+		for (const int index : { a_state.loadedOutfit, WornOutfitIndex(a_state) }) {
+			if (index >= 0 && ticked == OutfitAt(a_state, index).pieces) {
+				return OutfitAt(a_state, index).id;
+			}
 		}
-		const auto& outfit = OutfitAt(a_state, a_state.loadedOutfit);
-		return TickedPieces(a_state) == outfit.pieces ? outfit.id : 0;
+		return 0;
 	}
 
 	// The widest button row of the Capture page, which sets the page's least width.
 	float CaptureButtonsWidth()
 	{
 		return ButtonRowWidth({ "Save", "Apply", "Cancel" });
-	}
-
-	// A help text in a tooltip, wrapped to a readable width.
-	void DrawHelpTooltip(const std::string& a_text)
-	{
-		constexpr float kWrapEms = 28.0f;  // the tooltip's text width, in font sizes
-
-		ImGui::BeginTooltip();
-		ImGui::PushTextWrapPos(ImGui::GetFontSize() * kWrapEms);
-		ImGui::TextUnformatted(a_text.c_str());
-		ImGui::PopTextWrapPos();
-		ImGui::EndTooltip();
 	}
 
 	// Restore Original Outfit and its "(?)", centred under the buttons, while Livery
@@ -999,7 +1043,8 @@ namespace
 		ImGui::SameLine();
 		const bool apply = ReasonButton("Apply", noPiece);
 		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		// While the Apply popup is open, Escape is its own Cancel.
+		const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kApplyPopup));
 		const bool restore = DrawRestoreRow(a_state);
 
 		if (a_state.status != Status::kEditing) {
@@ -1021,12 +1066,90 @@ namespace
 		return cancel ? CaptureAction::kCancel : CaptureAction::kNone;
 	}
 
-	void RequestApply(State& a_state)
+	// `a_updateWorn`: Yes in the Apply popup, so `a_outfit` is the worn library outfit, which
+	// the handler updates with the ticks before it dresses the actor.
+	void RequestApply(State& a_state, std::uint32_t a_outfit, bool a_updateWorn)
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		auto onApply = a_state.request.onApply;
-		SKSE::GetTaskInterface()->AddTask([onApply, pieces = TickedPieces(a_state), outfit = TickedOutfitId(a_state)] { onApply(pieces, outfit); });
+		SKSE::GetTaskInterface()->AddTask(
+			[onApply, pieces = TickedPieces(a_state), a_outfit, a_updateWorn] { onApply(pieces, a_outfit, a_updateWorn); });
+	}
+
+	// Apply: the popup first when Livery has a library outfit on the actor and the ticks are
+	// not exactly its pieces; else the ticks go on at once.
+	// Contract: called in the window's own ID scope, as DrawApplyPopup is.
+	void BeginApply(State& a_state)
+	{
+		const int worn = WornOutfitIndex(a_state);
+		if (worn >= 0 && TickedPieces(a_state) != OutfitAt(a_state, worn).pieces) {
+			ImGui::OpenPopup(kApplyPopup);
+			return;
+		}
+		RequestApply(a_state, TickedOutfitId(a_state), false);
+	}
+
+	enum class ApplyChoice
+	{
+		kNone,
+		kUpdate,
+		kJustApply,
+		kCancel
+	};
+
+	// `Update "X" with the ticked pieces?`, naming the situation X is worn for, then Yes,
+	// No, just apply (with its "(?)") or Cancel.
+	ApplyChoice DrawApplyPopup(const State& a_state)
+	{
+		constexpr const char* kJustApply = "No, just apply";
+		constexpr const char* kHelpMark = "(?)";
+
+		if (!BeginModal(kApplyPopup)) {
+			return ApplyChoice::kNone;
+		}
+		const int worn = WornOutfitIndex(a_state);
+		if (worn < 0) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return ApplyChoice::kNone;
+		}
+		const auto& request = a_state.request;
+		const auto& outfit = OutfitAt(a_state, worn);
+		ImGui::TextUnformatted(std::format("Update \"{}\" with the ticked pieces?", outfit.name).c_str());
+		if (!request.wornSituation.empty()) {
+			ImGui::TextUnformatted(std::format("\"{}\" is {}'s {} outfit.", outfit.name, request.actorName, request.wornSituation).c_str());
+		}
+		BeginButtonRow({ "Yes", kJustApply, kHelpMark, "Cancel" });
+		const bool update = Theme::Button("Yes");
+		ImGui::SameLine();
+		const bool justApply = Theme::Button(kJustApply);
+		ImGui::SameLine();
+		ImGui::AlignTextToFramePadding();
+		ImGui::TextDisabled("%s", kHelpMark);
+		if (ImGui::IsItemHovered()) {
+			DrawHelpTooltip(std::format(
+				"The ticked pieces become {}'s Default without a saved outfit, so editing the library does not "
+				"change them. While a situation outfit is worn, the new Default shows only when that situation ends.",
+				request.actorName));
+		}
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		auto choice = ApplyChoice::kNone;
+		if (update) {
+			choice = ApplyChoice::kUpdate;
+		} else if (justApply) {
+			choice = ApplyChoice::kJustApply;
+		} else if (cancel) {
+			choice = ApplyChoice::kCancel;
+		}
+		if (choice != ApplyChoice::kNone) {
+			QueueMenuSound(choice == ApplyChoice::kCancel ? kCancelSound : kOkSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return choice;
 	}
 
 	void RequestRestore(State& a_state)
@@ -1050,6 +1173,18 @@ namespace
 		EndButtonRow();
 		ImGui::EndDisabled();
 
+		switch (DrawApplyPopup(a_state)) {
+		case ApplyChoice::kUpdate:
+			RequestApply(a_state, a_state.request.wornOutfit, true);
+			break;
+		case ApplyChoice::kJustApply:
+			RequestApply(a_state, TickedOutfitId(a_state), false);
+			break;
+		case ApplyChoice::kCancel:
+		case ApplyChoice::kNone:
+			break;
+		}
+
 		switch (action) {
 		case CaptureAction::kLoadPage:
 			QueueMenuSound(kOkSound);
@@ -1062,7 +1197,7 @@ namespace
 			break;
 		case CaptureAction::kApply:
 			QueueMenuSound(kOkSound);
-			RequestApply(a_state);
+			BeginApply(a_state);
 			break;
 		case CaptureAction::kRestore:
 			QueueMenuSound(kOkSound);
@@ -1380,25 +1515,6 @@ namespace
 			return SaveAction::kSave;
 		}
 		return back ? SaveAction::kBack : SaveAction::kNone;
-	}
-
-	// Opens a modal popup centred on the screen, in the skin; when it returns true, fill it
-	// and call ImGui::EndPopup.
-	// Contract: called every frame on the page that opens it: a modal that is open but not
-	// submitted stays invisible and still blocks the window.
-	bool BeginModal(const char* a_id)
-	{
-		const auto& io = ImGui::GetIO();
-		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
-		if (!Theme::HasTitleBar()) {
-			flags |= ImGuiWindowFlags_NoTitleBar;
-		}
-		if (!ImGui::BeginPopupModal(a_id, nullptr, flags)) {
-			return false;
-		}
-		Theme::DecorateWindow();
-		return true;
 	}
 
 	enum class ReplaceChoice

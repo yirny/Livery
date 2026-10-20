@@ -40,6 +40,7 @@ namespace
 	constexpr auto kShowPlayerInventoryKey = L"ShowPlayerInventory";
 	constexpr auto kShowPlayerWornKey = L"ShowPlayerWornPieces";
 	constexpr auto kTransferSection = L"Transfer";
+	constexpr auto kMoveFromPlayerKey = L"MoveFromPlayer";
 	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
 
 	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
@@ -61,7 +62,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 11> kIniKeys{ {
+	constexpr std::array<IniKey, 12> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -97,6 +98,10 @@ namespace
 		{ kWindowSection, kShowPlayerWornKey, L"0",
 			L"1 = that list includes the armor you wear.\n"
 			L"0 = it leaves out what you wear, unless you carry another copy.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kTransferSection, kMoveFromPlayerKey, L"1",
+			L"1 = Apply in an NPC's capture window moves the ticked pieces from your inventory to them, enchantments and tempering included.\n"
+			L"0 = the NPC gets a new plain copy of each and yours stay with you.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kTransferSection, kProtectFavoritesKey, L"1",
 			L"1 = your favorites are left out of that list, as quest items always are.\n"
@@ -142,6 +147,7 @@ namespace
 	std::atomic<bool>          g_showPlayerInventory{ true };
 	std::atomic<bool>          g_showPlayerWorn{ false };
 	std::atomic<bool>          g_protectFavorites{ true };
+	std::atomic<bool>          g_moveFromPlayer{ true };
 	std::filesystem::path      g_iniPath;  // set once by Load, read-only afterwards
 
 	const SkinOption& OptionOf(Theme::Skin a_skin)
@@ -462,6 +468,17 @@ namespace
 			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
 			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
 		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		// Takes effect at the next Apply.
+		bool moveFromPlayer = g_moveFromPlayer.load();
+		if (ImGuiMCP::Checkbox("Apply moves your pieces to the NPC (off: the NPC gets new copies)", &moveFromPlayer)) {
+			g_moveFromPlayer = moveFromPlayer;
+			SaveFlag(kTransferSection, kMoveFromPlayerKey, moveFromPlayer);
+			logger::info("MoveFromPlayer = {} (SKSE Menu Framework)", moveFromPlayer);
+		}
 	}
 }
 
@@ -548,8 +565,10 @@ namespace Settings
 		::GetPrivateProfileStringW(kTransferSection, kProtectFavoritesKey, L"1", value, static_cast<DWORD>(std::size(value)),
 			g_iniPath.c_str());
 		g_protectFavorites = std::wstring_view{ value } != L"0";
-		logger::info("ShowPlayerInventory = {}, ShowPlayerWornPieces = {}, ProtectFavorites = {}", g_showPlayerInventory.load(),
-			g_showPlayerWorn.load(), g_protectFavorites.load());
+		::GetPrivateProfileStringW(kTransferSection, kMoveFromPlayerKey, L"1", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		g_moveFromPlayer = std::wstring_view{ value } != L"0";
+		logger::info("ShowPlayerInventory = {}, ShowPlayerWornPieces = {}, ProtectFavorites = {}, MoveFromPlayer = {}", g_showPlayerInventory.load(),
+			g_showPlayerWorn.load(), g_protectFavorites.load(), g_moveFromPlayer.load());
 	}
 
 	void RegisterMenu()
@@ -622,5 +641,10 @@ namespace Settings
 	bool ProtectFavorites()
 	{
 		return g_protectFavorites.load();
+	}
+
+	bool MoveFromPlayer()
+	{
+		return g_moveFromPlayer.load();
 	}
 }

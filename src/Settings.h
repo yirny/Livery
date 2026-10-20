@@ -41,6 +41,10 @@ namespace Settings
 	bool ShowPlayerWornPieces();
 	bool ProtectFavorites();
 
+	// Whether Apply in an NPC's window moves the ticked pieces from the player's inventory to
+	// the NPC; off, the NPC gets new copies. Safe from any thread.
+	bool MoveFromPlayer();
+
 	// Whether a keyboard key going down (DirectInput scan code) is the capture hotkey:
 	// the configured key, with its modifier held when one is configured.
 	// Contract: call from the input path while handling that key's event, since the
