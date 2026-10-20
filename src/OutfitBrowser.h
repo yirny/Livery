@@ -10,8 +10,8 @@
 #include <vector>
 
 // Search, filter and sort of the library outfits listed on the Load Outfit and
-// Update Existing pages (see OutfitBrowser.cpp). Pure logic with no ImGui or
-// SKSE, so the unit tests build it.
+// Update Existing pages, and each outfit's tags and heading (see OutfitBrowser.cpp).
+// Pure logic with no ImGui or SKSE, so the unit tests build it.
 //
 // Contract: a State belongs to one Request: call Reset with it before anything
 // else, and pass that same Request to every later call.
@@ -19,10 +19,14 @@ namespace OutfitBrowser
 {
 	constexpr std::size_t kSearchCapacity = 64;  // bytes, UTF-8, including the terminator
 
+	// Every key but kName lists the outfits under headings, by name within each.
 	enum class SortKey
 	{
-		kName,  // name only
-		kClass  // class, then name
+		kName,      // name only
+		kGender,    // Female, Male, then Unisex
+		kClass,     // the outfit's Armor Classes (CaptureWindow::kClassGroup)
+		kCustom,    // its custom categories (kCustomGroup)
+		kSituation  // the actor's rows holding it (kSituationGroup)
 	};
 
 	// One row of the Filter dropdown: a category, or the row for outfits in
@@ -36,19 +40,28 @@ namespace OutfitBrowser
 
 	struct State
 	{
-		std::array<char, kSearchCapacity> search{};      // matched anywhere in the name, ASCII case ignored
-		std::vector<FilterOption>         filter;        // per group of Request::categories: its categories, then its "No <group>" row
-		std::unique_ptr<bool[]>           filterTicked;  // one per filter; bool[] for the rows' bool&
-		SortKey                           sort = SortKey::kName;
-		std::vector<int>                  visible;     // indices into Request::existingOutfits that pass, in display order
-		std::vector<std::vector<int>>     categories;  // per outfit: indices into Request::categories it is in, ascending
+		std::array<char, kSearchCapacity>     search{};      // matched anywhere in the name, ASCII case ignored
+		std::vector<FilterOption>             filter;        // per group of Request::categories: its categories, then its "No <group>" row
+		std::unique_ptr<bool[]>               filterTicked;  // one per filter; bool[] for the rows' bool&
+		SortKey                               sort = SortKey::kName;
+		std::vector<int>                      visible;     // indices into Request::existingOutfits that pass, in display order
+		std::vector<std::vector<int>>         categories;  // per outfit: indices into Request::categories it is in, ascending
+		std::vector<std::vector<std::string>> tags;        // per outfit: the names of those categories, in that order, for its row
+		// Per outfit: the heading it is listed under for `sort`; "" for every outfit with kName.
+		std::vector<std::string> headings;
+		// Distinct headings among every outfit's, so the list's height does not follow the search.
+		std::size_t headingCount = 0;
 	};
 
 	// Everything listed, by name, nothing typed or ticked.
 	void Reset(State& state, const CaptureWindow::Request& request);
 
-	// Rebuilds `visible`. Call after changing search, filterTicked or sort.
+	// Rebuilds `visible`, `headings` and `headingCount`. Call after changing search,
+	// filterTicked or sort.
 	void Refresh(State& state, const CaptureWindow::Request& request);
+
+	// False for kCustom while no outfit has a custom category; the Sort dropdown leaves it out.
+	bool OffersSort(const CaptureWindow::Request& request, SortKey key);
 
 	bool IsSearching(const State& state);
 	bool IsFiltering(const State& state);

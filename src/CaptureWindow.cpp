@@ -10,21 +10,22 @@
 //   Capture page - the actor's pieces under a heading per group (their Livery outfit, other
 //                  worn, carried, the player's, the loaded outfit's), in Name / Type / Class
 //                  columns sorted by a click on a column label, each tick handed to
-//                  onPieceToggled; under the list the count line with Load Outfit... at its
-//                  right end (greyed while the library has no outfits); the Live Preview tick,
+//                  onPieceToggled; under the list the count line; the Live Preview tick,
 //                  handed to onPreviewOn / onPreviewOff in an SKSE task that also freezes or
-//                  unfreezes the game; Save / Apply / Cancel, and Restore Original Outfit
-//                  under them while Livery dresses the actor; Apply asks first when the
-//                  ticks differ from the library outfit Livery has on the actor (Yes updates
-//                  it); Apply and Restore hand over to onApply / onRestore
+//                  unfreezes the game; Load / Save / Apply / Cancel (Load greyed while the
+//                  library has no outfits), and Restore Original Outfit under them while
+//                  Livery dresses the actor; Apply asks first when the ticks differ from the
+//                  library outfit Livery has on the actor (Yes updates it); Apply and Restore
+//                  hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
-//                  name, classes, gender and "wears it for" rows (Default, the situations);
-//                  a popup before taking over a row another outfit holds, the Update tab's
-//                  confirm popup; both tabs hand over to onSave
-//   Outfit browser - Search over Filter, above both outfit pages' list in its column, in
-//                  the small font (OutfitBrowser.cpp narrows and orders it); Escape first
-//                  clears the search
-//   Outfit lists - the library outfit list with its Sort dropdown, the selected
+//                  name, Armor Classes, gender and "wears it for" rows (Default, the
+//                  situations); a popup before taking over a row another outfit holds, the
+//                  Update tab's confirm popup; both tabs hand over to onSave
+//   Outfit browser - Search (and Filter, hidden by kShowFilter), above both outfit pages'
+//                  list in its column, in the small font (OutfitBrowser.cpp narrows and
+//                  orders it); Escape first clears the search
+//   Outfit lists - the library outfit list with its Sort dropdown, the sort's headings and
+//                  each outfit's tags (off with Show Categories under it), the selected
 //                  outfit's name (or a hint while none is) and its piece list, which
 //                  both outfit pages share;
 //                  on both, the selected outfit is on the preview, and a second
@@ -77,16 +78,23 @@ namespace
 	constexpr std::size_t kPieceGroupCount = static_cast<std::size_t>(CaptureWindow::PieceGroup::kNotCarried) + 1;
 	using GroupHeadings = std::array<std::string, kPieceGroupCount>;
 
-	// The outfit lists' Sort dropdown, in its order.
+	// The outfit lists' Sort dropdown, in its order; OutfitBrowser::OffersSort leaves rows out.
 	struct SortOption
 	{
 		const char*            label;
 		OutfitBrowser::SortKey key;
 	};
-	constexpr std::array<SortOption, 2> kSortOptions{ {
+	constexpr std::array<SortOption, 5> kSortOptions{ {
 		{ "Name", OutfitBrowser::SortKey::kName },
-		{ "Class", OutfitBrowser::SortKey::kClass },
+		{ "Gender", OutfitBrowser::SortKey::kGender },
+		{ CaptureWindow::kClassGroup, OutfitBrowser::SortKey::kClass },
+		{ CaptureWindow::kCustomGroup, OutfitBrowser::SortKey::kCustom },
+		{ CaptureWindow::kSituationGroup, OutfitBrowser::SortKey::kSituation },
 	} };
+
+	// The outfit browser's Filter dropdown, hidden for now; its code stays, as it is likely
+	// to return (docs/outfit-management-ui.md §1).
+	constexpr bool kShowFilter = false;
 
 	// The Save page's gender radio buttons, in their order.
 	struct GenderOption
@@ -149,7 +157,7 @@ namespace
 	struct SaveForm
 	{
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         classTicked;  // one per request.categories
+		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only the Armor Classes' are used
 		int                             gender = -1;  // -1 unisex, 0 male, 1 female
 		std::unique_ptr<bool[]>         wearsFor;     // one per row of "wears it for" (request.assigned)
 	};
@@ -174,16 +182,18 @@ namespace
 		bool                     resetImGui = false;  // set by Open, handled on the next frame
 		Page                     page = Page::kCapture;
 		std::string              captureTitle;    // the Capture page's title line
+		std::string              applyTooltip;    // "Dress #{Name} in the ticked pieces."
 		GroupHeadings            headings;        // over each group's pieces (CaptureWindow::PieceGroup)
 		std::vector<std::size_t> pieceOrder;      // indices into request.pieces as the list shows them (SortPieces)
 		int                      sortColumn = 0;  // the piece list's sorted column: Name, Type or Class
 		bool                     sortDescending = false;
-		int                      previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
-		int                      loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
-		OutfitBrowser::State     browser;               // search, filter and sort of the Load and Select pages' outfit list
-		int                      recentreFrames = 0;    // frames left to pin the window to its place
-		std::optional<ImVec2>    placeCentre;           // where a pinned window's centre goes; none for the start place
-		ImVec2                   windowPos{};           // of the window in the last frame drawn
+		int                      previewedOutfit = -1;   // on the Load page: index into request.existingOutfits, -1 for none
+		int                      loadedOutfit = -1;      // the last one loaded: index into request.existingOutfits, -1 for none
+		OutfitBrowser::State     browser;                // search, filter and sort of the Load and Select pages' outfit list
+		bool                     showCategories = true;  // the outfit lists show each outfit's tags (Show Categories)
+		int                      recentreFrames = 0;     // frames left to pin the window to its place
+		std::optional<ImVec2>    placeCentre;            // where a pinned window's centre goes; none for the start place
+		ImVec2                   windowPos{};            // of the window in the last frame drawn
 		ImVec2                   windowSize{};
 		bool                     userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
 		unsigned                 session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
@@ -498,16 +508,18 @@ namespace
 	}
 
 	// A button greyed out while `a_reason` is set, which shows on hover; a plain
-	// Theme::Button otherwise. Returns true when clicked while enabled.
-	bool ReasonButton(const char* a_label, const char* a_reason)
+	// Theme::Button otherwise, with `a_tooltip` (if any) on hover. Returns true when
+	// clicked while enabled.
+	bool ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr)
 	{
 		ImGui::BeginDisabled(a_reason != nullptr);
 		const bool clicked = Theme::Button(a_label);
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
-		if (a_reason && hovered) {
-			ImGui::SetTooltip("%s", a_reason);
+		const char* tooltip = a_reason ? a_reason : a_tooltip;
+		if (tooltip && hovered) {
+			ImGui::SetTooltip("%s", tooltip);
 		}
 		return clicked && !a_reason;
 	}
@@ -773,11 +785,7 @@ namespace
 	// player's group explains on hover what Apply does with its pieces and what it leaves out.
 	void DrawGroupHeading(const State& a_state, CaptureWindow::PieceGroup a_group)
 	{
-		Theme::PushSmallFont();
-		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-		Theme::TextRow(a_state.headings[GroupIndex(a_group)].c_str());
-		ImGui::PopStyleColor();
-		Theme::PopSmallFont();
+		Theme::ListHeading(a_state.headings[GroupIndex(a_group)].c_str());
 		if (a_group != CaptureWindow::PieceGroup::kPlayer || !ImGui::IsItemHovered()) {
 			return;
 		}
@@ -796,11 +804,8 @@ namespace
 	float PieceListHeight(const State& a_state)
 	{
 		const float spacing = ImGui::GetStyle().ItemSpacing.y;
-		Theme::PushSmallFont();
-		const float headingHeight = Theme::SelectRowHeight();
-		Theme::PopSmallFont();
 		const float rowsHeight = static_cast<float>(CountListedPieces(a_state)) * (ImGui::GetFrameHeight() + spacing) +
-		                         static_cast<float>(CountListedGroups(a_state)) * (headingHeight + spacing);
+		                         static_cast<float>(CountListedGroups(a_state)) * (Theme::ListHeadingHeight() + spacing);
 		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing());
 	}
 
@@ -850,24 +855,13 @@ namespace
 		Theme::EndList();
 	}
 
-	// The count line under the list, ending with Load Outfit..., greyed with the reason on
-	// hover while the library has no outfits; returns true when it is clicked.
-	bool DrawPieceCount(const State& a_state)
+	// The count line under the list.
+	void DrawPieceCount(const State& a_state)
 	{
 		Theme::LabelText(std::format("{} of {} piece(s) selected", CountTickedPieces(a_state), CountListedPieces(a_state)).c_str());
-		const bool noOutfits = a_state.request.existingOutfits.empty();
-		ImGui::BeginDisabled(noOutfits);
-		const bool load = Theme::LabelLink("Load Outfit...") && !noOutfits;
-		const bool loadHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-		ImGui::EndDisabled();
-		// After EndDisabled, so the tooltip is not drawn faded.
-		if (noOutfits && loadHovered) {
-			ImGui::SetTooltip("%s", kNoOutfits);
-		}
 		if (CountTickedPieces(a_state) == 0) {
 			ImGui::TextDisabled(kNeedPiece);
 		}
-		return load;
 	}
 
 	// Turns the live preview on or off and the game's freeze the other way.
@@ -993,7 +987,7 @@ namespace
 	// The widest button row of the Capture page, which sets the page's least width.
 	float CaptureButtonsWidth()
 	{
-		return ButtonRowWidth({ "Save", "Apply", "Cancel" });
+		return ButtonRowWidth({ "Load", "Save", "Apply", "Cancel" });
 	}
 
 	// Restore Original Outfit and its "(?)", centred under the buttons, while Livery
@@ -1032,16 +1026,21 @@ namespace
 		kCancel
 	};
 
-	// Save / Apply / Cancel centred below a gap, the Restore row under them; `a_load` is a
-	// click on the count line's Load Outfit... (DrawPieceCount). Save and Apply act on the
-	// ticked pieces, so they need at least one.
-	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load)
+	// Load / Save / Apply / Cancel centred below a gap, the Restore row under them. Load
+	// needs a library outfit; Save and Apply act on the ticked pieces, so they need at
+	// least one.
+	CaptureAction DrawCaptureButtons(const State& a_state)
 	{
-		BeginButtonRow({ "Save", "Apply", "Cancel" });
-		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
-		const bool  save = ReasonButton("Save", noPiece);
+		constexpr const char* kLoadTooltip = "Add a saved outfit's pieces to the list.";
+		constexpr const char* kSaveTooltip = "Save the ticked pieces as a new outfit, or into an existing one.";
+
+		BeginButtonRow({ "Load", "Save", "Apply", "Cancel" });
+		const bool load = ReasonButton("Load", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, kLoadTooltip);
 		ImGui::SameLine();
-		const bool apply = ReasonButton("Apply", noPiece);
+		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
+		const bool  save = ReasonButton("Save", noPiece, kSaveTooltip);
+		ImGui::SameLine();
+		const bool apply = ReasonButton("Apply", noPiece, a_state.applyTooltip.c_str());
 		ImGui::SameLine();
 		// While the Apply popup is open, Escape is its own Cancel.
 		const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen(kApplyPopup));
@@ -1051,7 +1050,7 @@ namespace
 			ImGui::TextDisabled("Applying...");
 			return CaptureAction::kNone;
 		}
-		if (a_load) {
+		if (load) {
 			return CaptureAction::kLoadPage;
 		}
 		if (save) {
@@ -1164,12 +1163,12 @@ namespace
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		DrawPieceRows(a_state);
-		const bool load = DrawPieceCount(a_state);
+		DrawPieceCount(a_state);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state);
-		const auto action = DrawCaptureButtons(a_state, load);
+		const auto action = DrawCaptureButtons(a_state);
 		EndButtonRow();
 		ImGui::EndDisabled();
 
@@ -1356,11 +1355,18 @@ namespace
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("pieces that are not a saved outfit");
 	}
 
+	bool IsClass(const CaptureWindow::CategoryOption& a_option)
+	{
+		return a_option.group == CaptureWindow::kClassGroup;
+	}
+
+	// Contract: the Armor Classes only. Library::Update replaces only those and keeps the
+	// custom categories, and the situations are never stored in the library.
 	std::vector<std::string> TickedCategories(const State& a_state, const SaveForm& a_form)
 	{
 		std::vector<std::string> ticked;
 		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
-			if (a_form.classTicked[i]) {
+			if (IsClass(a_state.request.categories[i]) && a_form.classTicked[i]) {
 				ticked.push_back(a_state.request.categories[i].name);
 			}
 		}
@@ -1427,16 +1433,20 @@ namespace
 		return enter && !Trimmed(a_form.name.data()).empty();
 	}
 
-	// The class categories, every one request.categories offers, as one row of checkboxes.
+	// The Armor Classes request.categories offers, as one row of checkboxes.
 	void DrawClassField(const State& a_state, bool* a_ticked)
 	{
 		const auto& options = a_state.request.categories;
-		if (options.empty()) {
+		if (std::ranges::none_of(options, IsClass)) {
 			return;
 		}
 		Theme::LabelText(CaptureWindow::kClassGroup);
+		bool first = true;
 		for (std::size_t i = 0; i < options.size(); ++i) {
-			if (i > 0) {
+			if (!IsClass(options[i])) {
+				continue;
+			}
+			if (!std::exchange(first, false)) {
 				ImGui::SameLine();
 			}
 			if (Theme::Checkbox(options[i].name.c_str(), &a_ticked[i])) {
@@ -1590,9 +1600,9 @@ namespace
 			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 		if (const auto classes = TickedCategories(a_state, form); classes.empty()) {
-			ImGui::TextUnformatted("It will be in no class.");
+			ImGui::TextUnformatted("It will have no Armor Class.");
 		} else {
-			ImGui::TextUnformatted(std::format("Its classes become: {}.", JoinNames(classes)).c_str());
+			ImGui::TextUnformatted(std::format("Its Armor Class becomes: {}.", JoinNames(classes)).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
@@ -1831,8 +1841,8 @@ namespace
 		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
 	};
 
-	// Search over Filter, in the small font, with no labels, at the top of the
-	// outfit list's column; refreshes the list only when one of them changed.
+	// Search over Filter (while kShowFilter), in the small font, with no labels, at the top
+	// of the outfit list's column; refreshes the list only when one of them changed.
 	BrowserControls DrawBrowserControls(State& a_state)
 	{
 		constexpr float kGapBelowRow = 4.0f;  // pixels at 1080p, under the row on top of the item spacing
@@ -1843,7 +1853,9 @@ namespace
 		ImGui::PushID("browser");
 		Theme::PushSmallFont();
 		DrawSearchField(a_state, input);
-		DrawFilterField(a_state, input);
+		if (kShowFilter) {
+			DrawFilterField(a_state, input);
+		}
 		Theme::PopSmallFont();
 		ImGui::PopID();
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kGapBelowRow * Theme::Scale());
@@ -1855,6 +1867,11 @@ namespace
 
 	// --- Outfit lists ---------------------------------------------------------
 
+	bool OffersSort(const State& a_state, const SortOption& a_option)
+	{
+		return OutfitBrowser::OffersSort(a_state.request, a_option.key);
+	}
+
 	// The Sort dropdown's rows, the current key ticked; choosing one closes the
 	// popup. A zero-high spacer as wide as the widest row keeps the popup,
 	// which starts as narrow as its frame, from crowding a row's tick onto its
@@ -1864,12 +1881,17 @@ namespace
 		const auto& style = ImGui::GetStyle();
 		float       widest = 0.0f;
 		for (const auto& option : kSortOptions) {
-			widest = (std::max)(widest, ImGui::CalcTextSize(option.label).x);
+			if (OffersSort(a_state, option)) {
+				widest = (std::max)(widest, ImGui::CalcTextSize(option.label).x);
+			}
 		}
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));  // rows carry their own gap
 		ImGui::Dummy(ImVec2(widest + style.FramePadding.x * 2.0f + style.ItemInnerSpacing.x + ImGui::GetFrameHeight(), 0.0f));
 		bool changed = false;
 		for (const auto& option : kSortOptions) {
+			if (!OffersSort(a_state, option)) {
+				continue;
+			}
 			bool ticked = a_state.browser.sort == option.key;
 			if (DrawCategoryRow(option.label, ticked)) {
 				changed = a_state.browser.sort != option.key;
@@ -1899,6 +1921,9 @@ namespace
 		float                       width = 0.0f;
 		std::string                 current;
 		for (const auto& option : kSortOptions) {
+			if (!OffersSort(a_state, option)) {
+				continue;
+			}
 			width = (std::max)(width, Theme::ComboWidth(preview(option).c_str(), style));
 			if (option.key == a_state.browser.sort) {
 				current = preview(option);
@@ -1914,17 +1939,48 @@ namespace
 		return changed;
 	}
 
+	// Height of the outfit list with every library outfit and every heading of the sort in
+	// view, capped as ListHeight caps it, so narrowing the list does not move the buttons.
+	// Contract: called with the list's row spacing pushed, outside BeginList at its indent
+	// (`a_tagsWidth` is Theme::OutfitTagsWidth there).
+	float OutfitListHeight(const State& a_state, float a_tagsWidth, float a_reserved)
+	{
+		const auto& browser = a_state.browser;
+		const auto& outfits = a_state.request.existingOutfits;
+		const float spacing = ImGui::GetStyle().ItemSpacing.y;
+		const float minHeight = Theme::SelectRowHeight() + spacing;
+		float       rows = static_cast<float>(browser.headingCount) * (Theme::ListHeadingHeight() + spacing);
+		for (std::size_t i = 0; i < outfits.size(); ++i) {
+			const float row = a_state.showCategories ? Theme::OutfitRowHeight(outfits[i].gender, browser.tags[i], a_tagsWidth) : Theme::SelectRowHeight();
+			rows += row + spacing;
+		}
+		return FittedListHeight((std::max)(rows, minHeight), minHeight, a_reserved);
+	}
+
+	// One outfit of the list: its name, with its tags under it while Show Categories is on.
+	bool DrawOutfitRow(const State& a_state, int a_index, float a_tagsWidth, bool a_selected)
+	{
+		const auto& outfit = OutfitAt(a_state, a_index);
+		if (!a_state.showCategories) {
+			return Theme::SelectRow(outfit.name.c_str(), a_selected);
+		}
+		const auto& tags = a_state.browser.tags[static_cast<std::size_t>(a_index)];
+		return Theme::OutfitRow(outfit.name.c_str(), outfit.gender, tags, a_tagsWidth, a_selected);
+	}
+
 	// Left column of the Load and Update pages: the library's outfits that pass
-	// the browser, in its order, `a_selected` highlighted, under a label with
-	// the Sort dropdown. The list stays as tall as the whole library, so
-	// narrowing it does not move the buttons; `a_reserved` is the browser's
-	// height (ListHeight). Returns the index into request.existingOutfits of
-	// the one clicked, or -1; a click plays the focus sound.
+	// the browser, in its order, under the sort's headings, `a_selected`
+	// highlighted, under a label with the Sort dropdown, and Show Categories
+	// under the list. The list stays as tall as the whole library, so narrowing
+	// it does not move the buttons; `a_reserved` is the browser's height
+	// (ListHeight). Returns the index into request.existingOutfits of the one
+	// clicked, or -1; a click plays the focus sound.
 	// Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(State& a_state, int a_selected, float a_reserved)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
-		const auto& visible = a_state.browser.visible;
+		const auto& browser = a_state.browser;
+		const auto& visible = browser.visible;
 		if (visible.size() == outfits.size()) {
 			Theme::LabelText(std::format("{} outfit(s) in the library", outfits.size()).c_str());
 		} else {
@@ -1935,15 +1991,23 @@ namespace
 		}
 		const float gap = Theme::SelectRowGap();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, gap));
-		const float listHeight = ListHeight(outfits.size(), Theme::SelectRowHeight() + gap, a_reserved);
+		const float tagsWidth = Theme::OutfitTagsWidth();
+		// Show Categories, under the list, takes a frame's height too.
+		const float listHeight = OutfitListHeight(a_state, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
 			if (visible.empty()) {
 				ImGui::TextDisabled("No outfit matches.");
 			}
+			const std::string* heading = nullptr;  // the last one drawn
 			for (const int index : visible) {
+				const auto& own = browser.headings[static_cast<std::size_t>(index)];
+				if (!own.empty() && (!heading || *heading != own)) {
+					Theme::ListHeading(own.c_str());
+				}
+				heading = &own;
 				ImGui::PushID(index);
-				if (Theme::SelectRow(OutfitAt(a_state, index).name.c_str(), a_selected == index)) {
+				if (DrawOutfitRow(a_state, index, tagsWidth, a_selected == index)) {
 					clicked = index;
 				}
 				ImGui::PopID();
@@ -1952,6 +2016,9 @@ namespace
 		ImGui::PopStyleVar();
 		Theme::EndList();
 		if (clicked >= 0) {
+			QueueMenuSound(kFocusSound);
+		}
+		if (Theme::Checkbox("Show Categories", &a_state.showCategories)) {
 			QueueMenuSound(kFocusSound);
 		}
 		return clicked;
@@ -1993,17 +2060,22 @@ namespace
 		Theme::EndList();
 	}
 
-	// Right column of the Load and Select pages: the selected outfit's name, classes and
-	// pieces, read only; `a_hint` while none is selected.
+	// Right column of the Load and Select pages: the selected outfit's name, Armor Classes
+	// and pieces, read only; `a_hint` while none is selected.
 	void DrawOutfitDetails(const State& a_state, int a_selected, const char* a_hint)
 	{
 		if (!DrawSelectedName(a_state, a_selected, a_hint)) {
 			return;
 		}
 		Theme::LabelText(CaptureWindow::kClassGroup);
-		const auto& outfit = OutfitAt(a_state, a_selected);
-		const auto  classes = outfit.categories.empty() ? std::string("None") : JoinNames(outfit.categories);
-		ImGui::TextWrapped("%s", classes.c_str());
+		const auto&              outfit = OutfitAt(a_state, a_selected);
+		std::vector<std::string> classes;
+		for (const auto& option : a_state.request.categories) {
+			if (IsClass(option) && std::ranges::find(outfit.categories, option.name) != outfit.categories.end()) {
+				classes.push_back(option.name);
+			}
+		}
+		ImGui::TextWrapped("%s", classes.empty() ? "None" : JoinNames(classes).c_str());
 		DrawOutfitPieces(a_state, outfit);
 	}
 
@@ -2109,7 +2181,7 @@ namespace
 		form.name.fill('\0');
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
 		for (std::size_t i = 0; i < options.size(); ++i) {
-			form.classTicked[i] = std::ranges::find(outfit.categories, options[i].name) != outfit.categories.end();
+			form.classTicked[i] = IsClass(options[i]) && std::ranges::find(outfit.categories, options[i].name) != outfit.categories.end();
 		}
 		form.gender = outfit.gender;
 		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
@@ -2197,7 +2269,7 @@ namespace CaptureWindow
 				.wearsFor = std::make_unique<bool[]>(rows) };
 			std::strncpy(state.createForm.name.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
 			for (std::size_t i = 0; i < categories; ++i) {
-				state.createForm.classTicked[i] = state.request.categories[i].selected;
+				state.createForm.classTicked[i] = IsClass(state.request.categories[i]) && state.request.categories[i].selected;
 			}
 			state.updateForm = { .classTicked = std::make_unique<bool[]>(categories), .wearsFor = std::make_unique<bool[]>(rows) };
 			state.updateTab = false;
@@ -2213,6 +2285,7 @@ namespace CaptureWindow
 			state.resetImGui = true;
 			state.page = Page::kCapture;
 			state.captureTitle = std::format("{}'s Inventory", state.request.actorName);
+			state.applyTooltip = std::format("Dress {} in the ticked pieces.", state.request.actorName);
 			SetGroupHeadings(state);
 			state.sortColumn = kNameColumn;
 			state.sortDescending = false;
@@ -2220,6 +2293,7 @@ namespace CaptureWindow
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
 			OutfitBrowser::Reset(state.browser, state.request);
+			state.showCategories = true;
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
 			state.userMoved = false;

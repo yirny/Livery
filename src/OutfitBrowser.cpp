@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants - the group the class sort uses
-//   Helpers   - name matching and ordering, filter rows, group keys
-//   Browser   - Reset / Refresh and the search and filter accessors
+//   Constants - the gender sort's headings
+//   Helpers   - name matching and ordering, the categories an outfit is in, filter rows,
+//               group keys and headings
+//   Browser   - Reset / Refresh / OffersSort and the search and filter accessors
 #include "OutfitBrowser.h"
 
 #include <algorithm>
@@ -12,8 +13,10 @@
 
 namespace
 {
-	// Contract: the group Library gives its class categories.
-	constexpr std::string_view kClassGroup = CaptureWindow::kClassGroup;
+	// --- Constants ------------------------------------------------------------
+
+	// The gender sort's headings, in its order (GenderRank).
+	constexpr std::array<const char*, 3> kGenderHeadings{ "Female", "Male", "Unisex" };
 
 	// --- Helpers --------------------------------------------------------------
 
@@ -36,6 +39,56 @@ namespace
 		return std::lexicographical_compare_three_way(a_left.begin(), a_left.end(), a_right.begin(), a_right.end(), compare);
 	}
 
+	// The gender sort's place for the library's gender (-1 unisex, 0 male, 1 female): an
+	// index into kGenderHeadings.
+	std::size_t GenderRank(int a_gender)
+	{
+		return a_gender == 1 ? 0 : (a_gender == 0 ? 1 : 2);
+	}
+
+	// The group a sort key lists the outfits by; "" for kName and kGender.
+	std::string_view GroupOf(OutfitBrowser::SortKey a_key)
+	{
+		switch (a_key) {
+		case OutfitBrowser::SortKey::kClass:
+			return CaptureWindow::kClassGroup;
+		case OutfitBrowser::SortKey::kCustom:
+			return CaptureWindow::kCustomGroup;
+		case OutfitBrowser::SortKey::kSituation:
+			return CaptureWindow::kSituationGroup;
+		case OutfitBrowser::SortKey::kName:
+		case OutfitBrowser::SortKey::kGender:
+			break;
+		}
+		return {};
+	}
+
+	// Contract: the situation group's n-th category is row n of Request::assigned
+	// (Request::categories). Id 0 is pieces that are not a saved outfit, never a listed one.
+	bool HoldsRow(const CaptureWindow::Request& a_request, std::size_t a_row, std::uint32_t a_outfit)
+	{
+		const auto& assigned = a_request.assigned;
+		return a_outfit != 0 && a_row < assigned.size() && assigned[a_row].taken && assigned[a_row].outfit == a_outfit;
+	}
+
+	// Indices into Request::categories the outfit is in, ascending: the stored categories by
+	// name, the situations by the actor's rows. A custom category may share a situation's name.
+	std::vector<int> CategoriesOf(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
+	{
+		const auto&      options = a_request.categories;
+		std::vector<int> in;
+		std::size_t      row = 0;
+		for (std::size_t i = 0; i < options.size(); ++i) {
+			const bool holds = options[i].group == CaptureWindow::kSituationGroup ?
+			                       HoldsRow(a_request, row++, a_outfit.id) :
+			                       std::ranges::find(a_outfit.categories, options[i].name) != a_outfit.categories.end();
+			if (holds) {
+				in.push_back(static_cast<int>(i));
+			}
+		}
+		return in;
+	}
+
 	// The outfit's categories in one group: indices into Request::categories, ascending.
 	std::vector<int> GroupKey(const std::vector<int>& a_categories, const CaptureWindow::Request& a_request, std::string_view a_group)
 	{
@@ -48,15 +101,38 @@ namespace
 		return key;
 	}
 
-	// In the library's category order (Request::categories), so Light before Clothing,
-	// and Light + Heavy before Light + Clothing; an outfit in
-	// none of the group's categories goes last.
+	// In Request::categories' order, so Light before Clothing, and Light + Heavy before
+	// Light + Clothing; an outfit in none of the group's categories goes last.
 	std::weak_ordering CompareGroupKeys(const std::vector<int>& a_left, const std::vector<int>& a_right)
 	{
 		if (a_left.empty() != a_right.empty()) {
 			return a_left.empty() ? std::weak_ordering::greater : std::weak_ordering::less;
 		}
 		return std::lexicographical_compare_three_way(a_left.begin(), a_left.end(), a_right.begin(), a_right.end());
+	}
+
+	// A group sort's heading: the outfit's categories in the group joined with ", ", or
+	// "No <group>".
+	std::string GroupHeading(const std::vector<int>& a_key, const CaptureWindow::Request& a_request, std::string_view a_group)
+	{
+		if (a_key.empty()) {
+			return "No " + std::string{ a_group };
+		}
+		std::string heading;
+		for (const int index : a_key) {
+			heading += heading.empty() ? "" : ", ";
+			heading += a_request.categories[static_cast<std::size_t>(index)].name;
+		}
+		return heading;
+	}
+
+	std::size_t CountHeadings(const std::vector<std::string>& a_headings)
+	{
+		std::vector<std::string_view> distinct(a_headings.begin(), a_headings.end());
+		std::erase(distinct, std::string_view{});
+		std::ranges::sort(distinct);
+		distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
+		return distinct.size();
 	}
 
 	bool MatchesRow(const OutfitBrowser::FilterOption& a_row, const std::vector<int>& a_categories, const CaptureWindow::Request& a_request)
@@ -117,14 +193,13 @@ namespace OutfitBrowser
 		a_state.filter = FilterRows(a_request);
 		a_state.filterTicked = std::make_unique<bool[]>(a_state.filter.size());  // all false
 
-		const auto& options = a_request.categories;
 		a_state.categories.clear();
+		a_state.tags.clear();
 		for (const auto& outfit : a_request.existingOutfits) {
-			auto& in = a_state.categories.emplace_back();
-			for (std::size_t i = 0; i < options.size(); ++i) {
-				if (std::ranges::find(outfit.categories, options[i].name) != outfit.categories.end()) {
-					in.push_back(static_cast<int>(i));
-				}
+			const auto& in = a_state.categories.emplace_back(CategoriesOf(outfit, a_request));
+			auto&       tags = a_state.tags.emplace_back();
+			for (const int index : in) {
+				tags.push_back(a_request.categories[static_cast<std::size_t>(index)].name);
 			}
 		}
 		Refresh(a_state, a_request);
@@ -141,18 +216,28 @@ namespace OutfitBrowser
 			}
 		}
 
-		std::vector<std::vector<int>> classes(outfits.size());
-		if (a_state.sort == SortKey::kClass) {
-			for (const int i : a_state.visible) {
-				classes[static_cast<std::size_t>(i)] = GroupKey(a_state.categories[static_cast<std::size_t>(i)], a_request, kClassGroup);
+		// Every outfit's heading, the hidden ones' too, so headingCount does not follow the search.
+		const auto                    group = GroupOf(a_state.sort);
+		std::vector<std::vector<int>> keys(outfits.size());
+		a_state.headings.assign(outfits.size(), std::string{});
+		for (std::size_t i = 0; i < outfits.size(); ++i) {
+			if (a_state.sort == SortKey::kGender) {
+				a_state.headings[i] = kGenderHeadings[GenderRank(outfits[i].gender)];
+			} else if (!group.empty()) {
+				keys[i] = GroupKey(a_state.categories[i], a_request, group);
+				a_state.headings[i] = GroupHeading(keys[i], a_request, group);
 			}
 		}
+		a_state.headingCount = CountHeadings(a_state.headings);
+
 		const auto before = [&](int a, int b) {
 			const auto left = static_cast<std::size_t>(a);
 			const auto right = static_cast<std::size_t>(b);
 			auto       order = std::weak_ordering::equivalent;
-			if (a_state.sort == SortKey::kClass) {
-				order = CompareGroupKeys(classes[left], classes[right]);
+			if (a_state.sort == SortKey::kGender) {
+				order = GenderRank(outfits[left].gender) <=> GenderRank(outfits[right].gender);
+			} else if (!group.empty()) {
+				order = CompareGroupKeys(keys[left], keys[right]);
 			}
 			if (order == 0) {
 				order = CompareNames(outfits[left].name, outfits[right].name);
@@ -160,6 +245,12 @@ namespace OutfitBrowser
 			return order == 0 ? a < b : order < 0;
 		};
 		std::ranges::sort(a_state.visible, before);
+	}
+
+	bool OffersSort(const CaptureWindow::Request& a_request, SortKey a_key)
+	{
+		const auto isCustom = [](const CaptureWindow::CategoryOption& a_option) { return a_option.group == CaptureWindow::kCustomGroup; };
+		return a_key != SortKey::kCustom || std::ranges::any_of(a_request.categories, isCustom);
 	}
 
 	bool IsSearching(const State& a_state)
