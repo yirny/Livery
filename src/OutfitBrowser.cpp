@@ -4,7 +4,7 @@
 //   Constants - the gender sort's headings
 //   Helpers   - name matching and ordering, the categories an outfit is in, filter rows,
 //               group keys and headings
-//   Browser   - Reset / Refresh / OffersSort and the search and filter accessors
+//   Browser   - Reset / Rebuild / Refresh / OffersSort and the search and filter accessors
 #include "OutfitBrowser.h"
 
 #include <algorithm>
@@ -190,6 +190,14 @@ namespace OutfitBrowser
 	{
 		a_state.search.fill('\0');
 		a_state.sort = SortKey::kName;
+		Rebuild(a_state, a_request);
+	}
+
+	void Rebuild(State& a_state, const CaptureWindow::Request& a_request)
+	{
+		if (!OffersSort(a_request, a_state.sort)) {
+			a_state.sort = SortKey::kName;
+		}
 		a_state.filter = FilterRows(a_request);
 		a_state.filterTicked = std::make_unique<bool[]>(a_state.filter.size());  // all false
 
