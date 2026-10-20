@@ -27,7 +27,8 @@ namespace ArmorInfo
 		kOther
 	};
 
-	// The library stores the first four as its Class categories.
+	// The library stores the first three as its Armor Class categories; the piece list's
+	// Class column shows all five.
 	constexpr std::array<const char*, 5> kClassNames{ "Light", "Heavy", "Clothing", "Jewelry", "Other" };
 
 	constexpr const char* ClassName(ArmorClass a_class)

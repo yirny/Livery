@@ -149,10 +149,13 @@ would have to be kept in step).
 - Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
-- Categories: SkyUI's four classes (`ArmorInfo.h`). The situation categories older files
-  hold stay in them, not offered; situations are per actor (§7), not in the library.
-- `Library::Update` replaces pieces, classes, name and gender; a name is taken when another
-  outfit has it (ASCII case ignored).
+- Categories: the Armor Classes Light, Heavy and Clothing (SkyUI's classes in `ArmorInfo.h`
+  but Jewelry, which `Library::Load` drops in memory). Every other stored category is a
+  custom category: older files' situation categories (Adventuring, Town, ...) are custom
+  now; the window shows them, edits none (§8 item 8). Situations are per actor (§7), not
+  in the library.
+- `Library::Update` replaces pieces, Armor Classes, name and gender and keeps the custom
+  categories; a name is taken when another outfit has it (ASCII case ignored).
 - Settings: INI, as today.
 
 ## 5. Co-save

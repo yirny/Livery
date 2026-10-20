@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants - file location and version, the categories the window offers, old class names
+//   Constants - file location and version, the Armor Classes the window offers, old class names
 //   State     - the outfits as read, the next id, whether the file may be written
 //   Helpers   - armor to piece and back
 //   File      - parse (all or nothing), serialise, write through a temporary file
@@ -42,14 +42,14 @@ namespace
 	constexpr RE::FormID    kMaxLightLocalID = 0xFFF;  // the same for a light plugin
 	constexpr const char*   kUnreadable = "Livery could not read outfits.json, so it changes nothing (see Livery.log).";
 
-	// SkyUI's armor classes (ArmorInfo). Older files also hold situation categories
-	// (Adventuring, Town, ...), which are no longer offered and stay in them as they are.
+	// The Armor Classes: SkyUI's armor classes (ArmorInfo) but Jewelry, which only the piece
+	// list shows. Other stored categories (older files' Adventuring, Town, ...) are custom
+	// categories, which the window shows but does not edit; they stay as they are.
 	using ArmorInfo::ArmorClass;
-	constexpr std::array<Library::Category, 4> kCategories{ {
+	constexpr std::array<Library::Category, 3> kCategories{ {
 		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kLight) },
 		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kHeavy) },
 		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kClothing) },
-		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kJewelry) },
 	} };
 
 	// Class names files written before the SkyUI classes hold, and what Load reads them as.
@@ -224,8 +224,10 @@ namespace
 				return "a category that is not a name";
 			}
 		}
-		// In memory only: the file keeps the old names until the next Create or Update writes it.
+		// In memory only: the file keeps the old names, and Jewelry, which is no longer a
+		// category, until the next Create or Update writes it.
 		RenameOldCategories(a_outfit.categories);
+		std::erase(a_outfit.categories, ArmorInfo::ClassName(ArmorClass::kJewelry));
 		const auto* pieces = Field(a_json, "pieces");
 		if (!pieces || !pieces->is_array() || pieces->empty()) {
 			return "no pieces";
