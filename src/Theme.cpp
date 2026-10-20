@@ -83,6 +83,10 @@ namespace
 	constexpr float kSelectRowPadY = 4.0f;
 	// Room between an outfit row's name and its tags (OutfitRow; pixels at 1080p).
 	constexpr float kOutfitTagsGap = 2.0f;
+	// A tab of the tab column, a square with its fill, and the room between the tabs and the
+	// rule beside them (pixels at 1080p).
+	constexpr float kTabSide = 34.0f;
+	constexpr float kTabRuleGap = 8.0f;
 	// How far right of the list's indent a list row's text sits in Vanilla and
 	// Nordic (pixels at 1080p); Tailor clears its rule instead (RowTextShift).
 	constexpr float kRowTextShift = 4.0f;
@@ -168,6 +172,7 @@ namespace
 	ImVec2      g_listReach{};                  // how far the open BeginList list runs past the content, left and right
 	Ornament    g_cornerKnot{ nullptr, ImVec2(25.0f, 25.0f) };
 	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
+	Ornament    g_tabRope{ nullptr, ImVec2(7.0f, 48.0f) };           // one repeat of NORDIC UI's level-up rope, tiled down the tab rule
 	Ornament    g_vanillaEquipped{ nullptr, ImVec2(20.0f, 20.0f) };  // the game's equipped mark, a white mask tinted on draw
 	Ornament    g_nordicEquipped{ nullptr, ImVec2(23.0f, 23.0f) };   // NORDIC UI's, in its own two colours
 	Ornament    g_checkBox{ nullptr, ImVec2(22.0f, 22.0f) };         // the game's checkbox, in its own colours
@@ -1142,6 +1147,50 @@ namespace
 		return at.y + lineHeight - a_topLeft.y;
 	}
 
+	// The square a tab column icon is drawn in; its points are given as fractions of the side.
+	struct IconFrame
+	{
+		ImVec2 min;
+		float  side;
+
+		ImVec2 At(float a_x, float a_y) const { return ImVec2(min.x + a_x * side, min.y + a_y * side); }
+	};
+
+	// A backpack: its body with the flap's edge across it and a front pocket, a handle on top.
+	void DrawBackpackIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		const float s = a_frame.side;
+		a_draw->AddRect(a_frame.At(0.22f, 0.30f), a_frame.At(0.78f, 0.88f), a_color, 0.10f * s, ImDrawFlags_None, a_thick);
+		a_draw->PathArcTo(a_frame.At(0.50f, 0.30f), 0.11f * s, IM_PI, 2.0f * IM_PI);
+		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+		a_draw->AddLine(a_frame.At(0.22f, 0.48f), a_frame.At(0.78f, 0.48f), a_color, a_thick);
+		a_draw->AddRect(a_frame.At(0.34f, 0.62f), a_frame.At(0.66f, 0.79f), a_color, 0.04f * s, ImDrawFlags_None, a_thick);
+	}
+
+	// A dress form: a padded torso with a neck, on a pole with two feet.
+	void DrawDressFormIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		const std::array<ImVec2, 16> torso{ a_frame.At(0.44f, 0.12f), a_frame.At(0.56f, 0.12f), a_frame.At(0.57f, 0.18f),
+			a_frame.At(0.72f, 0.23f), a_frame.At(0.74f, 0.32f), a_frame.At(0.66f, 0.42f), a_frame.At(0.62f, 0.52f), a_frame.At(0.68f, 0.62f),
+			a_frame.At(0.66f, 0.68f), a_frame.At(0.34f, 0.68f), a_frame.At(0.32f, 0.62f), a_frame.At(0.38f, 0.52f), a_frame.At(0.34f, 0.42f),
+			a_frame.At(0.26f, 0.32f), a_frame.At(0.28f, 0.23f), a_frame.At(0.43f, 0.18f) };
+		a_draw->AddPolyline(torso.data(), static_cast<int>(torso.size()), a_color, ImDrawFlags_Closed, a_thick);
+		a_draw->AddLine(a_frame.At(0.50f, 0.68f), a_frame.At(0.50f, 0.86f), a_color, a_thick);
+		a_draw->AddLine(a_frame.At(0.50f, 0.86f), a_frame.At(0.34f, 0.93f), a_color, a_thick);
+		a_draw->AddLine(a_frame.At(0.50f, 0.86f), a_frame.At(0.66f, 0.93f), a_color, a_thick);
+	}
+
+	// The rule beside the tab column: Tailor's 1px border (its sidebar divider), Vanilla's
+	// 2px rule, Nordic's rope, or 1px without its texture (pixels on the back buffer).
+	float TabRuleWidth()
+	{
+		const float pixel = (std::max)(1.0f, std::floor(g_scale));
+		if (g_skin == Theme::Skin::kNordic && g_tabRope.view) {
+			return g_tabRope.size.x * g_scale;
+		}
+		return g_skin == Theme::Skin::kVanilla ? pixel * 2.0f : pixel;
+	}
+
 	// --- Labels ---------------------------------------------------------------
 
 	// Item spacing for a field label's line: a little tighter than the style's,
@@ -1239,6 +1288,7 @@ namespace Theme
 			const auto folder = std::filesystem::current_path() / kTextureDir;
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-corner.png", g_cornerKnot);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-heading.png", g_headingRope);
+			LoadOrnament(a_device, wic.Get(), folder, L"nordic-rope.png", g_tabRope);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-equipped.png", g_vanillaEquipped);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-equipped.png", g_nordicEquipped);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkbox.png", g_checkBox);
@@ -1489,6 +1539,69 @@ namespace Theme
 		const float  alpha = a_selected || ImGui::IsItemHovered() ? 1.0f : kUnselectedAlpha;
 		ImGui::GetWindowDrawList()->AddText(topLeft, ImGui::GetColorU32(ImGuiCol_Text, alpha), a_label);
 		return clicked;
+	}
+
+	// Unselected, Tailor's icon is ghosted: its LabelText is the text colour, which the
+	// selected tab has.
+	bool Tab(TabIcon a_icon, const char* a_name, bool a_selected)
+	{
+		constexpr float kIconInset = 0.12f;  // of the side, between the fill's edge and the icon
+		constexpr float kLineWidth = 1.5f;   // pixels at 1080p
+
+		const float  side = kTabSide * g_scale;
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const bool   clicked = ImGui::InvisibleButton(a_name, ImVec2(side, side));
+		const bool   hovered = ImGui::IsItemHovered();
+		auto*        draw = ImGui::GetWindowDrawList();
+		ImU32        color = LinkColor(hovered);
+		if (a_selected) {
+			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImGui::GetColorU32(ImGuiCol_Header), ImGui::GetStyle().FrameRounding);
+			color = ImGui::GetColorU32(ImGuiCol_Text);
+		} else if (!hovered && g_skin == Skin::kTailor) {
+			color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+		}
+		const IconFrame frame{ ImVec2(topLeft.x + side * kIconInset, topLeft.y + side * kIconInset), side * (1.0f - kIconInset * 2.0f) };
+		const float     thick = (std::max)(1.0f, kLineWidth * g_scale);
+		switch (a_icon) {
+		case TabIcon::kInventory:
+			DrawBackpackIcon(draw, frame, color, thick);
+			break;
+		case TabIcon::kOutfits:
+			DrawDressFormIcon(draw, frame, color, thick);
+			break;
+		}
+		if (hovered) {
+			ImGui::SetTooltip("%s", a_name);
+		}
+		return clicked;
+	}
+
+	float TabColumnWidth()
+	{
+		return (kTabSide + kTabRuleGap) * g_scale + TabRuleWidth() + ImGui::GetStyle().WindowPadding.x;
+	}
+
+	// The rope is tiled from the top, its last repeat cut short at the bottom. The clip rect
+	// is the rule's own, so it reaches the window's edges across its padding.
+	void TabRule(float a_left, float a_top, float a_bottom)
+	{
+		const float  x = a_left + (kTabSide + kTabRuleGap) * g_scale;
+		const float  width = TabRuleWidth();
+		const ImVec2 topLeft(x, a_top);
+		const ImVec2 bottomRight(x + width, a_bottom);
+		auto*        draw = ImGui::GetWindowDrawList();
+		draw->PushClipRect(topLeft, bottomRight, false);
+		if (g_skin == Skin::kNordic && g_tabRope.view) {
+			const float tile = g_tabRope.size.y * g_scale;
+			const ImU32 tint = ImGui::GetColorU32(kNordicOrnament);
+			for (float y = a_top; y < a_bottom; y += tile) {
+				const float end = (std::min)(y + tile, a_bottom);
+				draw->AddImage(g_tabRope.Id(), ImVec2(x, y), ImVec2(x + width, end), ImVec2(0.0f, 0.0f), ImVec2(1.0f, (end - y) / tile), tint);
+			}
+		} else {
+			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_Border));
+		}
+		draw->PopClipRect();
 	}
 
 	bool TextButton(const char* a_label)
