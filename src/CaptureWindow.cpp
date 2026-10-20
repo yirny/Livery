@@ -1513,8 +1513,6 @@ namespace CaptureWindow::Internal
 	// Keep (save without those rows) or Cancel.
 	ReplaceChoice DrawReplacePopup(const State& a_state)
 	{
-		constexpr const char* kArrow = "\xE2\x86\x92";  // U+2192, UTF-8
-
 		if (!BeginModal(kReplacePopup)) {
 			return ReplaceChoice::kNone;
 		}
@@ -1792,6 +1790,11 @@ namespace CaptureWindow
 			state.manage = { .classTicked = std::make_unique<bool[]>(categories) };
 			state.discardFor = -1;
 			state.openUnsaved = false;
+			state.manageSituationsLabel = std::format("Situations for {}", state.request.actorName);
+			state.manageApplyLabel = std::format("Apply to {}", state.request.actorName);
+			state.manageApplyTooltip = std::format("Dress {} in this outfit as their Default.", state.request.actorName);
+			state.replaceRow = 0;
+			state.openManageReplace = false;
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
 			state.editShown.clear();
 			state.recentreFrames = kRecentreFrames;
@@ -1878,9 +1881,9 @@ namespace CaptureWindow
 		for (auto* ticks : { &state.createForm.classTicked, &state.updateForm.classTicked, &state.manage.classTicked }) {
 			*ticks = RemapTicks(request.categories, ticks->get(), a_list.categories);
 		}
+		const auto assignedBefore = std::exchange(request.assigned, std::move(a_list.assigned));
 		request.existingOutfits = std::move(a_list.existingOutfits);
 		request.categories = std::move(a_list.categories);
-		request.assigned = std::move(a_list.assigned);
 		request.actorSummary = std::move(a_list.actorSummary);
 
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
@@ -1889,6 +1892,15 @@ namespace CaptureWindow
 		state.selectingOutfit = IndexOfOutfit(state, selecting);
 		if (chosen != 0 && state.chosenOutfit < 0) {
 			state.updateTab = false;  // the Save page's Update tab has no outfit left to update
+		}
+		// The Update tab's "wears it for" ticks follow the rows Manage Outfits changed for its
+		// outfit, so its Update cannot undo them unseen; the user's other ticks stay.
+		for (std::size_t row = 0; state.chosenOutfit >= 0 && row < RowCount(state); ++row) {
+			const bool before = row < assignedBefore.size() && assignedBefore[row].taken && assignedBefore[row].outfit == chosen;
+			const bool now = HoldsOutfit(state, row, chosen);
+			if (before != now) {
+				state.updateForm.wearsFor[row] = now;
+			}
 		}
 		for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser }) {
 			OutfitBrowser::Rebuild(*browser, request);
@@ -1905,9 +1917,15 @@ namespace CaptureWindow
 				inventory.ticked[i] = false;
 			}
 		}
-		FillManageForm(state, IndexOfOutfit(state, managed));
-		if (managed != 0 && state.manage.outfit < 0) {
-			QueuePreview(state, TickedPieces(state));
+		const int manageIndex = IndexOfOutfit(state, managed);
+		if (a_list.keepEdits && manageIndex >= 0) {
+			state.manage.outfit = manageIndex;  // the library did not change, so the edits still apply
+			state.error.clear();
+		} else {
+			FillManageForm(state, manageIndex);
+			if (managed != 0 && state.manage.outfit < 0) {
+				QueuePreview(state, TickedPieces(state));
+			}
 		}
 		state.discardFor = -1;
 		state.status = Status::kEditing;

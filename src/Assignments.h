@@ -55,6 +55,14 @@ namespace Assignments
 	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
 	void Change(RE::Actor& a_actor, const Changes& a_changes);
 
+	// Makes Change's changes without dressing them, as the capture window's Manage Outfits
+	// does while its preview has the actor; Refresh dresses them for their situations later.
+	// An assignment left with nothing on them and no situation chosen ends. Returns false,
+	// having changed nothing, for a child or the dead (a HUD message says why). No other HUD
+	// message.
+	// Contract: game thread; no row is in both lists.
+	bool Record(RE::Actor& a_actor, const Changes& a_changes);
+
 	// Dresses them anew for their situations now, even in the outfit they already wear, so a
 	// library outfit whose pieces just changed goes on at once; `a_leaveOut` stays out of this
 	// dressing only (pieces that could not be moved to them). Nothing for an actor Livery does

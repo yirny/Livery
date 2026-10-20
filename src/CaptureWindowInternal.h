@@ -31,12 +31,13 @@ namespace CaptureWindow::Internal
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kReplacePopup = "Replace outfits?";
 	constexpr const char* kApplyPopup = "Update the outfit?";
-	// Manage Outfits' popups. The two that discard share a title, told apart after "###".
-	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
-	constexpr const char* kDiscardClosePopup = "Discard changes?###discardClose";
+	// Manage Outfits' popups.
+	constexpr const char* kDiscardPopup = "Discard changes?";
 	constexpr const char* kUnsavedPopup = "Unsaved changes";
 	constexpr const char* kManageConfirmPopup = "Save changes?";
 	constexpr const char* kRemovePopup = "Remove outfit?";
+	constexpr const char* kManageReplacePopup = "Replace outfit?";
+	constexpr const char* kArrow = "\xE2\x86\x92";  // U+2192, UTF-8: the replace popups' `Town: "A" → "B"`
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
@@ -44,6 +45,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
 	constexpr const char* kNoChanges = "No changes to save.";
+	constexpr const char* kUpdateFirst = "Update or discard your changes first.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -180,15 +182,20 @@ namespace CaptureWindow::Internal
 		OutfitBrowser::State     manageBrowser;          // Manage Outfits'
 		bool                     showCategories = true;  // the outfit lists show each outfit's tags (Show Categories)
 		ManageForm               manage;
-		int                      discardFor = -1;      // the outfit to select once Discard changes is chosen: index, -1 for none
-		bool                     openUnsaved = false;  // open the Unsaved changes popup on the next frame (Manage Outfits)
-		std::unique_ptr<bool[]>  editTicked;           // the Edit page's ticks, one per request.pieces
-		std::vector<std::size_t> editShown;            // the edited pieces it opened with, so those nobody carries stay listed
-		std::string              editTitle;            // "Edit \"#{Outfit}\""
-		std::string              editShownHeading;     // over those nobody carries: "From \"#{Outfit}\" (Not Carried)"
-		int                      recentreFrames = 0;   // frames left to pin the window to its place
-		std::optional<ImVec2>    placeCentre;          // where a pinned window's centre goes; none for the start place
-		ImVec2                   windowPos{};          // of the window in the last frame drawn
+		int                      discardFor = -1;            // the outfit to select once Discard changes is chosen: index, -1 for none
+		bool                     openUnsaved = false;        // open the Unsaved changes popup on the next frame (Manage Outfits)
+		std::string              manageSituationsLabel;      // "Situations for #{Name}"
+		std::string              manageApplyLabel;           // "Apply to #{Name}"
+		std::string              manageApplyTooltip;         // "Dress #{Name} in this outfit as their Default."
+		std::size_t              replaceRow = 0;             // the situation row Manage Outfits' Replace popup is about: index into request.assigned
+		bool                     openManageReplace = false;  // open that popup on the next frame, in the page's ID scope
+		std::unique_ptr<bool[]>  editTicked;                 // the Edit page's ticks, one per request.pieces
+		std::vector<std::size_t> editShown;                  // the edited pieces it opened with, so those nobody carries stay listed
+		std::string              editTitle;                  // "Edit \"#{Outfit}\""
+		std::string              editShownHeading;           // over those nobody carries: "From \"#{Outfit}\" (Not Carried)"
+		int                      recentreFrames = 0;         // frames left to pin the window to its place
+		std::optional<ImVec2>    placeCentre;                // where a pinned window's centre goes; none for the start place
+		ImVec2                   windowPos{};                // of the window in the last frame drawn
 		ImVec2                   windowSize{};
 		bool                     userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
 		unsigned                 session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
@@ -249,6 +256,11 @@ namespace CaptureWindow::Internal
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
 	bool                                 IsClass(const CaptureWindow::CategoryOption& a_option);
 	void                                 ChooseOutfit(State& a_state, int a_index);
+	void                                 DrawHelpTooltip(const std::string& a_text);
+	std::size_t                          RowCount(const State& a_state);
+	const char*                          RowName(const State& a_state, std::size_t a_row);
+	bool                                 HoldsOutfit(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
+	std::string                          HeldOutfitName(const State& a_state, std::size_t a_row);
 
 	// --- Pages (OutfitPages.cpp) ----------------------------------------------
 

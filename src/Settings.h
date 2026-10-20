@@ -45,6 +45,10 @@ namespace Settings
 	// the NPC; off, the NPC gets new copies. Safe from any thread.
 	bool MoveFromPlayer();
 
+	// Whether a redress for a situation beginning or ending (the situation poll) shows a HUD
+	// message. Safe from any thread.
+	bool NotifySituationChanges();
+
 	// Whether a keyboard key going down (DirectInput scan code) is the capture hotkey:
 	// the configured key, with its modifier held when one is configured.
 	// Contract: call from the input path while handling that key's event, since the

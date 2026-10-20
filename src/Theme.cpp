@@ -1510,6 +1510,18 @@ namespace Theme
 		return clicked;
 	}
 
+	bool LabelHelpMark()
+	{
+		PushSmallFont();
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		PushLabelSpacing();  // the line's gap below stays LabelText's
+		ImGui::TextDisabled("(?)");
+		const bool hovered = ImGui::IsItemHovered();
+		ImGui::PopStyleVar();
+		PopSmallFont();
+		return hovered;
+	}
+
 	bool Button(const char* a_label)
 	{
 		return g_skin == Skin::kNordic ? PointedButton(a_label) : ImGui::Button(a_label);

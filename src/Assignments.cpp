@@ -9,7 +9,7 @@
 //   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies
 //   Co-save     - save, load (versions 1 to 3), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
-//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / Refresh / WearFor /
+//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / Record / Refresh / WearFor /
 //                 ActorsWithSituations / UsesOf / ForgetOutfit / Unassign / ChoicesOf / SuspendLocks /
 //                 ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
@@ -174,6 +174,22 @@ namespace
 		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the wardrobe";
 	}
 
+	// The HUD line for a redress because a situation began or ended (WearFor): what they wear
+	// now, and the situation it is for.
+	std::string SituationChangeText(RE::Actor& a_actor, const Assignment& a_assignment)
+	{
+		const bool player = a_actor.IsPlayerRef();
+		const auto who = player ? std::string("you now wear") : std::format("{} now wears", NameOf(a_actor));
+		if (a_assignment.pieces.empty()) {
+			return std::format("Livery: {} {} own clothes.", who, player ? "your" : "their");
+		}
+		if (a_assignment.worn == Situation::kDefault) {
+			return std::format("Livery: {} the default outfit.", who);
+		}
+		const auto outfit = a_assignment.situations[Situations::Index(a_assignment.worn)];
+		return std::format("Livery: {} {} for {}.", who, QuotedOutfitName(outfit), Situations::Name(a_assignment.worn));
+	}
+
 	// --- Dressing -------------------------------------------------------------
 	//
 	// Contract: game thread, all.
@@ -241,6 +257,44 @@ namespace
 			result = Wear(a_assignment, a_actor, Situation::kDefault, a_leaveOut);
 		}
 		return result;
+	}
+
+	// Children and the dead are never dressed; a HUD message says why.
+	bool CanBeDressed(RE::Actor& a_actor)
+	{
+		if (a_actor.IsChild()) {
+			Notify("Livery: children cannot be dressed.");
+			return false;
+		}
+		if (a_actor.IsDead()) {
+			Notify(std::format("Livery: {} is dead.", NameOf(a_actor)));
+			return false;
+		}
+		return true;
+	}
+
+	// The rows Change and Record change: a situation gets the outfit's id, the default its id
+	// and armor; a removed row gets nothing. Nobody is dressed here.
+	// Contract: no row is in both lists.
+	void SetRows(Assignment& a_assignment, const Assignments::Changes& a_changes)
+	{
+		const auto set = [&a_assignment](Situation a_row, std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_armor) {
+			if (a_row != Situation::kDefault) {
+				a_assignment.situations[Situations::Index(a_row)] = a_outfit;
+				return;
+			}
+			a_assignment.defaultOutfit = a_outfit;
+			a_assignment.defaultArmor.clear();
+			for (const auto* armor : a_armor) {
+				a_assignment.defaultArmor.push_back(armor->GetFormID());
+			}
+		};
+		for (const auto row : a_changes.remove) {
+			set(row, 0, {});
+		}
+		for (const auto row : a_changes.assign) {
+			set(row, a_changes.outfit, a_changes.armor);
+		}
 	}
 
 	// --- Release --------------------------------------------------------------
@@ -666,34 +720,12 @@ namespace Assignments
 
 	void Change(RE::Actor& a_actor, const Changes& a_changes)
 	{
-		if (a_actor.IsChild()) {
-			Notify("Livery: children cannot be dressed.");
+		if (!CanBeDressed(a_actor)) {
 			return;
 		}
-		if (a_actor.IsDead()) {
-			Notify(std::format("Livery: {} is dead.", NameOf(a_actor)));
-			return;
-		}
-
 		const auto id = a_actor.GetFormID();
 		auto&      assignment = FindOrAddAssignment(id);
-		const auto set = [&assignment](Situation a_row, std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_armor) {
-			if (a_row != Situation::kDefault) {
-				assignment.situations[Situations::Index(a_row)] = a_outfit;
-				return;
-			}
-			assignment.defaultOutfit = a_outfit;
-			assignment.defaultArmor.clear();
-			for (const auto* armor : a_armor) {
-				assignment.defaultArmor.push_back(armor->GetFormID());
-			}
-		};
-		for (const auto row : a_changes.remove) {
-			set(row, 0, {});
-		}
-		for (const auto row : a_changes.assign) {
-			set(row, a_changes.outfit, a_changes.armor);
-		}
+		SetRows(assignment, a_changes);
 		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor), true);
 		const auto worn = assignment.worn;  // read before DropIfEmpty, which may end the record
 		const auto pieces = assignment.pieces.size();
@@ -709,6 +741,18 @@ namespace Assignments
 		}
 		text += pieces > 0 ? std::format(". Dressed for {} now, {} piece(s)", Situations::Name(worn), pieces) : ". Own clothes now";
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
+	}
+
+	bool Record(RE::Actor& a_actor, const Changes& a_changes)
+	{
+		if (!CanBeDressed(a_actor)) {
+			return false;
+		}
+		const auto id = a_actor.GetFormID();
+		SetRows(FindOrAddAssignment(id), a_changes);
+		DropIfEmpty(id);
+		SyncManaged();
+		return true;
 	}
 
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut)
@@ -745,8 +789,14 @@ namespace Assignments
 			return false;
 		}
 		logger::info("Dressed {:08X} for {}: {} piece(s) on", id, Situations::Name(assignment->worn), assignment->pieces.size());
-		DropIfEmpty(id);  // a situation outfit gone from their rows (ForgetOutfit) may leave nothing
+		// Read before DropIfEmpty: a situation outfit gone from their rows (ForgetOutfit) may
+		// leave nothing, which ends the record.
+		const auto text = SituationChangeText(a_actor, *assignment);
+		DropIfEmpty(id);
 		SyncManaged();
+		if (Settings::NotifySituationChanges()) {
+			Notify(text);
+		}
 		return true;
 	}
 
