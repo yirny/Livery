@@ -439,26 +439,27 @@ namespace CaptureWindow::Internal
 		};
 
 		// What the right pane shows: the outfit list while a drag from the Situation List is on;
-		// else the outfit clicked last, until Back; else the selected situation, until Show
-		// Outfit List; else the outfit list.
-		RightPane ShownPane(const State& a_state)
+		// else the outfit clicked last (`a_viewed`, its index into request.existingOutfits, -1
+		// for none), until Back; else the selected situation, until Show Outfit List; else the
+		// outfit list.
+		RightPane ShownPane(const State& a_state, int a_viewed)
 		{
 			const auto& form = a_state.situationForm;
 			const auto* dragged = DraggedOutfit();
 			if (dragged && dragged->from >= 0) {
 				return RightPane::kOutfitList;
 			}
-			if (IndexOfOutfit(a_state, form.viewedOutfit) >= 0) {
+			if (a_viewed >= 0) {
 				return RightPane::kOutfit;
 			}
 			return form.selected >= 0 && form.details ? RightPane::kSituation : RightPane::kOutfitList;
 		}
 
 		// The outfit list with its own search, sort and Show Tags, its rows dragged as copies and
-		// a click on one showing its details, then what a drag does, in the small font. A drag
-		// from the Situation List dropped anywhere on it takes that outfit, or the Default's
-		// pieces, off its row. Returns whether Escape cleared the search.
-		bool DrawOutfitPane(State& a_state)
+		// a click on one showing its details (`a_viewed`'s row selected), then what a drag does,
+		// in the small font. A drag from the Situation List dropped anywhere on it takes that
+		// outfit, or the Default's pieces, off its row. Returns whether Escape cleared the search.
+		bool DrawOutfitPane(State& a_state, int a_viewed)
 		{
 			constexpr float       kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
 			constexpr const char* kDragNote = "Drag an outfit onto a situation to add it.";
@@ -469,8 +470,7 @@ namespace CaptureWindow::Internal
 			Theme::PushSmallFont();
 			const float noteHeight = ImGui::GetTextLineHeightWithSpacing();
 			Theme::PopSmallFont();
-			const int viewed = IndexOfOutfit(a_state, a_state.situationForm.viewedOutfit);
-			const int clicked = DrawOutfitList(a_state, a_state.situationBrowser, viewed, controls.height + noteHeight, true);
+			const int clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, controls.height + noteHeight, true);
 			Theme::PushSmallFont();
 			ImGui::TextWrapped("%s", kDragNote);
 			Theme::PopSmallFont();
@@ -608,18 +608,18 @@ namespace CaptureWindow::Internal
 			return names.empty() ? "None" : names;
 		}
 
-		// The outfit clicked last, read only as Manage Wardrobe lays it out (DrawOutfitSummary),
-		// its rows as the page's edits have them; then Edit and Back centred. Its pieces' list
-		// ends where Edit and Back still end by the Situation List's bottom `a_listBottom`
-		// (screen Y), so the view does not move the page's buttons, and scrolls when the pieces
-		// need more. Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
+		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits), read only
+		// as Manage Wardrobe lays it out (DrawOutfitSummary), its rows as the page's edits have
+		// them; then Edit and Back centred. Its pieces' list ends where Edit and Back still end by
+		// the Situation List's bottom `a_listBottom` (screen Y), so the view does not move the
+		// page's buttons, and scrolls when the pieces need more. Escape is Back, and sets
+		// `a_escapeTaken` so it is not also Exit.
 		// Contract: ShownPane is RightPane::kOutfit.
-		OutfitViewAction DrawOutfitView(State& a_state, float a_listBottom, bool& a_escapeTaken)
+		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, float a_listBottom, bool& a_escapeTaken)
 		{
-			const auto  id = a_state.situationForm.viewedOutfit;
 			const float buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight();  // under the pieces' list
 			ImGui::PushID("outfitView");
-			DrawOutfitSummary(a_state, IndexOfOutfit(a_state, id), HeldRowsText(a_state, id), a_listBottom - buttonRow);
+			DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, a_state.situationForm.viewedOutfit), a_listBottom - buttonRow);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
 			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - ButtonRowWidth({ "Edit", "Back" })) * 0.5f));
 			const bool edit = Theme::Button("Edit");
@@ -907,15 +907,16 @@ namespace CaptureWindow::Internal
 			const float listBottom = DrawSituationList(a_state);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
-			switch (ShownPane(a_state)) {
+			const int viewed = IndexOfOutfit(a_state, form.viewedOutfit);  // after the Situation List, whose clicks change it
+			switch (ShownPane(a_state, viewed)) {
 			case RightPane::kOutfit:
-				outfitView = DrawOutfitView(a_state, listBottom, escapeTaken);
+				outfitView = DrawOutfitView(a_state, viewed, listBottom, escapeTaken);
 				break;
 			case RightPane::kSituation:
 				details = DrawSituationDetails(a_state);
 				break;
 			case RightPane::kOutfitList:
-				escapeTaken = DrawOutfitPane(a_state);
+				escapeTaken = DrawOutfitPane(a_state, viewed);
 				break;
 			}
 			EndColumns();
