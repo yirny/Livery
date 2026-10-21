@@ -110,6 +110,9 @@ namespace
 	// on either side of each, which sets them further apart (pixels at 1080p).
 	constexpr float kVanillaButtonFontGrowth = 2.0f;
 	constexpr float kVanillaButtonMargin = 2.0f;
+	// The band of the rule colour inside Vanilla's main window edge (pixels at 1080p); the tab
+	// column centres its tabs from it and its rule stops short of it.
+	constexpr float kVanillaBandWidth = 4.0f;
 	// Room between an outfit row's marks, and between them and the name (pixels at 1080p).
 	constexpr float kOutfitMarkGap = 6.0f;
 	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
@@ -817,19 +820,24 @@ namespace
 		a_draw->AddRectFilled(ImVec2(a_max.x - a_width, a_min.y + a_width), ImVec2(a_max.x, a_max.y - a_width), a_color);
 	}
 
+	// The width of Vanilla's window frame band on the back buffer, in whole pixels.
+	float VanillaBandWidth()
+	{
+		return (std::max)(1.0f, std::round(kVanillaBandWidth * g_scale));
+	}
+
 	// Vanilla's main window frame: a band of the rule colour inside the window's edge, and
 	// outside it a band of the window's own glass. The clip rect is the frame's own, so the
 	// outer band shows past the window.
 	void DrawVanillaFrame()
 	{
-		constexpr float kBandWidth = 5.0f;     // pixels at 1080p, the rule-coloured band
-		constexpr float kOutlineWidth = 2.0f;  // pixels at 1080p, the glass outside it
+		constexpr float kOutlineWidth = 4.0f;  // pixels at 1080p, the glass outside the band
 
 		auto*        draw = ImGui::GetWindowDrawList();
 		const ImVec2 topLeft = ImGui::GetWindowPos();
 		const ImVec2 size = ImGui::GetWindowSize();
 		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
-		const float  band = (std::max)(1.0f, std::round(kBandWidth * g_scale));
+		const float  band = VanillaBandWidth();
 		const float  outline = (std::max)(1.0f, std::round(kOutlineWidth * g_scale));
 		const ImVec2 outerTopLeft(topLeft.x - outline, topLeft.y - outline);
 		const ImVec2 outerBottomRight(bottomRight.x + outline, bottomRight.y + outline);
@@ -2286,7 +2294,8 @@ namespace Theme
 	float TabOffsetX()
 	{
 		const float ruleMiddle = (kTabSide + kTabRuleGap) * g_scale + TabRuleWidth() * 0.5f;
-		return (ruleMiddle - ImGui::GetStyle().WindowPadding.x) * 0.5f - kTabSide * g_scale * 0.5f;
+		const float band = g_skin == Skin::kVanilla ? VanillaBandWidth() : 0.0f;  // Vanilla: from the frame's band instead
+		return (ruleMiddle - ImGui::GetStyle().WindowPadding.x + band) * 0.5f - kTabSide * g_scale * 0.5f;
 	}
 
 	float TabTopGap()
@@ -2300,6 +2309,11 @@ namespace Theme
 	// is the rule's own, so it reaches the window's edges across its padding.
 	void TabRule(float a_left, float a_top, float a_bottom)
 	{
+		if (g_skin == Skin::kVanilla) {
+			const float inset = VanillaBandWidth() + (std::max)(1.0f, std::floor(g_scale));  // a pixel short of the frame's band
+			a_top += inset;
+			a_bottom -= inset;
+		}
 		const float  x = a_left + (kTabSide + kTabRuleGap) * g_scale;
 		const float  width = TabRuleWidth();
 		const ImVec2 topLeft(x, a_top);
