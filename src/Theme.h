@@ -109,8 +109,9 @@ namespace Theme
 	// Nordic. LabelText adds it itself, so call it only before a field that has no label.
 	void SectionGap();
 
-	// Returns true when pressed. Nordic draws a pointed-end frame; Vanilla no frame, its label
-	// 2px larger than the body font, filled while hovered, with 2px clear on either side.
+	// Returns true when pressed. Nordic draws a pointed-end frame; Vanilla its label alone, 4px
+	// larger than the body font, in LabelText's grey and white while hovered or held, with 2px
+	// clear on either side.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Button(const char* label);
 
@@ -215,16 +216,25 @@ namespace Theme
 	// line), on top of the label's own SectionGap.
 	void AfterFieldGap();
 
+	// Where an outfit row's drag grip goes, if it has one: two columns of three dots, its name
+	// and tags 12px past them.
+	enum class Grip
+	{
+		kNone,
+		kEdge,  // 4px in from the row's left edge (Manage Situations' outfit list)
+		kName   // where a row without a grip starts its name (the Situation List, level with its headings' names)
+	};
+
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
 	// away: a chevron pointing down while `open` and right while folded, then the text, both in
 	// ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
 	// then, 12px on, a rule in the list's rule colour to the list's right end. The whole row is
 	// the click target; returns true when clicked, and the caller folds or unfolds.
-	// Its chevron starts where the outfit rows' names do; with `grip` (rows with a drag grip),
-	// where their grip's dots start, and the text where their names start.
+	// Its chevron starts where the outfit rows' names do; with `grip` (the rows' grip), where
+	// their grip's dots start, and the text where their names start.
 	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are; the
 	// text is shown as is and is the row's ImGui ID.
-	bool  FoldHeading(const char* text, bool open, bool grip = false);
+	bool  FoldHeading(const char* text, bool open, Grip grip = Grip::kNone);
 	float FoldHeadingHeight();
 
 	// Which part of a SituationHeading was clicked.
@@ -246,9 +256,8 @@ namespace Theme
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
-	// `name` where the outfit rows' grip dots start in Vanilla and Nordic, the select mark left
-	// of it in the window's padding (Tailor: where an outfit row without a grip starts its name),
-	// its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
+	// `name` where an outfit row without a grip starts its name, level with the rows' grip dots
+	// under it (Grip::kName), the select mark left of it, its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
 	// lit while hovered, then, 12px on, a rule in the list's rule colour, and 12px on `Edit` at
 	// the list's right end, in the small font, greyed and lit while hovered. A hovered one left
 	// of the chevron gets the row's hover fill.
@@ -284,22 +293,24 @@ namespace Theme
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
 	// Nordic as grey text, comma separated. The name ends in an ellipsis short of `marks`.
 	// The name and tags start 14px in from the row's left edge in every skin, and a `striped`
-	// row (every other one) has a faint white under its fills. With `grip`, a drag grip 4px in
-	// from the row's left edge: two columns of three dots, in LabelText's grey at low alpha
-	// (Tailor: its text colour mixed with black), and the name and tags start 12px past the
-	// dots instead; selected, Vanilla and Nordic draw the select arrow in the grip's place.
+	// row (every other one) has a faint white under its fills. With `grip`, a drag grip where
+	// it says, in LabelText's grey at low alpha (Tailor: its text colour mixed with black), and
+	// the name and tags start 12px past its dots instead. Selected, Vanilla and Nordic mark it
+	// with the equipped mark of a ticked piece instead of the select arrow, centred in the room
+	// left of the name, or of the dots with Grip::kName; with Grip::kEdge in the dots' place,
+	// the dots hidden, shrunk to leave 2px on either side.
 	// OutfitRowHeight is its height, which holds the row gap: lay rows out with
 	// no item spacing, so the stripes meet.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.
 	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected, const OutfitMarks& marks,
-		bool striped, bool grip = false);
+		bool striped, Grip grip = Grip::kNone);
 	float OutfitRowHeight(int gender, std::span<const std::string> tags, float tagsWidth);
 
 	// Room for an outfit row's tags, from where its text starts (past the grip with `grip`) to
 	// the list's right end.
 	// Contract: called outside BeginList, at the list's indent, as ColumnsWidth is.
-	float OutfitTagsWidth(bool grip = false);
+	float OutfitTagsWidth(Grip grip = Grip::kNone);
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Tailor a

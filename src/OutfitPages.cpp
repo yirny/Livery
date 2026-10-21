@@ -254,8 +254,8 @@ namespace CaptureWindow::Internal
 	// at its right end the marks of the outfit the actor wears now or has as their Default and
 	// of one chosen for a situation (Theme::OutfitMarks), the last with `a_situationMark` only;
 	// `a_striped` for every second row under a heading.
-	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped, bool a_grip,
-		bool a_situationMark)
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped,
+		Theme::Grip a_grip, bool a_situationMark)
 	{
 		const auto&                    outfit = OutfitAt(a_state, a_index);
 		const auto&                    situations = a_browser.situations[static_cast<std::size_t>(a_index)];
@@ -291,7 +291,8 @@ namespace CaptureWindow::Internal
 		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
 		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-		const float tagsWidth = Theme::OutfitTagsWidth(a_draggable);
+		const auto  grip = a_draggable ? Theme::Grip::kEdge : Theme::Grip::kNone;
+		const float tagsWidth = Theme::OutfitTagsWidth(grip);
 		// Show Tags, under the list, takes a line; a frame's height leaves room for it.
 		const float listHeight = OutfitListHeight(a_state, a_browser, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
 		int         clicked = -1;
@@ -307,7 +308,7 @@ namespace CaptureWindow::Internal
 				if (!own.empty() && (!heading || *heading != own)) {
 					folded = OutfitBrowser::IsFolded(a_browser, own);
 					drawn = 0;
-					if (Theme::FoldHeading(own.c_str(), !folded, a_draggable)) {
+					if (Theme::FoldHeading(own.c_str(), !folded, grip)) {
 						QueueMenuSound(kFocusSound);
 						OutfitBrowser::ToggleFolded(a_browser, own);
 						folded = !folded;
@@ -318,7 +319,7 @@ namespace CaptureWindow::Internal
 					continue;
 				}
 				ImGui::PushID(index);
-				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1, a_draggable)) {
+				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1, grip)) {
 					clicked = index;
 				}
 				if (a_draggable) {

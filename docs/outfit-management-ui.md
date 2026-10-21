@@ -42,8 +42,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - Selected (a single-choice row, a ticked piece, a ticked dropdown row): Tailor fills it
   faintly amber; Vanilla lays the piece list's white bar fading in from the left over it;
   Nordic shows no fill. The mark: NORDIC UI's MCM page arrow on single-choice and dropdown
-  rows in Vanilla and Nordic (Nordic's 4px larger, its window padding 32px), the equipped
-  mark on piece rows; Nordic puts the arrow on a ticked dropdown row too, at its start.
+  rows in Vanilla and Nordic (Nordic's 4px larger, its window padding 32px); the equipped
+  mark on piece rows, and on a selected outfit row (the outfit the preview shows), centred
+  where the arrow would be; Nordic puts the arrow on a ticked dropdown row too, at its start.
 - A multi-choice dropdown row: Vanilla and Nordic draw the game's checkbox at the row's start
   (after Nordic's arrow), then the label; Tailor a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
@@ -111,6 +112,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   it belongs to the list's field. Beyond the item spacing, fields are 6px apart in Tailor and
   8px in Vanilla and Nordic (`Theme::SectionGap`); a label sits 3px (Vanilla and Nordic: 5px)
   closer to its control than the item spacing; a count line under a list keeps 6px above it.
+- A *button* sits in a page's or popup's button row (`Theme::Button`); a *link* is a clickable
+  label in the small font beside a field or a line (`Restore Presets`, `Remove`, `Edit`,
+  `Show Tags`). Vanilla draws its buttons as text alone, 4px larger than the body font, grey
+  and white while hovered, with no fill, 2px clear on either side.
 
 ## 3. Tab column (step 2)
 

@@ -13,6 +13,7 @@
 
 #include "CaptureWindow.h"
 #include "OutfitBrowser.h"
+#include "Theme.h"
 
 #include <imgui.h>
 
@@ -379,10 +380,10 @@ namespace CaptureWindow::Internal
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable = false);
 
 	// One outfit of a list, `a_index` into request.existingOutfits, with its tags and marks
-	// (the star of one chosen for a situation only with `a_situationMark`); `a_grip` draws the
+	// (the star of one chosen for a situation only with `a_situationMark`); `a_grip` places the
 	// drag grip. Returns true when clicked.
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped,
-		bool a_grip = false, bool a_situationMark = true);
+		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
 	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:
 	// its name, gender, Category, `a_situations` under the "Situations for #{Name}" label,
