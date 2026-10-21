@@ -107,18 +107,19 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 ## 3. Tab column (step 2)
 
 - A column of icon tabs at the window's left edge, a rule between it and the page:
-  Inventory (a backpack) and Manage Wardrobe (a bare dress form: a padded torso on a stand,
-  each shoulder one arc).
-  Manage Situations (a simple snowflake) comes with the Situation Management window.
+  Inventory (a backpack), Manage Wardrobe (a bare dress form: a padded torso on a stand,
+  each shoulder one arc) and Manage Situations (the star, point down, of the outfit rows'
+  situation mark; docs/situation-management-ui.md §3).
 - Icons only, drawn as ImDrawList lines, so they scale with the resolution and take the
   skin's colours: the selected tab in the text colour on a faint fill, the others in
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
 - Each tab is centred between the window's left edge and the rule. Nordic's start 8px
   lower, clear of the corner knot.
-- Shown on the Inventory and Manage Wardrobe pages only; the Load, Save, Select and Edit
-  pages have none.
-- Switching tabs keeps everything: the Inventory page's ticks and Manage Wardrobe' edits stay
-  until the window closes.
+- Shown on the Inventory, Manage Wardrobe and Manage Situations pages only; the Load, Save,
+  Select and Edit pages have none.
+- Switching tabs keeps the Inventory page's ticks until the window closes. Leaving Manage
+  Wardrobe or Manage Situations with unsaved edits asks first (§4,
+  docs/situation-management-ui.md §6).
 - The rule: Tailor, 1px in its border colour (Tailor's sidebar divider). Vanilla, 2px in its
   rule grey. Nordic, NORDIC UI's vertical rope, the ornament left and right of the level-up
   menu's `Select an attribute to increase`, taken from its .swf with JPEXS and credited in
@@ -151,7 +152,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     (`kNeedName`). A popup (`Save changes?`) lists what changes (pieces, Category, rename,
     gender, then `Town: added` / `Town: removed`), as the Save page's Update tab does; a
     ticked row that wears another outfit with random off reads `Town: "B" replaces "A"`
-    (the replaced one stays on the row's list, hidden), a random row `Town: added`
+    (the replaced one leaves the row's list), a random row `Town: added`
     (docs/situation-management-ui.md §1); the buttons are `Confirm` / `Cancel`. The window
     hands the edits and rows to `Request::onManageUpdate`. CLAUDE.md §2.1 applies: a name
     another outfit has (ASCII case ignored) is refused, and a refused or failed write changes
@@ -175,12 +176,13 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     failed one assigns nothing and shows the error; else through `Request::onManageApply`
     with the rows. Greyed with no outfit selected, with no edited piece (`kNoLoadedPiece`),
     and with library edits and an empty name (`kNeedName`).
-  - Exit closes the window; with unsaved edits it first asks `Discard changes and exit` /
-    `Back`. Escape does what Exit does (it first clears a search, as on the Load page).
-- Leaving for the Inventory tab with unsaved edits shows
-  `You have unsaved changes for "#{Outfit}".` with `OK` / `Back`: OK switches and the edits
-  stay, Back stays on Manage Wardrobe. Closing the window from the Inventory page (Save,
-  Apply, Restore, Cancel) drops them without asking.
+  - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
+    Load page).
+- Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
+  "#{Outfit}".` with `Save Changes` / `Discard Changes` / `Back`
+  (docs/situation-management-ui.md §6): Save Changes opens Update's popup, and its Confirm
+  saves, then goes once the write took (a refused one stays; Cancel stays); Discard Changes
+  starts the edits again from the library and goes; Back stays.
 
 ### Edit page
 
@@ -290,9 +292,8 @@ assigns with the preview ended.
   (at close); Apply to #{Name} with nothing to say, with edits (Update and Apply; a taken
   name refused, nothing assigned), for ticked rows and as a replaced Default; the row marks
   and their tooltips; Restore's popup; the heading's `(?)`; Exit with and without edits;
-  leaving for the Inventory tab with edits, OK and Back.
+  leaving for another tab with edits, Save Changes, Discard Changes and Back.
 
 ## 9. Later
 
 - Adding categories beyond Light, Heavy and Clothing (design.md §8).
-- The Manage Situations tab, with the Situation Management window.

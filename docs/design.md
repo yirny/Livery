@@ -165,9 +165,9 @@ would have to be kept in step).
 - Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
   presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
   situation key its name, description and removed flag, only for the situations that
-  differ from the presets; a missing file is every preset as installed and is not written
-  at load. The same load and write rules as the library (docs/situation-management-ui.md
-  §2). Loaded at `kDataLoaded`, before the library and any co-save load.
+  differ from the presets; a missing or empty file is every preset as installed and is not
+  written at load. The same load and write rules as the library (docs/situation-management-ui.md
+  §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
 - Settings: INI, as today.
 
 ## 5. Co-save
@@ -245,13 +245,24 @@ on. Each situation's name and description come from `situations.json` (§4): the
 the HUD show the name, the sentences that say what is worn end in `, <description>`
 (nothing for an empty one), and the logs keep the key. A removed situation offers no row
 and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
-goes on and kept until it changes, a forced redress keeping it while it is on the list.
-Giving a row an outfit puts it at the front of the list and, random off, makes it
-`chosen`; the one it replaces stays on the list, hidden. The Save page's "wears it for"
+goes on and kept until it changes, a forced redress keeping it while it is on the list,
+and recorded as `chosen`, so turning random off keeps the last pick on. Giving a row an
+outfit (`OutfitRows::Give`) with random on puts it at the front of the list; with random
+off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
+the list keeps its length. The Save page's "wears it for"
 rows give and take the outfit for the captured actor in one `Assignments::Change`, after
 the library write, with one forced redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
 included) with it; Update saves them the same way, and its `Apply to #{Name}` dresses the
-actor for the ticked rows, or makes the outfit the default with none, as Apply does. An actor can have situation outfits without a default and then wears their
+actor for the ticked rows, or makes the outfit the default with none, as Apply does.
+Manage Situations (docs/situation-management-ui.md §3-§6) edits every row of the captured
+actor by drag and drop, the random flags included, and the situations' names and
+descriptions; its Save Changes writes `situations.json` first, then replaces the rows
+(`Assignments::SetRows`, the record only) and dresses them once (`Assignments::Refresh`,
+at once with Live Preview on, else at the window's close; a random row worn now wears the
+outfit it gained first). Its Remove Situation writes `situations.json`, then clears the
+situation's rows in this save (`Assignments::ForgetSituation`) and takes those wearing it
+out of it as Remove takes them out of a removed outfit; Restore Presets changes no row. A
+change the window runs at its close leaves a situation removed since then empty. An actor can have situation outfits without a default and then wears their
 own clothes outside them. Restore Outfit forgets the choices with the rest. The
 player has the same rows.
 
@@ -329,8 +340,10 @@ Each stage ends with an in-game check before the next starts.
 8. Adding categories beyond Light, Heavy and Clothing (a separate task), which the outfit
    list would show and sort by as it does those three; the stored categories the window does
    not offer stay unshown until then.
-9. A Situation Management window: user-defined conditions in the way of Skyrim Outfit
-   Equipment System NG, extending `Situations::Applicable` (§7).
+9. Situation management (docs/situation-management-ui.md): step A, the rows with their
+   random picks, and step B, `situations.json`: done. Step C, the Manage Situations page:
+   done. Later, user-defined conditions in the way of Skyrim Outfit Equipment System NG,
+   extending `Situations::Applicable` (§7).
 10. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
     the window open, then New Game; the player's left-hand weapon back after a shield
     preview; tempered player gear after Cancel; a follower's given armor gone after Load

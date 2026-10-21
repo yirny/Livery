@@ -25,7 +25,8 @@ Per actor, per row:
 - `outfits`: library outfit ids, in the user's order. The order means nothing to what is
   worn; it is only how the page lists them.
 - `random`: off by default.
-- `chosen`: the id worn with random off, 0 for none. It is always on `outfits` or 0.
+- `chosen`: the id worn with random off, 0 for none. With random on, the last pick worn,
+  recorded by `Assignments` as the row goes on. It is always on `outfits` or 0.
 - The Default only: `pieces`, armor not in the wardrobe (what `Assign(pieces, 0)` gives
   today).
 
@@ -49,16 +50,21 @@ only the Default's `pieces` are kept as given.
 Changes:
 
 - Giving a row an outfit (a tick on the Save page or Manage Wardrobe, Apply, Apply to
-  #{Name}, a drop on the page): it goes to the front of `outfits`, or moves there if it is
-  on it already; random off, it becomes `chosen`, with no question. Apply, Apply to #{Name}
-  and the Save page then dress the actor; with random on and the row worn now, it is worn
-  as the pick.
-- A library outfit made the Default's `chosen` drops the Default's `pieces`.
+  #{Name}, a drop on the page; `OutfitRows::Give`, `Place`): random on, it goes to the front
+  of `outfits` (a drop: the drop place), or moves there if it is on it already. Random off
+  the list keeps its length: an outfit on it becomes `chosen` where it is; one not on it
+  takes `chosen`'s place, and the replaced outfit leaves the list; with no `chosen` it goes
+  in at the front (a drop: the drop place). Either way it is `chosen`, with no question.
+  Apply, Apply to #{Name} and the Save page then dress the actor; with random on and the row
+  worn now, it is worn as the pick.
+- A library outfit made the Default's `chosen` with random off drops the Default's `pieces`.
+- Turning random off (`OutfitRows::SetRandom`) keeps `chosen` on: the last pick worn, or the
+  outfit chosen before random went on; with none, the first of the list.
 - Unticking a row on the Save page or Manage Wardrobe takes the outfit off `outfits`;
   `chosen` becomes 0 if it was that.
 - The Save page's and Manage Wardrobe's taken-row line reads `Town: "B" replaces "A"` (random
-  off, another `chosen`); the buttons are `Confirm` / `Cancel`. `Replace` and `Keep` go,
-  since the replaced outfit stays on the list, hidden. A random-on row reads `Town: added`.
+  off, another `chosen`); the buttons are `Confirm` / `Cancel`; the replaced outfit leaves
+  the list. A random-on row reads `Town: added`.
 - The Inventory page's Apply popup: `No, apply as is (?)` (was `No, just apply`). The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
   `The ticked pieces become #{Name}'s Default as they are, without being added to the
@@ -91,7 +97,8 @@ situation id becomes `outfits = [id]`, `chosen = id`; random off everywhere.
 
 - `key` is the `Situations::Situation` it is for (`Default`, `Town`, `Home`, `Sleep`,
   `Swimming`, `Warm`), never shown or changed. The file holds only rows that differ from
-  the presets; a missing file means every preset as installed and is not written at load.
+  the presets; a missing or empty file (nothing but whitespace) means every preset as
+  installed and is not written at load.
 - Presets: name as the key; descriptions `in Town`, `at Home`, `ready for Sleep`,
   `swimming`, `keeping Warm`, and an empty one for the Default (it is worn in towns without
   a Town outfit and in fights too, so no phrase fits every place).
@@ -128,9 +135,9 @@ outfit for Town any more`.
 
 ## 3. Manage Situations page (step C)
 
-- The third tab of the tab column (docs/outfit-management-ui.md §3): a simple snowflake,
-  tooltip `Manage Situations`. The tab column shows on the Inventory, Manage Wardrobe and
-  Manage Situations pages.
+- The third tab of the tab column (docs/outfit-management-ui.md §3): the star, point down,
+  that marks a situational outfit in the outfit list, tooltip `Manage Situations`. The tab
+  column shows on the Inventory, Manage Wardrobe and Manage Situations pages.
 - Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on Manage Wardrobe:
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
@@ -140,38 +147,49 @@ outfit for Town any more`.
 
 ## 4. Situation List (left pane)
 
-- Heading `Situation List (?)` (`Theme::ListHeadingHelp`): `Each situation lists the outfits
-  #{Name} can wear there; the first one that applies is worn, else the Default. Drag an
-  outfit from the outfit list onto a situation to add it, between two of its outfits to place
-  it, onto another situation to move it, or back to the outfit list to take it off.`
+- Heading `Situation List (?)` (`Theme::ListHeadingHelp`), its text starting where the
+  situations' names do: `Each situation lists the outfits #{Name} can wear there; the first
+  one that applies is worn, else the Default. Drag an outfit from the outfit list onto a
+  situation to add it, between two of its outfits to place it, onto another situation to move
+  it, or back to the outfit list to take it off.`
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
-  order. Each: the name in the outfit list's row style; `(n)`, the length of `outfits`, in
-  the small heading style; a chevron, pointing down while open and right while folded, grey,
-  white while hovered; then a rule in the list's rule colour to the pane's right end.
-  Every heading is open when the page opens.
+  order. Each: the name in the outfit list's row style, where an outfit row without a grip
+  starts its name, room for the select mark left of it; with random on, `(n)`, the length of
+  `outfits`, in the small heading style; while anything shows under it, a chevron, pointing
+  down while open and right while folded, grey, lit while hovered (white in Vanilla and
+  Nordic, amber in Tailor); then a rule in the list's rule colour to the pane's right end. A
+  heading with nothing under it wears nothing: its name is greyed, it has no chevron and is
+  never folded. Every heading is open when the page opens.
 - Click areas: from the chevron (with its padding) to the right end, rule included, folds;
-  left of it selects. A click selects the situation (the single-choice row highlight of the
-  skin) and shows its details on the right; a click on the selected one unselects it and the
-  right pane shows the outfit list.
+  left of it selects (with no chevron the whole heading selects). A click selects the
+  situation (the single-choice row highlight of the skin) and shows its details on the right;
+  a click on the selected one unselects it and the right pane shows the outfit list.
 - Under a heading, its outfits as rows of the outfit list (name, tags, marks), each with a
   drag grip at its left: two columns of three dots, Vanilla and Nordic in LabelText's grey at
-  low alpha, Tailor in its text colour mixed with black. Random on: every outfit on the list.
-  Random off: `chosen` only. A row that wears nothing shows a grey `No outfit chosen` line;
-  the Default wearing its `pieces` shows a `Pieces not in the wardrobe` line with no grip.
-  A click on an outfit row does nothing.
+  low alpha, Tailor in its text colour mixed with black; the name and tags start 12px past
+  the dots, here and in the right pane's outfit list. Random on: every outfit on the list.
+  Random off: `chosen` only. A row that wears nothing shows nothing under its heading; the
+  Default wearing its `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id
+  the library no longer has (another save's) shows a grey `Outfit no longer in the wardrobe`
+  row with a grip, which drags as an outfit does. A click on an outfit row does nothing.
 
 Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 
 | From | Dropped on | Result |
 | --- | --- | --- |
-| an outfit list row (right) | a heading, its rule, its `No outfit chosen` or `Pieces...` line | added at the front (§1) |
+| an outfit list row (right) | a heading, its rule, its `Pieces...` line | added at the front (§1) |
 | an outfit list row (right) | between two outfit rows of a situation | added there |
 | a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target |
 | a situation's outfit row | its own situation | reordered |
 | a situation's outfit row, or `Pieces not in the wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
 
-- An outfit the target already holds moves to the drop position instead of being added
-  twice. With random off, the outfit dropped becomes `chosen`.
+- Random on: an outfit the target already holds moves to the drop position instead of being
+  added twice. Random off: the outfit dropped becomes `chosen` by §1's rule, the one it
+  replaces leaving the list, so the list keeps its length.
+- Between two outfit rows (random on): over a row's upper half the drop goes before it,
+  over its lower half after it. With random off a drop on a situation shows only `chosen`.
+  While a drop would land, a line in the accent colour shows where, across the pane; over
+  the right pane, a frame in that colour around it.
 - A folded heading opens after the drag hovers it for `kDragExpandDelay` (1 s, an
   anonymous-namespace constant in the page's file); a drop before that acts the same.
 - While a drag from the left pane is on, the right pane shows the outfit list; when it
@@ -192,26 +210,28 @@ The details:
 - `Global Settings`, in the small heading style with a rule to the pane's end, then:
   - `Name`, an underlined field (as the Save page's). Ending the edit with it empty, or with
     a name another situation has (ASCII case ignored), puts the previous name back; with
-    that empty too, `Unnamed Situation`. The Default's is read only.
+    that empty too, `Unnamed Situation`. The Default's is read only, greyed, and says `The
+    Default's name cannot be changed.` on hover.
   - `Description`, an underlined field, empty allowed; under it, in the small heading style,
     `Shown as: Dressed by Livery in "Outfit", <description>.` (without the comma part when
     empty).
   - `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule
     in grey, as the README words it (Town: `A city, town, settlement, inn or other
     inhabited interior.`); the Default's `Worn where no other situation applies.`
-- `#{Name}'s Settings`, the same heading style and rule, then `Random Outfit (?)`, a
+- 24px of extra room, then `#{Name}'s Settings`, the same heading style and rule, then `Random Outfit (?)`, a
   checkbox: `On: one outfit of the list is picked at random each time this situation begins
-  for #{Name}, and worn until it ends. Off: only the outfit shown is worn; the others stay
-  on the list, hidden.`
-- Centred in the pane, a borderless `Back to Outfit List`; under it, in the small heading
+  for #{Name}, and worn until it ends. Off: only the outfit shown is worn, the last one
+  picked; the others stay on the list, hidden.` Unticking it keeps the last pick on (§1).
+- Centred in the pane, a borderless `Back to Outfit List` (`Theme::TextTab`); under it, in the small heading
   style, `Drag outfits from the list onto "#{Situation}" to add them.` A click shows the
   outfit list, keeps the situation selected, opens its heading if folded and scrolls the
   left pane to it when the pane can scroll.
 - At the pane's bottom, `Remove Situation`, drawn as Restore Outfit is, without the
-  `(?)`; not on the Default. Its popup: `Remove "Town"?`, the actors in this save whose
-  Town row holds anything (`Lydia: 2 outfit(s)`; a FormID when not in memory), `Restore
-  Presets brings "Town" back, without them.`, and with unsaved edits `Your unsaved changes
-  are discarded.`; `Remove` / `Cancel`. Remove writes `situations.json` first; a refused or
+  `(?)`; not on the Default. Its popup: `Remove "Town"?`, then under `It is used by:` the
+  actors in this save with outfits on their Town row's list, hidden ones included
+  (`Lydia: 2 outfit(s)`, the length of `outfits`; a FormID when not in memory), `Restore
+  Presets brings "Town" back, without them.` (`... back.` when nobody has any), and with
+  unsaved edits `Your unsaved changes are discarded.`; `Remove` / `Cancel`. Remove writes `situations.json` first; a refused or
   failed write changes nothing and shows the error. Then `Assignments::ForgetSituation`
   clears the row for every actor in this save, and those wearing it are redressed by
   docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
@@ -219,8 +239,10 @@ The details:
 
 ## 6. Buttons and leaving
 
-- `Restore Presets (?)` at the row's left end (`Theme::HelpButton`), then `Save Changes` and
-  `Exit` where the other pages put their buttons.
+- `Save Changes` and `Exit` where the other pages put their buttons, and at the row's left
+  end `Restore Presets (?)`, a link drawn as Remove Situation and Restore Outfit are, its
+  `(?)` inside its click area, its text centred on the buttons' height
+  (`Theme::LineHelpLinkAt`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
   Its help: `Brings the preset situations back as installed: a removed one returns, empty,
   and a renamed or redescribed one gets its words back. Nobody's outfits change.` It always
@@ -230,17 +252,20 @@ The details:
   shows the error), drops the edits and keeps the selection.
 - Save Changes: greyed with `Nothing has changed.` until the edits differ from what is
   saved. It writes the global edits to `situations.json` first, when there are any; a
-  refused or failed write changes no row and shows the error. Then it makes the captured
-  actor's row changes in one call that dresses them once, by docs/outfit-management-ui.md
-  §6 (at once with Live Preview on, at close with it off). The page stays, the edits start
+  refused or failed write changes no row and shows the error. Then, when a row changed, it
+  replaces the captured actor's rows at once (`Assignments::SetRows`, so the page shows them
+  even before the redress) and dresses them once (`Assignments::Refresh`), by
+  docs/outfit-management-ui.md §6 (at once with Live Preview on, at close with it off); a
+  random row they wear wears the outfit it gained first. The page stays, the edits start
   again from what was saved.
 - Exit closes the window; Escape does what Exit does, first clearing a search.
 - Exit, Escape or another tab with unsaved edits asks `You have unsaved changes.` with
   `Save Changes` / `Discard Changes` / `Back`: Save Changes saves as the button does, then
   goes; a refused save stays. Discard Changes drops the edits and goes. Back stays.
-- Manage Wardrobe asks the same on Exit, Escape and the Inventory tab (replacing `Discard
-  changes and exit` / `Back` and `OK` / `Back`); its Save Changes runs Update, popup
-  included. Its `Discard changes` / `Keep editing` on selecting another outfit stays.
+- Manage Wardrobe asks the same on Exit, Escape and another tab, its line naming the
+  outfit (`You have unsaved changes for "#{Outfit}".`); its Save Changes runs Update, popup
+  included, and Update's Cancel stays. Its `Discard changes` / `Keep editing` on selecting
+  another outfit stays.
 
 ## 7. Code
 
@@ -256,12 +281,19 @@ The details:
   front, move, `chosen` on remove, resolve) in a header the unit tests reach.
 - `src/SituationPage.cpp` (step C): the page, its drag and drop, popups and buttons;
   `CaptureWindowInternal.h` gains the page and its state; `CMakeLists.txt` gains the files
-  (CLAUDE.md §1, build system).
-- `Theme`: the snowflake tab icon, the Situation List heading (right-hand chevron with its
-  own click area; `FoldHeading` stays as it is), the drag grip, the small heading with a rule.
-- `CaptureWindow::Request`: the situations offered (key, name, description, conditions
-  text) from the store; each row's `outfits`, `random`, `chosen` for the captured actor;
-  `onSituationsSave`, `onSituationRemove`, `onRestorePresets`, each writing first by §5/§6.
+  (CLAUDE.md §1, build system). `CaptureWindow.cpp` has the tab column's three tabs and the
+  unsaved-changes alert both pages share (`RequestLeave`, `DrawLeavePopup`).
+- `src/OutfitRows.h`: `Place`, a drop at a place in a row's list (`Give` is a drop at the
+  front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick.
+- `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
+  (`SituationHeading` with its `SituationHeadingLook`, right-hand chevron with its own click
+  area; `FoldHeading` stays as it is), the drag grip (`OutfitRow`'s `grip`,
+  `OutfitTagsWidth(grip)`), the small heading with a rule (`SectionHeading`), Remove
+  Situation's link (`RightEndLink`), Restore Presets' (`LineHelpLinkAt`).
+- `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name, description,
+  conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
+  `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,
+  `onRestorePresets`, each writing first by §5/§6.
 - `Plugin.cpp`: the handlers, the redress queue (docs/outfit-management-ui.md §6), the
   description sentences.
 
@@ -288,4 +320,5 @@ refused or failed one changes none; the same load and write rules as the library
 
 ## 9. Later
 
-- Editing conditions; user-defined situations (design.md §8 item 9).
+- Editing conditions; user-defined situations (design.md §8 item 9). The Default's
+  conditions stay read only then, saying so on hover as its name does (§5).
