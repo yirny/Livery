@@ -1454,9 +1454,26 @@ namespace
 		}
 	}
 
+	// Whether an outfit row has its form mark: the dressed one of the current outfit, or the
+	// bare one of the Default.
+	bool HasFormMark(const Theme::OutfitMarks& a_marks)
+	{
+		return a_marks.current || a_marks.defaultOutfit;
+	}
+
+	// The form mark's tooltip (HasFormMark).
+	const char* FormMarkTooltip(const Theme::OutfitMarks& a_marks)
+	{
+		if (!a_marks.current) {
+			return "Default Outfit";
+		}
+		return a_marks.defaultOutfit ? "Current outfit\nDefault Outfit" : "Current outfit";
+	}
+
 	// The marks at the right end of an outfit row's name line (Theme::OutfitMarks), each a
-	// square of the text height, from the right: the current outfit's dressed form, then
-	// the star of an outfit chosen for a situation. Returns how many are drawn.
+	// square of the text height, from the right: the star of an outfit chosen for a
+	// situation, then the form mark (HasFormMark), dressed for the current outfit, bare for
+	// the Default worn not now. Returns how many are drawn.
 	int DrawOutfitMarks(ImDrawList* a_draw, ImVec2 a_right, const Theme::OutfitMarks& a_marks, ImU32 a_color, float a_thick)
 	{
 		const float side = ImGui::GetTextLineHeight();
@@ -1473,13 +1490,14 @@ namespace
 		};
 		draw(a_marks.situations != nullptr, DrawStarIcon);
 		draw(a_marks.current, DrawDressedFormIcon);
+		draw(!a_marks.current && a_marks.defaultOutfit, DrawDressFormIcon);
 		return drawn;
 	}
 
 	// The width the marks take at the row's right end, the gap to the name included.
 	float OutfitMarksWidth(const Theme::OutfitMarks& a_marks)
 	{
-		const int count = (a_marks.current ? 1 : 0) + (a_marks.situations ? 1 : 0);
+		const int count = (HasFormMark(a_marks) ? 1 : 0) + (a_marks.situations ? 1 : 0);
 		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
 	}
 
@@ -2373,9 +2391,9 @@ namespace Theme
 		for (int i = 0; i < marks; ++i) {
 			const float right = marksRight - static_cast<float>(i) * (side + kOutfitMarkGap * g_scale);
 			if (ImGui::IsMouseHoveringRect(ImVec2(right - side, textY), ImVec2(right, textY + side))) {
-				// From the right: the star first when both are drawn, the dressed form last.
+				// From the right: the star first when both are drawn, the form mark last.
 				const bool star = a_marks.situations && i == 0;
-				ImGui::SetTooltip("%s", star ? a_marks.situations : "Current outfit");
+				ImGui::SetTooltip("%s", star ? a_marks.situations : FormMarkTooltip(a_marks));
 			}
 		}
 		const float tagsY = textY + ImGui::GetTextLineHeight() + kOutfitTagsGap * g_scale;

@@ -92,10 +92,8 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   library (no situation filter or sort in the outfit browser): a multi-choice dropdown of
   `Default` and the situations, as Manage Wardrobe's `Situations for #{Name}`. A tick gives
   the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's
-  `(?)`: "Default is what #{Name} wears wherever no situation applies. With nothing ticked
-  here, not even Default, the outfit is only stored: Livery does not dress #{Name} in it, and
-  once they change clothes, for a situational outfit, for better armor or by another mod,
-  nothing brings it back."
+  `(?)`: "Situational outfit. #{Name} changes into it whenever a ticked situation applies.
+  Default is what #{Name} wears wherever no situation applies."
 - Replace confirm: when a ticked row already wears another outfit (random off, §7), one
   modal lists them (`Town: "B" replaces "A"`) with `Confirm` / `Cancel`; the replaced outfit
   stays on the row's list, hidden (docs/situation-management-ui.md §1).
