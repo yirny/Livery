@@ -23,8 +23,8 @@
 //                  one's name, gender, categories, the actor's rows for it ("Situations for
 //                  #{Name}") and pieces, edited in place and kept for one outfit at a time
 //                  (Discard changes / Keep editing before another is selected); the edited
-//                  outfit on the preview; Update lists the changes (Save changes?, with
-//                  Replace / Keep for a row another outfit holds) and hands them to
+//                  outfit on the preview; Update lists the changes (Save changes?, a row
+//                  whose worn outfit it replaces among them; Confirm / Cancel) and hands them to
 //                  onManageUpdate, Remove names who has the outfit (Remove outfit?) and hands
 //                  it to onManageRemove, Apply to #{Name} dresses the actor for the ticked
 //                  rows (Apply outfit? first when it saves edits, takes over a row or replaces
@@ -560,7 +560,6 @@ namespace CaptureWindow::Internal
 	{
 		auto& form = a_state.manage;
 		form.outfit = a_index;
-		form.keepTaken = false;
 		a_state.error.clear();
 		if (a_index < 0) {
 			form.pieces.clear();
@@ -741,11 +740,11 @@ namespace CaptureWindow::Internal
 		kCancel
 	};
 
-	// The rows Apply gives the outfit: the ticked ones; another outfit's are taken over, as
-	// Apply's popup says. Contract: an outfit is selected.
+	// The rows Apply gives the outfit: the ticked ones; the outfit another one wears is
+	// replaced, as Apply's popup says. Contract: an outfit is selected.
 	std::vector<std::size_t> ApplyRows(const State& a_state)
 	{
-		return AssignedRows(a_state, a_state.manage.wearsFor.get(), ManagedOutfitId(a_state), false);
+		return AssignedRows(a_state, a_state.manage.wearsFor.get());
 	}
 
 	// `for Town, Warm` from the rows Apply gives the outfit, or `as #{Name}'s Default` with
@@ -886,73 +885,43 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	enum class ConfirmChoice
-	{
-		kNone,
-		kConfirm,
-		kKeep,  // Update's popup: save without the rows another outfit holds
-		kCancel
-	};
-
-	// Update's popup: `Save your changes to "X"?`, the library and row changes, and when a
-	// ticked row is another outfit's (`Town: "A" → "B"`) a Keep button that saves without
-	// those rows, as the Save page's replace popup offers. Then Confirm / Cancel.
-	ConfirmChoice DrawManageConfirmPopup(const State& a_state)
+	// Update's popup: `Save your changes to "X"?`, the library and row changes (a ticked row
+	// whose worn outfit it replaces reads `Town: "B" replaces "A"`), then Confirm / Cancel.
+	// Returns true on Confirm.
+	bool DrawManageConfirmPopup(const State& a_state)
 	{
 		if (!BeginModal(kManageConfirmPopup)) {
-			return ConfirmChoice::kNone;
+			return false;
 		}
 		const auto& form = a_state.manage;
 		if (form.outfit < 0) {
 			ImGui::CloseCurrentPopup();
 			ImGui::EndPopup();
-			return ConfirmChoice::kNone;
+			return false;
 		}
-		const auto id = ManagedOutfitId(a_state);
 		ImGui::TextUnformatted(std::format("Save your changes to \"{}\"?", OutfitAt(a_state, form.outfit).name).c_str());
 		DrawLibraryChangeLines(a_state);
-		DrawRowChangeLines(a_state, form.wearsFor.get(), id, false, Trimmed(form.name.data()));
-		const auto        taken = TakenRows(a_state, form.wearsFor.get(), id);
-		const auto        held = taken.empty() ? 0 : a_state.request.assigned[taken.front()].outfit;
-		const std::string keep = taken.size() > 1 ? std::string("Keep All") : (held ? std::format("Keep {}", QuotedOutfitName(a_state, held)) : std::string("Keep Current"));
-		bool              confirm = false;
-		bool              kept = false;
-		bool              cancel = false;
-		if (taken.empty()) {
-			BeginButtonRow({ "Confirm", "Cancel" });
-			confirm = Theme::Button("Confirm");
-		} else {
-			BeginButtonRow({ "Replace", keep.c_str(), "Cancel" });
-			confirm = Theme::Button("Replace");
-			ImGui::SameLine();
-			kept = Theme::Button(keep.c_str());
-		}
+		DrawRowChangeLines(a_state, form.wearsFor.get(), ManagedOutfitId(a_state), Trimmed(form.name.data()));
+		BeginButtonRow({ "Confirm", "Cancel" });
+		const bool confirm = Theme::Button("Confirm");
 		ImGui::SameLine();
-		cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
-		auto choice = ConfirmChoice::kNone;
-		if (confirm) {
-			choice = ConfirmChoice::kConfirm;
-		} else if (kept) {
-			choice = ConfirmChoice::kKeep;
-		} else if (cancel) {
-			choice = ConfirmChoice::kCancel;
-		}
-		if (choice != ConfirmChoice::kNone) {
-			QueueMenuSound(choice == ConfirmChoice::kCancel ? kCancelSound : kOkSound);
+		if (confirm || cancel) {
+			QueueMenuSound(confirm ? kOkSound : kCancelSound);
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();
-		return choice;
+		return confirm;
 	}
 
-	// Whether Apply needs the popup: with library edits (saved first), row changes (another
-	// outfit's rows are taken over), or a Default the outfit would replace with no row ticked.
+	// Whether Apply needs the popup: with library edits (saved first), row changes (the
+	// outfit a row wears may be replaced), or a Default whose worn outfit it would replace
+	// with no row ticked.
 	// Contract: an outfit is selected.
 	bool ApplyNeedsConfirm(const State& a_state)
 	{
-		const auto& held = a_state.request.assigned[0];
-		const bool  replacesDefault = ApplyRows(a_state).empty() && held.taken && held.outfit != ManagedOutfitId(a_state);
+		const bool replacesDefault = ApplyRows(a_state).empty() && IsTaken(a_state, 0, ManagedOutfitId(a_state));
 		return HasLibraryEdits(a_state) || HasRowEdits(a_state) || replacesDefault;
 	}
 
@@ -982,8 +951,8 @@ namespace CaptureWindow::Internal
 		} else {
 			ImGui::TextUnformatted(std::format("Apply \"{}\" to {} {}?", outfit.name, name, target).c_str());
 		}
-		DrawRowChangeLines(a_state, form.wearsFor.get(), id, false, Trimmed(form.name.data()));
-		if (const auto& held = a_state.request.assigned[0]; ApplyRows(a_state).empty() && held.taken && held.outfit != id) {
+		DrawRowChangeLines(a_state, form.wearsFor.get(), id, Trimmed(form.name.data()));
+		if (ApplyRows(a_state).empty() && IsTaken(a_state, 0, id)) {
 			ImGui::TextUnformatted(std::format("{} already has a Default outfit, {}. It will be replaced.", name, HeldOutfitName(a_state, 0)).c_str());
 		}
 		const char* applyLabel = edits ? "Update and Apply" : "Apply";
@@ -1002,11 +971,10 @@ namespace CaptureWindow::Internal
 
 	// Hands the edits and the rows to onManageUpdate, which writes the library, changes the
 	// rows and ends with SetOutfits, or with `a_apply` dresses the actor and closes the
-	// window, or ends with SetError; until then the page is greyed. `a_keepTaken` leaves the
-	// rows another outfit holds out.
+	// window, or ends with SetError; until then the page is greyed.
 	// Contract: the handler writes nothing for a refused name or a failed write, and then
 	// assigns nothing (CLAUDE.md §2.1).
-	void RequestManageUpdate(State& a_state, bool a_apply, bool a_keepTaken)
+	void RequestManageUpdate(State& a_state, bool a_apply)
 	{
 		const auto& form = a_state.manage;
 		const auto  id = ManagedOutfitId(a_state);
@@ -1017,7 +985,7 @@ namespace CaptureWindow::Internal
 			.gender = form.gender,
 			.pieces = form.pieces,
 			.categories = TickedCategories(a_state, form.classTicked.get()),
-			.assign = AssignedRows(a_state, form.wearsFor.get(), id, a_keepTaken),
+			.assign = AssignedRows(a_state, form.wearsFor.get()),
 			.remove = RemovedRows(a_state, form.wearsFor.get(), id) };
 		auto                       onUpdate = a_state.request.onManageUpdate;
 		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit), a_apply] { onUpdate(edit, a_apply); });
@@ -1076,7 +1044,7 @@ namespace CaptureWindow::Internal
 	void RequestManageApply(State& a_state)
 	{
 		if (HasLibraryEdits(a_state)) {
-			RequestManageUpdate(a_state, true, false);
+			RequestManageUpdate(a_state, true);
 			return;
 		}
 		const auto& form = a_state.manage;
@@ -1091,16 +1059,8 @@ namespace CaptureWindow::Internal
 	// The page's popups, each opened by the page in its own ID scope.
 	void DrawManagePopups(State& a_state)
 	{
-		switch (DrawManageConfirmPopup(a_state)) {
-		case ConfirmChoice::kConfirm:
-			RequestManageUpdate(a_state, false, false);
-			break;
-		case ConfirmChoice::kKeep:
-			RequestManageUpdate(a_state, false, true);
-			break;
-		case ConfirmChoice::kCancel:
-		case ConfirmChoice::kNone:
-			break;
+		if (DrawManageConfirmPopup(a_state)) {
+			RequestManageUpdate(a_state, false);
 		}
 		if (DrawManageApplyPopup(a_state)) {
 			RequestManageApply(a_state);

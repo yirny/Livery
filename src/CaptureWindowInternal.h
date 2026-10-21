@@ -39,7 +39,6 @@ namespace CaptureWindow::Internal
 	constexpr const char* kManageApplyPopup = "Apply outfit?";
 	constexpr const char* kRemovePopup = "Remove outfit?";
 	constexpr const char* kRestorePopup = "Restore original outfit?";
-	constexpr const char* kArrow = "\xE2\x86\x92";  // U+2192, UTF-8: the replace popups' `Town: "A" → "B"`
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
@@ -146,11 +145,10 @@ namespace CaptureWindow::Internal
 	{
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         classTicked;        // one per request.categories; only kClassGroup's are used
-		int                             gender = -1;        // -1 unisex, 0 male, 1 female
-		std::vector<std::size_t>        pieces;             // its loaded pieces as edited: indices into request.pieces, ascending
-		std::unique_ptr<bool[]>         wearsFor;           // one per row of "Situations for #{Name}" (request.assigned), Default first
-		bool                            keepTaken = false;  // Update's popup's Keep: rows another outfit holds stay out of the save
+		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only kClassGroup's are used
+		int                             gender = -1;  // -1 unisex, 0 male, 1 female
+		std::vector<std::size_t>        pieces;       // its loaded pieces as edited: indices into request.pieces, ascending
+		std::unique_ptr<bool[]>         wearsFor;     // one per row of "Situations for #{Name}" (request.assigned), Default first
 	};
 
 	struct State
@@ -164,7 +162,6 @@ namespace CaptureWindow::Internal
 		bool                     updateTab = false;     // the Save page shows the Update tab
 		int                      chosenOutfit = -1;     // the Update tab's outfit: index into request.existingOutfits, -1 for none yet
 		int                      selectingOutfit = -1;  // on the Select page: index into request.existingOutfits, -1 for none
-		bool                     keepTaken = false;     // the replace popup's Keep: rows another outfit holds stay out of the save
 		bool                     openConfirm = false;   // open the Update tab's confirm popup on the next frame
 		std::string              wearsForLabel;         // "#{Name} wears it for"
 		std::string              error;
@@ -260,18 +257,21 @@ namespace CaptureWindow::Internal
 	std::size_t                          RowCount(const State& a_state);
 	const char*                          RowName(const State& a_state, std::size_t a_row);
 	bool                                 HoldsOutfit(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
-	std::string                          HeldOutfitName(const State& a_state, std::size_t a_row);
-	std::string                          QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
+	// Whether giving row `a_row` library outfit `a_outfit` (0 for one not saved yet) replaces
+	// what it wears: random off, and another `chosen`, or the Default's pieces with none.
+	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
+	std::string HeldOutfitName(const State& a_state, std::size_t a_row);
+	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
 	// The rows a form's "wears it for" ticks (`a_wearsFor`, one per row of request.assigned)
-	// change for library outfit `a_outfit`: those another outfit holds, which saving takes over
-	// only after Replace; those the save gives it (less the taken ones with `a_keepTaken`); those
-	// it had and are unticked.
+	// change for library outfit `a_outfit`: those ticked whose worn outfit the save replaces
+	// (IsTaken), which it gives the outfit only after Confirm; those the save gives it; those
+	// that hold it and are unticked.
 	std::vector<std::size_t> TakenRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
-	std::vector<std::size_t> AssignedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, bool a_keepTaken);
+	std::vector<std::size_t> AssignedRows(const State& a_state, const bool* a_wearsFor);
 	std::vector<std::size_t> RemovedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
 	// The lines a confirm popup shows for those rows: `Town: added`, `Town: removed`, and for
-	// the taken ones `Town: "A" → "B"` (`a_name` is the outfit's name).
-	void DrawRowChangeLines(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, bool a_keepTaken, const std::string& a_name);
+	// the taken ones `Town: "B" replaces "A"` (`a_name` is the outfit's name).
+	void DrawRowChangeLines(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, const std::string& a_name);
 
 	// --- Pages (OutfitPages.cpp) ----------------------------------------------
 

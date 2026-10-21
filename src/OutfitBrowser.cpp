@@ -63,11 +63,11 @@ namespace
 	}
 
 	// Contract: the situation group's n-th category is row n of Request::assigned
-	// (Request::categories). Id 0 is pieces that are not a saved outfit, never a listed one.
+	// (Request::categories). A row shows the outfits it holds (OutfitRows::Holds).
 	bool HoldsRow(const CaptureWindow::Request& a_request, std::size_t a_row, std::uint32_t a_outfit)
 	{
 		const auto& assigned = a_request.assigned;
-		return a_outfit != 0 && a_row < assigned.size() && assigned[a_row].taken && assigned[a_row].outfit == a_outfit;
+		return a_row < assigned.size() && OutfitRows::Holds(assigned[a_row].row, a_outfit);
 	}
 
 	// Indices into Request::categories the outfit is in, ascending: the stored categories by
