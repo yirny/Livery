@@ -127,7 +127,7 @@ else()
                                                        "${CMAKE_CURRENT_BINARY_DIR}/src")
 
     # SKSE Menu Framework API header, vendored unmodified (optional at runtime; see src/Settings.cpp).
-    target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern/SKSEMenuFramework")
+    target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/extern/SKSEMenuFramework")
 
     set_target_properties(
         ${PROJECT_NAME}
