@@ -299,7 +299,7 @@ namespace CaptureWindow::Internal
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
 	void                                 PushListRowSpacing();
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr);
-	float                                ButtonRowWidth(std::initializer_list<const char*> a_labels);
+	void                                 CentreButtonRow(std::initializer_list<const char*> a_labels);
 	void                                 BeginButtonRow(std::initializer_list<const char*> a_labels);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
