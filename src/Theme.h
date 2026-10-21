@@ -195,11 +195,13 @@ namespace Theme
 
 	// The marks at the right end of an outfit row's name line, in LabelText's grey, each
 	// with a tooltip while the mouse is over it: a dressed form for the outfit the actor
-	// wears now (`Current outfit`), a star for one chosen for a situation (`situations` is
-	// its tooltip, `For Town, Warm`; null for none).
+	// wears now (`Current outfit`, and `Default Outfit` on a second line when it is their
+	// Default too), else a bare form for their Default (`Default Outfit`); a star for one
+	// chosen for a situation (`situations` is its tooltip, `For Town, Warm`; null for none).
 	struct OutfitMarks
 	{
 		bool        current = false;
+		bool        defaultOutfit = false;  // the actor's Default holds it
 		const char* situations = nullptr;
 	};
 
