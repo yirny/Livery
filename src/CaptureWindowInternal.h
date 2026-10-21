@@ -221,6 +221,7 @@ namespace CaptureWindow::Internal
 		int                      sortColumn = 0;  // the piece list's sorted column: Name, Type or Class
 		bool                     sortDescending = false;
 		int                      previewedOutfit = -1;   // on the Load page: index into request.existingOutfits, -1 for none
+		bool                     loadIntoEdit = false;   // the Load page was opened from the Edit page, whose ticks it adds to
 		int                      loadedOutfit = -1;      // the last one loaded: index into request.existingOutfits, -1 for none
 		OutfitBrowser::State     loadBrowser;            // search, filter and sort of the Load page's outfit list
 		OutfitBrowser::State     selectBrowser;          // the Select page's
@@ -230,9 +231,10 @@ namespace CaptureWindow::Internal
 		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
 		std::string              manageApplyLabel;  // "Apply to #{Name}"
 		std::unique_ptr<bool[]>  editTicked;        // the Edit page's ticks, one per request.pieces
-		std::vector<std::size_t> editShown;         // the edited pieces it opened with, so those nobody carries stay listed
+		std::vector<std::size_t> editShown;         // the edited pieces it opened with and those loaded since, so those nobody carries stay listed
 		std::string              editTitle;         // "Edit \"#{Outfit}\""
-		std::string              editShownHeading;  // over those nobody carries: "From \"#{Outfit}\" (Not Carried)"
+		std::vector<std::string> editOutfitNames;   // the outfits those come from: the edited one, then those loaded that brought one
+		std::string              editShownHeading;  // over those nobody carries: "From \"#{Outfit}\", \"#{Loaded}\" (Not Carried)"
 		OutfitBrowser::State     situationBrowser;  // Manage Situations' outfit list
 		SituationForm            situationForm;
 		std::string              situationsTitle;  // "#{Name}'s Situational Outfits"
