@@ -74,12 +74,15 @@ listed; the HUD counts moved pieces; the NPC keeps the piece after Restore.
 
 Reached from `Save` with the ticked pieces, which both tabs save.
 
-- Top: `Create New Outfit / Update Existing Outfit...`, centred, separated by ` / `, text
-  only (no box), the unselected one half transparent. Each tab keeps its own state while the
-  window is open.
+- Heading: `Create New Outfit / Update Existing Outfit...` in place of the title, in the
+  heading font, where the title goes (Nordic: centred, over its rule), separated by a greyed
+  `/`, text only (no box), the unselected one half transparent (`Theme::BeginHeadingTabs`);
+  no actor name or summary line. The page is widened when the tabs would not fit on one
+  line. Each tab keeps its own state while the window is open.
 - `Update Existing Outfit...`: greyed while the library is empty (`kNoOutfits`). Clicking it
-  opens the outfit selection (the Load page's browser and preview); Cancel returns to the
-  former tab with nothing changed. Clicking it again reopens the selection with the chosen
+  opens the outfit selection (the Load page's browser and preview, titled `Select an Outfit
+  to Update`, no summary line, `No outfit selected` on the right while none is); Cancel
+  returns to the former tab with nothing changed. Clicking it again reopens the selection with the chosen
   outfit selected and previewed. Once chosen: name, Class and gender fill from the outfit, the
   "wears it for" ticks (below) from this actor's assignments of it, and the button reads
   `Update #{Outfit}`. Name and gender may be changed: CLAUDE.md §2.1 is rewritten (change

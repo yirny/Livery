@@ -55,6 +55,12 @@
 
 namespace CaptureWindow::Internal
 {
+	// --- Constants ------------------------------------------------------------
+
+	// The Save page's tabs, Create first, then Update: its heading (DrawSaveTabs), which sets its
+	// least width.
+	constexpr std::array<const char*, 2> kSaveTabs{ "Create New Outfit", "Update Existing Outfit..." };
+
 	// --- State ----------------------------------------------------------------
 
 	State& GetState()
@@ -622,9 +628,10 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// The page's heading: the Inventory page's own title, Manage Wardrobe's, Manage
-	// Situations' and the Edit page's with no summary line, the others the actor's name.
-	// Each over the summary line.
+	// The page's heading: the Inventory page's own title over the summary line; Manage
+	// Wardrobe's, Manage Situations', the Select page's and the Edit page's with no summary
+	// line; the Load page's the actor's name over the summary line. The Save page's tabs are
+	// its heading (DrawSaveTabs).
 	void DrawTitle(const State& a_state)
 	{
 		switch (a_state.page) {
@@ -640,10 +647,13 @@ namespace CaptureWindow::Internal
 		case Page::kEdit:
 			Theme::HeadingText(a_state.editTitle.c_str());
 			break;
-		case Page::kSave:
-		case Page::kLoad:
 		case Page::kSelect:
+			Theme::HeadingText("Select an Outfit to Update");
+			break;
+		case Page::kLoad:
 			Theme::HeadingText(a_state.request.actorName.c_str(), a_state.request.actorSummary.c_str());
+			break;
+		case Page::kSave:
 			break;
 		}
 	}
@@ -1535,30 +1545,24 @@ namespace CaptureWindow::Internal
 		return found != kGenderOptions.end() ? found->label : "Unisex";
 	}
 
-	// "Create New Outfit / Update Existing Outfit...", centred, text only; the second is
-	// greyed while the library is empty. Returns 0 or 1 for the tab clicked, else -1.
+	// "Create New Outfit / Update Existing Outfit..." as the page's heading, in the heading
+	// font; the second is greyed while the library is empty. Returns 0 or 1 for the tab
+	// clicked, else -1.
 	int DrawSaveTabs(const State& a_state)
 	{
-		constexpr const char* kCreateTab = "Create New Outfit";
-		constexpr const char* kUpdateTab = "Update Existing Outfit...";
-		constexpr const char* kSeparator = "/";
-
-		const auto& style = ImGui::GetStyle();
-		const float width = ImGui::CalcTextSize(kCreateTab).x + ImGui::CalcTextSize(kSeparator).x + ImGui::CalcTextSize(kUpdateTab).x + style.ItemSpacing.x * 2.0f;
-		Theme::SectionGap();  // the heading leaves its last gap to the page's first field (Theme::HeadingText)
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
-		int clicked = Theme::TextTab(kCreateTab, !a_state.updateTab) ? 0 : -1;
-		ImGui::SameLine();
-		ImGui::TextDisabled("%s", kSeparator);
-		ImGui::SameLine();
+		Theme::BeginHeadingTabs(kSaveTabs);
+		int clicked = Theme::TextTab(kSaveTabs[0], !a_state.updateTab) ? 0 : -1;
+		Theme::HeadingTabSeparator();
 		const bool noOutfits = a_state.request.existingOutfits.empty();
 		ImGui::BeginDisabled(noOutfits);
-		if (Theme::TextTab(kUpdateTab, a_state.updateTab) && !noOutfits) {
+		if (Theme::TextTab(kSaveTabs[1], a_state.updateTab) && !noOutfits) {
 			clicked = 1;
 		}
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
-		// After EndDisabled, so the tooltip is not drawn faded.
+		Theme::EndHeadingTabs();
+		// After EndDisabled and EndHeadingTabs, so the tooltip is neither faded nor in the
+		// heading font.
 		if (noOutfits && hovered) {
 			ImGui::SetTooltip("%s", kNoOutfits);
 		}
@@ -2142,6 +2146,8 @@ namespace CaptureWindow
 		float           width = io.DisplaySize.y * (twoColumns ? kWindowWidthRatio : kNarrowWidthRatio);
 		if (state.page == Page::kCapture) {
 			width = (std::max)(width, CaptureButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
+		} else if (state.page == Page::kSave) {
+			width = (std::max)(width, Theme::HeadingTabsWidth(kSaveTabs) + ImGui::GetStyle().WindowPadding.x * 2.0f);  // the heading's tabs fit on one line
 		}
 		const bool tabs = HasTabs(state.page);
 		if (tabs) {
