@@ -314,8 +314,8 @@ so a situation outfit is kept on, locked and put back at 3D load like the defaul
 
 Each stage ends with an in-game check before the next starts.
 
-1. Rename the project (CMake, DLL, INI, log, deploy folder; the directory name stays
-   until the memory is moved), settings, co-save, dressing core: assign, unassign,
+1. Rename the project (CMake, DLL, INI, log, deploy folder, repository directory),
+   settings, co-save, dressing core: assign, unassign,
    load-time re-equip, death release, release everything (F8, checked before the
    capture hotkey). Done.
 2. Library: capture the worn pieces into an outfit, JSON storage, the ImGui window,
