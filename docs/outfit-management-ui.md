@@ -114,7 +114,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   closer to its control than the item spacing; a count line under a list keeps 6px above it.
 - A *button* sits in a page's or popup's button row (`Theme::Button`); a *link* is a clickable
   label in the small font beside a field or a line (`Restore Presets`, `Remove`, `Edit`,
-  `Show Tags`). Vanilla draws its buttons as text alone, 4px larger than the body font, grey
+  `Show Tags`). Vanilla draws its buttons as text alone, 2px larger than the body font, grey
   and white while hovered, with no fill, 2px clear on either side.
 
 ## 3. Tab column (step 2)
