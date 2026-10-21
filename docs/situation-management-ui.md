@@ -244,9 +244,12 @@ The details:
 
 ## 7. Code
 
-- `src/SituationStore.cpp` / `.h` (step B): load, names, descriptions, removed, Rename /
-  Describe / Remove / RestorePresets writes, the presets as installed. Unit tests: presets,
-  the name rules, a file with unknown keys, Restore's change lines.
+- `src/SituationStore.cpp` / `.h` (step B): load, names, descriptions, removed, the
+  `Apply` (names and descriptions of several situations in one write) / `Remove` /
+  `RestorePresets` writes, Restore's change lines. The rules that need no game (the presets,
+  the file's parse and write, the name rules, Restore's change lines) in
+  `src/SituationTable.h`, which `test/SituationStoreTests.cpp` reaches: presets, the name
+  rules, a file with unknown keys, Restore's change lines.
 - `src/Assignments.cpp` (step A): the rows, version 4 and the version 3 read, the pick,
   "has an outfit" and "holds", `ForgetOutfit`'s rules; step B: `ForgetSituation` and the
   rows of removed situations dropped at load. The row rules that need no game (insert at
