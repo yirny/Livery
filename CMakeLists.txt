@@ -19,7 +19,7 @@ if(PLUGIN_TESTS_ONLY)
     include(CTest)
     include(Catch)
 
-    add_executable(${PROJECT_NAME}Tests test/ExampleTests.cpp test/OutfitBrowserTests.cpp src/OutfitBrowser.cpp)
+    add_executable(${PROJECT_NAME}Tests test/ExampleTests.cpp test/OutfitBrowserTests.cpp test/OutfitRowsTests.cpp src/OutfitBrowser.cpp)
 
     target_include_directories(${PROJECT_NAME}Tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 

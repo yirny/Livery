@@ -593,23 +593,21 @@ namespace
 			return "Not dressed by Livery right now.";
 		}
 		const bool forSituation = choices.worn != Situations::Situation::kDefault;
-		const auto outfit = forSituation ? choices.situations[Situations::Index(choices.worn)] : choices.defaultOutfit;
+		const auto outfit = choices.wornOutfit;
 		const auto text = outfit ? std::format("Dressed by Livery in {}", QuotedOutfitName(outfit)) : std::string("Dressed by Livery");
 		return text + (forSituation ? std::format(" for {}.", Situations::Name(choices.worn)) : ".");
 	}
 
-	// The library outfit Livery has on them now (the default's, or the worn situation's), for
-	// the first heading of the piece list; nullptr when Livery has nothing on them, the pieces
-	// are not a saved outfit (id 0) or the outfit has left the library.
+	// The library outfit Livery has on them now, for the first heading of the piece list;
+	// nullptr when Livery has nothing on them, the pieces are not a saved outfit (the
+	// Default's pieces) or the outfit has left the library.
 	// Contract: the pointer goes stale at the next Library::Create or Update.
 	const Library::Outfit* WornLibraryOutfit(const std::optional<Assignments::Choices>& choices)
 	{
 		if (!choices || !choices->dressed) {
 			return nullptr;
 		}
-		const bool forSituation = choices->worn != Situations::Situation::kDefault;
-		const auto id = forSituation ? choices->situations[Situations::Index(choices->worn)] : choices->defaultOutfit;
-		return id ? Library::Find(id) : nullptr;
+		return choices->wornOutfit ? Library::Find(choices->wornOutfit) : nullptr;
 	}
 
 	// Moves the ticked pieces that came from the player's inventory (`offered`) to the NPC,
@@ -702,14 +700,13 @@ namespace
 		return row == 0 ? Situations::Situation::kDefault : Situations::kChoosable[row - 1];
 	}
 
-	// What each row of "wears it for" holds for the actor now, in RowSituation's order.
+	// The actor's rows as they have them now, in RowSituation's order, which is OutfitRows::Rows'.
 	std::vector<CaptureWindow::RowAssignment> AssignedRows(const std::optional<Assignments::Choices>& choices)
 	{
 		std::vector<CaptureWindow::RowAssignment> rows(Situations::kChoosable.size() + 1);
 		if (choices) {
-			rows[0] = { choices->hasDefault, choices->defaultOutfit };
-			for (std::size_t i = 0; i < choices->situations.size(); ++i) {
-				rows[i + 1] = { choices->situations[i] != 0, choices->situations[i] };
+			for (std::size_t i = 0; i < rows.size(); ++i) {
+				rows[i] = { .row = choices->rows[i], .pieces = i == 0 && choices->defaultPieces };
 			}
 		}
 		return rows;
@@ -742,7 +739,7 @@ namespace
 			if (outfit == 0 || !target || (save.assign.empty() && save.remove.empty())) {
 				return;
 			}
-			Assignments::Changes changes{ .outfit = outfit, .armor = picked };
+			Assignments::Changes changes{ .outfit = outfit };
 			for (const auto row : save.assign) {
 				changes.assign.push_back(RowSituation(row));
 			}
@@ -760,7 +757,7 @@ namespace
 		RE::FormID    actor = 0;
 		std::uint32_t updated = 0;  // the outfit Update changed; 0 when a situation outfit they wear left the library
 		// Rows Manage Wardrobe's Update changed for them, made and dressed for at the redress
-		// (Assignments::Change). Its armor are base forms, which stay valid while the window is open.
+		// (Assignments::Change).
 		std::optional<Assignments::Changes> change;
 
 		friend bool operator==(const PendingRedress& a_left, const PendingRedress& a_right)
@@ -769,12 +766,10 @@ namespace
 		}
 	};
 
-	// Assignments::Changes from the window's rows (RowSituation): the outfit's pieces are
-	// the Default's armor when Default is among them.
-	Assignments::Changes RowChanges(std::uint32_t outfit, const std::vector<RE::TESObjectARMO*>& pieces, const std::vector<std::size_t>& assign,
-		const std::vector<std::size_t>& remove)
+	// Assignments::Changes from the window's rows (RowSituation).
+	Assignments::Changes RowChanges(std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)
 	{
-		Assignments::Changes changes{ .outfit = outfit, .armor = pieces };
+		Assignments::Changes changes{ .outfit = outfit };
 		for (const auto row : assign) {
 			changes.assign.push_back(RowSituation(row));
 		}
@@ -795,7 +790,7 @@ namespace
 			Assignments::Assign(actor, pieces, outfit);
 			return;
 		}
-		Assignments::Change(actor, RowChanges(outfit, pieces, assign, remove));
+		Assignments::Change(actor, RowChanges(outfit, assign, remove));
 	}
 
 	// Contract: game thread; emptied by the close that runs them, and at kPreLoadGame
@@ -809,43 +804,20 @@ namespace
 		}
 	}
 
-	enum class Worn
+	// Whether Livery has library outfit `id` on the actor now, for any row.
+	bool WearsOutfit(const std::optional<Assignments::Choices>& choices, std::uint32_t id)
 	{
-		kNone,
-		kDefault,
-		kSituation
-	};
-
-	// How the actor wears library outfit `id` now: as their default, for a situation, or not.
-	Worn WornAs(const std::optional<Assignments::Choices>& choices, std::uint32_t id)
-	{
-		if (!choices || !choices->dressed || id == 0) {
-			return Worn::kNone;
-		}
-		if (choices->worn == Situations::Situation::kDefault) {
-			return choices->hasDefault && choices->defaultOutfit == id ? Worn::kDefault : Worn::kNone;
-		}
-		return choices->situations[Situations::Index(choices->worn)] == id ? Worn::kSituation : Worn::kNone;
+		return choices && choices->dressed && id != 0 && choices->wornOutfit == id;
 	}
 
-	// Dresses them in library outfit `id` as it is now when they wear it: a default from it
-	// takes its pieces (an NPC gets a copy of one they lack; nothing moves from the player),
-	// a situation outfit is read from the library again. Not worn now: nothing, as a
-	// situation outfit is read each time it goes on and a default keeps its pieces.
+	// Dresses them in library outfit `id` as it is now when they wear it, read from the
+	// library again (an NPC gets a copy of a piece they lack; nothing moves from the player).
+	// Not worn now: nothing, as every row reads its outfit each time it goes on.
 	// Contract: game thread; no preview is on.
 	void RedressFor(RE::Actor& actor, std::uint32_t id)
 	{
-		switch (WornAs(Assignments::ChoicesOf(actor.GetFormID()), id)) {
-		case Worn::kDefault:
-			if (const auto* outfit = Library::Find(id)) {
-				Assignments::Assign(actor, Library::LoadedPieces(*outfit), id);
-			}
-			break;
-		case Worn::kSituation:
+		if (WearsOutfit(Assignments::ChoicesOf(actor.GetFormID()), id)) {
 			Assignments::Refresh(actor, {});
-			break;
-		case Worn::kNone:
-			break;
 		}
 	}
 
@@ -938,23 +910,25 @@ namespace
 				return;
 			}
 			if (target && (!edit.assign.empty() || !edit.remove.empty())) {
-				RedressCaptured(*target, { .actor = actorID, .change = RowChanges(edit.outfit, picked, edit.assign, edit.remove) }, picked);
-			} else if (target && WornAs(Assignments::ChoicesOf(actorID), edit.outfit) != Worn::kNone) {
+				RedressCaptured(*target, { .actor = actorID, .change = RowChanges(edit.outfit, edit.assign, edit.remove) }, picked);
+			} else if (target && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
 				RedressCaptured(*target, { .actor = actorID, .updated = edit.outfit }, picked);
 			}
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
-		// The situation rows holding the outfit are cleared, and a default from it keeps its
+		// The outfit leaves every row, and a Default this leaves wearing nothing keeps its
 		// pieces (Assignments::ForgetOutfit); one HUD message sums it up.
 		request.onManageRemove = [handle, actorID, armors](std::uint32_t outfit, const std::vector<std::size_t>& shown) {
 			const auto* stored = Library::Find(outfit);
-			const auto  name = stored ? stored->name : std::string{};  // Remove leaves `stored` stale
-			const auto  users = Assignments::UsesOf(outfit).size();
+			// Read before Remove, which leaves `stored` stale. The armor forms stay valid.
+			const auto name = stored ? stored->name : std::string{};
+			const auto pieces = stored ? Library::LoadedPieces(*stored) : std::vector<RE::TESObjectARMO*>{};
+			const auto users = Assignments::UsesOf(outfit).size();
 			if (const auto error = Library::Remove(outfit)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			const auto wearing = Assignments::ForgetOutfit(outfit);
+			const auto wearing = Assignments::ForgetOutfit(outfit, pieces);
 			Notify(users > 0 ? std::format("Livery: removed \"{}\"; cleared from {} character(s).", name, users) : std::format("Livery: removed \"{}\".", name));
 			const auto target = handle.get();
 			for (const auto id : wearing) {
