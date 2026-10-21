@@ -9,7 +9,7 @@
 //   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies
 //   Co-save     - save, load (versions 1 to 3), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
-//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / Record / Refresh / WearFor /
+//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / Refresh / WearFor /
 //                 ActorsWithSituations / UsesOf / ForgetOutfit / Unassign / ChoicesOf / SuspendLocks /
 //                 ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
@@ -741,18 +741,6 @@ namespace Assignments
 		}
 		text += pieces > 0 ? std::format(". Dressed for {} now, {} piece(s)", Situations::Name(worn), pieces) : ". Own clothes now";
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
-	}
-
-	bool Record(RE::Actor& a_actor, const Changes& a_changes)
-	{
-		if (!CanBeDressed(a_actor)) {
-			return false;
-		}
-		const auto id = a_actor.GetFormID();
-		SetRows(FindOrAddAssignment(id), a_changes);
-		DropIfEmpty(id);
-		SyncManaged();
-		return true;
 	}
 
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut)

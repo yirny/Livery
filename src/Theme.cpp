@@ -94,6 +94,12 @@ namespace
 	constexpr int kSelectBarAlpha = 70;
 	// The help mark a button, link or label carries for its tooltip.
 	constexpr const char* kHelpMark = "(?)";
+	// Room between an outfit row's marks, and between them and the name (pixels at 1080p).
+	constexpr float kOutfitMarkGap = 6.0f;
+	// Extra room between a field and the label under it, beyond SectionGap (pixels at 1080p).
+	constexpr float kAfterFieldGap = 4.0f;
+	// Room between a right-aligned preview's text and the dropdown arrow (pixels at 1080p).
+	constexpr float kAlignedArrowGap = 6.0f;
 	// How far right of the list's indent a list row's text sits in Vanilla and
 	// Nordic (pixels at 1080p); Tailor clears its rule instead (RowTextShift).
 	constexpr float kRowTextShift = 4.0f;
@@ -1137,16 +1143,17 @@ namespace
 	}
 
 	// A pencil pointing down to the left, in lines, in the square from `a_topLeft`, `a_side`
-	// across. The points are fractions of the side: the tip, the body's four corners, the line
-	// where the tip's cone meets the body, and the band near the far end.
+	// across. The points are fractions of the side: the blunted tip, the body's four corners,
+	// the line where the tip's cone meets the body, and the band near the far end.
 	void DrawPenIcon(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color)
 	{
 		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the field icons'
 
-		const auto   at = [&](float a_x, float a_y) { return ImVec2(a_topLeft.x + a_side * a_x, a_topLeft.y + a_side * a_y); };
-		const float  thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
-		const ImVec2 outline[] = { at(0.10f, 0.90f), at(0.40f, 0.77f), at(0.91f, 0.26f), at(0.74f, 0.09f), at(0.23f, 0.60f) };
-		a_draw->AddPolyline(outline, 5, a_color, ImDrawFlags_Closed, thickness);
+		const auto  at = [&](float a_x, float a_y) { return ImVec2(a_topLeft.x + a_side * a_x, a_topLeft.y + a_side * a_y); };
+		const float thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
+		// The tip is cut off square, a short flat end.
+		const ImVec2 outline[] = { at(0.14f, 0.86f), at(0.18f, 0.72f), at(0.23f, 0.60f), at(0.74f, 0.09f), at(0.91f, 0.26f), at(0.40f, 0.77f), at(0.28f, 0.82f) };
+		a_draw->AddPolyline(outline, 7, a_color, ImDrawFlags_Closed, thickness);
 		a_draw->AddLine(at(0.40f, 0.77f), at(0.23f, 0.60f), a_color, thickness);
 		a_draw->AddLine(at(0.79f, 0.38f), at(0.62f, 0.21f), a_color, thickness);
 	}
@@ -1205,6 +1212,11 @@ namespace
 		}
 		if (ImGui::BeginComboPreview()) {
 			ImGui::PushClipRect(frameMin, ImVec2(textRight, frameMax.y), true);
+			if (a_style.alignRight) {
+				// The text ends kAlignedArrowGap short of the arrow, whatever the frame's width.
+				const float end = ownArrow ? arrowLeft - kAlignedArrowGap * g_scale : textRight;
+				ImGui::SetCursorScreenPos(ImVec2((std::max)(ImGui::GetCursorScreenPos().x, end - ImGui::CalcTextSize(a_preview).x), ImGui::GetCursorScreenPos().y));
+			}
 			ImGui::TextUnformatted(a_preview);
 			ImGui::PopClipRect();
 			ImGui::EndComboPreview();
@@ -1383,17 +1395,86 @@ namespace
 		a_draw->AddRect(a_frame.At(0.34f, 0.62f), a_frame.At(0.66f, 0.79f), a_color, 0.04f * s, ImDrawFlags_None, a_thick);
 	}
 
-	// A dress form: a padded torso with a neck, on a pole with two feet.
-	void DrawDressFormIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	// The stand's pole and two feet under a torso ending at `a_bottom` (of the side).
+	void DrawStandFeet(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick, float a_bottom)
 	{
-		const std::array<ImVec2, 16> torso{ a_frame.At(0.44f, 0.12f), a_frame.At(0.56f, 0.12f), a_frame.At(0.57f, 0.18f),
-			a_frame.At(0.72f, 0.23f), a_frame.At(0.74f, 0.32f), a_frame.At(0.66f, 0.42f), a_frame.At(0.62f, 0.52f), a_frame.At(0.68f, 0.62f),
-			a_frame.At(0.66f, 0.68f), a_frame.At(0.34f, 0.68f), a_frame.At(0.32f, 0.62f), a_frame.At(0.38f, 0.52f), a_frame.At(0.34f, 0.42f),
-			a_frame.At(0.26f, 0.32f), a_frame.At(0.28f, 0.23f), a_frame.At(0.43f, 0.18f) };
-		a_draw->AddPolyline(torso.data(), static_cast<int>(torso.size()), a_color, ImDrawFlags_Closed, a_thick);
-		a_draw->AddLine(a_frame.At(0.50f, 0.68f), a_frame.At(0.50f, 0.86f), a_color, a_thick);
+		a_draw->AddLine(a_frame.At(0.50f, a_bottom), a_frame.At(0.50f, 0.86f), a_color, a_thick);
 		a_draw->AddLine(a_frame.At(0.50f, 0.86f), a_frame.At(0.34f, 0.93f), a_color, a_thick);
 		a_draw->AddLine(a_frame.At(0.50f, 0.86f), a_frame.At(0.66f, 0.93f), a_color, a_thick);
+	}
+
+	// A bare dress form: a padded torso with a neck, each shoulder one arc from the neck to
+	// the underarm, on a pole with two feet.
+	void DrawDressFormIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		a_draw->PathLineTo(a_frame.At(0.44f, 0.12f));
+		a_draw->PathLineTo(a_frame.At(0.56f, 0.12f));
+		a_draw->PathLineTo(a_frame.At(0.57f, 0.18f));
+		a_draw->PathBezierQuadraticCurveTo(a_frame.At(0.79f, 0.24f), a_frame.At(0.66f, 0.42f));
+		for (const auto p : { a_frame.At(0.62f, 0.52f), a_frame.At(0.68f, 0.62f), a_frame.At(0.66f, 0.68f), a_frame.At(0.34f, 0.68f),
+				 a_frame.At(0.32f, 0.62f), a_frame.At(0.38f, 0.52f), a_frame.At(0.34f, 0.42f) }) {
+			a_draw->PathLineTo(p);
+		}
+		a_draw->PathBezierQuadraticCurveTo(a_frame.At(0.21f, 0.24f), a_frame.At(0.43f, 0.18f));
+		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
+		DrawStandFeet(a_draw, a_frame, a_color, a_thick, 0.68f);
+	}
+
+	// A dressed form: a gown with a round collar, its waist seam and a flared skirt, the
+	// neck's sides running down into the collar, on the stand.
+	void DrawDressedFormIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		const std::array<ImVec2, 4> neck{ a_frame.At(0.44f, 0.22f), a_frame.At(0.44f, 0.10f), a_frame.At(0.56f, 0.10f), a_frame.At(0.56f, 0.22f) };
+		a_draw->AddPolyline(neck.data(), static_cast<int>(neck.size()), a_color, ImDrawFlags_None, a_thick);
+		a_draw->PathLineTo(a_frame.At(0.44f, 0.22f));
+		a_draw->PathBezierQuadraticCurveTo(a_frame.At(0.50f, 0.31f), a_frame.At(0.56f, 0.22f));
+		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+		const std::array<ImVec2, 10> gown{ a_frame.At(0.44f, 0.22f), a_frame.At(0.38f, 0.22f), a_frame.At(0.26f, 0.30f), a_frame.At(0.30f, 0.50f),
+			a_frame.At(0.20f, 0.78f), a_frame.At(0.80f, 0.78f), a_frame.At(0.70f, 0.50f), a_frame.At(0.74f, 0.30f), a_frame.At(0.62f, 0.22f),
+			a_frame.At(0.56f, 0.22f) };
+		a_draw->AddPolyline(gown.data(), static_cast<int>(gown.size()), a_color, ImDrawFlags_None, a_thick);
+		a_draw->AddLine(a_frame.At(0.30f, 0.50f), a_frame.At(0.70f, 0.50f), a_color, a_thick);
+		DrawStandFeet(a_draw, a_frame, a_color, a_thick, 0.78f);
+	}
+
+	// A five-pointed star with its inner pentagon drawn.
+	void DrawStarIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		const std::array<ImVec2, 10> star{ a_frame.At(0.50f, 0.11f), a_frame.At(0.61f, 0.38f), a_frame.At(0.90f, 0.40f), a_frame.At(0.67f, 0.59f),
+			a_frame.At(0.75f, 0.87f), a_frame.At(0.50f, 0.71f), a_frame.At(0.25f, 0.87f), a_frame.At(0.33f, 0.59f), a_frame.At(0.10f, 0.40f),
+			a_frame.At(0.39f, 0.38f) };
+		a_draw->AddPolyline(star.data(), static_cast<int>(star.size()), a_color, ImDrawFlags_Closed, a_thick);
+		const std::array<ImVec2, 5> pentagon{ star[1], star[3], star[5], star[7], star[9] };
+		a_draw->AddPolyline(pentagon.data(), static_cast<int>(pentagon.size()), a_color, ImDrawFlags_Closed, a_thick);
+	}
+
+	// The marks at the right end of an outfit row's name line (Theme::OutfitMarks), each a
+	// square of the text height, from the right: the current outfit's dressed form, then
+	// the star of an outfit chosen for a situation. Returns how many are drawn.
+	int DrawOutfitMarks(ImDrawList* a_draw, ImVec2 a_right, const Theme::OutfitMarks& a_marks, ImU32 a_color, float a_thick)
+	{
+		const float side = ImGui::GetTextLineHeight();
+		float       x = a_right.x;
+		int         drawn = 0;
+		const auto  draw = [&](bool a_on, void (*a_icon)(ImDrawList*, const IconFrame&, ImU32, float)) {
+			if (!a_on) {
+				return;
+			}
+			x -= side;
+			a_icon(a_draw, IconFrame{ ImVec2(x, a_right.y - side * 0.5f), side }, a_color, a_thick);
+			x -= kOutfitMarkGap * g_scale;
+			++drawn;
+		};
+		draw(a_marks.situations != nullptr, DrawStarIcon);
+		draw(a_marks.current, DrawDressedFormIcon);
+		return drawn;
+	}
+
+	// The width the marks take at the row's right end, the gap to the name included.
+	float OutfitMarksWidth(const Theme::OutfitMarks& a_marks)
+	{
+		const int count = (a_marks.current ? 1 : 0) + (a_marks.situations ? 1 : 0);
+		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
 	}
 
 	// The rule beside the tab column: Tailor's 1px border (its sidebar divider), Vanilla's
@@ -2199,12 +2280,32 @@ namespace Theme
 		return width;
 	}
 
+	bool ListHeadingHelp(const char* a_text)
+	{
+		PushSmallFont();
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+		const ImVec2 cursor = ImGui::GetCursorScreenPos();
+		TextRow(a_text);
+		const ImVec2 text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
+		const float  markX = text.x + ImGui::CalcTextSize(a_text).x + ImGui::CalcTextSize(" ").x;
+		const ImVec2 markSize = ImGui::CalcTextSize(kHelpMark);
+		ImGui::GetWindowDrawList()->AddText(ImVec2(markX, text.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
+		ImGui::PopStyleColor();
+		PopSmallFont();
+		return ImGui::IsMouseHoveringRect(ImVec2(markX, text.y), ImVec2(markX + markSize.x, text.y + markSize.y));
+	}
+
 	float ListHeadingHeight()
 	{
 		PushSmallFont();
 		const float height = SelectRowHeight();
 		PopSmallFont();
 		return height;
+	}
+
+	void AfterFieldGap()
+	{
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kAfterFieldGap * g_scale);
 	}
 
 	float OutfitTagsWidth()
@@ -2222,8 +2323,10 @@ namespace Theme
 
 	// SelectRow with the tags under the name, inside the row's bottom padding. The selected
 	// row's Vanilla and Nordic arrow stays level with the name.
-	bool OutfitRow(const char* a_name, int a_gender, std::span<const std::string> a_tags, float a_tagsWidth, bool a_selected)
+	bool OutfitRow(const char* a_name, int a_gender, std::span<const std::string> a_tags, float a_tagsWidth, bool a_selected, const OutfitMarks& a_marks)
 	{
+		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
+
 		const ListRow row = LayOutListRow(a_name, OutfitRowHeight(a_gender, a_tags, a_tagsWidth));
 		const float   textX = row.min.x + row.inset + RowTextShift();
 		const float   textY = row.min.y + kSelectRowPadY * g_scale;
@@ -2234,7 +2337,27 @@ namespace Theme
 			nameLine.max.y = row.min.y + SelectRowHeight();
 			DrawSelectMark(draw, nameLine, textX);
 		}
-		draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		// The marks, right of the name on its line, in LabelText's grey; the name is cut
+		// short of them. Each mark names itself in a tooltip while the mouse is over it.
+		const float  side = ImGui::GetTextLineHeight();
+		const float  marksRight = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
+		const ImVec2 markCentre(marksRight, textY + side * 0.5f);
+		const int    marks = DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
+		const float  nameRight = marksRight - OutfitMarksWidth(a_marks);
+		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
+		if (textX + nameSize.x <= nameRight) {
+			draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		} else if (nameRight > textX) {
+			ImGui::RenderTextEllipsis(draw, ImVec2(textX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
+		}
+		for (int i = 0; i < marks; ++i) {
+			const float right = marksRight - static_cast<float>(i) * (side + kOutfitMarkGap * g_scale);
+			if (ImGui::IsMouseHoveringRect(ImVec2(right - side, textY), ImVec2(right, textY + side))) {
+				// From the right: the star first when both are drawn, the dressed form last.
+				const bool star = a_marks.situations && i == 0;
+				ImGui::SetTooltip("%s", star ? a_marks.situations : "Current outfit");
+			}
+		}
 		const float tagsY = textY + ImGui::GetTextLineHeight() + kOutfitTagsGap * g_scale;
 		PushSmallFont();
 		LayOutTags(draw, ImVec2(textX, tagsY), a_tagsWidth, a_gender, a_tags);

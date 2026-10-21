@@ -18,9 +18,9 @@ namespace RE
 // QueueInput runs on the game thread from the input dispatch hook. All state is
 // guarded by one mutex. Nothing here touches the outfit library or the
 // assignments: the Save page's Create and Update hand the outfit and the rows to
-// change to Request::onSave, Manage Outfits' Update and Remove the outfit to
-// Request::onManageUpdate and onManageRemove, its situation rows to onManageAssign and its
-// Apply to onManageApply, Apply and Restore Original Outfit go to
+// change to Request::onSave, Manage Wardrobe's Update (with the rows to change) and Remove
+// the outfit to Request::onManageUpdate and onManageRemove and its Apply to onManageApply,
+// Apply and Restore Original Outfit go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
 // Request::onPreviewPieces and the Live Preview tick to Request::onPreviewOn /
@@ -137,6 +137,8 @@ namespace CaptureWindow
 		std::vector<RowAssignment>  assigned;              // one per row: Default, then `situations`
 		// Apply moves PieceGroup::kPlayer pieces to the NPC; off, the NPC gets copies.
 		bool movesFromPlayer = true;
+		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
+		bool protectsFavorites = true;
 
 		// Runs on the game thread when the user saves on the Save page: after Create,
 		// or after confirming the Update tab's popup. It must end by calling Close()
@@ -155,32 +157,28 @@ namespace CaptureWindow
 		// by calling Close() or SetError().
 		std::function<void()> onRestore;
 
-		// Runs on the game thread when the user confirms Manage Outfits' Update: `edit` holds
-		// the outfit, its new name, gender, pieces and categories, and no rows. The window
-		// stays open: it must end by calling SetOutfits() with the library as written, or
-		// SetError() when the write was refused or failed. With `apply` (Update and Apply,
-		// from Apply to #{Name} with unsaved edits) the outfit as written becomes the actor's
-		// Default instead, as onManageApply makes it, and it ends by calling Close(); a
-		// refused or failed write assigns nothing. Empty greys Update.
+		// Runs on the game thread when the user confirms Manage Wardrobe's Update: `edit` holds
+		// the outfit, its new name, gender, pieces and categories, and the rows of `assigned`
+		// to change for the actor, as the Save page's Update tab hands them. The library write
+		// comes first; a refused or failed write assigns nothing. The window stays open: it
+		// must end by calling SetOutfits() with the library as written, or SetError(). With
+		// `apply` (Update and Apply, from Apply to #{Name} with unsaved edits) it ends by
+		// calling Close() and dresses the actor as onManageApply does. Empty greys Update.
 		std::function<void(const SaveRequest& edit, bool apply)> onManageUpdate;
 
-		// Runs on the game thread when the user confirms Manage Outfits' Remove of library
+		// Runs on the game thread when the user confirms Manage Wardrobe' Remove of library
 		// outfit `outfit`; `shown` are the Inventory page's ticks (indices into `pieces`), which
 		// the preview shows once the outfit is gone. As onManageUpdate, it must end by calling
 		// SetOutfits() or SetError(). Empty greys Remove.
 		std::function<void(std::uint32_t outfit, const std::vector<std::size_t>& shown)> onManageRemove;
 
-		// Runs on the game thread when the user changes Manage Outfits' "Situations for
-		// #{Name}": library outfit `outfit` gets (`on`) or loses row `row` of `assigned`, a
-		// situation, never Default; a row another outfit holds only after Replace. The window
-		// stays open: it must end by calling SetOutfits() with OutfitList::keepEdits, or
-		// SetError(). Empty hides the field.
-		std::function<void(std::uint32_t outfit, std::size_t row, bool on)> onManageAssign;
-
-		// Runs on the game thread when the user presses Manage Outfits' "Apply to #{Name}":
-		// library outfit `outfit`, as the library has it, becomes the actor's Default. It must
-		// end by calling Close() or SetError(). Empty greys the button.
-		std::function<void(std::uint32_t outfit)> onManageApply;
+		// Runs on the game thread when the user presses Manage Wardrobe's "Apply to #{Name}"
+		// with no unsaved edits: library outfit `outfit`, as the library has it, goes to the
+		// actor for the rows of `assigned` in `assign` and leaves those in `remove` (the
+		// Situations dropdown's ticks against the rows it holds now); with no row in `assign`
+		// it becomes their Default. It must end by calling Close() or SetError(). Empty greys
+		// the button.
+		std::function<void(std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)> onManageApply;
 
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns
@@ -223,8 +221,6 @@ namespace CaptureWindow
 		std::vector<CategoryOption> categories;
 		std::vector<RowAssignment>  assigned;
 		std::string                 actorSummary;
-		// Only the rows changed, not the library (onManageAssign): Manage Outfits keeps its edits.
-		bool keepEdits = false;
 	};
 
 	void Open(Request request);
@@ -232,14 +228,13 @@ namespace CaptureWindow
 	void SetError(const std::string& message);
 	bool IsOpen();
 
-	// Ends a Manage Outfits change the library or the actor's rows took: the window shows
+	// Ends a Manage Wardrobe change the library or the actor's rows took: the window shows
 	// `list` and lets the user edit again. The pages' selections, the loaded outfit and the
 	// Update tab's outfit are found again by id (none when gone, the Update tab then left),
 	// the Update tab's "wears it for" ticks follow the rows that changed for its outfit, each
 	// list keeps its search, sort and folded headings, the Inventory page drops ticks on
-	// pieces it no longer lists, and Manage Outfits' edits start again from the library
-	// (kept with `keepEdits`), or the preview shows the Inventory page's ticks when its
-	// outfit is gone. The heading of the pieces Livery put on
+	// pieces it no longer lists, and Manage Wardrobe's edits start again from the library, or
+	// the preview shows the Inventory page's ticks when its outfit is gone. The heading of the pieces Livery put on
 	// from Request::wornOutfit takes the outfit's name now; when the outfit is gone they
 	// join the other worn pieces and Apply no longer offers to update it.
 	void SetOutfits(OutfitList list);

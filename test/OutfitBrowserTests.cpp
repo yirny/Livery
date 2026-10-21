@@ -38,6 +38,7 @@ namespace
 			{ .name = "Scout", .categories = { "Light", "Heavy", "Adventuring", "Town" }, .id = 5, .gender = 1 },
 		};
 		// Default, Town, Home, Sleep, Swimming, Warm. Home holds pieces that are not a saved outfit.
+		request.situations = { "Town", "Home", "Sleep", "Swimming", "Warm" };
 		request.assigned = { { true, 3 }, { true, 5 }, { true, 0 }, { true, 3 }, { true, 2 }, { false, 0 } };
 		return request;
 	}
@@ -105,6 +106,17 @@ TEST_CASE("Tags: categories, then the rows holding the outfit; unoffered stored 
 	CHECK(state.tags[2] == std::vector<std::string>{ "Clothing", "Default", "Sleep" });  // Town Dress
 	CHECK(state.tags[1] == std::vector<std::string>{ "Light", "Swimming" });             // Guard Uniform
 	CHECK(state.tags[3].empty());                                                        // Bare
+}
+
+TEST_CASE("Situation marks name the situations, never Default", "[browser]")
+{
+	const auto           request = MakeRequest();
+	OutfitBrowser::State state;
+	OutfitBrowser::Reset(state, request);
+	CHECK(state.situations[2] == "For Sleep");     // Town Dress: Default and Sleep
+	CHECK(state.situations[4] == "For Town");      // Scout
+	CHECK(state.situations[1] == "For Swimming");  // Guard Uniform
+	CHECK(state.situations[0].empty());            // iron set
 }
 
 TEST_CASE("Filter rows follow the groups, each with its No row", "[browser]")
