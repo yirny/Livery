@@ -259,7 +259,7 @@ actor by drag and drop, the random flags included, and the situations' names and
 descriptions; its Save Changes writes `situations.json` first, then replaces the rows
 (`Assignments::SetRows`, the record only) and dresses them once (`Assignments::Refresh`,
 at once with Live Preview on, else at the window's close; a random row worn now wears the
-outfit it gained first). Its Remove Situation writes `situations.json`, then clears the
+outfit it gained first). Removing a situation writes `situations.json`, then clears the
 situation's rows in this save (`Assignments::ForgetSituation`) and takes those wearing it
 out of it as Remove takes them out of a removed outfit; Restore Presets changes no row. A
 change the window runs at its close leaves a situation removed since then empty. An actor can have situation outfits without a default and then wears their
