@@ -39,8 +39,8 @@ namespace Theme
 	bool HasPopupTitleBar();
 
 	// Call right after ImGui::Begin, or BeginPopupModal with `popup`: corner ornaments (Nordic);
-	// on the main window, Vanilla's frame, a 5px band of the rule colour inside its edge and a
-	// 2px band of the window's glass outside it, in place of ImGui's border.
+	// on the main window, Vanilla's frame, a 4px band of the rule colour inside its edge and a
+	// 4px band of the window's glass outside it, in place of ImGui's border.
 	void DecorateWindow(bool popup = false);
 
 	// One line in the heading font, then the subtitle (if any) greyed close under
@@ -407,14 +407,16 @@ namespace Theme
 	float TabColumnWidth();
 
 	// Where the tabs go, in pixels from the content's top-left corner: each tab's left edge,
-	// so it is centred between the window's left edge and the rule (negative, into the
-	// window's padding), and the first tab's top (Nordic: below the corner knot).
+	// so it is centred between the window's left edge (Vanilla: its frame's band) and the
+	// rule (negative, into the window's padding), and the first tab's top (Nordic: below the
+	// corner knot).
 	float TabOffsetX();
 	float TabTopGap();
 
 	// The rule between the tab column, whose tabs start at `left`, and the page, from `top`
-	// to `bottom` (screen pixels): Tailor's 1px border colour, Vanilla's 2px rule, NORDIC
-	// UI's level-up rope (1px of its rule colour without the texture).
+	// to `bottom` (screen pixels; Vanilla stops it a pixel short of its frame's band at both
+	// ends): Tailor's 1px border colour, Vanilla's 2px rule, NORDIC UI's level-up rope (1px of
+	// its rule colour without the texture).
 	void TabRule(float left, float top, float bottom);
 
 	// The body font at a smaller size, for controls that sit beside others
