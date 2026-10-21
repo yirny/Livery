@@ -54,7 +54,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - `Sort by`'s text is right-aligned, ending 6px short of its arrow.
 - Rows meet with no gap (the list lays them out with no item spacing; each row and heading
   holds the former gap, half above and half below), and every second row under a heading
-  has a faint white (10/255) under its fills, in every skin, as Tailor 3.0's outfit list
+  has a faint white (16/255) under its fills, in every skin, as Tailor 3.0's outfit list
   alternates its rows. Names, tags and headings start 14px in from the row's left edge.
 - A `Show Categories` tick under the list, on each time the window opens; off, rows show the
   name only.

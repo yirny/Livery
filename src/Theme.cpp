@@ -2340,7 +2340,7 @@ namespace Theme
 		bool a_striped)
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
-		constexpr int   kStripeAlpha = 10;      // of the white over a striped row, out of 255
+		constexpr int   kStripeAlpha = 16;      // of the white over a striped row, out of 255
 
 		const float   gap = ListPaddingY();
 		const ListRow row = LayOutListRow(a_name, OutfitRowHeight(a_gender, a_tags, a_tagsWidth));
