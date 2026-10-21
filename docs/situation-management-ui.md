@@ -207,7 +207,7 @@ The details:
   style, `Drag outfits from the list onto "#{Situation}" to add them.` A click shows the
   outfit list, keeps the situation selected, opens its heading if folded and scrolls the
   left pane to it when the pane can scroll.
-- At the pane's bottom, `Remove Situation`, drawn as Restore Original Outfit is, without the
+- At the pane's bottom, `Remove Situation`, drawn as Restore Outfit is, without the
   `(?)`; not on the Default. Its popup: `Remove "Town"?`, the actors in this save whose
   Town row holds anything (`Lydia: 2 outfit(s)`; a FormID when not in memory), `Restore
   Presets brings "Town" back, without them.`, and with unsaved edits `Your unsaved changes

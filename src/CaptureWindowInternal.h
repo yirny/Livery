@@ -99,7 +99,7 @@ namespace CaptureWindow::Internal
 	{
 		kClosed,
 		kEditing,
-		kSaving  // Create, Confirm, Apply or Restore Original Outfit pressed; waiting for the handler to Close() or SetError()
+		kSaving  // Create, Confirm, Apply or Restore Outfit pressed; waiting for the handler to Close() or SetError()
 	};
 
 	enum class Page
@@ -219,7 +219,7 @@ namespace CaptureWindow::Internal
 	PieceList                InventoryPieces(const State& a_state);
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
-	bool                     DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withRestore = false);
+	bool                     DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink = false);
 	void                     DrawPreviewToggle(State& a_state, const PieceList& a_list);
 	std::string              Trimmed(const char* a_text);
 	void                     DrawError(const std::string& a_message);

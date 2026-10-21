@@ -1467,7 +1467,7 @@ namespace
 		if (!a_marks.current) {
 			return "Default Outfit";
 		}
-		return a_marks.defaultOutfit ? "Current outfit\nDefault Outfit" : "Current outfit";
+		return a_marks.defaultOutfit ? "Current Outfit\nDefault Outfit" : "Current Outfit";
 	}
 
 	// The marks at the right end of an outfit row's name line (Theme::OutfitMarks), each a
@@ -1794,8 +1794,10 @@ namespace Theme
 		return hovered;
 	}
 
-	// LabelLink's place and lighting with no plus mark, the help mark inside the click area.
-	bool LabelHelpLink(const char* a_label, bool* a_hovered)
+	// LabelLink's place and lighting with no plus mark, the help mark inside the click area:
+	// on a label's line (`a_labelLine`) at its top, keeping its gap below; on a control's
+	// line centred on the line's height, keeping the control's gap.
+	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine)
 	{
 		PushSmallFont();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -1804,10 +1806,19 @@ namespace Theme
 
 		ImGui::SameLine();
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		if (!a_labelLine) {
+			// After SameLine the current line's size is the size of what is on it so far.
+			const float lineHeight = ImGui::GetCurrentWindow()->DC.CurrLineSize.y;
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (std::max)(0.0f, (lineHeight - text.y) * 0.5f));
+		}
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		PushLabelSpacing();  // the line's gap below stays LabelText's
+		if (a_labelLine) {
+			PushLabelSpacing();  // the line's gap below stays LabelText's
+		}
 		const bool clicked = ImGui::InvisibleButton(a_label, ImVec2(width, (std::max)(1.0f, text.y)));
-		ImGui::PopStyleVar();
+		if (a_labelLine) {
+			ImGui::PopStyleVar();
+		}
 
 		*a_hovered = ImGui::IsItemHovered();
 		auto* draw = ImGui::GetWindowDrawList();
@@ -1815,6 +1826,16 @@ namespace Theme
 		draw->AddText(ImVec2(topLeft.x + markX, topLeft.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
 		PopSmallFont();
 		return clicked;
+	}
+
+	bool LabelHelpLink(const char* a_label, bool* a_hovered)
+	{
+		return RightEndHelpLink(a_label, a_hovered, true);
+	}
+
+	bool LineHelpLink(const char* a_label, bool* a_hovered)
+	{
+		return RightEndHelpLink(a_label, a_hovered, false);
 	}
 
 	bool Button(const char* a_label)
