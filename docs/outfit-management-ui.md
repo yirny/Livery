@@ -50,7 +50,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   (`Request::wornOutfit`), else a bare form (Manage Wardrobe's tab icon) for one their
   Default holds; a star (point down, lines from its centre to its inner corners) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
-  over it: `Current outfit` (and `Default Outfit` on a second line when their Default holds
+  over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
   it), `Default Outfit` on the bare form, `For Town, Warm` (`OutfitBrowser::State::situations`,
   computed at Rebuild). The form and the star side by side when both apply; drawn with or
   without Show Categories.
@@ -76,18 +76,19 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 ## 2. Inventory page (step 1)
 
-- `Load Outfit...` leaves the count line; the buttons are `Load`, `Save`, `Apply`, `Cancel`.
-  Load is greyed while the library is empty (`kNoOutfits`) and opens the Load page.
+- The count line ends in `Add pieces from Wardrobe...` (`Theme::LabelLink`, its plus mark
+  first), which opens the Load page; greyed while the library is empty, showing
+  `kNoOutfits` on hover. The buttons are `Save`, `Apply`, `Cancel`.
 - Tooltips on hover while enabled; a greyed button shows its reason instead:
-  - Load: `Add a saved outfit's pieces to the list.`
   - Save: `Save the ticked pieces as a new outfit, or into an existing one.`
   - Apply: `Dress #{Name} in the ticked pieces.`
   - Cancel: none.
-- `Restore Original Outfit (?)`, while Livery dresses the actor, sits at the right end of
-  the count line in its font and colour, lit on hover; the `(?)` is inside its click area
-  and hovering it shows the help. A click asks `Restore #{Name}'s original outfit?` / `This
-  takes Livery's outfit off #{Name} and forgets every situational outfit chosen for them.` with
-  `Restore` / `Cancel`.
+- `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the Live
+  Preview line (`Theme::LineHelpLink`), its text centred on the line's height, in the count
+  line's font and colour, lit on hover; the `(?)` is inside its click area and hovering it
+  shows the help. A click asks `Restore #{Name}'s original outfit?` / `This takes Livery's
+  outfit off #{Name} and forgets every situational outfit chosen for them.` with `Restore` /
+  `Cancel`.
 - The `From Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
   is over that mark alone: `"Apply" moves the ticked pieces from your inventory to #{Name}.`
   (or `"Apply" gives #{Name} a new copy of each ticked piece; yours stay with you.`), then

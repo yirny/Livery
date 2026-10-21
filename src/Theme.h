@@ -73,6 +73,11 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LabelHelpLink(const char* label, bool* hovered);
 
+	// LabelHelpLink on a control's line (call it right after the control and whatever sits
+	// beside it): at the line's right end, its text centred on the line's height.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool LineHelpLink(const char* label, bool* hovered);
+
 	// Extra room above a field, on top of the item spacing; LabelText adds it
 	// itself, so call it only before a field that has no label.
 	void SectionGap();

@@ -13,13 +13,13 @@
 //                  Livery outfit, other worn, carried, the player's, the loaded outfit's), in
 //                  Name / Type / Category columns sorted by a click on a column label (the piece
 //                  list the Edit page shows too, PieceList), each tick handed to
-//                  onPieceToggled; under the list the count line; the Live Preview tick,
-//                  handed to onPreviewOn / onPreviewOff in an SKSE task that also freezes or
-//                  unfreezes the game; Load / Save / Apply / Cancel (Load greyed while the
-//                  library has no outfits), and Restore Original Outfit under them while
-//                  Livery dresses the actor; Apply asks first when the ticks differ from the
-//                  library outfit Livery has on the actor (Yes updates it); Apply and Restore
-//                  hand over to onApply / onRestore
+//                  onPieceToggled; under the list the count line, ending in Add pieces from
+//                  Wardrobe... (the Load page; greyed while the library has no outfits); the
+//                  Live Preview tick, handed to onPreviewOn / onPreviewOff in an SKSE task that
+//                  also freezes or unfreezes the game, with Restore Outfit at its line's right
+//                  end while Livery dresses the actor; Save / Apply / Cancel; Apply asks first
+//                  when the ticks differ from the library outfit Livery has on the actor (Yes
+//                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
 //                  name, categories, gender and "wears it for" rows (Default, the
 //                  situations); a popup (Confirm / Cancel) before replacing the outfit a row
@@ -844,26 +844,45 @@ namespace CaptureWindow::Internal
 		Theme::EndList();
 	}
 
-	// The count line under the list.
-	// The count line; on the Inventory page (`a_withRestore`), while Livery dresses the
-	// character (Request::onRestore), Restore Original Outfit and its "(?)" at its right end.
-	// Returns true when Restore is clicked.
-	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withRestore)
+	// The count line under the list; on the Inventory page (`a_withWardrobeLink`) it ends in
+	// `Add pieces from Wardrobe...`, which opens the Load page and is greyed while the
+	// library is empty. Returns true when that link is clicked.
+	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
 		Theme::LabelText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str());
-		bool restore = false;
-		if (a_withRestore && a_state.request.onRestore) {
-			bool hovered = false;
-			restore = Theme::LabelHelpLink("Restore Original Outfit", &hovered);
-			if (hovered) {
-				DrawHelpTooltip(std::format(
-					"Takes Livery's outfit off {} and forgets their situational outfits. Items moved from your inventory stay with them.",
-					a_state.request.actorName));
+		bool add = false;
+		if (a_withWardrobeLink) {
+			const bool empty = a_state.request.existingOutfits.empty();
+			ImGui::BeginDisabled(empty);
+			add = Theme::LabelLink("Add pieces from Wardrobe...");
+			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			ImGui::EndDisabled();
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (empty && hovered) {
+				ImGui::SetTooltip("%s", kNoOutfits);
 			}
 		}
 		if (ticked == 0) {
 			ImGui::TextDisabled(kNeedPiece);
+		}
+		return add;
+	}
+
+	// Restore Outfit and its "(?)" at the right end of the Live Preview line, while Livery
+	// dresses the character (Request::onRestore). Returns true when it is clicked.
+	// Contract: right after DrawPreviewToggle, on its line.
+	bool DrawRestoreLink(const State& a_state)
+	{
+		if (!a_state.request.onRestore) {
+			return false;
+		}
+		bool       hovered = false;
+		const bool restore = Theme::LineHelpLink("Restore Outfit", &hovered);
+		if (hovered) {
+			DrawHelpTooltip(std::format(
+				"Takes Livery's outfit off {} and forgets their situational outfits. Items moved from your inventory stay with them.",
+				a_state.request.actorName));
 		}
 		return restore;
 	}
@@ -991,7 +1010,7 @@ namespace CaptureWindow::Internal
 	// The widest button row of the Capture page, which sets the page's least width.
 	float CaptureButtonsWidth()
 	{
-		return ButtonRowWidth({ "Load", "Save", "Apply", "Cancel" });
+		return ButtonRowWidth({ "Save", "Apply", "Cancel" });
 	}
 
 	enum class CaptureAction
@@ -1004,17 +1023,14 @@ namespace CaptureWindow::Internal
 		kCancel
 	};
 
-	// Load / Save / Apply / Cancel centred below a gap. Load needs a library outfit; Save
-	// and Apply act on the ticked pieces, so they need at least one. `a_restore`: Restore
-	// Original Outfit was clicked on the count line.
-	CaptureAction DrawCaptureButtons(const State& a_state, bool a_restore)
+	// Save / Apply / Cancel centred below a gap. Save and Apply act on the ticked pieces, so
+	// they need at least one. `a_load`: Add pieces from Wardrobe... was clicked on the count
+	// line; `a_restore`: Restore Outfit on the Live Preview line.
+	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load, bool a_restore)
 	{
-		constexpr const char* kLoadTooltip = "Add a saved outfit's pieces to the list.";
 		constexpr const char* kSaveTooltip = "Save the ticked pieces as a new outfit, or into an existing one.";
 
-		BeginButtonRow({ "Load", "Save", "Apply", "Cancel" });
-		const bool load = ReasonButton("Load", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, kLoadTooltip);
-		ImGui::SameLine();
+		BeginButtonRow({ "Save", "Apply", "Cancel" });
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
 		const bool  save = ReasonButton("Save", noPiece, kSaveTooltip);
 		ImGui::SameLine();
@@ -1027,7 +1043,7 @@ namespace CaptureWindow::Internal
 			ImGui::TextDisabled("Applying...");
 			return CaptureAction::kNone;
 		}
-		if (load) {
+		if (a_load) {
 			return CaptureAction::kLoadPage;
 		}
 		if (save) {
@@ -1171,12 +1187,13 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const auto list = InventoryPieces(a_state);
 		DrawPieceRows(a_state, list);
-		const bool restore = DrawPieceCount(a_state, list, true);
+		const bool load = DrawPieceCount(a_state, list, true);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state, list);
-		const auto action = DrawCaptureButtons(a_state, restore);
+		const bool restore = DrawRestoreLink(a_state);
+		const auto action = DrawCaptureButtons(a_state, load, restore);
 		EndButtonRow();
 		ImGui::EndDisabled();
 

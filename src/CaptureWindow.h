@@ -23,7 +23,7 @@ namespace RE
 // assignments: the Save page's Create and Update hand the outfit and the rows to
 // change to Request::onSave, Manage Wardrobe's Update (with the rows to change) and Remove
 // the outfit to Request::onManageUpdate and onManageRemove and its Apply to onManageApply,
-// Apply and Restore Original Outfit go to
+// Apply and Restore Outfit go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
 // Request::onPreviewPieces and the Live Preview tick to Request::onPreviewOn /
@@ -156,7 +156,7 @@ namespace CaptureWindow
 		// It must end by calling Close() or SetError().
 		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit, bool updateWorn)> onApply;
 
-		// Runs on the game thread when the user presses Restore Original Outfit. Empty
+		// Runs on the game thread when the user presses Restore Outfit. Empty
 		// when Livery has no pieces on the character, which hides the button. It must end
 		// by calling Close() or SetError().
 		std::function<void()> onRestore;
