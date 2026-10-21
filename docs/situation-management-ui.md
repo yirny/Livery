@@ -154,9 +154,9 @@ outfit for Town any more`.
   it, or back to the outfit list to take it off.`
 - The list has no rules above and below it.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
-  order. Each: the name in the outfit list's row style, in Vanilla and Nordic where the outfit
-  rows' grip dots start, the select mark left of it in the window's padding (Tailor: where an
-  outfit row without a grip starts its name, clear of its amber rule); with random on, `(n)`,
+  order. Each: the name in the outfit list's row style, where an outfit row without a grip
+  starts its name, so the select mark has the room it has on Manage Wardrobe's list; with
+  random on, `(n)`,
   the length of `outfits`, in the small heading style; while anything shows under it, a
   chevron, pointing down while open and right while folded, grey, lit while hovered (white in
   Vanilla and Nordic, amber in Tailor); then, 12px on, a rule in the list's rule colour, and
@@ -170,18 +170,21 @@ outfit for Town any more`.
   show unselects it and the right pane shows the outfit list. Edit always selects the
   situation and shows its details.
 - Under a heading, its outfits as rows of the outfit list (name, tags, the form marks but no
-  star, since each is chosen for a situation), each with a drag grip 4px in from its left
-  edge: two columns of three dots, Vanilla and Nordic in LabelText's grey at low alpha, Tailor
-  in its text colour mixed with black; the name and tags start 12px past the dots, here and in
-  the right pane's outfit list. Random on: every outfit on the list. Random off: `chosen`
+  star, since each is chosen for a situation), each with a drag grip: two columns of three
+  dots, Vanilla and Nordic in LabelText's grey at low alpha, Tailor in its text colour mixed
+  with black, here level with the headings' names (`Theme::Grip::kName`), in the right pane's
+  outfit list 4px in from the row's left edge (`kEdge`); the name and tags start 12px past
+  the dots. Random on: every outfit on the list. Random off: `chosen`
   only. A row that wears nothing shows nothing under its heading; the Default wearing its
   `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id the library no longer
   has (another save's) shows a grey `Outfit no longer in the wardrobe` row with a grip, which
   drags as an outfit does.
 - A click on an outfit row, here or in the right pane's outfit list, shows the outfit's
   details in the right pane (§5) and puts it on the preview; a click on the outfit whose
-  details show goes back, as Back does. Its rows in both panes show as selected meanwhile;
-  in Vanilla and Nordic the select arrow takes the grip's place. A click on the pieces line or
+  details show goes back, as Back does. Its rows in both panes show as selected meanwhile
+  (docs/outfit-management-ui.md §1): in Vanilla and Nordic the equipped mark sits left of the
+  dots here, and in the right pane takes the dots' place, shrunk to leave 2px on either side.
+  A click on the pieces line or
   a row no longer in the wardrobe does nothing. A drag never counts as a click.
 
 Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
@@ -306,9 +309,8 @@ edits (§6). A click on a situation's heading closes the details and shows the s
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
   (`SituationHeading` with its `SituationHeadingLook`, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
-  drag grip (`OutfitRow`'s `grip`, `OutfitTagsWidth(grip)`, `FoldHeading`'s `grip`), the
-  details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`), the select arrow in
-  a selected draggable row's grip room.
+  drag grip (`Theme::Grip` for `OutfitRow`, `OutfitTagsWidth` and `FoldHeading`), the
+  details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name, description,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
   `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,

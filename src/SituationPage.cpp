@@ -249,7 +249,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// A grey line in an outfit row's place (kPiecesLine, kGoneLine).
-		void DrawLineRow(const char* a_text, float a_tagsWidth, bool a_grip)
+		void DrawLineRow(const char* a_text, float a_tagsWidth, Theme::Grip a_grip)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			Theme::OutfitRow(a_text, -1, {}, a_tagsWidth, false, {}, false, a_grip);
@@ -300,7 +300,7 @@ namespace CaptureWindow::Internal
 					return;
 				}
 				const float top = ImGui::GetCursorScreenPos().y;
-				DrawLineRow(kPiecesLine, a_tagsWidth, false);
+				DrawLineRow(kPiecesLine, a_tagsWidth, Theme::Grip::kNone);
 				OfferOutfitDrag({ .from = 0 }, kPiecesLine);
 				if (ImGui::BeginDragDropTarget()) {
 					if (const auto dropped = AcceptOnSituation(top)) {
@@ -316,12 +316,12 @@ namespace CaptureWindow::Internal
 				const int   index = IndexOfOutfit(a_state, shown[k]);
 				if (index >= 0) {
 					// No star: every row here is one chosen for a situation.
-					if (DrawOutfitRow(a_state, a_state.situationBrowser, index, a_tagsWidth, form.viewedOutfit == shown[k], k % 2 == 1, true, false)) {
+					if (DrawOutfitRow(a_state, a_state.situationBrowser, index, a_tagsWidth, form.viewedOutfit == shown[k], k % 2 == 1, Theme::Grip::kName, false)) {
 						QueueMenuSound(kFocusSound);
 						ViewOutfit(a_state, index);
 					}
 				} else {
-					DrawLineRow(kGoneLine, a_tagsWidth, true);
+					DrawLineRow(kGoneLine, a_tagsWidth, Theme::Grip::kName);
 				}
 				const float bottom = ImGui::GetItemRectMax().y;
 				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, index >= 0 ? OutfitAt(a_state, index).name.c_str() : kGoneLine);
@@ -401,7 +401,7 @@ namespace CaptureWindow::Internal
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
 			// Popped before EndList, as the outfit list's spacing is.
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			const float tagsWidth = Theme::OutfitTagsWidth(true);
+			const float tagsWidth = Theme::OutfitTagsWidth(Theme::Grip::kName);
 			int         dragHovered = -1;
 			if (Theme::BeginList("situations", SituationListHeight(a_state, tagsWidth), false)) {
 				// Its text starts where the situations' names do, clear of a selected one's mark.
