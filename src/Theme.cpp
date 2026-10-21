@@ -2507,15 +2507,17 @@ namespace Theme
 	{
 		g_listRules = a_rules;
 		// Vanilla and Nordic: past the content across the window's padding to its
-		// edges; in a table, only on the table's outer sides, so the gap between
-		// columns stays clear. Tailor: within the content, as its fields are.
+		// edges, Vanilla's right one only to its frame's band (DrawVanillaFrame), which a
+		// scrollbar drawn after it would cover; in a table, only on the table's outer sides,
+		// so the gap between columns stays clear. Tailor: within the content, as its fields are.
 		const float padding = g_skin == Skin::kTailor ? 0.0f : ImGui::GetStyle().WindowPadding.x;
+		const float band = g_skin == Skin::kVanilla ? VanillaBandWidth() : 0.0f;
 		float       left = padding;
-		float       right = padding;
+		float       right = padding - band;
 		if (ImGui::GetCurrentTable()) {
 			const int column = ImGui::TableGetColumnIndex();
 			left = column == 0 ? padding : 0.0f;
-			right = column == ImGui::TableGetColumnCount() - 1 ? padding : 0.0f;
+			right = column == ImGui::TableGetColumnCount() - 1 ? padding - band : 0.0f;
 		}
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() - left);
 		const float width = ImGui::GetContentRegionAvail().x + right;
