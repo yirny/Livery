@@ -180,6 +180,7 @@ namespace CaptureWindow::Internal
 		bool                        defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
 		int                         selected = -1;             // index into entries; -1 for none
 		bool                        details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
+		std::uint32_t               viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
 		bool                        scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
 		int                         nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
 		ImGuiID                     nameField = 0;             // that field's ImGui ID
@@ -189,11 +190,13 @@ namespace CaptureWindow::Internal
 	};
 
 	// Where leaving a page with unsaved edits goes once they are saved or dropped: the
-	// window's close (Exit, Escape), or a tab's page.
+	// window's close (Exit, Escape), or a tab's page; Manage Wardrobe with `manageOutfit`, the
+	// library outfit to select there (Manage Situations' Edit; 0 keeps its selection).
 	struct PendingLeave
 	{
-		bool exit = false;
-		Page page = Page::kCapture;
+		bool          exit = false;
+		Page          page = Page::kCapture;
+		std::uint32_t manageOutfit = 0;
 	};
 
 	struct State
@@ -295,6 +298,7 @@ namespace CaptureWindow::Internal
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
 	void                                 PushListRowSpacing();
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr);
+	float                                ButtonRowWidth(std::initializer_list<const char*> a_labels);
 	void                                 BeginButtonRow(std::initializer_list<const char*> a_labels);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
@@ -371,14 +375,19 @@ namespace CaptureWindow::Internal
 
 	// The outfit list under the browser (`a_reserved` is its height). Returns the index into
 	// request.existingOutfits of the outfit clicked, or -1. `a_draggable`: Manage Situations'
-	// list, whose rows have a grip and drag a copy of their outfit, and whose clicks select
-	// nothing.
+	// list, whose rows have a grip and drag a copy of their outfit.
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable = false);
 
-	// One outfit of a list, `a_index` into request.existingOutfits, with its tags and marks;
-	// `a_grip` draws the drag grip. Returns true when clicked.
+	// One outfit of a list, `a_index` into request.existingOutfits, with its tags and marks
+	// (the star of one chosen for a situation only with `a_situationMark`); `a_grip` draws the
+	// drag grip. Returns true when clicked.
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped,
-		bool a_grip = false);
+		bool a_grip = false, bool a_situationMark = true);
+
+	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:
+	// its name, gender, Category, `a_situations` under the "Situations for #{Name}" label,
+	// then its pieces under their count line.
+	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations);
 
 	// The form fields Manage Wardrobe and the Save page share: a multi-choice dropdown over
 	// `a_ticked` (one per request.categories, kClassGroup's used) under the Category label,
