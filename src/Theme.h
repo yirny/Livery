@@ -130,7 +130,8 @@ namespace Theme
 	// `rules` false). The rules and the rows' fills span the content. In Tailor the whole list keeps
 	// to the content, its backdrop ending at the window's padding as the other
 	// controls do; in Vanilla and Nordic the rows' click areas run on past the
-	// window's padding to its edges (in a table cell, only on the table's outer
+	// window's padding to its edges (Vanilla's right one to its frame's band, so a
+	// scrollbar stays off the band; in a table cell, only on the table's outer
 	// sides, never into the gap between columns), and their text keeps that
 	// padding as an indent. Used like
 	// BeginChild / EndChild: always call EndList, before the next BeginList.
