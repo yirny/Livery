@@ -108,7 +108,7 @@ namespace
 	constexpr const char* kTabSeparator = "/";
 	// Vanilla's buttons: how much larger their label is than the body font, and the clear room
 	// on either side of each, which sets them further apart (pixels at 1080p).
-	constexpr float kVanillaButtonFontGrowth = 2.0f;
+	constexpr float kVanillaButtonFontGrowth = 4.0f;
 	constexpr float kVanillaButtonMargin = 2.0f;
 	// The band of the rule colour inside Vanilla's main window edge (pixels at 1080p); the tab
 	// column centres its tabs from it and its rule stops short of it.
@@ -118,10 +118,10 @@ namespace
 	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
 	// Tailor 3.0's outfit list indents them (pixels at 1080p).
 	constexpr float kOutfitRowPadX = 14.0f;
-	// A draggable outfit row's grip: the room from the row's left edge to its dots, their radius
-	// and the step between their centres, then the room from its dots to the row's name and tags
-	// (pixels at 1080p). Vanilla's and Nordic's situation headings start their names, and a
-	// draggable list's folding headings their chevrons, where the dots start.
+	// A draggable outfit row's grip: the room from the row's left edge to its dots at the edge
+	// (Theme::Grip::kEdge; kName puts them at kOutfitRowPadX), their radius and the step between
+	// their centres, then the room from its dots to the row's name and tags (pixels at 1080p).
+	// A draggable list's folding headings start their chevrons where the dots start.
 	constexpr float kGripPadX = 4.0f;
 	constexpr float kGripDotRadius = 1.2f;
 	constexpr float kGripDotStep = 4.0f;
@@ -773,9 +773,8 @@ namespace
 		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase + kVanillaButtonFontGrowth);
 	}
 
-	// Vanilla's button: text only, in PushVanillaButtonFont, filled as ImGui's button while
-	// hovered or held, with kVanillaButtonMargin clear on either side, outside the item, so
-	// buttons on a line stand further apart. `a_help` puts the help mark after the label.
+	// Vanilla's button: text only, in PushVanillaButtonFont, with kVanillaButtonMargin clear on
+	// either side, outside the item, so buttons on a line stand further apart. `a_help` puts the help mark after the label.
 	// VanillaButtonWidth is the room it takes, margins included.
 	float VanillaButtonWidth(const char* a_label, bool a_help)
 	{
@@ -800,11 +799,15 @@ namespace
 			bool hovered = false;
 			bool held = false;
 			pressed = ImGui::ButtonBehavior(frame, id, &hovered, &held);
-			auto* draw = ImGui::GetWindowDrawList();
-			if (hovered || held) {
-				draw->AddRectFilled(frame.Min, frame.Max, ImGui::GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered));
+			// LabelText's grey, white while hovered or held, as the links light; no fill.
+			const bool lit = hovered || held;
+			if (!lit) {
+				ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);
 			}
-			DrawButtonText(draw, frame.Min, frame.Max, a_label, a_help);
+			DrawButtonText(ImGui::GetWindowDrawList(), frame.Min, frame.Max, a_label, a_help);
+			if (!lit) {
+				ImGui::PopStyleColor();
+			}
 		}
 		ImGui::PopFont();
 		return pressed;
@@ -1050,14 +1053,37 @@ namespace
 		return row.pressed;
 	}
 
-	// A SkyUI-style inventory row: while ticked, the skin's equipped mark at the left, and in
-	// Vanilla its selection bar (Nordic marks it with the mark alone); the hover fill while
-	// hovered. The mark's column stays on unticked rows so the names line up. Without the
-	// texture the mark is a small filled triangle.
-	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
+	// The skin's equipped mark (Vanilla, Nordic) at its own size on the back buffer, a square.
+	float EquippedMarkSide()
+	{
+		const Ornament& mark = g_skin == Theme::Skin::kNordic ? g_nordicEquipped : g_vanillaEquipped;
+		return mark.size.x * g_scale;
+	}
+
+	// That mark `a_side` pixels across, centred on `a_centre` (screen pixels): the game's in its
+	// #cccccc or NORDIC UI's in its own colours, or a small filled triangle without the texture.
+	void DrawEquippedMark(ImDrawList* a_draw, ImVec2 a_centre, float a_side)
 	{
 		constexpr ImU32 kVanillaMark = IM_COL32(204, 204, 204, 255);  // the game's #cccccc
 
+		const bool      nordic = g_skin == Theme::Skin::kNordic;
+		const Ornament& mark = nordic ? g_nordicEquipped : g_vanillaEquipped;
+		if (mark.view) {
+			const ImVec2 topLeft(a_centre.x - a_side * 0.5f, a_centre.y - a_side * 0.5f);
+			a_draw->AddImage(mark.Id(), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
+				nordic ? IM_COL32_WHITE : kVanillaMark);
+			return;
+		}
+		const float half = a_side * 0.3f;
+		a_draw->AddTriangleFilled(ImVec2(a_centre.x - half * 0.6f, a_centre.y - half), ImVec2(a_centre.x + half * 0.8f, a_centre.y),
+			ImVec2(a_centre.x - half * 0.6f, a_centre.y + half), ImGui::GetColorU32(nordic ? kNordicOrnament : kVanillaMark));
+	}
+
+	// A SkyUI-style inventory row: while ticked, the skin's equipped mark at the left, and in
+	// Vanilla its selection bar (Nordic marks it with the mark alone); the hover fill while
+	// hovered. The mark's column stays on unticked rows so the names line up.
+	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
+	{
 		const auto&   style = ImGui::GetStyle();
 		const float   height = ImGui::GetFrameHeight();
 		const ListRow row = LayOutListRow(a_cells[0], height);
@@ -1076,20 +1102,9 @@ namespace
 			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 
-		const bool      nordic = g_skin == Theme::Skin::kNordic;
-		const Ornament& mark = nordic ? g_nordicEquipped : g_vanillaEquipped;
-		const ImVec2    markSize(mark.size.x * g_scale, mark.size.y * g_scale);
-		const ImVec2    markTopLeft(topLeft.x + row.inset, midY - markSize.y * 0.5f);
 		if (*a_ticked) {
-			if (mark.view) {
-				draw->AddImage(mark.Id(), markTopLeft, ImVec2(markTopLeft.x + markSize.x, markTopLeft.y + markSize.y),
-					ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), nordic ? IM_COL32_WHITE : kVanillaMark);
-			} else {
-				const float centreX = markTopLeft.x + markSize.x * 0.5f;
-				const float half = markSize.y * 0.3f;
-				draw->AddTriangleFilled(ImVec2(centreX - half * 0.6f, midY - half), ImVec2(centreX + half * 0.8f, midY),
-					ImVec2(centreX - half * 0.6f, midY + half), ImGui::GetColorU32(nordic ? kNordicOrnament : kVanillaMark));
-			}
+			const float side = EquippedMarkSide();
+			DrawEquippedMark(draw, ImVec2(topLeft.x + row.inset + side * 0.5f, midY), side);
 		}
 		DrawCells(draw, topLeft.x + row.inset + TickTextShift(), midY, row.fillMax.x - style.FramePadding.x, a_cells, a_columnX);
 		return row.pressed;
@@ -1612,10 +1627,17 @@ namespace
 		return (std::max)(1.0f, kGripDotRadius * g_scale);
 	}
 
-	// A drag grip kGripPadX in from a row's left edge `a_left`, its middle dots at `a_midY` (screen
-	// pixels): two columns of three dots, in LabelText's grey at low alpha (Vanilla, Nordic), or
-	// Tailor's text colour mixed with black.
-	void DrawGrip(ImDrawList* a_draw, float a_left, float a_midY)
+	// From an outfit row's left edge to its grip's dots, or where a row without a grip starts
+	// its name (pixels at 1080p).
+	float GripPadX(Theme::Grip a_grip)
+	{
+		return a_grip == Theme::Grip::kEdge ? kGripPadX : kOutfitRowPadX;
+	}
+
+	// A drag grip placed by `a_grip` from a row's left edge `a_left`, its middle dots at `a_midY`
+	// (screen pixels): two columns of three dots, in LabelText's grey at low alpha (Vanilla,
+	// Nordic), or Tailor's text colour mixed with black.
+	void DrawGrip(ImDrawList* a_draw, float a_left, float a_midY, Theme::Grip a_grip)
 	{
 		constexpr unsigned kGreyAlpha = 110;     // of LabelText's grey, out of 255
 		constexpr float    kTailorShade = 0.5f;  // of Tailor's text colour kept, the rest black
@@ -1627,7 +1649,7 @@ namespace
 		}
 		color = ImGui::GetColorU32(color);  // faded inside BeginDisabled
 		const float radius = GripDotRadius();
-		const float firstX = a_left + kGripPadX * g_scale + radius;  // the left column's centres
+		const float firstX = a_left + GripPadX(a_grip) * g_scale + radius;  // the left column's centres
 		const float step = kGripDotStep * g_scale;
 		for (const float column : { 0.0f, 1.0f }) {
 			for (const float row : { -1.0f, 0.0f, 1.0f }) {
@@ -1638,20 +1660,20 @@ namespace
 
 	// From an outfit row's left edge to its name and tags (pixels on the back buffer):
 	// kOutfitRowPadX, or on a draggable row kGripTextGap past its grip's dots (DrawGrip).
-	float RowTextInset(bool a_grip)
+	float RowTextInset(Theme::Grip a_grip)
 	{
-		if (!a_grip) {
+		if (a_grip == Theme::Grip::kNone) {
 			return kOutfitRowPadX * g_scale;
 		}
-		return (kGripPadX + kGripDotStep + kGripTextGap) * g_scale + GripDotRadius() * 2.0f;
+		return (GripPadX(a_grip) + kGripDotStep + kGripTextGap) * g_scale + GripDotRadius() * 2.0f;
 	}
 
-	// From a situation heading's left edge to its name (pixels on the back buffer): where the
-	// grip's dots start in Vanilla and Nordic, whose select mark sits left of it in the window's
-	// padding; kOutfitRowPadX in Tailor, clear of its amber rule.
+	// From a situation heading's left edge to its name (pixels on the back buffer): where an
+	// outfit row without a grip starts its name, so the select mark has that row's room and the
+	// grip dots under it (Theme::Grip::kName) line up with it.
 	float SituationNameInset()
 	{
-		return (g_skin == Theme::Skin::kTailor ? kOutfitRowPadX : kGripPadX) * g_scale;
+		return kOutfitRowPadX * g_scale;
 	}
 
 	// Whether an outfit row has its form mark: the dressed one of the current outfit, or the
@@ -2552,7 +2574,7 @@ namespace Theme
 	// The chevron sits where ListHeading's text would start, the text after it; with `a_grip`
 	// the chevron sits where the rows' grip dots start and the text where their names do. The
 	// rule ends 4px short of where the rows' fills end.
-	bool FoldHeading(const char* a_text, bool a_open, bool a_grip)
+	bool FoldHeading(const char* a_text, bool a_open, Grip a_grip)
 	{
 		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the font size
 		constexpr float kRuleEndPad = 4.0f;    // pixels at 1080p, from the rule to the list's right end
@@ -2562,7 +2584,7 @@ namespace Theme
 		const ListRow row = LayOutListRow(a_text, SelectRowHeight() + gap);
 		const float   side = ImGui::GetFontSize() * kChevronRatio;
 		const float   midY = (row.min.y + row.max.y) * 0.5f;
-		const float   left = row.fillMin.x + (a_grip ? kGripPadX : kOutfitRowPadX) * g_scale;
+		const float   left = row.fillMin.x + GripPadX(a_grip) * g_scale;
 		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float   thick = (std::max)(1.0f, 1.5f * g_scale);
 		auto*         draw = ImGui::GetWindowDrawList();
@@ -2573,7 +2595,7 @@ namespace Theme
 			const ImVec2 points[] = { { left + side * 0.25f, midY - side * 0.5f }, { left + side * 0.75f, midY }, { left + side * 0.25f, midY + side * 0.5f } };
 			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
 		}
-		const float textX = a_grip ? row.fillMin.x + RowTextInset(true) : left + side + ImGui::GetStyle().ItemInnerSpacing.x;
+		const float textX = a_grip != Grip::kNone ? row.fillMin.x + RowTextInset(a_grip) : left + side + ImGui::GetStyle().ItemInnerSpacing.x;
 		draw->AddText(ImVec2(textX, row.min.y + gap * 0.5f + kSelectRowPadY * g_scale), color, a_text);
 		const float ruleLeft = textX + ImGui::CalcTextSize(a_text).x + kTextRuleGap * g_scale;
 		const float ruleRight = row.fillMax.x - kRuleEndPad * g_scale;
@@ -2767,7 +2789,7 @@ namespace Theme
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kAfterFieldGap * g_scale);
 	}
 
-	float OutfitTagsWidth(bool a_grip)
+	float OutfitTagsWidth(Grip a_grip)
 	{
 		return (std::max)(0.0f, ImGui::GetContentRegionAvail().x - RowTextInset(a_grip) - ImGui::GetStyle().FramePadding.x);
 	}
@@ -2794,10 +2816,11 @@ namespace Theme
 	// list leaves out is half above the name and half below the tags. The selected row's
 	// Vanilla and Nordic arrow stays level with the name.
 	bool OutfitRow(const char* a_name, int a_gender, std::span<const std::string> a_tags, float a_tagsWidth, bool a_selected, const OutfitMarks& a_marks,
-		bool a_striped, bool a_grip)
+		bool a_striped, Grip a_grip)
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
 		constexpr int   kStripeAlpha = 16;      // of the white over a striped row, out of 255
+		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of an equipped mark in an edge grip's room
 
 		const float   gap = ListPaddingY();
 		const ListRow row = LayOutListRow(a_name, OutfitRowHeight(a_gender, a_tags, a_tagsWidth));
@@ -2808,20 +2831,26 @@ namespace Theme
 			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(IM_COL32(255, 255, 255, kStripeAlpha)));
 		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
-		// Vanilla's and Nordic's select arrow takes a selected draggable row's grip room, its dots
-		// hidden; Tailor's rule on the row's edge leaves them room.
-		const bool markOnGrip = a_selected && a_grip && g_skin != Theme::Skin::kTailor;
-		if (a_selected) {
-			ListRow nameLine = row;
-			nameLine.min.y = row.min.y + gap * 0.5f;
-			nameLine.max.y = nameLine.min.y + SelectRowHeight();
+		// Selected: Tailor's rule on the row's edge (DrawSelectMark), which leaves the grip room;
+		// Vanilla's and Nordic's equipped mark, as on a ticked piece, centred in the room left of
+		// the name, or left of the dots at the name's place; at the edge it takes the dots' place,
+		// shrunk to fit.
+		const float nameMidY = textY + ImGui::GetTextLineHeight() * 0.5f;
+		const bool  tailor = g_skin == Theme::Skin::kTailor;
+		const bool  markOnGrip = a_selected && !tailor && a_grip == Grip::kEdge;
+		if (a_selected && tailor) {
+			DrawSelectMark(draw, row, textX);
+		} else if (a_selected) {
+			const float left = markOnGrip ? row.fillMin.x : row.min.x;
+			const float right = a_grip == Grip::kName ? row.fillMin.x + GripPadX(a_grip) * g_scale : textX;
+			float       side = EquippedMarkSide();
 			if (markOnGrip) {
-				nameLine.min.x = row.fillMin.x;
+				side = (std::max)(1.0f, (std::min)(side, right - left - kEdgeMarkPad * 2.0f * g_scale));
 			}
-			DrawSelectMark(draw, nameLine, textX);
+			DrawEquippedMark(draw, ImVec2((left + right) * 0.5f, nameMidY), side);
 		}
-		if (a_grip && !markOnGrip) {
-			DrawGrip(draw, row.fillMin.x, textY + ImGui::GetTextLineHeight() * 0.5f);
+		if (a_grip != Grip::kNone && !markOnGrip) {
+			DrawGrip(draw, row.fillMin.x, nameMidY, a_grip);
 		}
 		// The marks, right of the name on its line, in LabelText's grey; the name is cut
 		// short of them. Each mark names itself in a tooltip while the mouse is over it.
