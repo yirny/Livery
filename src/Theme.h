@@ -131,6 +131,14 @@ namespace Theme
 	bool BeginList(const char* id, float height, bool rules = true);
 	void EndList();
 
+	// `label` on the line right under a list, in LabelText's font and colour, lit while hovered
+	// (white in Vanilla and Nordic, amber in Tailor): as far below the list's bottom rule as a
+	// label over a list sits above its top rule. Returns true when clicked. Faded and inert
+	// inside BeginDisabled.
+	// Contract: right after EndList, with the item spacing it was laid out with; the label is
+	// shown as is and is the ImGui ID.
+	bool ListFooterLink(const char* label);
+
 	// Pixels on the back buffer: the padding between a list's rules and its
 	// rows, and the gap between rows. The padding is the piece list's row gap
 	// in every list; the gap is Tailor's tight one, or the given one otherwise.

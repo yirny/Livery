@@ -245,12 +245,12 @@ namespace CaptureWindow::Internal
 		const float                    minHeight = Theme::OutfitRowHeight(-1, none, a_tagsWidth);
 		float                          rows = static_cast<float>(a_browser.headingCount) * Theme::FoldHeadingHeight();
 		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			rows += a_state.showCategories ? Theme::OutfitRowHeight(outfits[i].gender, a_browser.tags[i], a_tagsWidth) : minHeight;
+			rows += a_state.showTags ? Theme::OutfitRowHeight(outfits[i].gender, a_browser.tags[i], a_tagsWidth) : minHeight;
 		}
 		return FittedListHeight((std::max)(rows, minHeight), minHeight, a_reserved);
 	}
 
-	// One outfit of the list: its name, with its tags under it while Show Categories is on, and
+	// One outfit of the list: its name, with its tags under it while they show (Show Tags), and
 	// at its right end the marks of the outfit the actor wears now or has as their Default and
 	// of one chosen for a situation (Theme::OutfitMarks); `a_striped` for every second row
 	// under a heading.
@@ -262,15 +262,15 @@ namespace CaptureWindow::Internal
 			.defaultOutfit = HoldsOutfit(a_state, 0, outfit.id),
 			.situations = situations.empty() ? nullptr : situations.c_str() };
 		const std::vector<std::string> none;
-		const auto&                    tags = a_state.showCategories ? a_browser.tags[static_cast<std::size_t>(a_index)] : none;
-		const int                      gender = a_state.showCategories ? outfit.gender : -1;  // the gender is a tag too
+		const auto&                    tags = a_state.showTags ? a_browser.tags[static_cast<std::size_t>(a_index)] : none;
+		const int                      gender = a_state.showTags ? outfit.gender : -1;  // the gender is a tag too
 		return Theme::OutfitRow(outfit.name.c_str(), gender, tags, a_tagsWidth, a_selected, marks, a_striped, a_grip);
 	}
 
 	// Left column of the outfit pages: the wardrobe's outfits that pass the
 	// browser, in its order, under the sort's headings, `a_selected`
-	// highlighted, under a label with the Sort dropdown, and Show Categories
-	// under the list. A click on a heading folds its outfits away or back. The
+	// highlighted, under a label with the Sort dropdown, and Show Tags (Hide Tags
+	// while they show) under the list. A click on a heading folds its outfits away or back. The
 	// list stays as tall as the whole wardrobe, so narrowing or folding it does
 	// not move the buttons; `a_reserved` is the browser's height (ListHeight).
 	// Returns the index into request.existingOutfits of the one clicked, or -1;
@@ -291,7 +291,7 @@ namespace CaptureWindow::Internal
 		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 		const float tagsWidth = Theme::OutfitTagsWidth(a_draggable);
-		// Show Categories, under the list, takes a frame's height too.
+		// Show Tags, under the list, takes a line; a frame's height leaves room for it.
 		const float listHeight = OutfitListHeight(a_state, a_browser, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
@@ -332,8 +332,9 @@ namespace CaptureWindow::Internal
 		if (clicked >= 0) {
 			QueueMenuSound(kFocusSound);
 		}
-		if (Theme::Checkbox("Show Categories", &a_state.showCategories)) {
+		if (Theme::ListFooterLink(a_state.showTags ? "Hide Tags" : "Show Tags")) {
 			QueueMenuSound(kFocusSound);
+			a_state.showTags = !a_state.showTags;
 		}
 		return clicked;
 	}
