@@ -26,8 +26,8 @@
 //                    the window the rebuilt list (CaptureWindow::SetOutfits), with the captured
 //                    actor's pieces as they are after a redress with the preview on
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
-//   Messaging      - outfit library, settings page, sink and menu registration, ready state, the
-//                    situation poll (Situations) around loads
+//   Messaging      - situation data and outfit library, settings page, sink and menu registration,
+//                    ready state, the situation poll (Situations) around loads
 //   Entry          - log, settings, co-save, trampoline, hooks (overlay, trade-menu filter)
 #include "PCH.h"
 
@@ -41,6 +41,7 @@
 #include "OutfitPreview.h"
 #include "PreviewCamera.h"
 #include "Settings.h"
+#include "SituationStore.h"
 #include "Situations.h"
 #include "TradeFilter.h"
 
@@ -88,18 +89,18 @@ namespace
 	}
 
 	// Request::categories' two groups: the categories the window offers (Library::Categories),
-	// then Default and the situations in Situations::kChoosable order, one per row of
-	// Request::assigned (AttachSave). Other categories an outfit stores (an older file's
-	// situation categories) stay in the file, unshown.
+	// then Default and the situations not removed (SituationStore::Offered) by their names,
+	// one per row of Request::assigned (AttachSave). Other categories an outfit stores (an
+	// older file's situation categories) stay in the file, unshown.
 	std::vector<CaptureWindow::CategoryOption> CategoryGroups()
 	{
 		std::vector<CaptureWindow::CategoryOption> categories;
 		for (const auto& [group, name] : Library::Categories()) {
 			categories.push_back({ group, name });
 		}
-		categories.push_back({ CaptureWindow::kSituationGroup, Situations::Name(Situations::Situation::kDefault) });
-		for (const auto situation : Situations::kChoosable) {
-			categories.push_back({ CaptureWindow::kSituationGroup, Situations::Name(situation) });
+		categories.push_back({ CaptureWindow::kSituationGroup, SituationStore::Name(Situations::Situation::kDefault) });
+		for (const auto situation : SituationStore::Offered()) {
+			categories.push_back({ CaptureWindow::kSituationGroup, SituationStore::Name(situation) });
 		}
 		return categories;
 	}
@@ -535,7 +536,7 @@ namespace
 			const auto* name = actor ? actor->GetDisplayFullName() : nullptr;
 			std::string line = name && *name ? name : std::format("{:08X}", use.actor);
 			for (std::size_t i = 0; i < use.rows.size(); ++i) {
-				line += std::format("{}{}", i == 0 ? ": " : ", ", Situations::Name(use.rows[i]));
+				line += std::format("{}{}", i == 0 ? ": " : ", ", SituationStore::Name(use.rows[i]));
 			}
 			lines.push_back(std::move(line));
 		}
@@ -604,17 +605,16 @@ namespace
 		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the wardrobe";
 	}
 
-	// The line under the actor's name: what Livery has on them now, and the situation it is
-	// for when it is not the default.
+	// The line under the actor's name: what Livery has on them now, ending in the description
+	// of the situation it is for: `Dressed by Livery in "X", in Town.`
 	std::string DescribeAssignment(const Assignments::Choices& choices)
 	{
 		if (!choices.dressed) {
 			return "Not dressed by Livery right now.";
 		}
-		const bool forSituation = choices.worn != Situations::Situation::kDefault;
 		const auto outfit = choices.wornOutfit;
 		const auto text = outfit ? std::format("Dressed by Livery in {}", QuotedOutfitName(outfit)) : std::string("Dressed by Livery");
-		return text + (forSituation ? std::format(" for {}.", Situations::Name(choices.worn)) : ".");
+		return text + SituationStore::Suffix(choices.worn) + ".";
 	}
 
 	// The library outfit Livery has on them now, for the first heading of the piece list;
@@ -712,20 +712,23 @@ namespace
 		};
 	}
 
-	// A row of the Save page's "wears it for" as Assignments names it: Default, then the
-	// situations in Situations::kChoosable order.
+	// A row of the window (Request::assigned) as Assignments names it: Default, then the
+	// situations not removed (SituationStore::Offered).
+	// Contract: SituationStore has not changed since the window got its rows (Open, SetOutfits).
 	Situations::Situation RowSituation(std::size_t row)
 	{
-		return row == 0 ? Situations::Situation::kDefault : Situations::kChoosable[row - 1];
+		return row == 0 ? Situations::Situation::kDefault : SituationStore::Offered()[row - 1];
 	}
 
-	// The actor's rows as they have them now, in RowSituation's order, which is OutfitRows::Rows'.
+	// The actor's rows as they have them now, in RowSituation's order.
 	std::vector<CaptureWindow::RowAssignment> AssignedRows(const std::optional<Assignments::Choices>& choices)
 	{
-		std::vector<CaptureWindow::RowAssignment> rows(Situations::kChoosable.size() + 1);
+		const auto                                offered = SituationStore::Offered();
+		std::vector<CaptureWindow::RowAssignment> rows(offered.size() + 1);
 		if (choices) {
-			for (std::size_t i = 0; i < rows.size(); ++i) {
-				rows[i] = { .row = choices->rows[i], .pieces = i == 0 && choices->defaultPieces };
+			rows[0] = { .row = choices->rows[OutfitRows::RowOf(Situations::Situation::kDefault)], .pieces = choices->defaultPieces };
+			for (std::size_t i = 0; i < offered.size(); ++i) {
+				rows[i + 1] = { .row = choices->rows[OutfitRows::RowOf(offered[i])] };
 			}
 		}
 		return rows;
@@ -739,8 +742,8 @@ namespace
 	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
 		const std::optional<Assignments::Choices>& choices)
 	{
-		for (const auto situation : Situations::kChoosable) {
-			request.situations.push_back(Situations::Name(situation));
+		for (const auto situation : SituationStore::Offered()) {
+			request.situations.push_back(SituationStore::Name(situation));
 		}
 		request.assigned = AssignedRows(choices);
 		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
@@ -871,7 +874,7 @@ namespace
 			pieces.outfitName = livery->name;
 			pieces.wornOutfit = livery->id;
 			if (choices->worn != Situations::Situation::kDefault) {
-				pieces.wornSituation = Situations::Name(choices->worn);
+				pieces.wornSituation = SituationStore::Name(choices->worn);
 			}
 		}
 		for (std::size_t i = 0; i < armors.size(); ++i) {
@@ -1074,7 +1077,7 @@ namespace
 			request.outfitName = livery->name;
 			request.wornOutfit = livery->id;
 			if (choices->worn != Situations::Situation::kDefault) {
-				request.wornSituation = Situations::Name(choices->worn);
+				request.wornSituation = SituationStore::Name(choices->worn);
 			}
 		}
 		std::vector<RE::TESObjectARMO*> armors;
@@ -1232,7 +1235,8 @@ namespace
 			break;
 
 		case SKSE::MessagingInterface::kDataLoaded:
-			Library::Load();  // pieces resolve against the loaded plugins, so not before this
+			SituationStore::Load();  // before any co-save load, which drops the rows of removed situations
+			Library::Load();         // pieces resolve against the loaded plugins, so not before this
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
 			Assignments::RegisterSinks();
 			Hooks::RegisterMenu();

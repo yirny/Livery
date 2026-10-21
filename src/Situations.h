@@ -38,8 +38,26 @@ namespace Situations
 		return static_cast<std::size_t>(a_situation) - 1;
 	}
 
-	// "Town", "Home", ... as the library's situation categories spell them; "Default".
-	const char* Name(Situation a_situation);
+	// The situation's key: "Town", "Home", ...; "Default". situations.json stores a
+	// situation under it and the logs name it by it; the window and the HUD show the name
+	// SituationStore keeps.
+	constexpr const char* Name(Situation a_situation) noexcept
+	{
+		switch (a_situation) {
+		case Situation::kTown:
+			return "Town";
+		case Situation::kHome:
+			return "Home";
+		case Situation::kSleep:
+			return "Sleep";
+		case Situation::kSwimming:
+			return "Swimming";
+		case Situation::kWarm:
+			return "Warm";
+		default:
+			return "Default";
+		}
+	}
 
 	// The situations an actor is in now, the most specific first: the first one they have
 	// an outfit for is the one worn (Assignments). Empty in combat, and anywhere none

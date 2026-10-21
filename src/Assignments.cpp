@@ -8,10 +8,11 @@
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on; everyone
 //   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies
-//   Co-save     - save, load (versions 1 to 4; older ones turned into rows), revert
+//   Co-save     - save, load (versions 1 to 4; older ones turned into rows; the rows of
+//                 situations removed in situations.json dropped), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
 //   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / Refresh / WearFor /
-//                 ActorsWithSituations / UsesOf / ForgetOutfit / Unassign / ChoicesOf / SuspendLocks /
+//                 ActorsWithSituations / UsesOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf / SuspendLocks /
 //                 ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
 
@@ -20,6 +21,7 @@
 #include "Dressing.h"
 #include "Library.h"
 #include "Settings.h"
+#include "SituationStore.h"
 
 #include <algorithm>
 #include <array>
@@ -172,7 +174,7 @@ namespace
 	{
 		std::string joined;
 		for (const auto situation : a_situations) {
-			joined += std::format("{}{}", joined.empty() ? "" : ", ", Situations::Name(situation));
+			joined += std::format("{}{}", joined.empty() ? "" : ", ", SituationStore::Name(situation));
 		}
 		return joined;
 	}
@@ -184,7 +186,7 @@ namespace
 	}
 
 	// The HUD line for a redress because a situation began or ended (WearFor): what they wear
-	// now, and the situation it is for.
+	// now, ending in the description of the situation it is for.
 	std::string SituationChangeText(RE::Actor& a_actor, const Assignment& a_assignment)
 	{
 		const bool player = a_actor.IsPlayerRef();
@@ -192,10 +194,11 @@ namespace
 		if (a_assignment.pieces.empty()) {
 			return std::format("Livery: {} {} own clothes.", who, player ? "your" : "their");
 		}
+		const auto suffix = SituationStore::Suffix(a_assignment.worn);
 		if (a_assignment.worn == Situation::kDefault) {
-			return std::format("Livery: {} the default outfit.", who);
+			return std::format("Livery: {} the default outfit{}.", who, suffix);
 		}
-		return std::format("Livery: {} {} for {}.", who, QuotedOutfitName(a_assignment.wornOutfit), Situations::Name(a_assignment.worn));
+		return std::format("Livery: {} {}{}.", who, QuotedOutfitName(a_assignment.wornOutfit), suffix);
 	}
 
 	std::vector<RE::FormID> FormIDsOf(const std::vector<RE::TESObjectARMO*>& a_armor)
@@ -704,6 +707,21 @@ namespace
 		return true;
 	}
 
+	// The rows of situations removed in situations.json since this save was made, each with
+	// a log line. Pieces worn for one stay on until the poll's next dressing
+	// (ActorsWithSituations), as after ForgetSituation.
+	// Contract: SituationStore is loaded (kDataLoaded, before any co-save load).
+	void DropRemovedRows(Assignment& a_assignment)
+	{
+		for (const auto situation : Situations::kChoosable) {
+			auto& row = a_assignment.rows[RowOf(situation)];
+			if (SituationStore::IsRemoved(situation) && row != OutfitRows::Row{}) {
+				logger::info("Dropped the {} row of {:08X}: the situation is removed in situations.json", Situations::Name(situation), a_assignment.actor);
+				row = {};
+			}
+		}
+	}
+
 	// An assignment with nothing on the actor and no situation row holding an outfit, or
 	// whose actor's plugin is gone, is dropped.
 	std::vector<Assignment> ReadAssignments(const SKSE::SerializationInterface& a_intfc, std::uint32_t a_version)
@@ -721,6 +739,7 @@ namespace
 				logger::error("The co-save record is cut short");
 				return assignments;
 			}
+			DropRemovedRows(assignment);
 			if (actorResolved && (!assignment.pieces.empty() || HasSituations(assignment))) {
 				assignments.push_back(std::move(assignment));
 			}
@@ -859,16 +878,14 @@ namespace Assignments
 		DropIfEmpty(id);
 		SyncManaged();
 		if (!result) {
-			Notify(std::format("Livery: {} will wear {} piece(s) by default; dressed for {} now.", NameOf(a_actor), a_armor.size(), Situations::Name(wornFor)));
+			Notify(std::format("Livery: {} will wear {} piece(s) by default; dressed now{}.", NameOf(a_actor), a_armor.size(), SituationStore::Suffix(wornFor)));
 			return;
 		}
 
 		const auto worn = result->worn.size();
 		const auto added = std::ranges::count_if(result->worn, &Dressing::Piece::added);
 		auto       text = a_actor.IsPlayerRef() ? std::format("Livery: you now wear {} piece(s)", worn) : std::format("Livery: {} now wears {} piece(s)", NameOf(a_actor), worn);
-		if (wornFor != Situation::kDefault) {
-			text += std::format(" for {}", Situations::Name(wornFor));
-		}
+		text += SituationStore::Suffix(wornFor);
 		if (added > 0) {
 			text += std::format(", {} of them added", added);
 		}
@@ -910,7 +927,7 @@ namespace Assignments
 		for (std::size_t i = 0; i < parts.size(); ++i) {
 			text += (i == 0 ? " " : "; ") + parts[i];
 		}
-		text += pieces > 0 ? std::format(". Dressed for {} now, {} piece(s)", Situations::Name(worn), pieces) : ". Own clothes now";
+		text += pieces > 0 ? std::format(". Dressed now{}, {} piece(s)", SituationStore::Suffix(worn), pieces) : ". Own clothes now";
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
 	}
 
@@ -931,8 +948,8 @@ namespace Assignments
 		const auto pieces = assignment->pieces.size();
 		DropIfEmpty(id);
 		SyncManaged();
-		auto text = pieces > 0 ? std::format("Livery: {} now wears {} for {}, {} piece(s)", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default pieces",
-									 Situations::Name(worn), pieces) :
+		auto text = pieces > 0 ? std::format("Livery: {} now wears {}{}, {} piece(s)", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default pieces",
+									 SituationStore::Suffix(worn), pieces) :
 		                         std::format("Livery: {}: own clothes now", NameOf(a_actor));
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
 	}
@@ -1014,6 +1031,24 @@ namespace Assignments
 			if (assignment.worn == Situation::kDefault && assignment.wornOutfit == a_outfit) {
 				assignment.wornOutfit = 0;
 			}
+		}
+		std::erase_if(g_assignments, [](const Assignment& a_assignment) { return a_assignment.pieces.empty() && !HasSituations(a_assignment); });
+		SyncManaged();
+		return wearing;
+	}
+
+	// As ForgetOutfit: the pieces worn for the cleared row stay on until the next dressing.
+	std::vector<RE::FormID> ForgetSituation(Situations::Situation a_situation)
+	{
+		std::vector<RE::FormID> wearing;
+		if (a_situation == Situation::kDefault) {
+			return wearing;
+		}
+		for (auto& assignment : g_assignments) {
+			if (assignment.worn == a_situation && !assignment.pieces.empty()) {
+				wearing.push_back(assignment.actor);
+			}
+			assignment.rows[RowOf(a_situation)] = {};
 		}
 		std::erase_if(g_assignments, [](const Assignment& a_assignment) { return a_assignment.pieces.empty() && !HasSituations(a_assignment); });
 		SyncManaged();
