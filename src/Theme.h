@@ -164,6 +164,15 @@ namespace Theme
 	void  ListHeading(const char* text);
 	float ListHeadingHeight();
 
+	// ListHeading with a greyed "(?)" after the text; returns true while the mouse is over
+	// that mark alone, for the caller's tooltip.
+	// Contract: inside BeginList.
+	bool ListHeadingHelp(const char* text);
+
+	// Extra room under a field whose next line is a label (a dropdown, then a list's count
+	// line), on top of the label's own SectionGap.
+	void AfterFieldGap();
+
 	// A sorted outfit list's heading, ListHeadingHeight tall, that folds the rows under it
 	// away: a chevron pointing down while `open` and right while folded, then the text, both in
 	// ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
@@ -181,15 +190,26 @@ namespace Theme
 	bool  DropdownRow(const char* label, bool* ticked, bool checkbox);
 	float DropdownRowWidth(const char* label, bool checkbox);
 
+	// The marks at the right end of an outfit row's name line, in LabelText's grey, each
+	// with a tooltip while the mouse is over it: a dressed form for the outfit the actor
+	// wears now (`Current outfit`), a star for one chosen for a situation (`situations` is
+	// its tooltip, `For Town, Warm`; null for none).
+	struct OutfitMarks
+	{
+		bool        current = false;
+		const char* situations = nullptr;
+	};
+
 	// A SelectRow with the outfit's tags under its name in the small font, wrapping onto
 	// more lines within `tagsWidth` (OutfitTagsWidth): its gender first unless unisex (-1
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
-	// Nordic as grey text, comma separated. With no tag it is laid out as a SelectRow.
-	// OutfitRowHeight is its height. Lay rows out ListRowGap apart.
+	// Nordic as grey text, comma separated. With no tag it is laid out as a SelectRow. The
+	// name ends in an ellipsis short of `marks`. OutfitRowHeight is its height. Lay rows out
+	// ListRowGap apart.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.
-	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected);
+	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected, const OutfitMarks& marks);
 	float OutfitRowHeight(int gender, std::span<const std::string> tags, float tagsWidth);
 
 	// Room for an outfit row's tags, from where its text starts to the list's right end.
@@ -240,6 +260,7 @@ namespace Theme
 		FieldShape shape = FieldShape::kBoxed;
 		FieldIcon  icon = FieldIcon::kNone;
 		bool       previewIsHint = false;  // dropdowns: the preview is greyed, as an empty text field's hint
+		bool       alignRight = false;     // dropdowns: the preview's text ends 6px short of the arrow
 	};
 
 	// Height of a field of this style in the current font (pixels on the back buffer).
@@ -283,7 +304,7 @@ namespace Theme
 	enum class TabIcon
 	{
 		kInventory,  // a backpack
-		kOutfits     // a dress form: a padded torso on a stand
+		kOutfits     // a bare dress form: a padded torso on a stand
 	};
 
 	// One tab of the column at the window's left edge, a square: the icon in the text

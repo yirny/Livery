@@ -3,7 +3,7 @@
 
 // The capture window's constants, state and shared helpers, private to CaptureWindow.cpp
 // (the window and its tab column, the Inventory and Save pages) and OutfitPages.cpp (the
-// outfit browser and lists, the Load, Select, Manage Outfits and Edit pages). The helpers
+// outfit browser and lists, the Load, Select, Manage Wardrobe and Edit pages). The helpers
 // are defined in CaptureWindow.cpp, the pages in OutfitPages.cpp; each definition carries
 // its comment.
 //
@@ -31,14 +31,14 @@ namespace CaptureWindow::Internal
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kReplacePopup = "Replace outfits?";
 	constexpr const char* kApplyPopup = "Update the outfit?";
-	// Manage Outfits' popups. The two that discard share a title, told apart after "###".
+	// Manage Wardrobe' popups. The two that discard share a title, told apart after "###".
 	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
 	constexpr const char* kDiscardExitPopup = "Discard changes?###discardExit";
 	constexpr const char* kUnsavedPopup = "Unsaved changes";
 	constexpr const char* kManageConfirmPopup = "Save changes?";
-	constexpr const char* kApplyChangesPopup = "Update and apply?";
+	constexpr const char* kManageApplyPopup = "Apply outfit?";
 	constexpr const char* kRemovePopup = "Remove outfit?";
-	constexpr const char* kManageReplacePopup = "Replace outfit?";
+	constexpr const char* kRestorePopup = "Restore original outfit?";
 	constexpr const char* kArrow = "\xE2\x86\x92";  // U+2192, UTF-8: the replace popups' `Town: "A" → "B"`
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
@@ -109,8 +109,8 @@ namespace CaptureWindow::Internal
 		kSave,
 		kLoad,
 		kSelect,
-		kManage,  // Manage Outfits
-		kEdit     // Manage Outfits' piece editor
+		kManage,  // Manage Wardrobe
+		kEdit     // Manage Wardrobe' piece editor
 	};
 
 	struct InputRecord
@@ -140,15 +140,17 @@ namespace CaptureWindow::Internal
 		std::unique_ptr<bool[]>         wearsFor;     // one per row of "wears it for" (request.assigned)
 	};
 
-	// Manage Outfits' edits of the selected outfit, kept while the window is open; selecting
+	// Manage Wardrobe' edits of the selected outfit, kept while the window is open; selecting
 	// another outfit starts them again from the library.
 	struct ManageForm
 	{
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only the Armor Classes' are used
-		int                             gender = -1;  // -1 unisex, 0 male, 1 female
-		std::vector<std::size_t>        pieces;       // its loaded pieces as edited: indices into request.pieces, ascending
+		std::unique_ptr<bool[]>         classTicked;        // one per request.categories; only kClassGroup's are used
+		int                             gender = -1;        // -1 unisex, 0 male, 1 female
+		std::vector<std::size_t>        pieces;             // its loaded pieces as edited: indices into request.pieces, ascending
+		std::unique_ptr<bool[]>         wearsFor;           // one per row of "Situations for #{Name}" (request.assigned), Default first
+		bool                            keepTaken = false;  // Update's popup's Keep: rows another outfit holds stay out of the save
 	};
 
 	struct State
@@ -180,23 +182,20 @@ namespace CaptureWindow::Internal
 		int                      loadedOutfit = -1;      // the last one loaded: index into request.existingOutfits, -1 for none
 		OutfitBrowser::State     loadBrowser;            // search, filter and sort of the Load page's outfit list
 		OutfitBrowser::State     selectBrowser;          // the Select page's
-		OutfitBrowser::State     manageBrowser;          // Manage Outfits'
+		OutfitBrowser::State     manageBrowser;          // Manage Wardrobe'
 		bool                     showCategories = true;  // the outfit lists show each outfit's tags (Show Categories)
 		ManageForm               manage;
-		int                      discardFor = -1;            // the outfit to select once Discard changes is chosen: index, -1 for none
-		bool                     openUnsaved = false;        // open the Unsaved changes popup on the next frame (Manage Outfits)
-		std::string              manageSituationsLabel;      // "Situations for #{Name}"
-		std::string              manageApplyLabel;           // "Apply to #{Name}"
-		std::string              manageApplyTooltip;         // "Dress #{Name} in this outfit as their Default."
-		std::size_t              replaceRow = 0;             // the situation row Manage Outfits' Replace popup is about: index into request.assigned
-		bool                     openManageReplace = false;  // open that popup on the next frame, in the page's ID scope
-		std::unique_ptr<bool[]>  editTicked;                 // the Edit page's ticks, one per request.pieces
-		std::vector<std::size_t> editShown;                  // the edited pieces it opened with, so those nobody carries stay listed
-		std::string              editTitle;                  // "Edit \"#{Outfit}\""
-		std::string              editShownHeading;           // over those nobody carries: "From \"#{Outfit}\" (Not Carried)"
-		int                      recentreFrames = 0;         // frames left to pin the window to its place
-		std::optional<ImVec2>    placeCentre;                // where a pinned window's centre goes; none for the start place
-		ImVec2                   windowPos{};                // of the window in the last frame drawn
+		int                      discardFor = -1;        // the outfit to select once Discard changes is chosen: index, -1 for none
+		bool                     openUnsaved = false;    // open the Unsaved changes popup on the next frame (Manage Wardrobe)
+		std::string              manageSituationsLabel;  // "Situations for #{Name}"
+		std::string              manageApplyLabel;       // "Apply to #{Name}"
+		std::unique_ptr<bool[]>  editTicked;             // the Edit page's ticks, one per request.pieces
+		std::vector<std::size_t> editShown;              // the edited pieces it opened with, so those nobody carries stay listed
+		std::string              editTitle;              // "Edit \"#{Outfit}\""
+		std::string              editShownHeading;       // over those nobody carries: "From \"#{Outfit}\" (Not Carried)"
+		int                      recentreFrames = 0;     // frames left to pin the window to its place
+		std::optional<ImVec2>    placeCentre;            // where a pinned window's centre goes; none for the start place
+		ImVec2                   windowPos{};            // of the window in the last frame drawn
 		ImVec2                   windowSize{};
 		bool                     userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
 		unsigned                 session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
@@ -262,6 +261,17 @@ namespace CaptureWindow::Internal
 	const char*                          RowName(const State& a_state, std::size_t a_row);
 	bool                                 HoldsOutfit(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
 	std::string                          HeldOutfitName(const State& a_state, std::size_t a_row);
+	std::string                          QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
+	// The rows a form's "wears it for" ticks (`a_wearsFor`, one per row of request.assigned)
+	// change for library outfit `a_outfit`: those another outfit holds, which saving takes over
+	// only after Replace; those the save gives it (less the taken ones with `a_keepTaken`); those
+	// it had and are unticked.
+	std::vector<std::size_t> TakenRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
+	std::vector<std::size_t> AssignedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, bool a_keepTaken);
+	std::vector<std::size_t> RemovedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
+	// The lines a confirm popup shows for those rows: `Town: added`, `Town: removed`, and for
+	// the taken ones `Town: "A" → "B"` (`a_name` is the outfit's name).
+	void DrawRowChangeLines(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, bool a_keepTaken, const std::string& a_name);
 
 	// --- Pages (OutfitPages.cpp) ----------------------------------------------
 
@@ -270,12 +280,12 @@ namespace CaptureWindow::Internal
 	void DrawManagePage(State& a_state);
 	void DrawEditPage(State& a_state);
 
-	// The tab column's switches: to Manage Outfits from the Inventory page, and back, which
+	// The tab column's switches: to Manage Wardrobe from the Inventory page, and back, which
 	// first shows the Unsaved changes notice while the selected outfit has unsaved edits.
 	void EnterManagePage(State& a_state);
 	void LeaveManagePage(State& a_state);
 
-	// Starts Manage Outfits' edits of outfit `a_index` (-1 for none) from the library,
+	// Starts Manage Wardrobe' edits of outfit `a_index` (-1 for none) from the library,
 	// without touching the preview.
 	void FillManageForm(State& a_state, int a_index);
 }
