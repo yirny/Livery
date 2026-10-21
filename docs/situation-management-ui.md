@@ -276,9 +276,10 @@ edits (§6). A click on a situation's heading closes the details and shows the s
   refused or failed write changes no row and shows the error. Then, when a row changed, it
   replaces the captured actor's rows at once (`Assignments::SetRows`, so the page shows them
   even before the redress) and dresses them once (`Assignments::Refresh`), by
-  docs/outfit-management-ui.md §6 (at once with Live Preview on, at close with it off); a
-  random row they wear wears the outfit it gained first. The page stays, the edits start
-  again from what was saved.
+  docs/outfit-management-ui.md §6 (at once with Live Preview on, the preview begun again on
+  the outfit whose details show (§5), else on what they wear; at close with it off); a
+  random row they wear wears the outfit it gained first. The page stays, an outfit's details
+  too, and the edits start again from what was saved.
 - Exit closes the window; Escape does what Exit does, first clearing a search.
 - Exit, Escape or another tab with unsaved edits asks `You have unsaved changes.` with
   `Save Changes` / `Discard Changes` / `Back`: Save Changes saves as the button does, then
