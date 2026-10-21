@@ -1437,15 +1437,18 @@ namespace
 		DrawStandFeet(a_draw, a_frame, a_color, a_thick, 0.78f);
 	}
 
-	// A five-pointed star with its inner pentagon drawn.
+	// A five-pointed star, point down, split into five faces by lines from its centre to its
+	// inner corners. Its points alternate tip and inner corner, from the upper left tip.
 	void DrawStarIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
-		const std::array<ImVec2, 10> star{ a_frame.At(0.50f, 0.11f), a_frame.At(0.61f, 0.38f), a_frame.At(0.90f, 0.40f), a_frame.At(0.67f, 0.59f),
-			a_frame.At(0.75f, 0.87f), a_frame.At(0.50f, 0.71f), a_frame.At(0.25f, 0.87f), a_frame.At(0.33f, 0.59f), a_frame.At(0.10f, 0.40f),
-			a_frame.At(0.39f, 0.38f) };
+		const std::array<ImVec2, 10> star{ a_frame.At(0.25f, 0.12f), a_frame.At(0.50f, 0.26f), a_frame.At(0.75f, 0.12f), a_frame.At(0.70f, 0.39f),
+			a_frame.At(0.90f, 0.59f), a_frame.At(0.62f, 0.62f), a_frame.At(0.50f, 0.88f), a_frame.At(0.38f, 0.62f), a_frame.At(0.10f, 0.59f),
+			a_frame.At(0.30f, 0.39f) };
 		a_draw->AddPolyline(star.data(), static_cast<int>(star.size()), a_color, ImDrawFlags_Closed, a_thick);
-		const std::array<ImVec2, 5> pentagon{ star[1], star[3], star[5], star[7], star[9] };
-		a_draw->AddPolyline(pentagon.data(), static_cast<int>(pentagon.size()), a_color, ImDrawFlags_Closed, a_thick);
+		const ImVec2 centre = a_frame.At(0.50f, 0.46f);
+		for (std::size_t i = 1; i < star.size(); i += 2) {
+			a_draw->AddLine(centre, star[i], a_color, a_thick);
+		}
 	}
 
 	// The marks at the right end of an outfit row's name line (Theme::OutfitMarks), each a
