@@ -36,7 +36,7 @@ namespace CaptureWindow
 	// The categories (Library::Categories: Light, Heavy, Clothing) are the Save page's row of
 	// checkboxes.
 	constexpr const char* kClassGroup = "Category";
-	// Default and the situations: the actor's "wears it for" rows. Never stored in the library.
+	// Default and the situations: the actor's "Situations for #{Name}" rows. Never stored in the library.
 	constexpr const char* kSituationGroup = "Situation";
 
 	struct CategoryOption
@@ -145,7 +145,7 @@ namespace CaptureWindow
 		bool                       dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
 	};
 
-	// What the Save page hands over: the outfit to write, then the rows of "wears it for"
+	// What the Save page hands over: the outfit to write, then the rows of "Situations for #{Name}"
 	// (indices into Request::assigned) to change for the actor.
 	struct SaveRequest
 	{
@@ -301,7 +301,7 @@ namespace CaptureWindow
 	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
 	// when gone, the Update tab then left), the rows' ticks of the Save page and Manage
 	// Wardrobe follow their situations (a removed one's go, a restored one's start unticked),
-	// the Update tab's "wears it for" ticks follow the rows that changed for its outfit, each
+	// the Update tab's "Situations for #{Name}" ticks follow the rows that changed for its outfit, each
 	// list keeps its search, sort and folded headings, the Inventory page drops ticks on
 	// pieces it no longer lists, Manage Situations' edits start again from the rows and the
 	// situations (its selected situation and folded headings found again by key), and Manage

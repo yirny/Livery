@@ -82,18 +82,20 @@ Reached from `Save` with the ticked pieces, which both tabs save.
 - `Update Existing Outfit...`: greyed while the library is empty (`kNoOutfits`). Clicking it
   opens the outfit selection (the Load page's browser and preview, titled `Select an Outfit
   to Update`, no summary line, `No outfit selected` on the right while none is); Cancel
-  returns to the former tab with nothing changed. Clicking it again reopens the selection with the chosen
-  outfit selected and previewed. Once chosen: name, Class and gender fill from the outfit, the
-  "wears it for" ticks (below) from this actor's assignments of it, and the button reads
+  returns to the former tab with nothing changed. Clicking it again reopens the selection
+  with the chosen outfit selected and previewed. Once chosen: name, Class and gender fill
+  from the outfit, the `Situations for #{Name}` ticks (below) from this actor's assignments
+  of it, and the button reads
   `Update #{Outfit}`. Name and gender may be changed: CLAUDE.md §2.1 is rewritten (change
   name and gender only through the confirmed Update path; a name must be unused, ASCII case
   ignored, by any other outfit) and `Library::Update` takes name and gender.
 - `Create New Outfit`: as today; button `Create`.
-- Fields, as Manage Wardrobe's: the name, Gender, Category (a multi-choice dropdown), then
-  `#{Name} wears it for`.
-- Field `#{Name} wears it for`, replacing the library's situation categories, which leave the
-  library (no situation filter or sort in the outfit browser): a multi-choice dropdown of
-  `Default` and the situations, as Manage Wardrobe's `Situations for #{Name}`. A tick gives
+- Fields, as Manage Wardrobe's: the name, with no label (`Outfit Name` on hover while not
+  being typed in; a failed save's error instead), the gender, with no label, Category (a
+  multi-choice dropdown), then `Situations for #{Name}`.
+- Field `Situations for #{Name}`, replacing the library's situation categories, which leave
+  the library (no situation filter or sort in the outfit browser): a multi-choice dropdown of
+  `Default` and the situations, as on Manage Wardrobe. A tick gives
   the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's
   `(?)`: "Situational outfit. #{Name} changes into it whenever a ticked situation applies.
   Default is what #{Name} wears wherever no situation applies."

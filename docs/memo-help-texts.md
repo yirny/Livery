@@ -2,7 +2,7 @@
 
 Window help texts that were removed but may come back; not current behaviour.
 
-## Save page, `#{Name} wears it for (?)`
+## Save page, `Situations for #{Name} (?)`
 
 Removed 2026-10-21, after `Default is what #{Name} wears wherever no situation applies.`:
 

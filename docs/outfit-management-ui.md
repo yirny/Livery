@@ -25,9 +25,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   stay in the file, unshown, until categories can be added (design.md §8).
 - Two category groups, in this order:
   - Category: the categories above, which the Save page and Manage Wardrobe edit.
-  - Situation: the captured actor's "wears it for" rows that hold the outfit (Default and
-    the situations), from `Request::assigned`. Never stored in the library.
-- Each row: the name, then under it, in the small font and grey, its tags in this order:
+  - Situation: the captured actor's rows (`Situations for #{Name}`) that hold the outfit
+    (Default and the situations), from `Request::assigned`. Never stored in the library.
+- Each row: the name, then under it, in grey, its tags (Tailor: in the small font; Vanilla
+  and Nordic: 16px) in this order:
   Female or Male (Unisex has none), Category, Situation, wrapping onto more lines when they
   do not fit. Tailor draws each tag as a framed chip, as Tailor 3.0's outfit list does;
   Vanilla and Nordic as plain text, comma separated.
@@ -104,6 +105,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   a grey pen at its right end, white while the field or the pen is hovered or the field is
   being typed in; a click on the pen starts typing, so the click area is the field's. A
   dropdown's arrow is grey, white while hovered or open.
+- A *field* is a label (or none) and the control or list it names; a list's count line under
+  it belongs to the list's field. Beyond the item spacing, fields are 6px apart in Tailor and
+  8px in Vanilla and Nordic (`Theme::SectionGap`); a label sits 3px (Vanilla and Nordic: 5px)
+  closer to its control than the item spacing; a count line under a list keeps 6px above it.
 
 ## 3. Tab column (step 2)
 

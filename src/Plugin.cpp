@@ -778,7 +778,7 @@ namespace
 		return rows;
 	}
 
-	// The Save page: its "wears it for" rows with what the actor has in each now, and the
+	// The Save page: its "Situations for #{Name}" rows with what the actor has in each now, and the
 	// save. The library is written first; only once it took the outfit does the window close,
 	// which ends the preview, and do the rows change, in one call that redresses once.
 	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
