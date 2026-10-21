@@ -108,7 +108,7 @@ namespace
 	constexpr const char* kTabSeparator = "/";
 	// Vanilla's buttons: how much larger their label is than the body font, and the clear room
 	// on either side of each, which sets them further apart (pixels at 1080p).
-	constexpr float kVanillaButtonFontGrowth = 4.0f;
+	constexpr float kVanillaButtonFontGrowth = 2.0f;
 	constexpr float kVanillaButtonMargin = 2.0f;
 	// The band of the rule colour inside Vanilla's main window edge (pixels at 1080p); the tab
 	// column centres its tabs from it and its rule stops short of it.
@@ -2343,7 +2343,9 @@ namespace Theme
 	void TabRule(float a_left, float a_top, float a_bottom)
 	{
 		if (g_skin == Skin::kVanilla) {
-			const float inset = VanillaBandWidth() + (std::max)(1.0f, std::floor(g_scale));  // a pixel short of the frame's band
+			constexpr float kBandGap = 2.0f;  // pixels at 1080p, between the rule's ends and the frame's band
+
+			const float inset = VanillaBandWidth() + (std::max)(1.0f, std::round(kBandGap * g_scale));
 			a_top += inset;
 			a_bottom -= inset;
 		}

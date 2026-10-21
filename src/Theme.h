@@ -109,7 +109,7 @@ namespace Theme
 	// Nordic. LabelText adds it itself, so call it only before a field that has no label.
 	void SectionGap();
 
-	// Returns true when pressed. Nordic draws a pointed-end frame; Vanilla its label alone, 4px
+	// Returns true when pressed. Nordic draws a pointed-end frame; Vanilla its label alone, 2px
 	// larger than the body font, in LabelText's grey and white while hovered or held, with 2px
 	// clear on either side.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
@@ -428,7 +428,7 @@ namespace Theme
 	float TabTopGap();
 
 	// The rule between the tab column, whose tabs start at `left`, and the page, from `top`
-	// to `bottom` (screen pixels; Vanilla stops it a pixel short of its frame's band at both
+	// to `bottom` (screen pixels; Vanilla stops it 2px short of its frame's band at both
 	// ends): Tailor's 1px border colour, Vanilla's 2px rule, NORDIC UI's level-up rope (1px of
 	// its rule colour without the texture).
 	void TabRule(float left, float top, float bottom);
