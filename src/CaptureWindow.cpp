@@ -1477,9 +1477,8 @@ namespace CaptureWindow::Internal
 	{
 		if (DrawRowsDropdown(a_state, a_state.wearsForLabel.c_str(), a_form.wearsFor.get())) {
 			DrawHelpTooltip(std::format(
-				"Default is what {0} wears wherever no situation applies. With nothing ticked here, not even "
-				"Default, the outfit is only stored: Livery does not dress {0} in it, and once they change "
-				"clothes, for a situational outfit, for better armor or by another mod, nothing brings it back.",
+				"Situational outfit. {0} changes into it whenever a ticked situation applies. Default is what {0} "
+				"wears wherever no situation applies.",
 				a_state.request.actorName));
 		}
 	}

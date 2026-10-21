@@ -253,13 +253,16 @@ namespace CaptureWindow::Internal
 	}
 
 	// One outfit of the list: its name, with its tags under it while Show Categories is on, and
-	// at its right end the marks of the outfit the actor wears now and of one chosen for a
-	// situation (Theme::OutfitMarks); `a_striped` for every second row under a heading.
+	// at its right end the marks of the outfit the actor wears now or has as their Default and
+	// of one chosen for a situation (Theme::OutfitMarks); `a_striped` for every second row
+	// under a heading.
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped)
 	{
 		const auto&                    outfit = OutfitAt(a_state, a_index);
 		const auto&                    situations = a_browser.situations[static_cast<std::size_t>(a_index)];
-		const Theme::OutfitMarks       marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit, .situations = situations.empty() ? nullptr : situations.c_str() };
+		const Theme::OutfitMarks       marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
+			.defaultOutfit = HoldsOutfit(a_state, 0, outfit.id),
+			.situations = situations.empty() ? nullptr : situations.c_str() };
 		const std::vector<std::string> none;
 		const auto&                    tags = a_state.showCategories ? a_browser.tags[static_cast<std::size_t>(a_index)] : none;
 		const int                      gender = a_state.showCategories ? outfit.gender : -1;  // the gender is a tag too

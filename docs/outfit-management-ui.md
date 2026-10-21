@@ -47,10 +47,13 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   (after Nordic's arrow), then the label; Tailor a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
   of them: a dressed form (a gown on the stand) for the outfit the actor wears now
-  (`Request::wornOutfit`), a star (point down, lines from its centre to its inner corners) for an outfit the
+  (`Request::wornOutfit`), else a bare form (Manage Wardrobe's tab icon) for one their
+  Default holds; a star (point down, lines from its centre to its inner corners) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
-  over it: `Current outfit`, `For Town, Warm` (`OutfitBrowser::State::situations`, computed
-  at Rebuild). Both side by side when both apply; drawn with or without Show Categories.
+  over it: `Current outfit` (and `Default Outfit` on a second line when their Default holds
+  it), `Default Outfit` on the bare form, `For Town, Warm` (`OutfitBrowser::State::situations`,
+  computed at Rebuild). The form and the star side by side when both apply; drawn with or
+  without Show Categories.
 - `Sort by`'s text is right-aligned, ending 6px short of its arrow.
 - Rows meet with no gap (the list lays them out with no item spacing; each row and heading
   holds the former gap, half above and half below), and every second row under a heading

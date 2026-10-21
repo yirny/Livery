@@ -1027,7 +1027,7 @@ namespace Assignments
 		}
 		const auto putBack = ReleaseActor(a_actor, true, true);
 		logger::info("Put {} of their own piece(s) back on {:08X}", putBack, a_actor.GetFormID());
-		Notify(std::format("Livery: released {}.", NameOf(a_actor)));
+		Notify(a_actor.IsPlayerRef() ? std::string("Livery: restored your original outfit.") : std::format("Livery: restored {}'s original outfit.", NameOf(a_actor)));
 	}
 
 	std::optional<Choices> ChoicesOf(RE::FormID a_actor)
