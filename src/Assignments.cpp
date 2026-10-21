@@ -11,9 +11,9 @@
 //   Co-save     - save, load (versions 1 to 4; older ones turned into rows; the rows of
 //                 situations removed in situations.json dropped), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
-//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / Refresh / WearFor /
-//                 ActorsWithSituations / UsesOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf / SuspendLocks /
-//                 ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
+//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / SetRows / Refresh / WearFor /
+//                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
+//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -262,7 +262,8 @@ namespace
 	// Puts row `a_row`'s `a_outfit` on them in place of what Livery has on them, less
 	// `a_leaveOut`. Their own pieces from before go back on first, so they are what this
 	// dressing takes off and notes. With no armor for the row they end up in their own
-	// clothes.
+	// clothes. A random row's pick is recorded as its `chosen`, which turning random off
+	// keeps on (OutfitRows::SetRandom).
 	Dressing::Result Wear(Assignment& a_assignment, RE::Actor& a_actor, Situation a_row, std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_leaveOut)
 	{
 		Dressing::Release(a_actor, a_assignment.pieces, true);
@@ -275,6 +276,9 @@ namespace
 		a_assignment.takenOff = result.takenOff;
 		a_assignment.worn = a_row;
 		a_assignment.wornOutfit = a_outfit;
+		if (auto& row = a_assignment.rows[RowOf(a_row)]; row.random && a_outfit != 0) {
+			row.chosen = a_outfit;  // on the list: OutfitRows::Wears picks from it
+		}
 		return result;
 	}
 
@@ -314,12 +318,13 @@ namespace
 	}
 
 	// Row `a_row` gets library outfit `a_outfit` (OutfitRows::Give); a library outfit made the
-	// Default's `chosen` drops the Default's pieces. Nobody is dressed here.
+	// Default's `chosen` with random off drops the Default's pieces (a random Default keeps
+	// them for an empty list). Nobody is dressed here.
 	void GiveRow(Assignment& a_assignment, Situation a_row, std::uint32_t a_outfit)
 	{
 		auto& row = a_assignment.rows[RowOf(a_row)];
 		OutfitRows::Give(row, a_outfit);
-		if (a_row == Situation::kDefault && row.chosen == a_outfit) {
+		if (a_row == Situation::kDefault && !row.random && row.chosen == a_outfit) {
 			a_assignment.defaultPieces.clear();
 		}
 	}
@@ -327,7 +332,7 @@ namespace
 	// The rows Change makes: the removed ones lose the outfit, the assigned ones get it.
 	// Nobody is dressed here.
 	// Contract: no row is in both lists.
-	void SetRows(Assignment& a_assignment, const Assignments::Changes& a_changes)
+	void ApplyChanges(Assignment& a_assignment, const Assignments::Changes& a_changes)
 	{
 		for (const auto row : a_changes.remove) {
 			OutfitRows::Take(a_assignment.rows[RowOf(row)], a_changes.outfit);
@@ -335,6 +340,20 @@ namespace
 		for (const auto row : a_changes.assign) {
 			GiveRow(a_assignment, row, a_changes.outfit);
 		}
+	}
+
+	// The outfit the row they wear now gains first in `a_rows` while it is random, which their
+	// next dressing wears as its pick (docs/situation-management-ui.md §1); 0 for none, or
+	// while nothing is on them.
+	std::uint32_t GainedPick(const Assignment& a_assignment, const OutfitRows::Rows& a_rows)
+	{
+		const auto& before = a_assignment.rows[RowOf(a_assignment.worn)].outfits;
+		const auto& after = a_rows[RowOf(a_assignment.worn)];
+		if (a_assignment.pieces.empty() || !after.random) {
+			return 0;
+		}
+		const auto gained = std::ranges::find_if(after.outfits, [&before](std::uint32_t a_outfit) { return std::ranges::find(before, a_outfit) == before.end(); });
+		return gained != after.outfits.end() ? *gained : 0;
 	}
 
 	// The library outfit's loaded pieces not in `a_armor`.
@@ -897,31 +916,36 @@ namespace Assignments
 		if (!CanBeDressed(a_actor)) {
 			return;
 		}
+		// The capture window may run a change at its close, after Manage Situations removed a
+		// situation it names.
+		auto changes = a_changes;
+		std::erase_if(changes.assign, SituationStore::IsRemoved);
+		std::erase_if(changes.remove, SituationStore::IsRemoved);
 		const auto id = a_actor.GetFormID();
 		auto&      assignment = FindOrAddAssignment(id);
-		SetRows(assignment, a_changes);
+		ApplyChanges(assignment, changes);
 		// A removed row that still holds an outfit is a random one with others on its list.
 		std::vector<Situation> emptied;
 		std::vector<Situation> kept;
-		for (const auto row : a_changes.remove) {
+		for (const auto row : changes.remove) {
 			(OutfitRows::HoldsAny(assignment.rows[RowOf(row)]) ? kept : emptied).push_back(row);
 		}
 		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor),
-			{ .force = true, .given = a_changes.outfit, .givenRows = a_changes.assign });
+			{ .force = true, .given = changes.outfit, .givenRows = changes.assign });
 		const auto worn = assignment.worn;  // read before DropIfEmpty, which may end the record
 		const auto pieces = assignment.pieces.size();
 		DropIfEmpty(id);
 		SyncManaged();
 
 		std::vector<std::string> parts;
-		if (!a_changes.assign.empty()) {
-			parts.push_back(std::format("{} for {}", QuotedOutfitName(a_changes.outfit), JoinSituations(a_changes.assign)));
+		if (!changes.assign.empty()) {
+			parts.push_back(std::format("{} for {}", QuotedOutfitName(changes.outfit), JoinSituations(changes.assign)));
 		}
 		if (!emptied.empty()) {
 			parts.push_back(std::format("no outfit for {} any more", JoinSituations(emptied)));
 		}
 		if (!kept.empty()) {
-			parts.push_back(std::format("{} no longer for {}", QuotedOutfitName(a_changes.outfit), JoinSituations(kept)));
+			parts.push_back(std::format("{} no longer for {}", QuotedOutfitName(changes.outfit), JoinSituations(kept)));
 		}
 		auto text = std::format("Livery: {}:", NameOf(a_actor));
 		for (std::size_t i = 0; i < parts.size(); ++i) {
@@ -931,7 +955,29 @@ namespace Assignments
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
 	}
 
-	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut)
+	std::optional<std::uint32_t> SetRows(RE::Actor& a_actor, const OutfitRows::Rows& a_rows, bool a_dropDefaultPieces)
+	{
+		if (!CanBeDressed(a_actor)) {
+			return std::nullopt;
+		}
+		const auto id = a_actor.GetFormID();
+		auto&      assignment = FindOrAddAssignment(id);
+		const auto pick = GainedPick(assignment, a_rows);
+		assignment.rows = a_rows;
+		for (const auto situation : Situations::kChoosable) {
+			if (SituationStore::IsRemoved(situation)) {
+				assignment.rows[RowOf(situation)] = {};
+			}
+		}
+		if (a_dropDefaultPieces) {
+			assignment.defaultPieces.clear();
+		}
+		DropIfEmpty(id);
+		SyncManaged();
+		return pick;
+	}
+
+	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, std::uint32_t a_pick)
 	{
 		const auto id = a_actor.GetFormID();
 		auto*      assignment = FindAssignment(id);
@@ -942,7 +988,8 @@ namespace Assignments
 			Notify(std::format("Livery: {} is dead.", NameOf(a_actor)));
 			return;
 		}
-		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor), { .force = true, .leaveOut = a_leaveOut });
+		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor),
+			{ .force = true, .leaveOut = a_leaveOut, .given = a_pick, .givenRows = { assignment->worn } });
 		const auto worn = assignment->worn;  // read before DropIfEmpty, which may end the record
 		const auto outfit = assignment->wornOutfit;
 		const auto pieces = assignment->pieces.size();
@@ -1005,6 +1052,17 @@ namespace Assignments
 			}
 		}
 		return uses;
+	}
+
+	std::vector<Holder> HoldersOf(Situations::Situation a_situation)
+	{
+		std::vector<Holder> holders;
+		for (const auto& assignment : g_assignments) {
+			if (const auto count = assignment.rows[RowOf(a_situation)].outfits.size(); count > 0) {
+				holders.push_back({ .actor = assignment.actor, .outfits = count });
+			}
+		}
+		return holders;
 	}
 
 	// The pieces worn for a cleared situation row stay on until the next dressing (WearFor),

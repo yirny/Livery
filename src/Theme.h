@@ -78,6 +78,22 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineHelpLink(const char* label, bool* hovered);
 
+	// LineHelpLink with its left edge at cursor X `x` (as SetCursorPosX takes it) instead of
+	// the line's right end, as at the start of a row of buttons laid out before it.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool LineHelpLinkAt(const char* label, float x, bool* hovered);
+
+	// LineHelpLink without the "(?)", on a line of its own: `label` at the line's right end, in
+	// LabelText's font and colour, lit while hovered. Returns true when clicked. Faded and inert
+	// inside BeginDisabled.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool RightEndLink(const char* label);
+
+	// A section's heading inside a page's column: `text` in the small font, greyed as
+	// ListHeading's, then a rule in the list's rule colour to the column's right end. Opens a
+	// field as LabelText does.
+	void SectionHeading(const char* text);
+
 	// Extra room above a field, on top of the item spacing; LabelText adds it
 	// itself, so call it only before a field that has no label.
 	void SectionGap();
@@ -170,9 +186,10 @@ namespace Theme
 	float ListHeadingHeight();
 
 	// ListHeading with a greyed "(?)" after the text; returns true while the mouse is over
-	// that mark alone, for the caller's tooltip.
+	// that mark alone, for the caller's tooltip. `outfitIndent`: the text starts where an outfit
+	// row's name does (OutfitRow without a grip), as over Manage Situations' headings.
 	// Contract: inside BeginList.
-	bool ListHeadingHelp(const char* text);
+	bool ListHeadingHelp(const char* text, bool outfitIndent = false);
 
 	// Extra room under a field whose next line is a label (a dropdown, then a list's count
 	// line), on top of the label's own SectionGap.
@@ -188,6 +205,32 @@ namespace Theme
 	// text is shown as is and is the row's ImGui ID.
 	bool  FoldHeading(const char* text, bool open);
 	float FoldHeadingHeight();
+
+	// Which part of a SituationHeading was clicked.
+	enum class HeadingClick
+	{
+		kNone,
+		kSelect,  // left of the chevron
+		kFold     // the chevron, with its padding, to the list's right end
+	};
+
+	struct SituationHeadingLook
+	{
+		int  count = -1;        // shown as "(count)" after the name; -1 for none
+		bool open = true;       // the chevron points down; folded, right
+		bool foldable = true;   // it has rows to fold: the chevron and its click area show
+		bool selected = false;  // marked and filled as a selected SelectRow
+		bool dim = false;       // the name greyed
+	};
+
+	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
+	// `name` where the outfit rows' names start (OutfitRow without a grip), its count after it
+	// in the small font, greyed, then, while foldable, a chevron, greyed and lit while hovered,
+	// then a rule in the list's rule colour to the list's right end. A hovered one left of the
+	// chevron gets the row's hover fill.
+	// Contract: inside BeginList, laid out with no item spacing; PushID around each heading.
+	HeadingClick SituationHeading(const char* name, const SituationHeadingLook& look);
+	float        SituationHeadingHeight();
 
 	// One row of a dropdown's popup, filled and hovered as SelectRow is; returns true when
 	// clicked, having toggled `*ticked`. `checkbox` makes it a row of a multi-choice dropdown:
@@ -216,17 +259,21 @@ namespace Theme
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
 	// Nordic as grey text, comma separated. The name ends in an ellipsis short of `marks`.
 	// The name and tags start 14px in from the row's left edge in every skin, and a `striped`
-	// row (every other one) has a faint white under its fills. OutfitRowHeight is its height,
-	// which holds the row gap: lay rows out with no item spacing, so the stripes meet.
+	// row (every other one) has a faint white under its fills. With `grip`, a drag grip sits in
+	// the room left of the name: two columns of three dots, in LabelText's grey at low alpha
+	// (Tailor: its text colour mixed with black), and the name and tags start 12px past the
+	// dots instead. OutfitRowHeight is its height, which holds the row gap: lay rows out with
+	// no item spacing, so the stripes meet.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.
 	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected, const OutfitMarks& marks,
-		bool striped);
+		bool striped, bool grip = false);
 	float OutfitRowHeight(int gender, std::span<const std::string> tags, float tagsWidth);
 
-	// Room for an outfit row's tags, from where its text starts to the list's right end.
+	// Room for an outfit row's tags, from where its text starts (past the grip with `grip`) to
+	// the list's right end.
 	// Contract: called outside BeginList, at the list's indent, as ColumnsWidth is.
-	float OutfitTagsWidth();
+	float OutfitTagsWidth(bool grip = false);
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Tailor a
@@ -316,7 +363,8 @@ namespace Theme
 	enum class TabIcon
 	{
 		kInventory,  // a backpack
-		kOutfits     // a bare dress form: a padded torso on a stand
+		kOutfits,    // a bare dress form: a padded torso on a stand
+		kSituations  // the star, point down, that marks an outfit chosen for a situation (OutfitMarks)
 	};
 
 	// One tab of the column at the window's left edge, a square: the icon in the text

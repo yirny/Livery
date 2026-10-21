@@ -11,6 +11,7 @@ namespace
 {
 	using CaptureWindow::kClassGroup;
 	using CaptureWindow::kSituationGroup;
+	using Situations::Situation;
 
 	// Request::categories as Plugin.cpp builds it: the categories the window offers, then
 	// Default and the situations, one per row of `assigned`. The outfits also store an older
@@ -40,7 +41,14 @@ namespace
 		// Default, Town, Home, Sleep, Swimming, Warm. A row shows only what it holds: Town's "Guard
 		// Uniform" is hidden behind its chosen "Scout", Home's "Bare" is on its list with none
 		// chosen, and the random Swimming holds its whole list.
-		request.situations = { "Town", "Home", "Sleep", "Swimming", "Warm" };
+		request.situations = {
+			{ .situation = Situation::kDefault, .name = "Default" },
+			{ .situation = Situation::kTown, .name = "Town" },
+			{ .situation = Situation::kHome, .name = "Home" },
+			{ .situation = Situation::kSleep, .name = "Sleep" },
+			{ .situation = Situation::kSwimming, .name = "Swimming" },
+			{ .situation = Situation::kWarm, .name = "Warm" },
+		};
 		request.assigned = {
 			{ .row = { .outfits = { 3 }, .chosen = 3 } },
 			{ .row = { .outfits = { 5, 2 }, .chosen = 5 } },
