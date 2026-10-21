@@ -139,15 +139,9 @@ in a town changes nothing visible until the NPC leaves.
 
 ## 7. Situational outfits: model and roadmap
 
-- Situation data is global and holds conditions only: today the five in
-  `Situations::kChoosable`; user-defined ones come with the Situation Management window.
-- Per actor, per situation: a list of library outfits and a random flag. Random on: one of
-  the list is picked at each situation change (edge-triggered, as the poll is) and worn until
-  the next change. Random off: the list holds one outfit; saving another asks to replace it (§4).
-- Now: co-save record version 3 stays (one outfit id per situation), since nothing sets the
-  flag yet. Version 4 (lists, flags, and the worn outfit's id in the record, which random
-  cannot derive from `situations[worn]`) comes with the Situation Management window; a
-  version 3 id becomes a one-element list.
+Situation data (name, description, later conditions) is global, in `situations.json`. Per
+actor, per row (the Default and each situation): a list of library outfits, a random flag
+and the outfit worn with random off. Spec and steps: docs/situation-management-ui.md.
 
 ## 8. API changes
 
