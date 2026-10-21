@@ -106,24 +106,16 @@ namespace
 	constexpr const char* kHelpMark = "(?)";
 	// Between the tabs of a page heading made of tabs (BeginHeadingTabs).
 	constexpr const char* kTabSeparator = "/";
-	// Vanilla's buttons: how much larger their label is than the body font, and the clear room
-	// on either side of each, which sets them further apart (pixels at 1080p).
-	constexpr float kVanillaButtonFontGrowth = 2.0f;
+	// Vanilla's buttons: the clear room on either side of each, which sets them further apart
+	// (pixels at 1080p).
 	constexpr float kVanillaButtonMargin = 2.0f;
-	// The band of the rule colour inside Vanilla's main window edge (pixels at 1080p); the tab
-	// column centres its tabs from it and its rule stops short of it.
-	constexpr float kVanillaBandWidth = 4.0f;
 	// Room between an outfit row's marks, and between them and the name (pixels at 1080p).
 	constexpr float kOutfitMarkGap = 6.0f;
 	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
 	// Tailor 3.0's outfit list indents them (pixels at 1080p).
 	constexpr float kOutfitRowPadX = 14.0f;
-	// A draggable outfit row's grip: the room from the row's left edge to its dots at the edge
-	// (Theme::Grip::kEdge; kName puts them at kOutfitRowPadX), their radius and the step between
-	// their centres, then the room from its dots to the row's name and tags (pixels at 1080p).
-	// A draggable list's folding headings start their chevrons where the dots start.
-	constexpr float kGripPadX = 4.0f;
-	constexpr float kGripDotRadius = 1.2f;
+	// A draggable outfit row's grip (DrawGrip): the step between its dots' centres, then the
+	// room from its dots to the row's name and tags (pixels at 1080p).
 	constexpr float kGripDotStep = 4.0f;
 	constexpr float kGripTextGap = 12.0f;
 	// Room between a list heading's text (or chevron) and the rule after it (pixels at 1080p).
@@ -766,11 +758,12 @@ namespace
 		return pressed;
 	}
 
-	// Vanilla's buttons' font: the body font, kVanillaButtonFontGrowth larger. Pop with
-	// ImGui::PopFont.
+	// Vanilla's buttons' font: the body font, a little larger. Pop with ImGui::PopFont.
 	void PushVanillaButtonFont()
 	{
-		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase + kVanillaButtonFontGrowth);
+		constexpr float kFontGrowth = 2.0f;  // pixels at 1080p, over the body font's size
+
+		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase + kFontGrowth);
 	}
 
 	// Vanilla's button: text only, in PushVanillaButtonFont, with kVanillaButtonMargin clear on
@@ -823,10 +816,14 @@ namespace
 		a_draw->AddRectFilled(ImVec2(a_max.x - a_width, a_min.y + a_width), ImVec2(a_max.x, a_max.y - a_width), a_color);
 	}
 
-	// The width of Vanilla's window frame band on the back buffer, in whole pixels.
+	// The width of the band of the rule colour inside Vanilla's main window edge
+	// (DrawVanillaFrame) on the back buffer, in whole pixels. The tab column centres its tabs
+	// from it, its rule stops short of it, and the lists stop at it on the right.
 	float VanillaBandWidth()
 	{
-		return (std::max)(1.0f, std::round(kVanillaBandWidth * g_scale));
+		constexpr float kWidth = 4.0f;  // pixels at 1080p
+
+		return (std::max)(1.0f, std::round(kWidth * g_scale));
 	}
 
 	// Vanilla's main window frame: a band of the rule colour inside the window's edge, and
@@ -1625,14 +1622,19 @@ namespace
 	// The radius of a drag grip's dots on the back buffer.
 	float GripDotRadius()
 	{
-		return (std::max)(1.0f, kGripDotRadius * g_scale);
+		constexpr float kRadius = 1.2f;  // pixels at 1080p
+
+		return (std::max)(1.0f, kRadius * g_scale);
 	}
 
 	// From an outfit row's left edge to its grip's dots, or where a row without a grip starts
-	// its name (pixels at 1080p).
+	// its name (pixels at 1080p). A draggable list's folding headings start their chevrons where
+	// the dots start.
 	float GripPadX(Theme::Grip a_grip)
 	{
-		return a_grip == Theme::Grip::kEdge ? kGripPadX : kOutfitRowPadX;
+		constexpr float kEdgePad = 4.0f;  // pixels at 1080p, Theme::Grip::kEdge's
+
+		return a_grip == Theme::Grip::kEdge ? kEdgePad : kOutfitRowPadX;
 	}
 
 	// A drag grip placed by `a_grip` from a row's left edge `a_left`, its middle dots at `a_midY`
