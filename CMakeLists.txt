@@ -19,11 +19,15 @@ if(PLUGIN_TESTS_ONLY)
     include(CTest)
     include(Catch)
 
-    add_executable(${PROJECT_NAME}Tests test/ExampleTests.cpp test/OutfitBrowserTests.cpp test/OutfitRowsTests.cpp src/OutfitBrowser.cpp)
+    # The situations.json rules (src/SituationTable.h) parse and write JSON.
+    find_package(nlohmann_json CONFIG REQUIRED)
+
+    add_executable(${PROJECT_NAME}Tests test/ExampleTests.cpp test/OutfitBrowserTests.cpp test/OutfitRowsTests.cpp
+                                        test/SituationStoreTests.cpp src/OutfitBrowser.cpp)
 
     target_include_directories(${PROJECT_NAME}Tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-    target_link_libraries(${PROJECT_NAME}Tests PRIVATE Catch2::Catch2WithMain)
+    target_link_libraries(${PROJECT_NAME}Tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
 
     catch_discover_tests(${PROJECT_NAME}Tests)
 
@@ -43,7 +47,8 @@ else()
     find_package(directxtk CONFIG REQUIRED)
     # Dear ImGui with the Win32 + DX11 backends, drawn from a DXGI Present hook (src/Hooks.cpp).
     find_package(imgui CONFIG REQUIRED)
-    # Reads and writes the outfit library, outfits.json (src/Library.cpp).
+    # Reads and writes the outfit library, outfits.json (src/Library.cpp), and situations.json
+    # (src/SituationStore.cpp).
     find_package(nlohmann_json CONFIG REQUIRED)
     # rapidcsv must be in vcpkg.json (CommonLibSSE-NG unconditionally adds it as an include dir)
 
@@ -99,6 +104,7 @@ else()
         src/Plugin.cpp
         src/PreviewCamera.cpp
         src/Settings.cpp
+        src/SituationStore.cpp
         src/Situations.cpp
         src/Theme.cpp
         src/TradeFilter.cpp
