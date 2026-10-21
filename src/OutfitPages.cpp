@@ -519,7 +519,7 @@ namespace CaptureWindow::Internal
 			clicked = DrawOutfitList(a_state, a_state.selectBrowser, a_state.selectingOutfit, controls.height);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
-			DrawOutfitDetails(a_state, a_state.selectingOutfit, "Select an outfit to update");
+			DrawOutfitDetails(a_state, a_state.selectingOutfit, "No outfit selected");
 			EndColumns();
 		}
 		if (clicked >= 0) {

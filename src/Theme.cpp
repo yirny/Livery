@@ -97,6 +97,8 @@ namespace
 	constexpr int kSelectBarAlpha = 70;
 	// The help mark a button, link or label carries for its tooltip.
 	constexpr const char* kHelpMark = "(?)";
+	// Between the tabs of a page heading made of tabs (BeginHeadingTabs).
+	constexpr const char* kTabSeparator = "/";
 	// Room between an outfit row's marks, and between them and the name (pixels at 1080p).
 	constexpr float kOutfitMarkGap = 6.0f;
 	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
@@ -665,6 +667,30 @@ namespace
 		draw->AddQuadFilled(ImVec2(centreX, y - diamond), ImVec2(centreX + diamond, y), ImVec2(centreX, y + diamond),
 			ImVec2(centreX - diamond, y), ImGui::GetColorU32(kNordicOrnament));
 		ImGui::Dummy(ImVec2(0.0f, height));
+	}
+
+	// The item spacing to lay out a page heading's last element with, so the gap below the
+	// heading comes out right: its extra gap, less the section gap the page's first field adds
+	// (Theme::HeadingText's contract); `a_aboveRule`, Nordic's last line, a little room above
+	// the rule that follows instead.
+	ImVec2 HeadingGapSpacing(bool a_aboveRule)
+	{
+		constexpr float kRuleGapExtra = 4.0f;  // Nordic: extra room above the rule beyond the item spacing (pixels at 1080p)
+
+		const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+		const float  extra = a_aboveRule ? kRuleGapExtra : kHeadingGapExtra - kSectionGap;
+		return ImVec2(spacing.x, spacing.y + extra * g_scale);
+	}
+
+	// Pushes the skin's heading font; pushes nothing and returns false when its file is missing.
+	bool PushHeadingFont()
+	{
+		const auto& loaded = LoadedFontsOf(g_skin);
+		if (!loaded.heading) {
+			return false;
+		}
+		ImGui::PushFont(loaded.heading, FontFilesOf(g_skin).heading.size);
+		return true;
 	}
 
 	// A button's text: its label, then, when `a_help`, a space and the greyed help mark.
@@ -1745,7 +1771,6 @@ namespace Theme
 			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - a_width) * 0.5f));
 		};
 		constexpr float kSubtitleGapTrim = 4.0f;  // how much closer the subtitle sits under the heading than the item spacing (pixels at 1080p)
-		constexpr float kRuleGapExtra = 4.0f;     // Nordic: extra room above the rule beyond the item spacing (pixels at 1080p)
 
 		// The gap below an item comes from the item spacing in force while it is laid out:
 		// the subtitle sits close under the heading, and the wider gap follows only the
@@ -1753,10 +1778,9 @@ namespace Theme
 		// Contract: every page's body opens with a LabelText, whose section gap
 		// completes the heading's gap; the heading leaves that much out.
 		const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
-		const ImVec2 wider(spacing.x, spacing.y + (kHeadingGapExtra - kSectionGap) * g_scale);
+		const ImVec2 wider = HeadingGapSpacing(false);
 		const ImVec2 tight(spacing.x, (std::max)(0.0f, spacing.y - kSubtitleGapTrim * g_scale));
-		const ImVec2 aboveRule(spacing.x, spacing.y + kRuleGapExtra * g_scale);
-		const ImVec2 afterLast = nordic ? aboveRule : wider;
+		const ImVec2 afterLast = HeadingGapSpacing(nordic);
 
 		if (ownFont) {
 			ImGui::PushFont(loaded.heading, files.heading.size);
@@ -1788,6 +1812,53 @@ namespace Theme
 
 		if (nordic) {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, wider);
+			DrawHeadingRule();
+			ImGui::PopStyleVar();
+		}
+	}
+
+	float HeadingTabsWidth(std::span<const char* const> a_labels)
+	{
+		const bool  ownFont = PushHeadingFont();
+		const float separator = ImGui::CalcTextSize(kTabSeparator).x + ImGui::GetStyle().ItemSpacing.x * 2.0f;
+		float       width = 0.0f;
+		for (std::size_t i = 0; i < a_labels.size(); ++i) {
+			width += ImGui::CalcTextSize(a_labels[i]).x + (i > 0 ? separator : 0.0f);
+		}
+		if (ownFont) {
+			ImGui::PopFont();
+		}
+		return width;
+	}
+
+	// Every tab sits on the heading's one line, so each is laid out with the spacing of its
+	// last line (HeadingText's).
+	void BeginHeadingTabs(std::span<const char* const> a_labels)
+	{
+		const bool nordic = g_skin == Skin::kNordic;
+		if (nordic) {
+			const float width = HeadingTabsWidth(a_labels);
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
+		}
+		PushHeadingFont();
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, HeadingGapSpacing(nordic));
+	}
+
+	void HeadingTabSeparator()
+	{
+		ImGui::SameLine();
+		ImGui::TextDisabled("%s", kTabSeparator);
+		ImGui::SameLine();
+	}
+
+	void EndHeadingTabs()
+	{
+		ImGui::PopStyleVar();
+		if (LoadedFontsOf(g_skin).heading) {
+			ImGui::PopFont();
+		}
+		if (g_skin == Skin::kNordic) {
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, HeadingGapSpacing(false));
 			DrawHeadingRule();
 			ImGui::PopStyleVar();
 		}
@@ -2018,8 +2089,9 @@ namespace Theme
 	// selected tab has.
 	bool Tab(TabIcon a_icon, const char* a_name, bool a_selected)
 	{
-		constexpr float kIconInset = 0.12f;  // of the side, between the fill's edge and the icon
-		constexpr float kLineWidth = 1.5f;   // pixels at 1080p
+		constexpr float kIconInset = 0.12f;      // of the side, between the fill's edge and the icon
+		constexpr float kLineWidth = 1.5f;       // pixels at 1080p
+		constexpr float kSquareRounding = 2.0f;  // pixels at 1080p, the fill's corners in Vanilla and Nordic, whose frames are square
 
 		const float  side = kTabSide * g_scale;
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
@@ -2028,7 +2100,8 @@ namespace Theme
 		auto*        draw = ImGui::GetWindowDrawList();
 		ImU32        color = LinkColor(hovered);
 		if (a_selected) {
-			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImGui::GetColorU32(ImGuiCol_Header), ImGui::GetStyle().FrameRounding);
+			const float rounding = g_skin == Skin::kTailor ? ImGui::GetStyle().FrameRounding : kSquareRounding * g_scale;
+			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImGui::GetColorU32(ImGuiCol_Header), rounding);
 			color = ImGui::GetColorU32(ImGuiCol_Text);
 		} else if (!hovered && g_skin == Skin::kTailor) {
 			color = ImGui::GetColorU32(ImGuiCol_TextDisabled);

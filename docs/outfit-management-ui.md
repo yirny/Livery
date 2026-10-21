@@ -112,7 +112,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   each shoulder one arc) and Manage Situations (the star, point down, of the outfit rows'
   situation mark; docs/situation-management-ui.md §3).
 - Icons only, drawn as ImDrawList lines, so they scale with the resolution and take the
-  skin's colours: the selected tab in the text colour on a faint fill, the others in
+  skin's colours: the selected tab in the text colour on a faint fill (its corners rounded
+  2px in Vanilla and Nordic, as Tailor's frames in Tailor), the others in
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
 - Each tab is centred between the window's left edge and the rule. Nordic's start 8px
   lower, clear of the corner knot.
