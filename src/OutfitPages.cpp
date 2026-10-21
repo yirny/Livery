@@ -17,7 +17,8 @@
 //                  on the Load and Select pages the selected outfit is on the preview,
 //                  and a second click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
-//                  pieces and returns (greyed while none of them is loaded)
+//                  pieces and returns (greyed while none of them is loaded); opened from
+//                  the Edit page, it adds them to that page's ticks
 //   Select page  - the Update tab's outfit selection: library outfits and the selected
 //                  one's details; Select fills the Update tab (ChooseOutfit), Cancel
 //                  leaves it as it was
@@ -33,9 +34,9 @@
 //                  a Default) through onManageApply or onManageUpdate; Exit closes the window;
 //                  Exit, Escape or another tab with unsaved edits shows the unsaved-changes
 //                  alert, whose Save Changes goes through Update's popup
-//   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks
-//                  and Live Preview; Use Ticked Pieces makes them the edited pieces, Back
-//                  leaves them; nothing is written
+//   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks,
+//                  Add pieces from Wardrobe... and Live Preview; Use Ticked Pieces makes
+//                  them the edited pieces, Back leaves them; nothing is written
 #include "PCH.h"
 
 #include "CaptureWindowInternal.h"
@@ -48,6 +49,7 @@
 #include <algorithm>
 #include <cstring>
 #include <format>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -440,8 +442,24 @@ namespace CaptureWindow::Internal
 		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = std::format("From \"{}\" (Not Carried)", outfit.name);
 	}
 
+	// A load opened from the Edit page adds to that page's ticks (Edit page section).
+	std::vector<std::size_t> EditPreview(const State& a_state);
+	void                     AddToEdit(State& a_state);
+
+	// The Load page's preview: the selected outfit, or with none the ticks it goes back to;
+	// opened from the Edit page, that page's ticks with the selected outfit added.
+	void PreviewLoad(const State& a_state)
+	{
+		if (a_state.loadIntoEdit) {
+			QueuePreview(a_state, EditPreview(a_state));
+		} else {
+			PreviewOutfitOrTicks(a_state, a_state.previewedOutfit);
+		}
+	}
+
 	// Selecting an outfit shows it on the preview; a second click on it, or Back,
-	// shows the ticks again. Nothing here changes the ticks until Load.
+	// shows the ticks again. Nothing here changes the ticks until Load. Opened from the Edit
+	// page, Load adds to that page's ticks and both go back there.
 	void DrawLoadPage(State& a_state)
 	{
 		BrowserControls controls;
@@ -457,23 +475,29 @@ namespace CaptureWindow::Internal
 		}
 		if (clicked >= 0) {
 			a_state.previewedOutfit = clicked == a_state.previewedOutfit ? -1 : clicked;
-			PreviewOutfitOrTicks(a_state, a_state.previewedOutfit);
+			PreviewLoad(a_state);
 		}
 
 		const auto action = DrawLoadButtons(a_state, controls.escapeTaken);
 		EndButtonRow();
+		const Page from = a_state.loadIntoEdit ? Page::kEdit : Page::kCapture;
 		switch (action) {
 		case LoadAction::kLoad:
 			QueueMenuSound(kOkSound);
-			LoadOutfit(a_state);
-			GoToPage(a_state, Page::kCapture);
+			if (a_state.loadIntoEdit) {
+				AddToEdit(a_state);
+			} else {
+				LoadOutfit(a_state);
+			}
+			GoToPage(a_state, from);
 			break;
 		case LoadAction::kBack:
 			QueueMenuSound(kCancelSound);
 			if (a_state.previewedOutfit >= 0) {
-				QueuePreview(a_state, TickedPieces(a_state));
+				a_state.previewedOutfit = -1;
+				PreviewLoad(a_state);  // the ticks it goes back to
 			}
-			GoToPage(a_state, Page::kCapture);
+			GoToPage(a_state, from);
 			break;
 		case LoadAction::kNone:
 			break;
@@ -1143,6 +1167,65 @@ namespace CaptureWindow::Internal
 		return { a_state.editTicked.get(), &a_state.editShown, &a_state.editShownHeading };
 	}
 
+	// "From \"A\", \"B\" (Not Carried)": over the pieces nobody carries, the outfits they come
+	// from (State::editOutfitNames).
+	std::string EditShownHeading(const std::vector<std::string>& a_names)
+	{
+		std::string names;
+		for (const auto& name : a_names) {
+			names += std::format("{}\"{}\"", names.empty() ? "" : ", ", name);
+		}
+		return std::format("From {} (Not Carried)", names);
+	}
+
+	// The page's ticks with the Load page's selected outfit added, when one is: its pieces
+	// ticked, and a ticked piece sharing a body slot with one of them unticked, as ticking that
+	// piece would untick it (UntickSharingSlots).
+	std::vector<std::size_t> EditPreview(const State& a_state)
+	{
+		if (a_state.previewedOutfit < 0) {
+			return Ticked(a_state, EditPieces(a_state));
+		}
+		const auto&   outfit = OutfitAt(a_state, a_state.previewedOutfit);
+		const auto&   pieces = a_state.request.pieces;
+		std::uint32_t slots = 0;  // the body slots the outfit's pieces take
+		for (const auto piece : outfit.pieces) {
+			slots |= pieces[piece].slots;
+		}
+		std::vector<std::size_t> ticked;
+		for (std::size_t i = 0; i < pieces.size(); ++i) {
+			if (HasPiece(outfit, i) || (a_state.editTicked[i] && (pieces[i].slots & slots) == 0)) {
+				ticked.push_back(i);
+			}
+		}
+		return ticked;
+	}
+
+	// The Load page's selected outfit added to the page's ticks (EditPreview), which the
+	// preview already shows; its pieces stay listed, and the heading over those nobody carries
+	// names it when it brings one. The Inventory page's ticks stay as they were.
+	// Contract: an outfit is selected on the Load page.
+	void AddToEdit(State& a_state)
+	{
+		const auto& outfit = OutfitAt(a_state, a_state.previewedOutfit);
+		const auto  ticked = EditPreview(a_state);
+		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
+			a_state.editTicked[i] = std::ranges::binary_search(ticked, i);
+		}
+		const bool bringsUncarried = std::ranges::any_of(outfit.pieces, [&a_state](std::size_t a_piece) {
+			return a_state.request.pieces[a_piece].group == CaptureWindow::PieceGroup::kNotCarried && !std::ranges::binary_search(a_state.editShown, a_piece);
+		});
+
+		std::vector<std::size_t> shown;
+		std::ranges::set_union(a_state.editShown, outfit.pieces, std::back_inserter(shown));
+		a_state.editShown = std::move(shown);
+		auto& names = a_state.editOutfitNames;
+		if (bringsUncarried && std::ranges::find(names, outfit.name) == names.end()) {
+			names.push_back(outfit.name);
+			a_state.editShownHeading = EditShownHeading(names);
+		}
+	}
+
 	// Ticks exactly the edited pieces, which the preview already shows; they stay listed
 	// while the page is open, those nobody carries under the outfit's heading. The
 	// Inventory page's ticks stay as they were.
@@ -1155,18 +1238,20 @@ namespace CaptureWindow::Internal
 		}
 		a_state.editShown = form.pieces;
 		a_state.editTitle = std::format("Edit \"{}\"", name);
-		a_state.editShownHeading = std::format("From \"{}\" (Not Carried)", name);
+		a_state.editOutfitNames = { name };
+		a_state.editShownHeading = EditShownHeading(a_state.editOutfitNames);
 		GoToPage(a_state, Page::kEdit);
 	}
 
 	// Use Ticked Pieces makes the ticks the edited pieces, which the preview already shows;
 	// Back and Escape leave them, and the preview shows them again. Nothing is written.
+	// Add pieces from Wardrobe... opens the Load page, whose Load adds to the ticks.
 	void DrawEditPage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const auto list = EditPieces(a_state);
 		DrawPieceRows(a_state, list);
-		DrawPieceCount(a_state, list);
+		const bool load = DrawPieceCount(a_state, list, true);
 		DrawPreviewToggle(a_state, list);
 		BeginButtonRow({ "Use Ticked Pieces", "Back" });
 		const auto ticked = Ticked(a_state, list);
@@ -1176,7 +1261,12 @@ namespace CaptureWindow::Internal
 		EndButtonRow();
 		ImGui::EndDisabled();
 
-		if (use) {
+		if (load) {
+			QueueMenuSound(kOkSound);
+			a_state.previewedOutfit = -1;
+			a_state.loadIntoEdit = true;
+			GoToPage(a_state, Page::kLoad);
+		} else if (use) {
 			QueueMenuSound(kOkSound);
 			a_state.manage.pieces = ticked;
 			GoToPage(a_state, Page::kManage);

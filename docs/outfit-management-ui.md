@@ -198,6 +198,13 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   heading, as after Load. Its ticks are its own; the Inventory page's stay as they were.
 - Title `Edit "#{Outfit}"`, no summary line, no tab column. It has the window's Live Preview
   tick; the preview shows this page's ticks.
+- The count line ends in `Add pieces from Wardrobe...`, as on the Inventory page (§2): the
+  Load page opens, and Load adds the selected outfit's pieces to this page's ticks instead
+  of replacing them: a ticked piece sharing a body slot with one of them is unticked, as a
+  tick would untick it. Its pieces nobody carries stay listed, and their heading names every
+  outfit they come from (`From "A", "B" (Not Carried)`). While the Load page is open the
+  preview shows this page's ticks with the selected outfit added; Load and Back return to
+  this page, nothing written.
 - `Use Ticked Pieces` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
   pieces and the page returns to Manage Wardrobe; nothing is written. `Back` and Escape
   return with the edited pieces as they were.

@@ -969,8 +969,8 @@ namespace CaptureWindow::Internal
 		Theme::EndList();
 	}
 
-	// The count line under the list; on the Inventory page (`a_withWardrobeLink`) it ends in
-	// `Add pieces from Wardrobe...`, which opens the Load page and is greyed while the
+	// The count line under the list; on the Inventory and Edit pages (`a_withWardrobeLink`) it
+	// ends in `Add pieces from Wardrobe...`, which opens the Load page and is greyed while the
 	// library is empty. Returns true when that link is clicked.
 	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink)
 	{
@@ -1341,6 +1341,7 @@ namespace CaptureWindow::Internal
 		case CaptureAction::kLoadPage:
 			QueueMenuSound(kOkSound);
 			a_state.previewedOutfit = -1;
+			a_state.loadIntoEdit = false;
 			GoToPage(a_state, Page::kLoad);
 			break;
 		case CaptureAction::kSavePage:
