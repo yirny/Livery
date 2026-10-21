@@ -685,7 +685,7 @@ namespace CaptureWindow::Internal
 	// The ticks are part of the edits.
 	void DrawSituationsField(State& a_state)
 	{
-		if (DrawRowsDropdown(a_state, a_state.manageSituationsLabel.c_str(), a_state.manage.wearsFor.get())) {
+		if (DrawRowsDropdown(a_state, a_state.situationsLabel.c_str(), a_state.manage.wearsFor.get())) {
 			const auto& name = a_state.request.actorName;
 			DrawHelpTooltip(std::format("Where {0} wears this outfit, saved with Update or Apply. These choices are {0}'s own: other characters keep theirs.", name));
 		}

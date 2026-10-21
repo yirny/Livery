@@ -70,8 +70,14 @@ namespace
 
 	// Extra room under the heading (under its rule in Nordic) beyond the item spacing (pixels at 1080p).
 	constexpr float kHeadingGapExtra = 16.0f;
-	// Extra room above each field (label and control) beyond the item spacing (pixels at 1080p).
-	constexpr float kSectionGap = 6.0f;
+	// Extra room above each field (its label and control, or a control with no label) beyond
+	// the item spacing: Tailor's, then Vanilla's and Nordic's (pixels at 1080p).
+	constexpr float kTailorSectionGap = 6.0f;
+	constexpr float kSquareSectionGap = 8.0f;
+	// Extra room above a list's count line under it, part of the list's field (pixels at 1080p).
+	constexpr float kCountLineGap = 6.0f;
+	// The small font's size, of the body font's (Theme::PushSmallFont); Tailor's tags use it too.
+	constexpr float kSmallFontRatio = 0.85f;
 
 	// Tailor 3.0's tight lists: the gap between rows, and the dropdown popup's
 	// padding (pixels at 1080p).
@@ -669,6 +675,12 @@ namespace
 		ImGui::Dummy(ImVec2(0.0f, height));
 	}
 
+	// The skin's extra room above a field (pixels at 1080p).
+	float SectionGapAt1080()
+	{
+		return g_skin == Theme::Skin::kTailor ? kTailorSectionGap : kSquareSectionGap;
+	}
+
 	// The item spacing to lay out a page heading's last element with, so the gap below the
 	// heading comes out right: its extra gap, less the section gap the page's first field adds
 	// (Theme::HeadingText's contract); `a_aboveRule`, Nordic's last line, a little room above
@@ -678,7 +690,7 @@ namespace
 		constexpr float kRuleGapExtra = 4.0f;  // Nordic: extra room above the rule beyond the item spacing (pixels at 1080p)
 
 		const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
-		const float  extra = a_aboveRule ? kRuleGapExtra : kHeadingGapExtra - kSectionGap;
+		const float  extra = a_aboveRule ? kRuleGapExtra : kHeadingGapExtra - SectionGapAt1080();
 		return ImVec2(spacing.x, spacing.y + extra * g_scale);
 	}
 
@@ -1370,11 +1382,21 @@ namespace
 		return size;
 	}
 
+	// The tags' font: the small font in Tailor, whose chips frame it; a little smaller in
+	// Vanilla and Nordic. Pop with ImGui::PopFont.
+	void PushTagFont()
+	{
+		constexpr float kSquareTagRatio = 0.8f;  // of the body font's size, in Vanilla and Nordic: 16px at 1080p
+
+		const float ratio = g_skin == Theme::Skin::kTailor ? kSmallFontRatio : kSquareTagRatio;
+		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * ratio);
+	}
+
 	// An outfit row's tags left to right from `a_topLeft`, wrapping onto a new line where the
 	// next one would pass `a_width`: its gender unless unisex, then `a_tags`. Tailor draws
 	// them as framed tags (TailorTag), Vanilla and Nordic as grey text, comma separated.
 	// Draws them when `a_draw` is set. Returns their height; 0 for no tag.
-	// Contract: in the small font (Theme::PushSmallFont).
+	// Contract: in the tags' font (PushTagFont).
 	float LayOutTags(ImDrawList* a_draw, ImVec2 a_topLeft, float a_width, int a_gender, std::span<const std::string> a_tags)
 	{
 		constexpr float kChipGap = 6.0f;  // pixels at 1080p, between Tailor's tags and their lines
@@ -1606,10 +1628,12 @@ namespace
 	// so the label sits closer to the control below it. Pop with PopStyleVar.
 	void PushLabelSpacing()
 	{
-		constexpr float kLabelGapTrim = 3.0f;  // pixels at 1080p
+		constexpr float kTailorTrim = 3.0f;  // pixels at 1080p
+		constexpr float kSquareTrim = 5.0f;  // Vanilla and Nordic, pixels at 1080p
 
 		const auto& spacing = ImGui::GetStyle().ItemSpacing;
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - kLabelGapTrim * g_scale)));
+		const float trim = g_skin == Theme::Skin::kTailor ? kTailorTrim : kSquareTrim;
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - trim * g_scale)));
 	}
 
 	// LabelText's colour, or the lit one while hovered: amber in Tailor, whose label
@@ -1871,12 +1895,16 @@ namespace Theme
 
 	void SectionGap()
 	{
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kSectionGap * g_scale);
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + SectionGapAt1080() * g_scale);
 	}
 
-	void LabelText(const char* a_text)
+	void LabelText(const char* a_text, bool a_opensField)
 	{
-		SectionGap();
+		if (a_opensField) {
+			SectionGap();
+		} else {
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kCountLineGap * g_scale);
+		}
 		// The gap below an item comes from the item spacing in force while it is laid out.
 		const bool grey = g_skin != Skin::kTailor;
 		PushLabelSpacing();
@@ -2283,8 +2311,6 @@ namespace Theme
 
 	void PushSmallFont()
 	{
-		constexpr float kSmallFontRatio = 0.85f;  // of the body font's size
-
 		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * kSmallFontRatio);
 	}
 
@@ -2621,9 +2647,9 @@ namespace Theme
 
 	float OutfitRowHeight(int a_gender, std::span<const std::string> a_tags, float a_tagsWidth)
 	{
-		PushSmallFont();
+		PushTagFont();
 		const float tags = LayOutTags(nullptr, ImVec2(0.0f, 0.0f), a_tagsWidth, a_gender, a_tags);
-		PopSmallFont();
+		ImGui::PopFont();
 		return SelectRowHeight() + ListPaddingY() + (tags > 0.0f ? kOutfitTagsGap * g_scale + tags : 0.0f);
 	}
 
@@ -2676,9 +2702,9 @@ namespace Theme
 			}
 		}
 		const float tagsY = textY + ImGui::GetTextLineHeight() + kOutfitTagsGap * g_scale;
-		PushSmallFont();
+		PushTagFont();
 		LayOutTags(draw, ImVec2(textX, tagsY), a_tagsWidth, a_gender, a_tags);
-		PopSmallFont();
+		ImGui::PopFont();
 		return row.pressed;
 	}
 }

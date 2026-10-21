@@ -41,8 +41,8 @@ What a row wears:
   is walked as today, the first row that has one is worn, else the Default, else their own
   clothes.
 - A row *holds* an outfit when it is `chosen` (random off) or on `outfits` (random on).
-  "Holds" is what the Save page's `wears it for` ticks, Manage Wardrobe's `Situations for
-  #{Name}`, the outfit list's Situation tags, headings and star mark, and Remove's popup show.
+  "Holds" is what `Situations for #{Name}` ticks on the Save page and Manage Wardrobe, and
+  the outfit list's Situation tags, headings and star mark, and Remove's popup show.
 
 Every row reads its outfit from the library each time it goes on, the Default included;
 only the Default's `pieces` are kept as given.
@@ -108,8 +108,8 @@ situation id becomes `outfits = [id]`, `chosen = id`; random off everywhere.
   once and never writes a file it could not read or that a newer version wrote; writes go
   through a temporary file and a rename; game thread only; only after the user's action
   (§5, §6).
-- A removed situation offers no row anywhere: not on the Save page's `wears it for`, Manage
-  Wardrobe's dropdown, the Situation category group, the sort's headings, or the page's
+- A removed situation offers no row anywhere: not in `Situations for #{Name}` on the Save
+  page and Manage Wardrobe, the Situation category group, the sort's headings, or the page's
   list; `Situations::Evaluate` still reports it and nothing wears it. Removing it clears
   its rows in this save (§5); another save's rows for it are dropped when that save loads,
   with a log line. A save not loaded between Remove and Restore Presets keeps its rows.

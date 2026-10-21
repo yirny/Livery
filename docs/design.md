@@ -249,8 +249,8 @@ goes on and kept until it changes, a forced redress keeping it while it is on th
 and recorded as `chosen`, so turning random off keeps the last pick on. Giving a row an
 outfit (`OutfitRows::Give`) with random on puts it at the front of the list; with random
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
-the list keeps its length. The Save page's "wears it for"
-rows give and take the outfit for the captured actor in one `Assignments::Change`, after
+the list keeps its length. The Save page's `Situations for
+#{Name}` rows give and take the outfit for the captured actor in one `Assignments::Change`, after
 the library write, with one forced redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
 included) with it; Update saves them the same way, and its `Apply to #{Name}` dresses the
 actor for the ticked rows, or makes the outfit the default with none, as Apply does.

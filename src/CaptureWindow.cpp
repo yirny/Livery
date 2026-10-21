@@ -23,7 +23,7 @@
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
-//                  name, categories, gender and "wears it for" rows (Default, the
+//                  name, categories, gender and "Situations for #{Name}" rows (Default, the
 //                  situations); a popup (Confirm / Cancel) before replacing the outfit a row
 //                  wears, the Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
 //                  fills the Update tab from the Select page's choice
@@ -975,7 +975,7 @@ namespace CaptureWindow::Internal
 	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
-		Theme::LabelText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str());
+		Theme::LabelText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		bool add = false;
 		if (a_withWardrobeLink) {
 			const bool empty = a_state.request.existingOutfits.empty();
@@ -1569,12 +1569,13 @@ namespace CaptureWindow::Internal
 		return clicked;
 	}
 
-	// An outfit's name field (a Save page tab's, Manage Wardrobe'). Returns true when the user
-	// pressed Enter with a name typed. The empty field shows kNeedName; a failed save turns it
-	// red with the message on hover, until the name is edited.
+	// An outfit's name field (a Save page tab's, Manage Wardrobe'), with no label: hovered while
+	// not being typed in, it says `Outfit Name`. Returns true when the user pressed Enter with a
+	// name typed. The empty field shows kNeedName; a failed save turns it red with the message
+	// on hover instead, until the name is edited.
 	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name)
 	{
-		Theme::LabelText("Outfit name");
+		Theme::SectionGap();  // a field with no label
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (a_state.focusNameField) {
 			ImGui::SetKeyboardFocusHere();
@@ -1589,14 +1590,16 @@ namespace CaptureWindow::Internal
 			} else if (ImGui::IsItemHovered()) {
 				ImGui::SetTooltip("%s", a_state.error.c_str());
 			}
+		} else if (ImGui::IsItemHovered() && !ImGui::IsItemActive()) {
+			ImGui::SetTooltip("Outfit Name");
 		}
 		return enter && !Trimmed(a_name.data()).empty();
 	}
 
-	// The outfit's gender as one row of radio buttons.
+	// The outfit's gender as one row of radio buttons, with no label.
 	void DrawGenderField(int& a_gender)
 	{
-		Theme::LabelText("Gender");
+		Theme::SectionGap();  // a field with no label
 		for (std::size_t i = 0; i < kGenderOptions.size(); ++i) {
 			if (i > 0) {
 				ImGui::SameLine();
@@ -1608,11 +1611,11 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// "#{Name} wears it for" with its "(?)" over the rows' multi-choice dropdown, as Manage
-	// Wardrobe's "Situations for #{Name}".
+	// "Situations for #{Name}" with its "(?)" over the rows' multi-choice dropdown, as on
+	// Manage Wardrobe.
 	void DrawWearsForField(const State& a_state, SaveForm& a_form)
 	{
-		if (DrawRowsDropdown(a_state, a_state.wearsForLabel.c_str(), a_form.wearsFor.get())) {
+		if (DrawRowsDropdown(a_state, a_state.situationsLabel.c_str(), a_form.wearsFor.get())) {
 			DrawHelpTooltip(std::format(
 				"Situational outfit. {0} changes into it whenever a ticked situation applies. Default is what {0} "
 				"wears wherever no situation applies.",
@@ -1878,7 +1881,7 @@ namespace CaptureWindow
 			state.chosenOutfit = -1;
 			state.selectingOutfit = -1;
 			state.openConfirm = false;
-			state.wearsForLabel = std::format("{} wears it for", state.request.actorName);
+			state.situationsLabel = std::format("Situations for {}", state.request.actorName);
 			state.error.clear();
 			state.pending.clear();
 			state.focusNameField = false;
@@ -1905,7 +1908,6 @@ namespace CaptureWindow
 			state.situationForm = {};
 			FillSituationForm(state, state.request.situations);
 			state.situationsTitle = std::format("{}'s Situational Outfits", state.request.actorName);
-			state.manageSituationsLabel = std::format("Situations for {}", state.request.actorName);
 			state.manageApplyLabel = std::format("Apply to {}", state.request.actorName);
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
 			state.editShown.clear();
@@ -2015,7 +2017,7 @@ namespace CaptureWindow
 		if (chosen != 0 && state.chosenOutfit < 0) {
 			state.updateTab = false;  // the Save page's Update tab has no outfit left to update
 		}
-		// The Update tab's "wears it for" ticks follow the rows Manage Wardrobe or Manage
+		// The Update tab's "Situations for #{Name}" ticks follow the rows Manage Wardrobe or Manage
 		// Situations changed for its outfit, so its Update cannot undo them unseen; the user's
 		// other ticks stay. Rows are matched by situation, as one may have been removed.
 		for (std::size_t row = 0; state.chosenOutfit >= 0 && row < RowCount(state); ++row) {

@@ -58,12 +58,14 @@ namespace Theme
 	// Pixels at 1080p to pixels on the current back buffer.
 	float Scale();
 
-	// A field label in the small font (PushSmallFont): grey in Vanilla and
-	// Nordic, plain text in Tailor. Opens a field with SectionGap and sits a
-	// little closer to the control below it than the item spacing would.
+	// A field is a label (or none) and the control or list it names; a list's count line
+	// under it belongs to the list's field. LabelText is a field label in the small font
+	// (PushSmallFont): grey in Vanilla and Nordic, plain text in Tailor. It opens its field
+	// with SectionGap and sits a little closer to the control below it than the item spacing
+	// would. `opensField` false, a count line under a list: a smaller gap above it, 6px.
 	// Contract: every field label goes through here, a list's count line
 	// ("2 of 5 piece(s) selected", "12 outfit(s) in the wardrobe") included.
-	void LabelText(const char* text);
+	void LabelText(const char* text, bool opensField = true);
 
 	// A clickable label at the right end of the line just laid out (call it
 	// right after LabelText): a filled rounded square with a plus cut out of
@@ -99,8 +101,8 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineLinkAt(const char* label, float x);
 
-	// Extra room above a field, on top of the item spacing; LabelText adds it
-	// itself, so call it only before a field that has no label.
+	// Extra room above a field, on top of the item spacing: 6px in Tailor, 8px in Vanilla and
+	// Nordic. LabelText adds it itself, so call it only before a field that has no label.
 	void SectionGap();
 
 	// Returns true when pressed. Nordic draws a pointed-end frame.
@@ -262,7 +264,8 @@ namespace Theme
 		const char* situations = nullptr;
 	};
 
-	// A SelectRow with the outfit's tags under its name in the small font, wrapping onto
+	// A SelectRow with the outfit's tags under its name (in the small font in Tailor, 16px in
+	// Vanilla and Nordic), wrapping onto
 	// more lines within `tagsWidth` (OutfitTagsWidth): its gender first unless unisex (-1
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
