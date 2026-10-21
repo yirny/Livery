@@ -43,6 +43,18 @@ namespace Theme
 	// it; Nordic centres both over an ornamented rule.
 	void HeadingText(const char* text, const char* subtitle = nullptr);
 
+	// A page's heading made of text tabs in place of HeadingText: BeginHeadingTabs with every
+	// label in order, then TextTab for each with HeadingTabSeparator between them, then
+	// EndHeadingTabs. The tabs are in the heading font, a greyed "/" between them, on one line
+	// where HeadingText puts its text (Nordic: centred, over its rule), with its gap below.
+	// HeadingTabsWidth is the line's width.
+	// Contract: always pair Begin and End; a tab's tooltip goes after EndHeadingTabs, or it is
+	// drawn in the heading font.
+	void  BeginHeadingTabs(std::span<const char* const> labels);
+	void  HeadingTabSeparator();
+	void  EndHeadingTabs();
+	float HeadingTabsWidth(std::span<const char* const> labels);
+
 	// Pixels at 1080p to pixels on the current back buffer.
 	float Scale();
 
@@ -349,8 +361,9 @@ namespace Theme
 	// ImGui::SetNextItemAllowOverlap, or beside one, as tall as the field.
 	bool ClearButton(const char* id, float side);
 
-	// One tab of a row of text-only tabs: its label in the body font, in full colour while
-	// selected or hovered and half transparent otherwise. Returns true when clicked. Faded
+	// One tab of a row of text-only tabs: its label in the current font (the heading font
+	// between BeginHeadingTabs and EndHeadingTabs), in full colour while selected or hovered and
+	// half transparent otherwise. Returns true when clicked. Faded
 	// and inert inside BeginDisabled.
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool TextTab(const char* label, bool selected);
@@ -364,8 +377,9 @@ namespace Theme
 		kSituations  // the star, point down, that marks an outfit chosen for a situation (OutfitMarks)
 	};
 
-	// One tab of the column at the window's left edge, a square: the icon in the text
-	// colour on a faint fill while selected, else in LabelText's grey (Tailor's ghost) and
+	// One tab of the column at the window's left edge, a square: the icon in the text colour
+	// on a faint fill while selected (its corners rounded 2px in Vanilla and Nordic, as Tailor's
+	// frames in Tailor), else in LabelText's grey (Tailor's ghost) and
 	// lit while hovered, with `name` as a tooltip. Returns true when clicked. Faded and
 	// inert inside BeginDisabled.
 	// Contract: `name` is the ImGui ID.
