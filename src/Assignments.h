@@ -97,6 +97,14 @@ namespace Assignments
 	// Contract: game thread.
 	std::vector<RE::FormID> ForgetOutfit(std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_pieces);
 
+	// The situation has left situations.json (SituationStore::Remove): every actor's row for
+	// it is cleared, so a restore brings it back empty. An assignment left with nothing on
+	// them and no situation row holding an outfit ends. Nobody is redressed here; returns the
+	// actors wearing it now, whom WearFor takes out of it (the actors not in memory at their
+	// next situation change).
+	// Contract: game thread; not kDefault.
+	std::vector<RE::FormID> ForgetSituation(Situations::Situation a_situation);
+
 	// Ends their assignment, situation choices included: Livery's locks and copies go,
 	// their own pieces it took off go back on. Nothing for an actor Livery does not dress.
 	// Shows a HUD message.

@@ -6,7 +6,7 @@
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
-//   API       - Name / Evaluate / Start / Stop
+//   API       - Evaluate / Start / Stop
 //
 // The rules follow Tailor 3.0's src/events/SituationHandler.cpp and its policy headers
 // (SwimmingPolicy, SleepStatePolicy, WarmPolicy, WarmWeather, LocationSituationPolicy).
@@ -229,24 +229,6 @@ namespace
 
 namespace Situations
 {
-	const char* Name(Situation a_situation)
-	{
-		switch (a_situation) {
-		case Situation::kTown:
-			return "Town";
-		case Situation::kHome:
-			return "Home";
-		case Situation::kSleep:
-			return "Sleep";
-		case Situation::kSwimming:
-			return "Swimming";
-		case Situation::kWarm:
-			return "Warm";
-		default:
-			return "Default";
-		}
-	}
-
 	Applicable Evaluate(RE::Actor& a_actor)
 	{
 		Applicable applicable;
