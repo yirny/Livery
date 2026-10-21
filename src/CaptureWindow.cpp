@@ -837,9 +837,7 @@ namespace CaptureWindow::Internal
 			restore = Theme::LabelHelpLink("Restore Original Outfit", &hovered);
 			if (hovered) {
 				DrawHelpTooltip(std::format(
-					"Takes Livery's outfit off {0}: its locks go, the pieces it added are taken back, the clothes it took off go back on, "
-					"and its situation choices are forgotten. Items moved from your inventory stay with {0}. A slot whose own piece is "
-					"gone is left to the game, which may take a cell change or two to fill it.",
+					"Takes Livery's outfit off {} and forgets their situation outfits. Items moved from your inventory stay with them.",
 					a_state.request.actorName));
 			}
 		}
