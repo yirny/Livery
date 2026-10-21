@@ -52,16 +52,27 @@ namespace Assignments
 
 	// Makes every change, then dresses them once, anew, for their situations now, so an
 	// outfit whose pieces changed goes on even for the situation they already wear; a random
-	// row in `assign` worn now wears `outfit` as its pick. Shows one HUD message.
+	// row in `assign` worn now wears `outfit` as its pick. A row of a situation removed in
+	// situations.json since the change was queued stays empty. Shows one HUD message.
 	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
 	void Change(RE::Actor& a_actor, const Changes& a_changes);
 
+	// Manage Situations' Save Changes: their rows become `a_rows` (the rows of situations
+	// removed in situations.json stay empty), and with `a_dropDefaultPieces` the Default's
+	// pieces go. Nobody is dressed here: Refresh with the returned pick dresses them for the new
+	// rows. Returns the outfit a random row they wear now gained first, which that dressing
+	// wears as the row's pick, 0 for none; nullopt when they cannot be dressed (a HUD message
+	// says why), with nothing changed.
+	// Contract: game thread.
+	std::optional<std::uint32_t> SetRows(RE::Actor& a_actor, const OutfitRows::Rows& a_rows, bool a_dropDefaultPieces);
+
 	// Dresses them anew for their situations now, even in the outfit they already wear, so a
 	// library outfit whose pieces just changed goes on at once; a random row keeps its pick
-	// while it is on the list. `a_leaveOut` stays out of this dressing only (pieces that could
-	// not be moved to them). Nothing for an actor Livery does not dress. Shows a HUD message.
+	// while it is on the list, or with `a_pick` (SetRows) the row they wear wears that while it
+	// is on its list. `a_leaveOut` stays out of this dressing only (pieces that could not be
+	// moved to them). Nothing for an actor Livery does not dress. Shows a HUD message.
 	// Contract: game thread; no preview is on (OutfitPreview::End ran).
-	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut);
+	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, std::uint32_t a_pick = 0);
 
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
 	// first situation whose row holds an outfit, else the Default (OutfitRows::Resolve). A
@@ -86,6 +97,15 @@ namespace Assignments
 		std::vector<Situations::Situation> rows;
 	};
 	std::vector<Use> UsesOf(std::uint32_t a_outfit);
+
+	// Who has outfits on situation `a_situation`'s list, for the capture window's Remove
+	// Situation: each actor with how many. Contract: game thread.
+	struct Holder
+	{
+		RE::FormID  actor = 0;
+		std::size_t outfits = 0;
+	};
+	std::vector<Holder> HoldersOf(Situations::Situation a_situation);
 
 	// The outfit has left the library: it leaves every row (OutfitRows::Take), so an outfit
 	// hidden behind a `chosen` that was it is not worn. A Default this leaves wearing nothing

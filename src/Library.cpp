@@ -27,6 +27,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <system_error>
 #include <utility>
@@ -335,7 +336,15 @@ namespace Library
 			logger::info("No outfits.json yet; the outfit library is empty");
 			return;
 		}
-		const auto          json = nlohmann::json::parse(file, nullptr, false);
+		// An empty file (nothing but whitespace) is read as no file: an empty library that may
+		// be written, as situations.json is (SituationTable::Parse).
+		const std::string text{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+		if (ExampleMod::TrimWhitespace(text).empty()) {
+			g_writable = true;
+			logger::info("outfits.json is empty; the outfit library is empty");
+			return;
+		}
+		const auto          json = nlohmann::json::parse(text, nullptr, false);
 		std::vector<Outfit> outfits;
 		std::uint32_t       nextId = kFirstId;
 		const auto          problem = json.is_discarded() ? std::make_optional<std::string>("it is not valid JSON") : Parse(json, outfits, nextId);

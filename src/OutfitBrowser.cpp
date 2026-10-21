@@ -94,9 +94,9 @@ namespace
 	std::string SituationsText(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
 	{
 		std::string text;
-		for (std::size_t row = 1; row < a_request.assigned.size() && row - 1 < a_request.situations.size(); ++row) {
+		for (std::size_t row = 1; row < a_request.assigned.size() && row < a_request.situations.size(); ++row) {
 			if (HoldsRow(a_request, row, a_outfit.id)) {
-				text += (text.empty() ? "For " : ", ") + a_request.situations[row - 1];
+				text += (text.empty() ? "For " : ", ") + a_request.situations[row].name;
 			}
 		}
 		return text;

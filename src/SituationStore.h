@@ -17,9 +17,10 @@
 // the rows of removed situations there) and before any other function.
 namespace SituationStore
 {
-	// Reads the file. A missing file means every preset as installed and is not written
-	// here. A file that cannot be read, or that a newer version wrote, leaves every preset as
-	// installed and refuses every change, so the file is never overwritten.
+	// Reads the file. A missing or empty file (nothing but whitespace) means every preset as
+	// installed and is not written here. A file that cannot be read, or that a newer version
+	// wrote, leaves every preset as installed and refuses every change, so the file is never
+	// overwritten.
 	void Load();
 
 	// Contract: the reference goes stale at the next Apply, Remove or RestorePresets.
