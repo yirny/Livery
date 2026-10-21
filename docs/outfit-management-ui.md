@@ -52,6 +52,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   over it: `Current outfit`, `For Town, Warm` (`OutfitBrowser::State::situations`, computed
   at Rebuild). Both side by side when both apply; drawn with or without Show Categories.
 - `Sort by`'s text is right-aligned, ending 6px short of its arrow.
+- Rows meet with no gap (the list lays them out with no item spacing; each row and heading
+  holds the former gap, half above and half below), and every second row under a heading
+  has a faint white (10/255) under its fills, in every skin, as Tailor 3.0's outfit list
+  alternates its rows. Names, tags and headings start 14px in from the row's left edge.
 - A `Show Categories` tick under the list, on each time the window opens; off, rows show the
   name only.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.

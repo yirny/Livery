@@ -96,6 +96,9 @@ namespace
 	constexpr const char* kHelpMark = "(?)";
 	// Room between an outfit row's marks, and between them and the name (pixels at 1080p).
 	constexpr float kOutfitMarkGap = 6.0f;
+	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
+	// Tailor 3.0's outfit list indents them (pixels at 1080p).
+	constexpr float kOutfitRowPadX = 14.0f;
 	// Extra room between a field and the label under it, beyond SectionGap (pixels at 1080p).
 	constexpr float kAfterFieldGap = 4.0f;
 	// Room between a right-aligned preview's text and the dropdown arrow (pixels at 1080p).
@@ -2195,10 +2198,11 @@ namespace Theme
 		constexpr float kRulePad = 4.0f;       // pixels at 1080p, from the text to the rule and from the rule to the list's right end
 
 		PushSmallFont();
-		const ListRow row = LayOutListRow(a_text, SelectRowHeight());
+		const float   gap = ListPaddingY();  // the row gap the outfit list leaves out, half above and half below
+		const ListRow row = LayOutListRow(a_text, SelectRowHeight() + gap);
 		const float   side = ImGui::GetFontSize() * kChevronRatio;
 		const float   midY = (row.min.y + row.max.y) * 0.5f;
-		const float   left = row.min.x + row.inset + RowTextShift();
+		const float   left = row.fillMin.x + kOutfitRowPadX * g_scale;
 		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float   thick = (std::max)(1.0f, 1.5f * g_scale);
 		auto*         draw = ImGui::GetWindowDrawList();
@@ -2210,7 +2214,7 @@ namespace Theme
 			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
 		}
 		const float textX = left + side + ImGui::GetStyle().ItemInnerSpacing.x;
-		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), color, a_text);
+		draw->AddText(ImVec2(textX, row.min.y + gap * 0.5f + kSelectRowPadY * g_scale), color, a_text);
 		const float ruleLeft = textX + ImGui::CalcTextSize(a_text).x + kRulePad * g_scale;
 		const float ruleRight = row.fillMax.x - kRulePad * g_scale;
 		if (ruleRight > ruleLeft) {
@@ -2313,7 +2317,12 @@ namespace Theme
 
 	float OutfitTagsWidth()
 	{
-		return (std::max)(0.0f, ImGui::GetContentRegionAvail().x - RowTextShift() - ImGui::GetStyle().FramePadding.x);
+		return (std::max)(0.0f, ImGui::GetContentRegionAvail().x - kOutfitRowPadX * g_scale - ImGui::GetStyle().FramePadding.x);
+	}
+
+	float FoldHeadingHeight()
+	{
+		return ListHeadingHeight() + ListPaddingY();
 	}
 
 	float OutfitRowHeight(int a_gender, std::span<const std::string> a_tags, float a_tagsWidth)
@@ -2321,23 +2330,31 @@ namespace Theme
 		PushSmallFont();
 		const float tags = LayOutTags(nullptr, ImVec2(0.0f, 0.0f), a_tagsWidth, a_gender, a_tags);
 		PopSmallFont();
-		return SelectRowHeight() + (tags > 0.0f ? kOutfitTagsGap * g_scale + tags : 0.0f);
+		return SelectRowHeight() + ListPaddingY() + (tags > 0.0f ? kOutfitTagsGap * g_scale + tags : 0.0f);
 	}
 
-	// SelectRow with the tags under the name, inside the row's bottom padding. The selected
-	// row's Vanilla and Nordic arrow stays level with the name.
-	bool OutfitRow(const char* a_name, int a_gender, std::span<const std::string> a_tags, float a_tagsWidth, bool a_selected, const OutfitMarks& a_marks)
+	// SelectRow with the tags under the name, inside the row's bottom padding; the row gap the
+	// list leaves out is half above the name and half below the tags. The selected row's
+	// Vanilla and Nordic arrow stays level with the name.
+	bool OutfitRow(const char* a_name, int a_gender, std::span<const std::string> a_tags, float a_tagsWidth, bool a_selected, const OutfitMarks& a_marks,
+		bool a_striped)
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
+		constexpr int   kStripeAlpha = 10;      // of the white over a striped row, out of 255
 
+		const float   gap = ListPaddingY();
 		const ListRow row = LayOutListRow(a_name, OutfitRowHeight(a_gender, a_tags, a_tagsWidth));
-		const float   textX = row.min.x + row.inset + RowTextShift();
-		const float   textY = row.min.y + kSelectRowPadY * g_scale;
+		const float   textX = row.fillMin.x + kOutfitRowPadX * g_scale;
+		const float   textY = row.min.y + gap * 0.5f + kSelectRowPadY * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
+		if (a_striped) {
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(IM_COL32(255, 255, 255, kStripeAlpha)));
+		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		if (a_selected) {
 			ListRow nameLine = row;
-			nameLine.max.y = row.min.y + SelectRowHeight();
+			nameLine.min.y = row.min.y + gap * 0.5f;
+			nameLine.max.y = nameLine.min.y + SelectRowHeight();
 			DrawSelectMark(draw, nameLine, textX);
 		}
 		// The marks, right of the name on its line, in LabelText's grey; the name is cut

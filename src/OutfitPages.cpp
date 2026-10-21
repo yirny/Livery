@@ -242,28 +242,28 @@ namespace CaptureWindow::Internal
 	// (`a_tagsWidth` is Theme::OutfitTagsWidth there).
 	float OutfitListHeight(const State& a_state, const OutfitBrowser::State& a_browser, float a_tagsWidth, float a_reserved)
 	{
-		const auto& outfits = a_state.request.existingOutfits;
-		const float spacing = ImGui::GetStyle().ItemSpacing.y;
-		const float minHeight = Theme::SelectRowHeight() + spacing;
-		float       rows = static_cast<float>(a_browser.headingCount) * (Theme::ListHeadingHeight() + spacing);
+		const auto&                    outfits = a_state.request.existingOutfits;
+		const std::vector<std::string> none;
+		const float                    minHeight = Theme::OutfitRowHeight(-1, none, a_tagsWidth);
+		float                          rows = static_cast<float>(a_browser.headingCount) * Theme::FoldHeadingHeight();
 		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			const float row = a_state.showCategories ? Theme::OutfitRowHeight(outfits[i].gender, a_browser.tags[i], a_tagsWidth) : Theme::SelectRowHeight();
-			rows += row + spacing;
+			rows += a_state.showCategories ? Theme::OutfitRowHeight(outfits[i].gender, a_browser.tags[i], a_tagsWidth) : minHeight;
 		}
 		return FittedListHeight((std::max)(rows, minHeight), minHeight, a_reserved);
 	}
 
 	// One outfit of the list: its name, with its tags under it while Show Categories is on, and
 	// at its right end the marks of the outfit the actor wears now and of one chosen for a
-	// situation (Theme::OutfitMarks).
-	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected)
+	// situation (Theme::OutfitMarks); `a_striped` for every second row under a heading.
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped)
 	{
 		const auto&                    outfit = OutfitAt(a_state, a_index);
 		const auto&                    situations = a_browser.situations[static_cast<std::size_t>(a_index)];
 		const Theme::OutfitMarks       marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit, .situations = situations.empty() ? nullptr : situations.c_str() };
 		const std::vector<std::string> none;
 		const auto&                    tags = a_state.showCategories ? a_browser.tags[static_cast<std::size_t>(a_index)] : none;
-		return Theme::OutfitRow(outfit.name.c_str(), outfit.gender, tags, a_tagsWidth, a_selected, marks);
+		const int                      gender = a_state.showCategories ? outfit.gender : -1;  // the gender is a tag too
+		return Theme::OutfitRow(outfit.name.c_str(), gender, tags, a_tagsWidth, a_selected, marks, a_striped);
 	}
 
 	// Left column of the outfit pages: the wardrobe's outfits that pass the
@@ -285,7 +285,9 @@ namespace CaptureWindow::Internal
 			Theme::LabelText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
 		}
 		DrawSortCombo(a_state, a_browser);
-		PushListRowSpacing();  // the piece list's row gap; popped before EndList, as there
+		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
+		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 		const float tagsWidth = Theme::OutfitTagsWidth();
 		// Show Categories, under the list, takes a frame's height too.
 		const float listHeight = OutfitListHeight(a_state, a_browser, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
@@ -296,10 +298,12 @@ namespace CaptureWindow::Internal
 			}
 			const std::string* heading = nullptr;  // the last one drawn
 			bool               folded = false;     // its outfits are folded away
+			std::size_t        drawn = 0;          // rows drawn under it, for the stripes: every second one has one
 			for (const int index : visible) {
 				const auto& own = a_browser.headings[static_cast<std::size_t>(index)];
 				if (!own.empty() && (!heading || *heading != own)) {
 					folded = OutfitBrowser::IsFolded(a_browser, own);
+					drawn = 0;
 					if (Theme::FoldHeading(own.c_str(), !folded)) {
 						QueueMenuSound(kFocusSound);
 						OutfitBrowser::ToggleFolded(a_browser, own);
@@ -311,7 +315,7 @@ namespace CaptureWindow::Internal
 					continue;
 				}
 				ImGui::PushID(index);
-				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index)) {
+				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1)) {
 					clicked = index;
 				}
 				ImGui::PopID();

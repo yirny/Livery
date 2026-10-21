@@ -633,7 +633,7 @@ namespace CaptureWindow::Internal
 		headings[GroupIndex(Group::kNotInLibrary)] = std::format("From {}'s Outfit (Not in Wardrobe)", name);
 		headings[GroupIndex(Group::kUnmanaged)] = std::format("From {}'s Outfit (Unmanaged)", name);
 		headings[GroupIndex(Group::kCarried)] = std::format("From {}'s Inventory", name);
-		headings[GroupIndex(Group::kPlayer)] = "From Player's Inventory (?)";
+		headings[GroupIndex(Group::kPlayer)] = "From Player's Inventory";  // Theme::ListHeadingHelp adds its "(?)"
 		headings[GroupIndex(Group::kNotCarried)].clear();
 	}
 

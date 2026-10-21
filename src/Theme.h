@@ -173,13 +173,16 @@ namespace Theme
 	// line), on top of the label's own SectionGap.
 	void AfterFieldGap();
 
-	// A sorted outfit list's heading, ListHeadingHeight tall, that folds the rows under it
+	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
 	// away: a chevron pointing down while `open` and right while folded, then the text, both in
 	// ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
 	// then a rule in the list's rule colour to the list's right end. The whole row is the click
 	// target; returns true when clicked, and the caller folds or unfolds.
-	// Contract: inside BeginList; the text is shown as is and is the row's ImGui ID.
-	bool FoldHeading(const char* text, bool open);
+	// Its chevron starts where the outfit rows' names do.
+	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are; the
+	// text is shown as is and is the row's ImGui ID.
+	bool  FoldHeading(const char* text, bool open);
+	float FoldHeadingHeight();
 
 	// One row of a dropdown's popup, filled and hovered as SelectRow is; returns true when
 	// clicked, having toggled `*ticked`. `checkbox` makes it a row of a multi-choice dropdown:
@@ -204,12 +207,14 @@ namespace Theme
 	// more lines within `tagsWidth` (OutfitTagsWidth): its gender first unless unisex (-1
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
-	// Nordic as grey text, comma separated. With no tag it is laid out as a SelectRow. The
-	// name ends in an ellipsis short of `marks`. OutfitRowHeight is its height. Lay rows out
-	// ListRowGap apart.
+	// Nordic as grey text, comma separated. The name ends in an ellipsis short of `marks`.
+	// The name and tags start 14px in from the row's left edge in every skin, and a `striped`
+	// row (every other one) has a faint white under its fills. OutfitRowHeight is its height,
+	// which holds the row gap: lay rows out with no item spacing, so the stripes meet.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.
-	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected, const OutfitMarks& marks);
+	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected, const OutfitMarks& marks,
+		bool striped);
 	float OutfitRowHeight(int gender, std::span<const std::string> tags, float tagsWidth);
 
 	// Room for an outfit row's tags, from where its text starts to the list's right end.
