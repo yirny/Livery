@@ -31,10 +31,8 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
 - Buttons: `Save` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
   `Cancel`. Under them a sub-button row with `Restore Original Outfit`: a borderless text
   button lit on hover, with a `(?)`; the row is shown only while Livery dresses the actor. It
-  does what Release does today. Its `(?)`: "Takes Livery's outfit off #{Name}: its locks go, the
-  pieces it added are taken back, the clothes it took off go back on, and its situation
-  choices are forgotten. Items moved from your inventory stay with #{Name}. A slot whose own
-  piece is gone is left to the game, which may take a cell change or two to fill it."
+  does what Release does today. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
+  situation outfits. Items moved from your inventory stay with them."
 - Library: the group "Armor Type" becomes "Class" (constant, Sort key, `No Class` filter row)
   with SkyUI's four class names, Jewelry new. `DetectArmorClass` follows SkyUI's rule. Where the
   stored names change, `Load` maps the old ones (Light Armor, Heavy Armor, Clothing); the file
