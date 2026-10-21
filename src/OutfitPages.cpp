@@ -304,7 +304,7 @@ namespace CaptureWindow::Internal
 				if (!own.empty() && (!heading || *heading != own)) {
 					folded = OutfitBrowser::IsFolded(a_browser, own);
 					drawn = 0;
-					if (Theme::FoldHeading(own.c_str(), !folded)) {
+					if (Theme::FoldHeading(own.c_str(), !folded, a_draggable)) {
 						QueueMenuSound(kFocusSound);
 						OutfitBrowser::ToggleFolded(a_browser, own);
 						folded = !folded;

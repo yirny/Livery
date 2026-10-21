@@ -557,7 +557,7 @@ namespace
 	}
 
 	// Who has outfits on the situation's list among Livery's assignments, one line each for
-	// Remove Situation's popup: "Lydia: 2 outfit(s)". Contract: game thread.
+	// the Remove situation? popup: "Lydia: 2 outfit(s)". Contract: game thread.
 	std::vector<std::string> HolderLines(Situations::Situation situation)
 	{
 		std::vector<std::string> lines;
@@ -1101,7 +1101,7 @@ namespace
 		return rows;
 	}
 
-	// Manage Situations' Save Changes, Remove Situation and Restore Presets. Each writes
+	// Manage Situations' Save Changes, Remove (a situation) and Restore Presets. Each writes
 	// situations.json first; a refused or failed write changes no row and redresses no one
 	// (CLAUDE.md §2.1). Then the captured actor's rows change and the actors are redressed
 	// (RedressCaptured, QueueRedress), and the window, still open, shows the situations and

@@ -68,8 +68,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   headings are Female, Male, Unisex, in that order. Outfits with none of the group's
   categories come last under `No Category` or `No Situation`. Within a heading, by name.
 - A heading has a chevron on its left, pointing down while open and right while folded, and
-  a rule in the list's rule colour from 4px after its text to 4px short of the list's right
-  end. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
+  a rule in the list's rule colour from 12px after its text to 4px short of the list's right
+  end. In a list whose rows have a drag grip (Manage Situations), the chevron starts where
+  the grip's dots do and the text where the rows' names do. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
   by heading text). Every heading is open when the window opens and when the sort changes;
   the list keeps the height of the whole library.
 - Headings and tag text are computed when the list is refreshed, never per frame.

@@ -10,14 +10,13 @@
 //   Drag and drop   - an outfit dragged from either pane, dropped on a situation (at its front,
 //                     or between two of its outfits) or on the outfit list (taken off its row);
 //                     a folded heading opens once a drag has hovered it a while
-//   Situation List  - the left pane: a heading per situation (a click selects, its chevron
-//                     folds) over the outfits it shows
-//   Right pane      - the outfit list, or the selected situation's details: Global Settings
-//                     (name, description, conditions), #{Name}'s Settings (Random Outfit), Back
-//                     to Outfit List, Remove Situation
-//   Buttons, popups - Restore Presets (?), Save Changes, Exit; Remove Situation's and Restore
-//                     Presets' popups and the unsaved-changes alert, each handing its write to
-//                     the Request's handler
+//   Situation List  - the left pane: a heading per situation (a click or Edit selects, its
+//                     chevron folds) over the outfits it shows
+//   Right pane      - the outfit list, or the selected situation's details: name, description,
+//                     conditions, Random Outfit for #{Name}, Show Outfit List with Remove
+//   Buttons, popups - Restore Presets (?), Save Changes, Exit; Remove's and Restore Presets'
+//                     popups and the unsaved-changes alert, each handing its write to the
+//                     Request's handler
 #include "PCH.h"
 
 #include "CaptureWindowInternal.h"
@@ -307,7 +306,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
-		// chevron selects it, or unselects it when selected; the chevron folds it. Its count shows
+		// chevron selects it and shows its details, or unselects it when its details show; Edit
+		// always selects it and shows them; the chevron folds it. Its count shows
 		// with random on alone; with nothing to show it has no chevron, is never folded (a drop
 		// shows what it got) and its name is greyed. A drop on the heading, its rule included,
 		// adds at the front. `a_dragHovered` becomes the entry while a drag hovers its folded
@@ -336,10 +336,11 @@ namespace CaptureWindow::Internal
 			if (click == Theme::HeadingClick::kFold) {
 				QueueMenuSound(kFocusSound);
 				entry.folded = !entry.folded;
-			} else if (click == Theme::HeadingClick::kSelect) {
+			} else if (click == Theme::HeadingClick::kSelect || click == Theme::HeadingClick::kEdit) {
 				QueueMenuSound(kFocusSound);
-				form.selected = form.selected == index ? -1 : index;
-				form.details = form.selected >= 0;
+				const bool unselect = click == Theme::HeadingClick::kSelect && form.selected == index && form.details;
+				form.selected = unselect ? -1 : index;
+				form.details = !unselect;
 			}
 			const float  left = ImGui::GetWindowPos().x;
 			const ImRect heading(ImVec2(left, top), ImVec2(left + ImGui::GetWindowWidth(), bottom));
@@ -368,7 +369,7 @@ namespace CaptureWindow::Internal
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 			const float tagsWidth = Theme::OutfitTagsWidth(true);
 			int         dragHovered = -1;
-			if (Theme::BeginList("situations", SituationListHeight(a_state, tagsWidth))) {
+			if (Theme::BeginList("situations", SituationListHeight(a_state, tagsWidth), false)) {
 				// Its text starts where the situations' names do, clear of a selected one's mark.
 				if (Theme::ListHeadingHelp("Situation List", true)) {
 					DrawHelpTooltip(std::format(
@@ -393,8 +394,8 @@ namespace CaptureWindow::Internal
 
 		// --- Right pane -------------------------------------------------------
 
-		// The right pane shows the selected situation while one is selected, Back to Outfit List
-		// was not pressed since, and no drag from the Situation List is on.
+		// The right pane shows the selected situation while one is selected, Show Outfit List was
+		// not pressed since, and no drag from the Situation List is on.
 		bool ShowsDetails(const State& a_state)
 		{
 			const auto& form = a_state.situationForm;
@@ -449,8 +450,8 @@ namespace CaptureWindow::Internal
 			Theme::PopSmallFont();
 		}
 
-		// Global Settings: the name (read only for the Default, which says so on hover), the
-		// description and the sentence it ends, the conditions, read only.
+		// The settings every actor shares: the name (read only for the Default, which says so on
+		// hover), the description and the sentence it ends, the conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			constexpr const char* kDefaultName = "The Default's name cannot be changed.";
@@ -458,7 +459,6 @@ namespace CaptureWindow::Internal
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
 			const bool isDefault = a_entry == 0;
-			Theme::SectionHeading("Global Settings");
 			Theme::LabelText("Name");
 			ImGui::BeginDisabled(isDefault);
 			ImGui::SetNextItemWidth(-FLT_MIN);
@@ -488,17 +488,17 @@ namespace CaptureWindow::Internal
 		enum class DetailsAction
 		{
 			kNone,
-			kBack,
+			kShowList,
 			kRemove
 		};
 
-		// The selected situation's details as edited: Global Settings, #{Name}'s Settings
-		// (Random Outfit), Back to Outfit List centred, and Remove Situation at the pane's
-		// bottom, `a_paneBottom` (screen pixels), but not for the Default.
-		DetailsAction DrawSituationDetails(State& a_state, float a_paneBottom)
+		// The selected situation's details as edited: its name, description and conditions,
+		// Random Outfit for #{Name}, then Show Outfit List centred with Remove at the row's left
+		// end (not for the Default), as Restore Presets sits by the page's buttons.
+		DetailsAction DrawSituationDetails(State& a_state)
 		{
-			constexpr const char* kBack = "Back to Outfit List";
-			constexpr float       kSettingsGap = 24.0f;  // pixels at 1080p, above #{Name}'s Settings beyond its section gap
+			constexpr const char* kShowList = "Show Outfit List";
+			constexpr float       kButtonGap = 12.0f;  // pixels at 1080p, above the Show Outfit List row beyond the item spacing
 
 			auto&       form = a_state.situationForm;
 			const auto  selected = static_cast<std::size_t>(form.selected);
@@ -507,11 +507,10 @@ namespace CaptureWindow::Internal
 			ImGui::PushID(form.selected);
 			DrawGlobalSettings(a_state, selected);
 
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kSettingsGap * Theme::Scale());
-			Theme::SectionHeading(std::format("{}'s Settings", name).c_str());
 			Theme::SectionGap();  // a field of its own, with no label
-			bool random = entry.row.random;
-			if (Theme::Checkbox("Random Outfit", &random)) {
+			bool              random = entry.row.random;
+			const std::string randomLabel = std::format("Random Outfit for {}", name);
+			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
 				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
 			}
@@ -524,23 +523,14 @@ namespace CaptureWindow::Internal
 					name));
 			}
 
-			Theme::SectionGap();
-			Theme::SectionGap();
-			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(kBack).x) * 0.5f));
-			auto action = Theme::TextTab(kBack, false) ? DetailsAction::kBack : DetailsAction::kNone;
-			DrawNote(std::format("Drag outfits from the list onto \"{}\" to add them.", Trimmed(entry.name.data())), true);
-
-			if (selected > 0) {
-				Theme::PushSmallFont();
-				const float linkHeight = ImGui::GetTextLineHeight();
-				Theme::PopSmallFont();
-				if (ImGui::GetCursorScreenPos().y < a_paneBottom - linkHeight) {
-					ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, a_paneBottom - linkHeight));
-				}
-				if (Theme::RightEndLink("Remove Situation")) {
-					action = DetailsAction::kRemove;
-				}
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kButtonGap * Theme::Scale());
+			const float left = ImGui::GetCursorPosX();
+			ImGui::SetCursorPosX(left + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - Theme::ButtonWidth(kShowList)) * 0.5f));
+			auto action = Theme::Button(kShowList) ? DetailsAction::kShowList : DetailsAction::kNone;
+			if (selected > 0 && Theme::LineLinkAt("Remove", left)) {
+				action = DetailsAction::kRemove;
 			}
+			DrawNote(std::format("Drag outfits from the list onto \"{}\" to add them.", Trimmed(entry.name.data())), true);
 			ImGui::PopID();
 			return action;
 		}
@@ -556,8 +546,8 @@ namespace CaptureWindow::Internal
 		};
 
 		// Save Changes, greyed until something changed, and Exit, centred as the other pages'
-		// buttons, then Restore Presets (?) at the row's left end, a link as Remove Situation and
-		// Restore Outfit are, greyed while every preset is as installed. a_escapeTaken: the
+		// buttons, then Restore Presets (?) at the row's left end, a link as the details' Remove
+		// and Restore Outfit are, greyed while every preset is as installed. a_escapeTaken: the
 		// browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
@@ -796,8 +786,8 @@ namespace CaptureWindow::Internal
 	}
 
 	// The Situation List on the left, the outfit list or the selected situation on the
-	// right; every change is an edit until Save Changes, but Remove Situation and Restore
-	// Presets, which write at once after their popups. The preview shows the Inventory page's
+	// right; every change is an edit until Save Changes, but Remove and Restore Presets, which
+	// write at once after their popups. The preview shows the Inventory page's
 	// ticks throughout.
 	void DrawSituationPage(State& a_state)
 	{
@@ -812,11 +802,10 @@ namespace CaptureWindow::Internal
 		if (BeginColumns("situations")) {
 			ImGui::TableNextColumn();
 			DrawSituationList(a_state);
-			const float paneBottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			if (ShowsDetails(a_state)) {
-				details = DrawSituationDetails(a_state, paneBottom);
+				details = DrawSituationDetails(a_state);
 			} else {
 				escapeTaken = DrawOutfitPane(a_state);
 			}
@@ -829,7 +818,7 @@ namespace CaptureWindow::Internal
 		EndButtonRow();
 		ImGui::EndDisabled();
 
-		if (details == DetailsAction::kBack) {
+		if (details == DetailsAction::kShowList) {
 			QueueMenuSound(kFocusSound);
 			form.details = false;
 			form.entries[static_cast<std::size_t>(form.selected)].folded = false;
