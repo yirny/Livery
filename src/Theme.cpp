@@ -102,11 +102,16 @@ namespace
 	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
 	// Tailor 3.0's outfit list indents them (pixels at 1080p).
 	constexpr float kOutfitRowPadX = 14.0f;
-	// A draggable outfit row's grip, centred in that room: its dots' radius and the step between
-	// their centres, then the room from its dots to the row's name and tags (pixels at 1080p).
+	// A draggable outfit row's grip: the room from the row's left edge to its dots, their radius
+	// and the step between their centres, then the room from its dots to the row's name and tags
+	// (pixels at 1080p). Vanilla's and Nordic's situation headings start their names, and a
+	// draggable list's folding headings their chevrons, where the dots start.
+	constexpr float kGripPadX = 4.0f;
 	constexpr float kGripDotRadius = 1.2f;
 	constexpr float kGripDotStep = 4.0f;
 	constexpr float kGripTextGap = 12.0f;
+	// Room between a list heading's text (or chevron) and the rule after it (pixels at 1080p).
+	constexpr float kTextRuleGap = 12.0f;
 	// Extra room between a field and the label under it, beyond SectionGap (pixels at 1080p).
 	constexpr float kAfterFieldGap = 4.0f;
 	// Room between a right-aligned preview's text and the dropdown arrow (pixels at 1080p).
@@ -194,6 +199,7 @@ namespace
 	float       g_scale = 1.0f;                 // its resolution scale, for hand-drawn ornaments
 	float       g_itemSpacingY = 0.0f;          // its item spacing on the back buffer, before any push
 	ImVec2      g_listReach{};                  // how far the open BeginList list runs past the content, left and right
+	bool        g_listRules = true;             // the open BeginList list has its rules
 	Ornament    g_cornerKnot{ nullptr, ImVec2(25.0f, 25.0f) };
 	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
 	Ornament    g_tabRope{ nullptr, ImVec2(7.0f, 48.0f) };           // one repeat of NORDIC UI's level-up rope, tiled down the tab rule
@@ -1468,7 +1474,7 @@ namespace
 		return (std::max)(1.0f, kGripDotRadius * g_scale);
 	}
 
-	// A drag grip centred in a row's left room (kOutfitRowPadX) at `a_left`, `a_midY` (screen
+	// A drag grip kGripPadX in from a row's left edge `a_left`, its middle dots at `a_midY` (screen
 	// pixels): two columns of three dots, in LabelText's grey at low alpha (Vanilla, Nordic), or
 	// Tailor's text colour mixed with black.
 	void DrawGrip(ImDrawList* a_draw, float a_left, float a_midY)
@@ -1482,11 +1488,12 @@ namespace
 			color = ImGui::ColorConvertFloat4ToU32(ImVec4(text.x * kTailorShade, text.y * kTailorShade, text.z * kTailorShade, text.w));
 		}
 		color = ImGui::GetColorU32(color);  // faded inside BeginDisabled
-		const float centreX = a_left + kOutfitRowPadX * 0.5f * g_scale;
+		const float radius = GripDotRadius();
+		const float firstX = a_left + kGripPadX * g_scale + radius;  // the left column's centres
 		const float step = kGripDotStep * g_scale;
-		for (const float column : { -0.5f, 0.5f }) {
+		for (const float column : { 0.0f, 1.0f }) {
 			for (const float row : { -1.0f, 0.0f, 1.0f }) {
-				a_draw->AddCircleFilled(ImVec2(centreX + column * step, a_midY + row * step), GripDotRadius(), color);
+				a_draw->AddCircleFilled(ImVec2(firstX + column * step, a_midY + row * step), radius, color);
 			}
 		}
 	}
@@ -1498,7 +1505,15 @@ namespace
 		if (!a_grip) {
 			return kOutfitRowPadX * g_scale;
 		}
-		return (kOutfitRowPadX + kGripDotStep + kGripTextGap * 2.0f) * 0.5f * g_scale + GripDotRadius();
+		return (kGripPadX + kGripDotStep + kGripTextGap) * g_scale + GripDotRadius() * 2.0f;
+	}
+
+	// From a situation heading's left edge to its name (pixels on the back buffer): where the
+	// grip's dots start in Vanilla and Nordic, whose select mark sits left of it in the window's
+	// padding; kOutfitRowPadX in Tailor, clear of its amber rule.
+	float SituationNameInset()
+	{
+		return (g_skin == Theme::Skin::kTailor ? kOutfitRowPadX : kGripPadX) * g_scale;
 	}
 
 	// Whether an outfit row has its form mark: the dressed one of the current outfit, or the
@@ -1844,13 +1859,14 @@ namespace Theme
 	// LabelLink's place and lighting with no plus mark, the help mark inside the click area:
 	// on a label's line (`a_labelLine`) at its top, keeping its gap below; on a control's
 	// line centred on the line's height, keeping the control's gap. At the line's right end,
-	// or with `a_x` at that cursor X.
+	// or with `a_x` at that cursor X. With `a_hovered` null, no help mark.
 	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine, std::optional<float> a_x = std::nullopt)
 	{
 		PushSmallFont();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const bool   help = a_hovered != nullptr;
 		const float  markX = text.x + ImGui::CalcTextSize(" ").x;
-		const float  width = markX + ImGui::CalcTextSize(kHelpMark).x;
+		const float  width = help ? markX + ImGui::CalcTextSize(kHelpMark).x : text.x;
 
 		ImGui::SameLine();
 		ImGui::SetCursorPosX(a_x ? *a_x : ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
@@ -1868,10 +1884,13 @@ namespace Theme
 			ImGui::PopStyleVar();
 		}
 
-		*a_hovered = ImGui::IsItemHovered();
-		auto* draw = ImGui::GetWindowDrawList();
-		draw->AddText(topLeft, LinkColor(*a_hovered), a_label);
-		draw->AddText(ImVec2(topLeft.x + markX, topLeft.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
+		const bool hovered = ImGui::IsItemHovered();
+		auto*      draw = ImGui::GetWindowDrawList();
+		draw->AddText(topLeft, LinkColor(hovered), a_label);
+		if (help) {
+			*a_hovered = hovered;
+			draw->AddText(ImVec2(topLeft.x + markX, topLeft.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
+		}
 		PopSmallFont();
 		return clicked;
 	}
@@ -1891,36 +1910,9 @@ namespace Theme
 		return RightEndHelpLink(a_label, a_hovered, false, a_x);
 	}
 
-	bool RightEndLink(const char* a_label)
+	bool LineLinkAt(const char* a_label, float a_x)
 	{
-		PushSmallFont();
-		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - text.x));
-		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)));
-		ImGui::GetWindowDrawList()->AddText(topLeft, LinkColor(ImGui::IsItemHovered()), a_label);
-		PopSmallFont();
-		return clicked;
-	}
-
-	void SectionHeading(const char* a_text)
-	{
-		constexpr float kRulePad = 4.0f;  // pixels at 1080p, from the text to the rule
-
-		SectionGap();
-		PushLabelSpacing();  // the gap below is LabelText's
-		PushSmallFont();
-		const float right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
-		ImGui::TextDisabled("%s", a_text);
-		const ImVec2 min = ImGui::GetItemRectMin();
-		const ImVec2 max = ImGui::GetItemRectMax();
-		const float  ruleLeft = max.x + kRulePad * g_scale;
-		if (right > ruleLeft) {
-			const float y = std::floor((min.y + max.y) * 0.5f) + 0.5f;  // on a pixel's centre, so a 1px line stays sharp
-			ImGui::GetWindowDrawList()->AddLine(ImVec2(ruleLeft, y), ImVec2(right, y), ImGui::GetColorU32(ImGuiCol_Border));
-		}
-		PopSmallFont();
-		ImGui::PopStyleVar();
+		return RightEndHelpLink(a_label, nullptr, false, a_x);
 	}
 
 	bool Button(const char* a_label)
@@ -2239,8 +2231,9 @@ namespace Theme
 		return g_skin == Skin::kTailor ? kTailorListRowGap * g_scale : a_fallback;
 	}
 
-	bool BeginList(const char* a_id, float a_height)
+	bool BeginList(const char* a_id, float a_height, bool a_rules)
 	{
+		g_listRules = a_rules;
 		// Vanilla and Nordic: past the content across the window's padding to its
 		// edges; in a table, only on the table's outer sides, so the gap between
 		// columns stays clear. Tailor: within the content, as its fields are.
@@ -2271,6 +2264,9 @@ namespace Theme
 	void EndList()
 	{
 		ImGui::EndChild();
+		if (!g_listRules) {
+			return;
+		}
 		// The rules span the content only, as the rows' fills do (LayOutListRow).
 		const ImVec2 min = ImGui::GetItemRectMin();
 		const ImVec2 max = ImGui::GetItemRectMax();
@@ -2317,19 +2313,20 @@ namespace Theme
 		PopSmallFont();
 	}
 
-	// The chevron sits where ListHeading's text would start, the text after it; the rule ends
-	// where the rows' fills end.
-	bool FoldHeading(const char* a_text, bool a_open)
+	// The chevron sits where ListHeading's text would start, the text after it; with `a_grip`
+	// the chevron sits where the rows' grip dots start and the text where their names do. The
+	// rule ends 4px short of where the rows' fills end.
+	bool FoldHeading(const char* a_text, bool a_open, bool a_grip)
 	{
 		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the font size
-		constexpr float kRulePad = 4.0f;       // pixels at 1080p, from the text to the rule and from the rule to the list's right end
+		constexpr float kRuleEndPad = 4.0f;    // pixels at 1080p, from the rule to the list's right end
 
 		PushSmallFont();
 		const float   gap = ListPaddingY();  // the row gap the outfit list leaves out, half above and half below
 		const ListRow row = LayOutListRow(a_text, SelectRowHeight() + gap);
 		const float   side = ImGui::GetFontSize() * kChevronRatio;
 		const float   midY = (row.min.y + row.max.y) * 0.5f;
-		const float   left = row.fillMin.x + kOutfitRowPadX * g_scale;
+		const float   left = row.fillMin.x + (a_grip ? kGripPadX : kOutfitRowPadX) * g_scale;
 		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float   thick = (std::max)(1.0f, 1.5f * g_scale);
 		auto*         draw = ImGui::GetWindowDrawList();
@@ -2340,10 +2337,10 @@ namespace Theme
 			const ImVec2 points[] = { { left + side * 0.25f, midY - side * 0.5f }, { left + side * 0.75f, midY }, { left + side * 0.25f, midY + side * 0.5f } };
 			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
 		}
-		const float textX = left + side + ImGui::GetStyle().ItemInnerSpacing.x;
+		const float textX = a_grip ? row.fillMin.x + RowTextInset(true) : left + side + ImGui::GetStyle().ItemInnerSpacing.x;
 		draw->AddText(ImVec2(textX, row.min.y + gap * 0.5f + kSelectRowPadY * g_scale), color, a_text);
-		const float ruleLeft = textX + ImGui::CalcTextSize(a_text).x + kRulePad * g_scale;
-		const float ruleRight = row.fillMax.x - kRulePad * g_scale;
+		const float ruleLeft = textX + ImGui::CalcTextSize(a_text).x + kTextRuleGap * g_scale;
+		const float ruleRight = row.fillMax.x - kRuleEndPad * g_scale;
 		if (ruleRight > ruleLeft) {
 			const float y = std::floor(midY) + 0.5f;  // on a pixel's centre, so a 1px line stays sharp
 			draw->AddLine(ImVec2(ruleLeft, y), ImVec2(ruleRight, y), ImGui::GetColorU32(ImGuiCol_Border));
@@ -2352,14 +2349,15 @@ namespace Theme
 		return row.pressed;
 	}
 
-	// Two click areas side by side, edge to edge of the list as LayOutListRow's: the name and
-	// its count select, the chevron with its padding and the rule fold; with no chevron the
-	// whole row selects. The name sits as an outfit row's name does (OutfitRow), its fills and
-	// mark as a selected SelectRow's.
+	// Three click areas side by side, edge to edge of the list as LayOutListRow's: the name and
+	// its count select, the chevron with its padding and the rule fold, Edit with its padding to
+	// the right end; with no chevron the name's area runs on to Edit's. The name's fills and mark
+	// are a selected SelectRow's.
 	HeadingClick SituationHeading(const char* a_name, const SituationHeadingLook& a_look)
 	{
-		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
-		constexpr float kRulePad = 4.0f;       // pixels at 1080p, around the chevron and from the rule to the list's right end
+		constexpr const char* kEdit = "Edit";
+		constexpr float       kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
+		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron and Edit, and from Edit to the list's right end
 
 		const float  gap = ListPaddingY();  // the row gap the list leaves out, half above and half below
 		const float  height = SituationHeadingHeight();
@@ -2368,21 +2366,24 @@ namespace Theme
 		const float  right = cursor.x + ImGui::GetContentRegionAvail().x;
 		const ImVec2 fillMin(left + g_listReach.x, cursor.y);
 		const ImVec2 fillMax((std::min)(right, left + ImGui::GetWindowWidth() - g_listReach.y), cursor.y + height);
-		const float  textX = fillMin.x + kOutfitRowPadX * g_scale;
+		const float  textX = fillMin.x + SituationNameInset();
 		const float  textY = cursor.y + gap * 0.5f + kSelectRowPadY * g_scale;
 		const float  midY = textY + ImGui::GetTextLineHeight() * 0.5f;
-		const float  pad = kRulePad * g_scale;
+		const float  pad = kPad * g_scale;
 		const auto   count = a_look.count >= 0 ? std::format("({})", a_look.count) : std::string{};
 
 		PushSmallFont();
 		const ImVec2 countSize = count.empty() ? ImVec2(0.0f, 0.0f) : ImGui::CalcTextSize(count.c_str());
+		const ImVec2 editSize = ImGui::CalcTextSize(kEdit);
 		const float  side = ImGui::GetFontSize() * kChevronRatio;
 		PopSmallFont();
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
 		const float countX = nameRight + ImGui::GetStyle().ItemInnerSpacing.x;
 		const float textRight = count.empty() ? nameRight : countX + countSize.x;
 		const float chevronX = textRight + pad * 2.0f;
-		const float foldLeft = a_look.foldable ? chevronX - pad : right;
+		const float editX = fillMax.x - pad - editSize.x;
+		const float editLeft = editX - pad;
+		const float foldLeft = a_look.foldable ? chevronX - pad : editLeft;
 
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
 		const bool select = ImGui::InvisibleButton("##select", ImVec2((std::max)(1.0f, foldLeft - left), height));
@@ -2391,9 +2392,12 @@ namespace Theme
 		bool       foldHovered = false;
 		if (a_look.foldable) {
 			ImGui::SameLine(0.0f, 0.0f);
-			fold = ImGui::InvisibleButton("##fold", ImVec2((std::max)(1.0f, right - foldLeft), height));
+			fold = ImGui::InvisibleButton("##fold", ImVec2((std::max)(1.0f, editLeft - foldLeft), height));
 			foldHovered = ImGui::IsItemHovered();
 		}
+		ImGui::SameLine(0.0f, 0.0f);
+		const bool edit = ImGui::InvisibleButton("##edit", ImVec2((std::max)(1.0f, right - editLeft), height));
+		const bool editHovered = ImGui::IsItemHovered();
 
 		auto* draw = ImGui::GetWindowDrawList();
 		DrawRowFills(draw, fillMin, fillMax, a_look.selected, selectHovered, 0.0f);
@@ -2418,12 +2422,16 @@ namespace Theme
 			const ImVec2 points[] = { { chevronX + side * 0.25f, midY - side * 0.5f }, { chevronX + side * 0.75f, midY }, { chevronX + side * 0.25f, midY + side * 0.5f } };
 			draw->AddPolyline(points, 3, chevron, ImDrawFlags_None, thick);
 		}
+		draw->AddText(ImVec2(editX, midY - editSize.y * 0.5f), editHovered ? LinkColor(true) : grey, kEdit);
 		PopSmallFont();
-		const float ruleLeft = a_look.foldable ? chevronX + side + pad : textRight + pad;
-		const float ruleRight = fillMax.x - pad;
+		const float ruleLeft = (a_look.foldable ? chevronX + side : textRight) + kTextRuleGap * g_scale;
+		const float ruleRight = editX - kTextRuleGap * g_scale;
 		if (ruleRight > ruleLeft) {
 			const float y = std::floor(midY) + 0.5f;  // on a pixel's centre, so a 1px line stays sharp
 			draw->AddLine(ImVec2(ruleLeft, y), ImVec2(ruleRight, y), ImGui::GetColorU32(ImGuiCol_Border));
+		}
+		if (edit) {
+			return HeadingClick::kEdit;
 		}
 		if (fold) {
 			return HeadingClick::kFold;
@@ -2493,14 +2501,14 @@ namespace Theme
 		return width;
 	}
 
-	// Laid out as TextRow lays out its text, or from the list's indent as an outfit row's name.
-	bool ListHeadingHelp(const char* a_text, bool a_outfitIndent)
+	// Laid out as TextRow lays out its text, or from the list's indent as a situation heading's name.
+	bool ListHeadingHelp(const char* a_text, bool a_situationIndent)
 	{
 		PushSmallFont();
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
 		const ImU32  grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		const ImVec2 text(cursor.x + (a_outfitIndent ? kOutfitRowPadX * g_scale : RowTextShift()), cursor.y + kSelectRowPadY * g_scale);
+		const ImVec2 text(cursor.x + (a_situationIndent ? SituationNameInset() : RowTextShift()), cursor.y + kSelectRowPadY * g_scale);
 		const float  markX = text.x + ImGui::CalcTextSize(a_text).x + ImGui::CalcTextSize(" ").x;
 		const ImVec2 markSize = ImGui::CalcTextSize(kHelpMark);
 		auto*        draw = ImGui::GetWindowDrawList();

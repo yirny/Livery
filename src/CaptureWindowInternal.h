@@ -179,7 +179,7 @@ namespace CaptureWindow::Internal
 		std::vector<SituationEntry> entries;
 		bool                        defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
 		int                         selected = -1;             // index into entries; -1 for none
-		bool                        details = false;           // the right pane shows the selected one (Back to Outfit List not pressed since)
+		bool                        details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
 		bool                        scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
 		int                         nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
 		ImGuiID                     nameField = 0;             // that field's ImGui ID

@@ -23,7 +23,7 @@ namespace RE
 // assignments: the Save page's Create and Update hand the outfit and the rows to
 // change to Request::onSave, Manage Wardrobe's Update (with the rows to change) and Remove
 // the outfit to Request::onManageUpdate and onManageRemove and its Apply to onManageApply,
-// Manage Situations' Save Changes, Remove Situation and Restore Presets go to
+// Manage Situations' Save Changes, Remove (a situation) and Restore Presets go to
 // Request::onSituationsSave, onSituationRemove and onRestorePresets,
 // Apply and Restore Outfit go to
 // Request::onApply and Request::onRestore, each piece tick to
@@ -117,7 +117,7 @@ namespace CaptureWindow
 		std::string           name;
 		std::string           description;  // "" for none
 		std::string           conditions;   // when it applies, shown read only on Manage Situations
-		// Who has outfits on its list in this save, one line each, for Remove Situation's popup:
+		// Who has outfits on its list in this save, one line each, for the Remove situation? popup:
 		// "Lydia: 2 outfit(s)", the actor's FormID when not in memory. Empty for the Default.
 		std::vector<std::string> holders;
 	};

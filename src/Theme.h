@@ -83,16 +83,9 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineHelpLinkAt(const char* label, float x, bool* hovered);
 
-	// LineHelpLink without the "(?)", on a line of its own: `label` at the line's right end, in
-	// LabelText's font and colour, lit while hovered. Returns true when clicked. Faded and inert
-	// inside BeginDisabled.
+	// LineHelpLinkAt without the "(?)": `label` alone, lit while hovered.
 	// Contract: the label is shown as is and is the ImGui ID.
-	bool RightEndLink(const char* label);
-
-	// A section's heading inside a page's column: `text` in the small font, greyed as
-	// ListHeading's, then a rule in the list's rule colour to the column's right end. Opens a
-	// field as LabelText does.
-	void SectionHeading(const char* text);
+	bool LineLinkAt(const char* label, float x);
 
 	// Extra room above a field, on top of the item spacing; LabelText adds it
 	// itself, so call it only before a field that has no label.
@@ -110,8 +103,8 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool HelpButton(const char* label, bool* hovered);
 
-	// A square-cornered list of rows between a rule above and a rule below. The
-	// rules and the rows' fills span the content. In Tailor the whole list keeps
+	// A square-cornered list of rows between a rule above and a rule below (none with
+	// `rules` false). The rules and the rows' fills span the content. In Tailor the whole list keeps
 	// to the content, its backdrop ending at the window's padding as the other
 	// controls do; in Vanilla and Nordic the rows' click areas run on past the
 	// window's padding to its edges (in a table cell, only on the table's outer
@@ -121,7 +114,7 @@ namespace Theme
 	// Rows go through TickRow, SelectRow or TextRow.
 	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
 	// columns clip the outer sides short of the window's edges (Vanilla, Nordic).
-	bool BeginList(const char* id, float height);
+	bool BeginList(const char* id, float height, bool rules = true);
 	void EndList();
 
 	// Pixels on the back buffer: the padding between a list's rules and its
@@ -186,10 +179,10 @@ namespace Theme
 	float ListHeadingHeight();
 
 	// ListHeading with a greyed "(?)" after the text; returns true while the mouse is over
-	// that mark alone, for the caller's tooltip. `outfitIndent`: the text starts where an outfit
-	// row's name does (OutfitRow without a grip), as over Manage Situations' headings.
+	// that mark alone, for the caller's tooltip. `situationIndent`: the text starts where a
+	// SituationHeading's name does, as over Manage Situations' headings.
 	// Contract: inside BeginList.
-	bool ListHeadingHelp(const char* text, bool outfitIndent = false);
+	bool ListHeadingHelp(const char* text, bool situationIndent = false);
 
 	// Extra room under a field whose next line is a label (a dropdown, then a list's count
 	// line), on top of the label's own SectionGap.
@@ -198,12 +191,13 @@ namespace Theme
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
 	// away: a chevron pointing down while `open` and right while folded, then the text, both in
 	// ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
-	// then a rule in the list's rule colour to the list's right end. The whole row is the click
-	// target; returns true when clicked, and the caller folds or unfolds.
-	// Its chevron starts where the outfit rows' names do.
+	// then, 12px on, a rule in the list's rule colour to the list's right end. The whole row is
+	// the click target; returns true when clicked, and the caller folds or unfolds.
+	// Its chevron starts where the outfit rows' names do; with `grip` (rows with a drag grip),
+	// where their grip's dots start, and the text where their names start.
 	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are; the
 	// text is shown as is and is the row's ImGui ID.
-	bool  FoldHeading(const char* text, bool open);
+	bool  FoldHeading(const char* text, bool open, bool grip = false);
 	float FoldHeadingHeight();
 
 	// Which part of a SituationHeading was clicked.
@@ -211,7 +205,8 @@ namespace Theme
 	{
 		kNone,
 		kSelect,  // left of the chevron
-		kFold     // the chevron, with its padding, to the list's right end
+		kFold,    // the chevron, with its padding, to Edit
+		kEdit     // Edit, with its padding, to the list's right end
 	};
 
 	struct SituationHeadingLook
@@ -224,10 +219,12 @@ namespace Theme
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
-	// `name` where the outfit rows' names start (OutfitRow without a grip), its count after it
-	// in the small font, greyed, then, while foldable, a chevron, greyed and lit while hovered,
-	// then a rule in the list's rule colour to the list's right end. A hovered one left of the
-	// chevron gets the row's hover fill.
+	// `name` where the outfit rows' grip dots start in Vanilla and Nordic, the select mark left
+	// of it in the window's padding (Tailor: where an outfit row without a grip starts its name),
+	// its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
+	// lit while hovered, then, 12px on, a rule in the list's rule colour, and 12px on `Edit` at
+	// the list's right end, in the small font, greyed and lit while hovered. A hovered one left
+	// of the chevron gets the row's hover fill.
 	// Contract: inside BeginList, laid out with no item spacing; PushID around each heading.
 	HeadingClick SituationHeading(const char* name, const SituationHeadingLook& look);
 	float        SituationHeadingHeight();
@@ -259,8 +256,8 @@ namespace Theme
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
 	// Nordic as grey text, comma separated. The name ends in an ellipsis short of `marks`.
 	// The name and tags start 14px in from the row's left edge in every skin, and a `striped`
-	// row (every other one) has a faint white under its fills. With `grip`, a drag grip sits in
-	// the room left of the name: two columns of three dots, in LabelText's grey at low alpha
+	// row (every other one) has a faint white under its fills. With `grip`, a drag grip 4px in
+	// from the row's left edge: two columns of three dots, in LabelText's grey at low alpha
 	// (Tailor: its text colour mixed with black), and the name and tags start 12px past the
 	// dots instead. OutfitRowHeight is its height, which holds the row gap: lay rows out with
 	// no item spacing, so the stripes meet.
