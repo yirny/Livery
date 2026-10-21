@@ -30,8 +30,8 @@ namespace Theme
 	// for the skin and scales it to the back buffer height in pixels.
 	void Apply(Skin skin, float displayHeight);
 
-	// The widgets below draw in the active skin, between Apply and Render.
-	// Nordic decorates them; the other skins draw plain ImGui widgets.
+	// The widgets below draw in the active skin, between Apply and Render; each one's comment
+	// says what a skin draws in place of ImGui's own.
 
 	// False when the skin draws its main window without a title bar (Vanilla, Nordic), or its
 	// popups (Nordic).

@@ -893,10 +893,10 @@ namespace CaptureWindow::Internal
 		ImGui::EndDragDropSource();
 	}
 
-	// The Situation List on the left, the outfit list or the selected situation on the
-	// right; every change is an edit until Save Changes, but Remove and Restore Presets, which
-	// write at once after their popups. The preview shows the Inventory page's
-	// ticks throughout.
+	// The Situation List on the left; on the right the outfit list, the selected situation or
+	// an outfit's details (ShownPane). Every change is an edit until Save Changes, but Remove
+	// and Restore Presets, which write at once after their popups. The preview shows the
+	// Inventory page's ticks, or the outfit whose details show.
 	void DrawSituationPage(State& a_state)
 	{
 		auto& form = a_state.situationForm;
