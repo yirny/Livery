@@ -118,6 +118,9 @@ namespace Theme
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
 
+	// Height Button and HelpButton take: the frame height, in Vanilla in its larger font.
+	float ButtonHeight();
+
 	// Button with a greyed "(?)" after its label, inside its frame; `*hovered` tells the
 	// caller to show the help. It is as wide as Button(label + " (?)").
 	// Contract: the label is shown as is and is the ImGui ID.

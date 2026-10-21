@@ -387,8 +387,9 @@ namespace CaptureWindow::Internal
 
 	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:
 	// its name, gender, Category, `a_situations` under the "Situations for #{Name}" label,
-	// then its pieces under their count line.
-	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations);
+	// then its pieces under their count line, their list ending by screen Y `a_bottom` and
+	// scrolling when they need more (one row shows at least).
+	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom);
 
 	// The form fields Manage Wardrobe and the Save page share: a multi-choice dropdown over
 	// `a_ticked` (one per request.categories, kClassGroup's used) under the Category label,

@@ -268,7 +268,7 @@ namespace CaptureWindow::Internal
 
 		// The Situation List's height with every heading open, capped as ListHeight caps it, and
 		// at least the right pane's with the outfit list, so neither folding nor the right pane
-		// moves the buttons.
+		// moves the buttons; an outfit's details keep within it (DrawOutfitView).
 		// Contract: with no item spacing pushed, outside BeginList at its indent, as
 		// Theme::OutfitTagsWidth gave `a_tagsWidth`.
 		float SituationListHeight(const State& a_state, float a_tagsWidth)
@@ -395,7 +395,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// The left pane: Situation List (?) over a heading per situation, the Default first.
-		void DrawSituationList(State& a_state)
+		// Returns the list's bottom (screen Y), which an outfit's details keep above.
+		float DrawSituationList(State& a_state)
 		{
 			auto& form = a_state.situationForm;
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
@@ -420,10 +421,12 @@ namespace CaptureWindow::Internal
 			}
 			ImGui::PopStyleVar();
 			Theme::EndList();
+			const float bottom = ImGui::GetItemRectMax().y;
 			if (form.dragHover != dragHovered) {
 				form.dragHover = dragHovered;
 				form.dragHoverSince = ImGui::GetTime();
 			}
+			return bottom;
 		}
 
 		// --- Right pane -------------------------------------------------------
@@ -606,14 +609,17 @@ namespace CaptureWindow::Internal
 		}
 
 		// The outfit clicked last, read only as Manage Wardrobe lays it out (DrawOutfitSummary),
-		// its rows as the page's edits have them; then Edit and Back centred. Escape is Back, and
-		// sets `a_escapeTaken` so it is not also Exit.
+		// its rows as the page's edits have them; then Edit and Back centred. Its pieces' list
+		// ends where Edit and Back still end by the Situation List's bottom `a_listBottom`
+		// (screen Y), so the view does not move the page's buttons, and scrolls when the pieces
+		// need more. Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
 		// Contract: ShownPane is RightPane::kOutfit.
-		OutfitViewAction DrawOutfitView(State& a_state, bool& a_escapeTaken)
+		OutfitViewAction DrawOutfitView(State& a_state, float a_listBottom, bool& a_escapeTaken)
 		{
-			const auto id = a_state.situationForm.viewedOutfit;
+			const auto  id = a_state.situationForm.viewedOutfit;
+			const float buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight();  // under the pieces' list
 			ImGui::PushID("outfitView");
-			DrawOutfitSummary(a_state, IndexOfOutfit(a_state, id), HeldRowsText(a_state, id));
+			DrawOutfitSummary(a_state, IndexOfOutfit(a_state, id), HeldRowsText(a_state, id), a_listBottom - buttonRow);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
 			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - ButtonRowWidth({ "Edit", "Back" })) * 0.5f));
 			const bool edit = Theme::Button("Edit");
@@ -898,12 +904,12 @@ namespace CaptureWindow::Internal
 		auto outfitView = OutfitViewAction::kNone;
 		if (BeginColumns("situations")) {
 			ImGui::TableNextColumn();
-			DrawSituationList(a_state);
+			const float listBottom = DrawSituationList(a_state);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			switch (ShownPane(a_state)) {
 			case RightPane::kOutfit:
-				outfitView = DrawOutfitView(a_state, escapeTaken);
+				outfitView = DrawOutfitView(a_state, listBottom, escapeTaken);
 				break;
 			case RightPane::kSituation:
 				details = DrawSituationDetails(a_state);
