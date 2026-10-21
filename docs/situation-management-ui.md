@@ -62,8 +62,8 @@ Changes:
 - The Inventory page's Apply popup: `No, apply as is (?)` (was `No, just apply`). The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
   `The ticked pieces become #{Name}'s Default as they are, without being added to the
-  wardrobe; a random Default is turned off. While a situation outfit is worn, the new Default
-  shows only when that situation ends.`
+  wardrobe.`, then, while a situation row holds an outfit, `While a situational outfit is
+  worn, the new Default shows only when that situation ends.`
 - Remove (`Assignments::ForgetOutfit`): the outfit leaves every row's `outfits`; a `chosen`
   that was it becomes 0, so an outfit hidden behind it is not worn. When this leaves the
   Default wearing nothing (random off: `chosen` was it; random on: it was the only one on

@@ -32,7 +32,7 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   `Cancel`. Under them a sub-button row with `Restore Original Outfit`: a borderless text
   button lit on hover, with a `(?)`; the row is shown only while Livery dresses the actor. It
   does what Release does today. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
-  situation outfits. Items moved from your inventory stay with them."
+  situational outfits. Items moved from your inventory stay with them."
 - Library: the group "Armor Type" becomes "Class" (constant, Sort key, `No Class` filter row)
   with SkyUI's four class names, Jewelry new. `DetectArmorClass` follows SkyUI's rule. Where the
   stored names change, `Load` maps the old ones (Light Armor, Heavy Armor, Clothing); the file
@@ -86,13 +86,16 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   name and gender only through the confirmed Update path; a name must be unused, ASCII case
   ignored, by any other outfit) and `Library::Update` takes name and gender.
 - `Create New Outfit`: as today; button `Create`.
+- Fields, as Manage Wardrobe's: the name, Gender, Category (a multi-choice dropdown), then
+  `#{Name} wears it for`.
 - Field `#{Name} wears it for`, replacing the library's situation categories, which leave the
-  library (no situation filter or sort in the outfit browser). Rows: `Default` and the
-  situations. A tick assigns the saved outfit to this actor: Default = `Assign(pieces, id)`,
-  a situation = its outfit. `Default` has a `(?)`: "Default is what #{Name} wears wherever no
-  situation applies. With nothing ticked here, not even Default, the outfit is only stored:
-  Livery does not dress #{Name} in it, and once they change clothes, for a situation outfit,
-  for better armor or by another mod, nothing brings it back."
+  library (no situation filter or sort in the outfit browser): a multi-choice dropdown of
+  `Default` and the situations, as Manage Wardrobe's `Situations for #{Name}`. A tick gives
+  the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's
+  `(?)`: "Default is what #{Name} wears wherever no situation applies. With nothing ticked
+  here, not even Default, the outfit is only stored: Livery does not dress #{Name} in it, and
+  once they change clothes, for a situational outfit, for better armor or by another mod,
+  nothing brings it back."
 - Replace confirm: when a ticked row already wears another outfit (random off, §7), one
   modal lists them (`Town: "B" replaces "A"`) with `Confirm` / `Cancel`; the replaced outfit
   stays on the row's list, hidden (docs/situation-management-ui.md §1).
@@ -123,9 +126,9 @@ write assigns nothing.
     change).
   - `No, apply as is`: `Assign(ticks, 0)`: the ticks become the Default's pieces, `chosen`
     0, random off. Its `(?)`: the pieces become #{Name}'s Default as they are, without a
-    saved outfit, so editing the library does not change them; a random Default is turned
-    off; while a situation outfit is worn the new Default shows only when that situation
-    ends.
+    saved outfit, so editing the library does not change them; when a situation row holds an
+    outfit, it adds that while a situational outfit is worn the new Default shows only when
+    that situation ends.
   - `Cancel`: back to the window.
 - Apply is greyed with no ticked piece (`kNeedPiece`).
 
