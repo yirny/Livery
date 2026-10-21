@@ -141,7 +141,7 @@ outfit for Town any more`.
 - Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on Manage Wardrobe:
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
-- The preview shows the Inventory page's ticks.
+- The preview shows the Inventory page's ticks, or the outfit whose details show (§5).
 - Every change on the page is an edit until Save Changes (§6), except the details' Remove
   and Restore Presets, which write at once after their popups.
 

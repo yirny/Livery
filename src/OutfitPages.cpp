@@ -9,11 +9,11 @@
 //                  list in its column, in the small font (OutfitBrowser.cpp narrows and
 //                  orders it); each page has its own; Escape first clears the search
 //   Outfit lists - the library outfit list with its Sort dropdown, the sort's headings (a
-//                  click folds their outfits away) and each outfit's tags (off with Show
-//                  Categories under it), the selected
-//                  outfit's name (or a hint while none is) and its piece list, which
-//                  the outfit pages and Manage Situations share (there each row has a grip
-//                  and drags a copy of its outfit);
+//                  click folds their outfits away) and each outfit's tags (Hide Tags under
+//                  it hides them, Show Tags brings them back), the selected outfit's name
+//                  (or a hint while none is) and its piece list, and an outfit read only
+//                  in Manage Wardrobe's order, which the outfit pages and Manage Situations
+//                  share (there each row has a grip and drags a copy of its outfit);
 //                  on the Load and Select pages the selected outfit is on the preview,
 //                  and a second click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
