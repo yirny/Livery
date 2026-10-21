@@ -1114,8 +1114,9 @@ namespace
 		const auto actorID = actor.GetFormID();
 		request.restoreChanges = SituationStore::RestoreChanges();
 		// The rows are made at once, so the window shows them, and dressed for in one Refresh:
-		// at once with Live Preview on (RedressCaptured), else at the window's close. The row
-		// they wear, when random, wears the outfit it gained first.
+		// at once with Live Preview on (RedressCaptured, the preview begun again on the outfit
+		// whose details show, else on what they wear), else at the window's close. The row they
+		// wear, when random, wears the outfit it gained first.
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
 			if (!save.edits.empty()) {
 				std::vector<SituationStore::Edit> edits;
@@ -1129,10 +1130,12 @@ namespace
 				Notify("Livery: saved the situations' names and descriptions.");
 			}
 			const auto                                target = handle.get();
+			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			if (target && !save.rows.empty()) {
 				if (const auto pick = Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces)) {
-					redressed = RedressCaptured(*target, { .actor = actorID, .refresh = true, .pick = *pick }, armors, offered, nullptr);
+					redressed = RedressCaptured(*target, { .actor = actorID, .refresh = true, .pick = *pick }, armors, offered,
+						save.previewPieces ? &shown : nullptr);
 				}
 			}
 			auto list = CurrentOutfitList(actorID, armors);  // after the rows changed

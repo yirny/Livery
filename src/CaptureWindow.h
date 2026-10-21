@@ -143,6 +143,9 @@ namespace CaptureWindow
 		std::vector<SituationEdit> edits;                      // the situations whose name or description changed; empty for none
 		std::vector<RowEdit>       rows;                       // every row of Request::assigned when any changed, else empty
 		bool                       dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
+		// The outfit whose details show, as indices into Request::pieces: a preview begun again
+		// after the redress shows it; nullopt for what the actor wears then.
+		std::optional<std::vector<std::size_t>> previewPieces;
 	};
 
 	// What the Save page hands over: the outfit to write, then the rows of "Situations for #{Name}"
