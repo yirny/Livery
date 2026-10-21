@@ -208,7 +208,7 @@ not pressed since it was selected, and no drag from the left pane is on; else th
 list.
 
 The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
-search, sort and Show Categories, each row with the drag grip. A click selects nothing.
+search, sort and Show Tags, each row with the drag grip. A click selects nothing.
 
 The details, its fields evenly spaced with no headings:
 

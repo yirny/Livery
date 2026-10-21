@@ -54,14 +54,16 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
   it), `Default Outfit` on the bare form, `For Town, Warm` (`OutfitBrowser::State::situations`,
   computed at Rebuild). The form and the star side by side when both apply; drawn with or
-  without Show Categories.
+  without the tags.
 - `Sort by`'s text is right-aligned, ending 6px short of its arrow.
 - Rows meet with no gap (the list lays them out with no item spacing; each row and heading
   holds the former gap, half above and half below), and every second row under a heading
   has a faint white (16/255) under its fills, in every skin, as Tailor 3.0's outfit list
   alternates its rows. Names, tags and headings start 14px in from the row's left edge.
-- A `Show Categories` tick under the list, on each time the window opens; off, rows show the
-  name only.
+- Under the list, `Hide Tags` while the tags show and `Show Tags` while they do not, a link in
+  the count line's font and colour, lit while hovered (`Theme::ListFooterLink`), as far below
+  the list's bottom rule as the count line sits above its top rule. A click shows or hides the
+  tags; they show each time the window opens; hidden, rows show the name only.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
 - `Sort by`: Name, Gender, Category, Situation. Every key but Name puts headings in the
   list: the outfit's categories in that group joined with `, ` (`Town, Swimming`), in the
@@ -291,7 +293,7 @@ assigns with the preview ended.
 
 ## 8. Checks
 
-- Step 1: each sort's headings, folded and unfolded; Show Categories off; an old file's
+- Step 1: each sort's headings, folded and unfolded; tags hidden; an old file's
   situation categories stay unshown; Load from its button; an old outfit with Jewelry loads
   without it; the three skins.
 - Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and

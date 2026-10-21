@@ -220,13 +220,13 @@ namespace CaptureWindow::Internal
 		std::vector<std::size_t> pieceOrder;      // indices into request.pieces as the list shows them (SortPieces)
 		int                      sortColumn = 0;  // the piece list's sorted column: Name, Type or Class
 		bool                     sortDescending = false;
-		int                      previewedOutfit = -1;   // on the Load page: index into request.existingOutfits, -1 for none
-		bool                     loadIntoEdit = false;   // the Load page was opened from the Edit page, whose ticks it adds to
-		int                      loadedOutfit = -1;      // the last one loaded: index into request.existingOutfits, -1 for none
-		OutfitBrowser::State     loadBrowser;            // search, filter and sort of the Load page's outfit list
-		OutfitBrowser::State     selectBrowser;          // the Select page's
-		OutfitBrowser::State     manageBrowser;          // Manage Wardrobe'
-		bool                     showCategories = true;  // the outfit lists show each outfit's tags (Show Categories)
+		int                      previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
+		bool                     loadIntoEdit = false;  // the Load page was opened from the Edit page, whose ticks it adds to
+		int                      loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
+		OutfitBrowser::State     loadBrowser;           // search, filter and sort of the Load page's outfit list
+		OutfitBrowser::State     selectBrowser;         // the Select page's
+		OutfitBrowser::State     manageBrowser;         // Manage Wardrobe'
+		bool                     showTags = true;       // the outfit lists show each outfit's tags (Show Tags / Hide Tags)
 		ManageForm               manage;
 		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
 		std::string              manageApplyLabel;  // "Apply to #{Name}"

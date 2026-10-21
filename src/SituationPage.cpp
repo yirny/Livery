@@ -230,11 +230,11 @@ namespace CaptureWindow::Internal
 			ImGui::PopStyleColor();
 		}
 
-		// An outfit row's height in the panes: with its tags while Show Categories is on.
+		// An outfit row's height in the panes: with its tags while they show (Show Tags).
 		float ShownRowHeight(const State& a_state, std::uint32_t a_outfit, float a_tagsWidth)
 		{
 			const int index = IndexOfOutfit(a_state, a_outfit);
-			if (index < 0 || !a_state.showCategories) {
+			if (index < 0 || !a_state.showTags) {
 				return Theme::OutfitRowHeight(-1, {}, a_tagsWidth);
 			}
 			return Theme::OutfitRowHeight(OutfitAt(a_state, index).gender, a_state.situationBrowser.tags[static_cast<std::size_t>(index)], a_tagsWidth);
@@ -403,7 +403,7 @@ namespace CaptureWindow::Internal
 			return form.selected >= 0 && form.details && !(dragged && dragged->from >= 0);
 		}
 
-		// The outfit list with its own search, sort and Show Categories, its rows dragged as
+		// The outfit list with its own search, sort and Show Tags, its rows dragged as
 		// copies. A drag from the Situation List dropped anywhere on it takes that outfit, or the
 		// Default's pieces, off its row. Returns whether Escape cleared the search.
 		bool DrawOutfitPane(State& a_state)
