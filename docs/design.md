@@ -87,7 +87,7 @@ says so), so a lock would be needed anyway.
   SKSE task, since the event's thread is not documented.
 - A locked piece the player takes back in the trade menu stays taken: the slot is left
   to the vanilla picker until the player assigns again.
-- Unassign (the window's Restore Original Outfit): release the mod's locks, remove the mod's copies
+- Unassign (the window's Restore Outfit): release the mod's locks, remove the mod's copies
   still present (by co-save key; never a player-given instance), put the actor's own
   pieces it took off back on (those still carried, unworn and unlocked, without a lock),
   forget the actor. A slot whose own piece is gone is left to the engine's next
@@ -241,7 +241,7 @@ rows give and take the outfit for the captured actor in one `Assignments::Change
 the library write, with one forced redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
 included) with it; Update saves them the same way, and its `Apply to #{Name}` dresses the
 actor for the ticked rows, or makes the outfit the default with none, as Apply does. An actor can have situation outfits without a default and then wears their
-own clothes outside them. Restore Original Outfit forgets the choices with the rest. The
+own clothes outside them. Restore Outfit forgets the choices with the rest. The
 player has the same rows.
 
 ### Detection (`Situations::Evaluate`)

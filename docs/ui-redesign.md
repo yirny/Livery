@@ -25,13 +25,13 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   GitHub, the inventory data setter) at implementation time, never from memory. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
   come first; Name ascending to start.
-- The count line `x of y piece(s) selected` and `Load Outfit...` move under the list. Live
-  Preview stays as it is.
+- The count line `x of y piece(s) selected` moves under the list, ending in `Add pieces from
+  Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview stays as it is.
 - Assign for and `Situations...` go, with the Situations page (§4 covers assignment).
 - Buttons: `Save` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
-  `Cancel`. Under them a sub-button row with `Restore Original Outfit`: a borderless text
-  button lit on hover, with a `(?)`; the row is shown only while Livery dresses the actor. It
-  does what Release does today. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
+  `Cancel`. `Restore Outfit` at the right end of the Live Preview line: a borderless text
+  button lit on hover, with a `(?)`, shown only while Livery dresses the actor. It ends
+  Livery's dressing of them. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
   situational outfits. Items moved from your inventory stay with them."
 - Library: the group "Armor Type" becomes "Class" (constant, Sort key, `No Class` filter row)
   with SkyUI's four class names, Jewelry new. `DetectArmorClass` follows SkyUI's rule. Where the

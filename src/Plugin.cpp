@@ -17,7 +17,7 @@
 //                    those under an automatic name where the overlay is unavailable); the window's Save
 //                    writes the library, then changes the actor's rows (Assignments::Change); Apply moves
 //                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
-//                    and dresses them (Assignments); Restore Original Outfit goes to Assignments;
+//                    and dresses them (Assignments); Restore Outfit goes to Assignments;
 //                    Manage Wardrobe' Update writes the library and redresses the actor when they
 //                    wear the outfit; its Remove writes the library, clears the outfit from the
 //                    assignments (Assignments::ForgetOutfit) and takes those wearing it for a
@@ -658,7 +658,7 @@ namespace
 		return notMoved;
 	}
 
-	// The window's Apply and Restore Original Outfit, and the line under the actor's name.
+	// The window's Apply and Restore Outfit, and the line under the actor's name.
 	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
 	// those from the player's inventory (`offered`) moved to an NPC first; with Yes in its
 	// popup the worn library outfit takes the ticks before. Restore, offered while Livery has
