@@ -89,6 +89,19 @@ namespace
 		return in;
 	}
 
+	// "For Town, Warm": the situations (rows after Default, in their order) the actor wears
+	// the outfit for; "" for none.
+	std::string SituationsText(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
+	{
+		std::string text;
+		for (std::size_t row = 1; row < a_request.assigned.size() && row - 1 < a_request.situations.size(); ++row) {
+			if (HoldsRow(a_request, row, a_outfit.id)) {
+				text += (text.empty() ? "For " : ", ") + a_request.situations[row - 1];
+			}
+		}
+		return text;
+	}
+
 	// The outfit's categories in one group: indices into Request::categories, ascending.
 	std::vector<int> GroupKey(const std::vector<int>& a_categories, const CaptureWindow::Request& a_request, std::string_view a_group)
 	{
@@ -201,12 +214,14 @@ namespace OutfitBrowser
 
 		a_state.categories.clear();
 		a_state.tags.clear();
+		a_state.situations.clear();
 		for (const auto& outfit : a_request.existingOutfits) {
 			const auto& in = a_state.categories.emplace_back(CategoriesOf(outfit, a_request));
 			auto&       tags = a_state.tags.emplace_back();
 			for (const int index : in) {
 				tags.push_back(a_request.categories[static_cast<std::size_t>(index)].name);
 			}
+			a_state.situations.push_back(SituationsText(outfit, a_request));
 		}
 		Refresh(a_state, a_request);
 	}

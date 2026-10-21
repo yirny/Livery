@@ -46,6 +46,9 @@ namespace OutfitBrowser
 		std::vector<int>                      visible;     // indices into Request::existingOutfits that pass, in display order
 		std::vector<std::vector<int>>         categories;  // per outfit: indices into Request::categories it is in, ascending
 		std::vector<std::vector<std::string>> tags;        // per outfit: the names of those categories, in that order, for its row
+		// Per outfit: the tooltip of its row's situation mark, "For Town, Warm" from the situations
+		// (never Default) the actor wears it for; "" for none.
+		std::vector<std::string> situations;
 		// Per outfit: the heading it is listed under for `sort`; "" for every outfit with kName.
 		std::vector<std::string> headings;
 		// Distinct headings among every outfit's, so the list's height does not follow the search.
