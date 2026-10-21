@@ -1624,16 +1624,22 @@ namespace
 
 	// --- Labels ---------------------------------------------------------------
 
-	// Item spacing for a field label's line: a little tighter than the style's,
-	// so the label sits closer to the control below it. Pop with PopStyleVar.
-	void PushLabelSpacing()
+	// How much closer a field label's line sits to what follows it than the item spacing would
+	// put it (pixels on the back buffer).
+	float LabelGapTrim()
 	{
 		constexpr float kTailorTrim = 3.0f;  // pixels at 1080p
 		constexpr float kSquareTrim = 5.0f;  // Vanilla and Nordic, pixels at 1080p
 
+		return (g_skin == Theme::Skin::kTailor ? kTailorTrim : kSquareTrim) * g_scale;
+	}
+
+	// Item spacing for a field label's line: a little tighter than the style's,
+	// so the label sits closer to the control below it. Pop with PopStyleVar.
+	void PushLabelSpacing()
+	{
 		const auto& spacing = ImGui::GetStyle().ItemSpacing;
-		const float trim = g_skin == Theme::Skin::kTailor ? kTailorTrim : kSquareTrim;
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - trim * g_scale)));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - LabelGapTrim())));
 	}
 
 	// LabelText's colour, or the lit one while hovered: amber in Tailor, whose label
@@ -2012,6 +2018,20 @@ namespace Theme
 	bool LineLinkAt(const char* a_label, float a_x)
 	{
 		return RightEndHelpLink(a_label, nullptr, false, a_x);
+	}
+
+	// EndList left the item spacing under the list's bottom rule; a label over a list sits that
+	// spacing less LabelGapTrim above its top rule.
+	bool ListFooterLink(const char* a_label)
+	{
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() - LabelGapTrim());
+		PushSmallFont();
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)));
+		ImGui::GetWindowDrawList()->AddText(topLeft, LinkColor(ImGui::IsItemHovered()), a_label);
+		PopSmallFont();
+		return clicked;
 	}
 
 	bool Button(const char* a_label)
