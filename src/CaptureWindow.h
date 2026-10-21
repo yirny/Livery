@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -170,10 +171,9 @@ namespace CaptureWindow
 		std::function<void(const SaveRequest& edit, bool apply)> onManageUpdate;
 
 		// Runs on the game thread when the user confirms Manage Wardrobe' Remove of library
-		// outfit `outfit`; `shown` are the Inventory page's ticks (indices into `pieces`), which
-		// the preview shows once the outfit is gone. As onManageUpdate, it must end by calling
-		// SetOutfits() or SetError(). Empty greys Remove.
-		std::function<void(std::uint32_t outfit, const std::vector<std::size_t>& shown)> onManageRemove;
+		// outfit `outfit`. As onManageUpdate, it must end by calling SetOutfits() or SetError().
+		// Empty greys Remove.
+		std::function<void(std::uint32_t outfit)> onManageRemove;
 
 		// Runs on the game thread when the user presses Manage Wardrobe's "Apply to #{Name}"
 		// with no unsaved edits: library outfit `outfit`, as the library has it, goes to the
@@ -217,6 +217,17 @@ namespace CaptureWindow
 		std::function<void()> onClose;
 	};
 
+	// The captured actor's pieces after they were redressed while the window is open with
+	// Live Preview on: what the Inventory page lists, as Open would list it now.
+	struct ActorPieces
+	{
+		std::vector<PieceGroup>  groups;          // one per Request::pieces
+		std::vector<std::size_t> ticked;          // the listed pieces they wear (wigs left out, as at Open), ascending
+		std::string              outfitName;      // as Request::outfitName
+		std::uint32_t            wornOutfit = 0;  // as Request::wornOutfit
+		std::string              wornSituation;   // as Request::wornSituation
+	};
+
 	// What SetOutfits replaces in the open window's Request, as Open had them.
 	struct OutfitList
 	{
@@ -224,6 +235,9 @@ namespace CaptureWindow
 		std::vector<CategoryOption> categories;
 		std::vector<RowAssignment>  assigned;
 		std::string                 actorSummary;
+		// Set when the change redressed the captured actor with Live Preview on, whose preview
+		// the handler began again; the Inventory page then follows what they wear.
+		std::optional<ActorPieces> actorPieces;
 	};
 
 	void Open(Request request);
@@ -240,6 +254,10 @@ namespace CaptureWindow
 	// the preview shows the Inventory page's ticks when its outfit is gone. The heading of the pieces Livery put on
 	// from Request::wornOutfit takes the outfit's name now; when the outfit is gone they
 	// join the other worn pieces and Apply no longer offers to update it.
+	// With `list.actorPieces` the Inventory page lists the pieces as they say, its ticks become
+	// the pieces worn, the loaded outfit is let go, and the preview is left as the handler
+	// began it.
+	// Contract: `list.actorPieces->groups` has one group per Request::pieces.
 	void SetOutfits(OutfitList list);
 
 	// The live preview could not start again after a change made while it was on: the

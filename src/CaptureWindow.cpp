@@ -678,6 +678,27 @@ namespace CaptureWindow::Internal
 		});
 	}
 
+	// SetOutfits after the captured actor was redressed with Live Preview on: the Inventory
+	// page lists their pieces as they are now, ticks the ones they wear and lets the loaded
+	// outfit go, as if the window had just opened.
+	// Contract: `a_pieces.groups` has one group per request.pieces.
+	void FollowActorPieces(State& a_state, const CaptureWindow::ActorPieces& a_pieces)
+	{
+		auto& request = a_state.request;
+		for (std::size_t i = 0; i < request.pieces.size(); ++i) {
+			request.pieces[i].group = a_pieces.groups[i];
+			a_state.pieceTicked[i] = false;
+		}
+		for (const auto index : a_pieces.ticked) {
+			a_state.pieceTicked[index] = true;
+		}
+		request.outfitName = a_pieces.outfitName;
+		request.wornOutfit = a_pieces.wornOutfit;
+		request.wornSituation = a_pieces.wornSituation;
+		a_state.loadedOutfit = -1;
+		SortPieces(a_state);
+	}
+
 	// After SetOutfits: the pieces Livery put on from Request::wornOutfit keep their heading
 	// under the outfit's name now. When it has left the library they move under the
 	// Not in Wardrobe heading, and Apply no longer offers to update it.
@@ -837,7 +858,7 @@ namespace CaptureWindow::Internal
 			restore = Theme::LabelHelpLink("Restore Original Outfit", &hovered);
 			if (hovered) {
 				DrawHelpTooltip(std::format(
-					"Takes Livery's outfit off {} and forgets their situation outfits. Items moved from your inventory stay with them.",
+					"Takes Livery's outfit off {} and forgets their situational outfits. Items moved from your inventory stay with them.",
 					a_state.request.actorName));
 			}
 		}
@@ -1053,8 +1074,16 @@ namespace CaptureWindow::Internal
 		kCancel
 	};
 
+	// Whether a situation row of the actor holds an outfit (rows after the Default).
+	bool HasSituationalOutfits(const State& a_state)
+	{
+		const auto& rows = a_state.request.assigned;
+		return std::any_of(rows.begin() + (rows.empty() ? 0 : 1), rows.end(), [](const CaptureWindow::RowAssignment& a_row) { return OutfitRows::HoldsAny(a_row.row); });
+	}
+
 	// `Update "X" with the ticked pieces?`, naming the situation X is worn for, then Yes,
-	// No, apply as is (its "(?)" inside the button) or Cancel.
+	// No, apply as is (its "(?)" inside the button; the help speaks of situational outfits
+	// only when the actor has one) or Cancel.
 	ApplyChoice DrawApplyPopup(const State& a_state)
 	{
 		constexpr const char* kJustApply = "No, apply as is";
@@ -1081,11 +1110,11 @@ namespace CaptureWindow::Internal
 		bool       helpHovered = false;
 		const bool justApply = Theme::HelpButton(kJustApply, &helpHovered);
 		if (helpHovered) {
-			DrawHelpTooltip(std::format(
-				"The ticked pieces become {}'s Default as they are, without being added to the wardrobe; a random "
-				"Default is turned off. While a situation outfit is worn, the new Default shows only when that "
-				"situation ends.",
-				request.actorName));
+			auto help = std::format("The ticked pieces become {}'s Default as they are, without being added to the wardrobe.", request.actorName);
+			if (HasSituationalOutfits(a_state)) {
+				help += " While a situational outfit is worn, the new Default shows only when that situation ends.";
+			}
+			DrawHelpTooltip(help);
 		}
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
@@ -1123,7 +1152,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto& name = a_state.request.actorName;
 		ImGui::TextUnformatted(std::format("Restore {}'s original outfit?", name).c_str());
-		ImGui::TextUnformatted(std::format("This takes Livery's outfit off {} and forgets every situation outfit chosen for them.", name).c_str());
+		ImGui::TextUnformatted(std::format("This takes Livery's outfit off {} and forgets every situational outfit chosen for them.", name).c_str());
 		BeginButtonRow({ "Restore", "Cancel" });
 		const bool restore = Theme::Button("Restore");
 		ImGui::SameLine();
@@ -1427,28 +1456,6 @@ namespace CaptureWindow::Internal
 		return enter && !Trimmed(a_name.data()).empty();
 	}
 
-	// The categories request.categories offers (kClassGroup), as one row of checkboxes.
-	void DrawClassField(const State& a_state, bool* a_ticked)
-	{
-		const auto& options = a_state.request.categories;
-		if (std::ranges::none_of(options, IsClass)) {
-			return;
-		}
-		Theme::LabelText(CaptureWindow::kClassGroup);
-		bool first = true;
-		for (std::size_t i = 0; i < options.size(); ++i) {
-			if (!IsClass(options[i])) {
-				continue;
-			}
-			if (!std::exchange(first, false)) {
-				ImGui::SameLine();
-			}
-			if (Theme::Checkbox(options[i].name.c_str(), &a_ticked[i])) {
-				QueueMenuSound(kFocusSound);
-			}
-		}
-	}
-
 	// The outfit's gender as one row of radio buttons.
 	void DrawGenderField(int& a_gender)
 	{
@@ -1464,32 +1471,16 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// "#{Name} wears it for": Default with its "(?)", then the situations on the next line.
+	// "#{Name} wears it for" with its "(?)" over the rows' multi-choice dropdown, as Manage
+	// Wardrobe's "Situations for #{Name}".
 	void DrawWearsForField(const State& a_state, SaveForm& a_form)
 	{
-		constexpr const char* kHelpMark = "(?)";
-
-		Theme::LabelText(a_state.wearsForLabel.c_str());
-		if (Theme::Checkbox(RowName(a_state, 0), &a_form.wearsFor[0])) {
-			QueueMenuSound(kFocusSound);
-		}
-		ImGui::SameLine();
-		ImGui::TextDisabled("%s", kHelpMark);
-		if (ImGui::IsItemHovered()) {
-			const auto& name = a_state.request.actorName;
+		if (DrawRowsDropdown(a_state, a_state.wearsForLabel.c_str(), a_form.wearsFor.get())) {
 			DrawHelpTooltip(std::format(
 				"Default is what {0} wears wherever no situation applies. With nothing ticked here, not even "
 				"Default, the outfit is only stored: Livery does not dress {0} in it, and once they change "
-				"clothes, for a situation outfit, for better armor or by another mod, nothing brings it back.",
-				name));
-		}
-		for (std::size_t row = 1; row < RowCount(a_state); ++row) {
-			if (row > 1) {
-				ImGui::SameLine();
-			}
-			if (Theme::Checkbox(RowName(a_state, row), &a_form.wearsFor[row])) {
-				QueueMenuSound(kFocusSound);
-			}
+				"clothes, for a situational outfit, for better armor or by another mod, nothing brings it back.",
+				a_state.request.actorName));
 		}
 	}
 
@@ -1660,8 +1651,8 @@ namespace CaptureWindow::Internal
 		auto&     form = ActiveForm(a_state);
 		ImGui::PushID(a_state.updateTab ? "update" : "create");
 		const bool enter = DrawNameField(a_state, form.name);
-		DrawClassField(a_state, form.classTicked.get());
 		DrawGenderField(form.gender);
+		DrawCategoryDropdown(a_state, form.classTicked.get());
 		DrawWearsForField(a_state, form);
 		ImGui::PopID();
 		if (!a_state.error.empty()) {
@@ -1868,6 +1859,10 @@ namespace CaptureWindow
 
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
 		state.loadedOutfit = IndexOfOutfit(state, loaded);
+		const bool redressed = a_list.actorPieces.has_value();
+		if (redressed) {
+			FollowActorPieces(state, *a_list.actorPieces);
+		}
 		state.chosenOutfit = IndexOfOutfit(state, chosen);
 		state.selectingOutfit = IndexOfOutfit(state, selecting);
 		if (chosen != 0 && state.chosenOutfit < 0) {
@@ -1898,7 +1893,7 @@ namespace CaptureWindow
 			}
 		}
 		FillManageForm(state, IndexOfOutfit(state, managed));
-		if (managed != 0 && state.manage.outfit < 0) {
+		if (managed != 0 && state.manage.outfit < 0 && !redressed) {
 			QueuePreview(state, TickedPieces(state));
 		}
 		state.discardFor = -1;
