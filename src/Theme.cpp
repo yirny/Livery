@@ -1062,6 +1062,7 @@ namespace
 
 	// That mark `a_side` pixels across, centred on `a_centre` (screen pixels): the game's in its
 	// #cccccc or NORDIC UI's in its own colours, or a small filled triangle without the texture.
+	// Through the style alpha, so it fades inside BeginDisabled.
 	void DrawEquippedMark(ImDrawList* a_draw, ImVec2 a_centre, float a_side)
 	{
 		constexpr ImU32 kVanillaMark = IM_COL32(204, 204, 204, 255);  // the game's #cccccc
@@ -1071,7 +1072,7 @@ namespace
 		if (mark.view) {
 			const ImVec2 topLeft(a_centre.x - a_side * 0.5f, a_centre.y - a_side * 0.5f);
 			a_draw->AddImage(mark.Id(), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
-				nordic ? IM_COL32_WHITE : kVanillaMark);
+				ImGui::GetColorU32(nordic ? IM_COL32_WHITE : kVanillaMark));
 			return;
 		}
 		const float half = a_side * 0.3f;
