@@ -162,6 +162,12 @@ would have to be kept in step).
   then takes it off every row in this save (a `chosen` that was it becomes 0), and a Default
   this leaves wearing nothing gets the outfit's pieces, read before the remove, as its
   pieces. Other saves' rows naming it put nothing on and fall back to the Default (§7).
+- Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
+  presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
+  situation key its name, description and removed flag, only for the situations that
+  differ from the presets; a missing file is every preset as installed and is not written
+  at load. The same load and write rules as the library (docs/situation-management-ui.md
+  §2). Loaded at `kDataLoaded`, before the library and any co-save load.
 - Settings: INI, as today.
 
 ## 5. Co-save
@@ -189,7 +195,9 @@ in the SKSE load callback, cleared on revert:
   armor becomes the Default's pieces. Each situation id becomes a row of it, chosen; random
   is off everywhere. The library is loaded at `kDataLoaded`, before any co-save load.
 - A piece, own copy or Default piece whose plugin is gone is dropped at load, and an
-  assignment with nothing on the actor and no situation row holding an outfit. A key whose
+  assignment with nothing on the actor and no situation row holding an outfit. Before that
+  check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
+  line; pieces worn for it stay on until the poll's next dressing. A key whose
   instance is gone is skipped whenever the actor is dressed or released.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
@@ -233,7 +241,10 @@ An assigned actor has a row per situation, Town, Home, Sleep, Swimming, Warm
 none of them applies. A row is a list of library outfit ids, a random flag and the one
 chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
-on. Random off, the row wears `chosen`; random on, one of the list is picked as the row
+on. Each situation's name and description come from `situations.json` (§4): the window and
+the HUD show the name, the sentences that say what is worn end in `, <description>`
+(nothing for an empty one), and the logs keep the key. A removed situation offers no row
+and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on and kept until it changes, a forced redress keeping it while it is on the list.
 Giving a row an outfit puts it at the front of the list and, random off, makes it
 `chosen`; the one it replaces stays on the list, hidden. The Save page's "wears it for"
