@@ -749,8 +749,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// Hands Save Changes' edits to onSituationsSave: the names and descriptions that
-		// changed, and every row when any changed. Until the handler ends with SetOutfits or
-		// SetError the page is greyed.
+		// changed, every row when any changed, and the outfit whose details show, which stays on
+		// the preview. Until the handler ends with SetOutfits or SetError the page is greyed.
 		// Contract: the handler writes situations.json first and changes no row for a refused
 		// or failed write (CLAUDE.md §2.1).
 		void RequestSituationsSave(State& a_state)
@@ -771,6 +771,9 @@ namespace CaptureWindow::Internal
 					save.rows.push_back({ .situation = request.situations[i].situation, .row = form.entries[i].row });
 				}
 				save.dropDefaultPieces = request.assigned[0].pieces && !form.defaultPieces;
+			}
+			if (const int viewed = IndexOfOutfit(a_state, form.viewedOutfit); viewed >= 0) {
+				save.previewPieces = OutfitAt(a_state, viewed).pieces;
 			}
 			a_state.status = Status::kSaving;
 			a_state.error.clear();
