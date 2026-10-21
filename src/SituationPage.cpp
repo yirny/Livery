@@ -926,6 +926,12 @@ namespace CaptureWindow::Internal
 		const auto action = DrawSituationButtons(a_state, escapeTaken);
 		EndButtonRow();
 		ImGui::EndDisabled();
+		// While a write runs (Status::kSaving) only Escape, as Back or Exit, gets past
+		// BeginDisabled; it does nothing then, as the greyed buttons do nothing.
+		if (a_state.status != Status::kEditing) {
+			DrawSituationPopups(a_state);
+			return;
+		}
 
 		if (outfitView == OutfitViewAction::kBack) {
 			QueueMenuSound(kCancelSound);
