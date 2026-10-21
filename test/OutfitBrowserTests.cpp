@@ -37,9 +37,18 @@ namespace
 			{ .name = "Bare", .categories = {}, .id = 4, .gender = -1 },
 			{ .name = "Scout", .categories = { "Light", "Heavy", "Adventuring", "Town" }, .id = 5, .gender = 1 },
 		};
-		// Default, Town, Home, Sleep, Swimming, Warm. Home holds pieces that are not a saved outfit.
+		// Default, Town, Home, Sleep, Swimming, Warm. A row shows only what it holds: Town's "Guard
+		// Uniform" is hidden behind its chosen "Scout", Home's "Bare" is on its list with none
+		// chosen, and the random Swimming holds its whole list.
 		request.situations = { "Town", "Home", "Sleep", "Swimming", "Warm" };
-		request.assigned = { { true, 3 }, { true, 5 }, { true, 0 }, { true, 3 }, { true, 2 }, { false, 0 } };
+		request.assigned = {
+			{ .row = { .outfits = { 3 }, .chosen = 3 } },
+			{ .row = { .outfits = { 5, 2 }, .chosen = 5 } },
+			{ .row = { .outfits = { 4 } } },
+			{ .row = { .outfits = { 3 }, .chosen = 3 } },
+			{ .row = { .outfits = { 2 }, .random = true } },
+			{},
+		};
 		return request;
 	}
 

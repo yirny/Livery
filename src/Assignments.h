@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Dressing.h"
+#include "OutfitRows.h"
 #include "Situations.h"
 
 #include <array>
@@ -27,55 +28,57 @@ namespace Assignments
 	// Contract: call from the input path while handling that key's event.
 	bool HandleKey(std::uint32_t a_scanCode);
 
-	// Makes `a_armor` their default outfit, worn wherever no chosen situation applies, and
-	// dresses them for their situations now: in the default, kept on and an NPC locked,
-	// or in a situation outfit they have. `a_outfit` is the library outfit the pieces came
-	// from, 0 for none. NPCs get the pieces they lack, the player only when the settings
-	// allow it. Their own pieces that come off are noted and go back on at release. Shows
-	// the result as a HUD message.
+	// Gives their Default, worn wherever no situation applies, library outfit `a_outfit`
+	// (OutfitRows::Give; the Default's pieces go when it becomes `chosen`), or with `a_outfit`
+	// 0 makes `a_armor` the Default's pieces, `chosen` 0 and random off. Then dresses them for
+	// their situations now: in the Default, kept on and an NPC locked, or in a situation
+	// outfit they have. A library outfit is read from the library; its pieces not in
+	// `a_armor` stay out of this dressing only (pieces that could not be moved to them). NPCs
+	// get the pieces they lack, the player only when the settings allow it. Their own pieces
+	// that come off are noted and go back on at release. Shows the result as a HUD message.
 	// Contract: game thread; no preview is on (OutfitPreview::End ran).
 	void Assign(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_armor, std::uint32_t a_outfit);
 
-	// What the capture window's Save page changes for one actor (docs/ui-redesign.md §4):
-	// the rows that get the library outfit `outfit` and those that lose what they have, each
-	// a situation or kDefault for the default. A situation outfit is read from the library
-	// each time it goes on; the default keeps `armor`, the outfit's pieces as they are now.
-	// Without a default they wear their own clothes where no chosen situation applies.
+	// What the capture window changes for one actor (docs/situation-management-ui.md §1): the
+	// rows that get library outfit `outfit` (OutfitRows::Give) and those that lose it
+	// (OutfitRows::Take), each a situation or kDefault. Every row reads its outfit from the
+	// library each time it goes on.
 	struct Changes
 	{
 		std::uint32_t                      outfit = 0;
-		std::vector<RE::TESObjectARMO*>    armor;
 		std::vector<Situations::Situation> assign;
 		std::vector<Situations::Situation> remove;
 	};
 
 	// Makes every change, then dresses them once, anew, for their situations now, so an
-	// outfit whose pieces changed goes on even for the situation they already wear. Shows one
-	// HUD message.
+	// outfit whose pieces changed goes on even for the situation they already wear; a random
+	// row in `assign` worn now wears `outfit` as its pick. Shows one HUD message.
 	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
 	void Change(RE::Actor& a_actor, const Changes& a_changes);
 
 	// Dresses them anew for their situations now, even in the outfit they already wear, so a
-	// library outfit whose pieces just changed goes on at once; `a_leaveOut` stays out of this
-	// dressing only (pieces that could not be moved to them). Nothing for an actor Livery does
-	// not dress. Shows a HUD message.
+	// library outfit whose pieces just changed goes on at once; a random row keeps its pick
+	// while it is on the list. `a_leaveOut` stays out of this dressing only (pieces that could
+	// not be moved to them). Nothing for an actor Livery does not dress. Shows a HUD message.
 	// Contract: game thread; no preview is on (OutfitPreview::End ran).
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut);
 
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
-	// first situation they have an outfit for, else the default. A situation outfit that
-	// puts nothing on falls back to the default. An assignment left with nothing on them
-	// and no situation chosen ends. Returns whether they were redressed.
+	// first situation whose row holds an outfit, else the Default (OutfitRows::Resolve). A
+	// random row picks as it goes on and keeps the pick while it stays worn and on the list.
+	// A situation outfit that puts nothing on falls back to the Default. An assignment left
+	// with nothing on them and no situation row holding an outfit ends. Returns whether they
+	// were redressed.
 	// Contract: game thread; no preview is on (the poll checks).
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now);
 
-	// The actors the situation poll watches: those with an outfit chosen for at least one
-	// situation, and those still wearing one whose row ForgetOutfit cleared, whom their
-	// next dressing takes out of it. Contract: game thread.
+	// The actors the situation poll watches: those with a situation row holding an outfit,
+	// and those still wearing one whose row ForgetOutfit cleared, whom their next dressing
+	// takes out of it. Contract: game thread.
 	std::vector<RE::FormID> ActorsWithSituations();
 
 	// Who has library outfit `a_outfit`, for the capture window's Remove: each actor with
-	// the rows it is theirs for, Default (pieces from it) first, then the situations in
+	// the rows that hold it (OutfitRows::Holds), Default first, then the situations in
 	// Situations::kChoosable order. Contract: game thread.
 	struct Use
 	{
@@ -84,13 +87,15 @@ namespace Assignments
 	};
 	std::vector<Use> UsesOf(std::uint32_t a_outfit);
 
-	// The outfit has left the library: every situation row holding it is cleared, and a
-	// default from it keeps its pieces as pieces that are not a saved outfit (id 0). An
-	// assignment left with nothing on them and no situation chosen ends. Nobody is
-	// redressed here; returns the actors wearing it for a situation now, whom WearFor
-	// takes out of it (the actors not in memory at their next situation change).
+	// The outfit has left the library: it leaves every row (OutfitRows::Take), so an outfit
+	// hidden behind a `chosen` that was it is not worn. A Default this leaves wearing nothing
+	// gets `a_pieces`, the outfit's loaded pieces read before Library::Remove, as its pieces;
+	// a Default worn from it stays on. An assignment left with nothing on them and no
+	// situation row holding an outfit ends. Nobody is redressed here; returns the actors
+	// wearing it for a situation now, whom WearFor takes out of it (the actors not in memory
+	// at their next situation change).
 	// Contract: game thread.
-	std::vector<RE::FormID> ForgetOutfit(std::uint32_t a_outfit);
+	std::vector<RE::FormID> ForgetOutfit(std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_pieces);
 
 	// Ends their assignment, situation choices included: Livery's locks and copies go,
 	// their own pieces it took off go back on. Nothing for an actor Livery does not dress.
@@ -98,15 +103,15 @@ namespace Assignments
 	// Contract: game thread; no preview is on.
 	void Unassign(RE::Actor& a_actor);
 
-	// What Livery has chosen for them, for the window's summary line and piece headings.
+	// What Livery has chosen for them, for the window's rows, summary line and piece headings.
 	struct Choices
 	{
-		bool                                                     dressed = false;                         // Livery has pieces on them now
-		std::vector<RE::FormID>                                  wornArmor;                               // the armor of those pieces
-		bool                                                     hasDefault = false;                      // they have a default outfit
-		std::uint32_t                                            defaultOutfit = 0;                       // the library outfit the default pieces came from; 0 for none
-		std::array<std::uint32_t, Situations::kChoosable.size()> situations{};                            // outfit per situation (Situations::Index); 0 for none
-		Situations::Situation                                    worn = Situations::Situation::kDefault;  // what the pieces they wear are for
+		bool                    dressed = false;                         // Livery has pieces on them now
+		std::vector<RE::FormID> wornArmor;                               // the armor of those pieces
+		OutfitRows::Rows        rows;                                    // the Default, then the situations
+		bool                    defaultPieces = false;                   // the Default has armor not in the wardrobe
+		Situations::Situation   worn = Situations::Situation::kDefault;  // the row the pieces they wear are for
+		std::uint32_t           wornOutfit = 0;                          // the library outfit they are from; 0 for none or the Default's pieces
 	};
 
 	// nullopt when Livery does not dress them. Contract: game thread.

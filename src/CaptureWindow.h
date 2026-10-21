@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "OutfitRows.h"
+
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -96,11 +98,12 @@ namespace CaptureWindow
 		std::vector<std::string> users;
 	};
 
-	// What one row of the Save page's "wears it for" field holds for the actor now.
+	// One of the actor's rows as they have it now (docs/situation-management-ui.md §1): the
+	// Default, or a situation.
 	struct RowAssignment
 	{
-		bool          taken = false;  // the row has an outfit
-		std::uint32_t outfit = 0;     // its library id; 0 with `taken` for a default of pieces that are not a saved outfit
+		OutfitRows::Row row;
+		bool            pieces = false;  // the Default only: it has armor not in the wardrobe, worn while the row wears no outfit
 	};
 
 	// What the Save page hands over: the outfit to write, then the rows of "wears it for"
@@ -112,7 +115,7 @@ namespace CaptureWindow
 		int                      gender = -1;
 		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
 		std::vector<std::string> categories;  // the ticked categories (kClassGroup), in the order of Request::categories, maybe none
-		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row taken by another outfit only after Replace
+		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row another outfit is worn for only after Confirm
 		std::vector<std::size_t> remove;      // Update only: rows that had the outfit and are unticked, ascending
 	};
 
