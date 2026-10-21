@@ -506,6 +506,14 @@ namespace CaptureWindow::Internal
 			Theme::PopSmallFont();
 		}
 
+		// kPaneButtonGap, then the cursor placed so a row of buttons with these labels is
+		// centred in the pane.
+		void BeginPaneButtonRow(std::initializer_list<const char*> a_labels)
+		{
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
+			CentreButtonRow(a_labels);
+		}
+
 		// The settings every actor shares: the name (read only for the Default, which says so on
 		// hover), the description and the sentence it ends, the conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
@@ -578,8 +586,7 @@ namespace CaptureWindow::Internal
 					name));
 			}
 
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
-			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - Theme::ButtonWidth(kShowList)) * 0.5f));
+			BeginPaneButtonRow({ kShowList });
 			auto action = Theme::Button(kShowList) ? DetailsAction::kShowList : DetailsAction::kNone;
 			if (selected > 0 && Theme::LineLink("Remove")) {
 				action = DetailsAction::kRemove;
@@ -620,8 +627,7 @@ namespace CaptureWindow::Internal
 			const float buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight();  // under the pieces' list
 			ImGui::PushID("outfitView");
 			DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, a_state.situationForm.viewedOutfit), a_listBottom - buttonRow);
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
-			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - ButtonRowWidth({ "Edit", "Back" })) * 0.5f));
+			BeginPaneButtonRow({ "Edit", "Back" });
 			const bool edit = Theme::Button("Edit");
 			ImGui::SameLine();
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);

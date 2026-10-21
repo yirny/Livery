@@ -449,15 +449,20 @@ namespace CaptureWindow::Internal
 		return width;
 	}
 
+	// The cursor placed so a row of buttons with these labels is centred in the room left on
+	// the line.
+	void CentreButtonRow(std::initializer_list<const char*> a_labels)
+	{
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - ButtonRowWidth(a_labels)) * 0.5f));
+	}
+
 	// A gap, then the cursor placed so a row of buttons with these labels is centred.
 	void BeginButtonRow(std::initializer_list<const char*> a_labels)
 	{
 		constexpr float kGap = 17.0f;  // pixels at 1080p, on top of one extra item spacing
 
-		const auto& style = ImGui::GetStyle();
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.ItemSpacing.y + kGap * Theme::Scale());
-		const float width = ButtonRowWidth(a_labels);
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - width) * 0.5f));
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y + kGap * Theme::Scale());
+		CentreButtonRow(a_labels);
 	}
 
 	// Room between the last button row (and any status line under it) and the

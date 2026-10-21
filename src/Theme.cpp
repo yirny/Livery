@@ -16,8 +16,8 @@
 //                checkbox of the Vanilla and Nordic skins; the fainter field
 //                border; the selected single-choice row's mark; an outfit row's
 //                tags (Tailor 3.0's chips and gender pills, or grey text)
-//   Labels     - a field label's line spacing; the colour of clickable labels;
-//                LabelLink's plus-in-square mark
+//   Labels     - a field label's line spacing; the colour of clickable labels and their
+//                click area (LinkButton); LabelLink's plus-in-square mark
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets, the
 //                lists between rules (BeginList / EndList) and their columns
 //                (HeaderRow over multi-column tick rows), list headings (the
@@ -1765,6 +1765,22 @@ namespace
 		return a_hovered ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(kNordicLabel);
 	}
 
+	// A link's click area at the cursor, `a_size` (screen pixels, at least 1 each way), with
+	// `a_label` at its top left in LinkColor, lit while hovered. Returns true when clicked;
+	// `a_hovered` (if any) says whether it is hovered.
+	// Contract: in the font `a_size` was measured in; the label is the ImGui ID.
+	bool LinkButton(const char* a_label, ImVec2 a_size, bool* a_hovered = nullptr)
+	{
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, a_size.x), (std::max)(1.0f, a_size.y)));
+		const bool   hovered = ImGui::IsItemHovered();
+		ImGui::GetWindowDrawList()->AddText(topLeft, LinkColor(hovered), a_label);
+		if (a_hovered) {
+			*a_hovered = hovered;
+		}
+		return clicked;
+	}
+
 	// A filled square `a_side` pixels across, its corners rounded, with a plus
 	// cut out of its middle so the window shows through. ImGui cannot cut a
 	// hole, so four rotated copies of one piece are filled: a corner square and
@@ -2106,17 +2122,12 @@ namespace Theme
 		if (a_labelLine) {
 			PushLabelSpacing();  // the line's gap below stays LabelText's
 		}
-		const bool clicked = ImGui::InvisibleButton(a_label, ImVec2(width, (std::max)(1.0f, text.y)));
+		const bool clicked = LinkButton(a_label, ImVec2(width, text.y), a_hovered);
 		if (a_labelLine) {
 			ImGui::PopStyleVar();
 		}
-
-		const bool hovered = ImGui::IsItemHovered();
-		auto*      draw = ImGui::GetWindowDrawList();
-		draw->AddText(topLeft, LinkColor(hovered), a_label);
 		if (help) {
-			*a_hovered = hovered;
-			draw->AddText(ImVec2(topLeft.x + markX, topLeft.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
+			ImGui::GetWindowDrawList()->AddText(ImVec2(topLeft.x + markX, topLeft.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
 		}
 		PopSmallFont();
 		return clicked;
@@ -2148,10 +2159,7 @@ namespace Theme
 	{
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() - LabelGapTrim());
 		PushSmallFont();
-		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)));
-		ImGui::GetWindowDrawList()->AddText(topLeft, LinkColor(ImGui::IsItemHovered()), a_label);
+		const bool clicked = LinkButton(a_label, ImGui::CalcTextSize(a_label));
 		PopSmallFont();
 		return clicked;
 	}
