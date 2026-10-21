@@ -169,14 +169,20 @@ outfit for Town any more`.
   skin) and shows its details on the right; a click on the selected one while its details
   show unselects it and the right pane shows the outfit list. Edit always selects the
   situation and shows its details.
-- Under a heading, its outfits as rows of the outfit list (name, tags, marks), each with a
-  drag grip 4px in from its left edge: two columns of three dots, Vanilla and Nordic in
-  LabelText's grey at low alpha, Tailor in its text colour mixed with black; the name and tags
-  start 12px past the dots, here and in the right pane's outfit list. Random on: every outfit on the list.
-  Random off: `chosen` only. A row that wears nothing shows nothing under its heading; the
-  Default wearing its `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id
-  the library no longer has (another save's) shows a grey `Outfit no longer in the wardrobe`
-  row with a grip, which drags as an outfit does. A click on an outfit row does nothing.
+- Under a heading, its outfits as rows of the outfit list (name, tags, the form marks but no
+  star, since each is chosen for a situation), each with a drag grip 4px in from its left
+  edge: two columns of three dots, Vanilla and Nordic in LabelText's grey at low alpha, Tailor
+  in its text colour mixed with black; the name and tags start 12px past the dots, here and in
+  the right pane's outfit list. Random on: every outfit on the list. Random off: `chosen`
+  only. A row that wears nothing shows nothing under its heading; the Default wearing its
+  `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id the library no longer
+  has (another save's) shows a grey `Outfit no longer in the wardrobe` row with a grip, which
+  drags as an outfit does.
+- A click on an outfit row, here or in the right pane's outfit list, shows the outfit's
+  details in the right pane (§5) and puts it on the preview; a click on the outfit whose
+  details show goes back, as Back does. Its rows in both panes show as selected meanwhile;
+  in Vanilla and Nordic the select arrow takes the grip's place. A click on the pieces line or
+  a row no longer in the wardrobe does nothing. A drag never counts as a click.
 
 Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 
@@ -203,14 +209,15 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 
 ## 5. Right pane
 
-It shows the selected situation's details while one is selected and Show Outfit List was
-not pressed since it was selected, and no drag from the left pane is on; else the outfit
-list.
+It shows the outfit list while a drag from the left pane is on; else the details of the
+outfit clicked last, until Back; else the selected situation's details, until Show Outfit
+List; else the outfit list.
 
 The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
-search, sort and Show Tags, each row with the drag grip. A click selects nothing.
+search, sort and Show Tags, each row with the drag grip; under Show Tags, in the small font
+and the text colour, `Drag an outfit onto a situation to add it.`
 
-The details, its fields evenly spaced with no headings:
+The situation's details, its fields evenly spaced with no headings:
 
 - `Name`, an underlined field (as the Save page's). Ending the edit with it empty, or with a
   name another situation has (ASCII case ignored), puts the previous name back; with that
@@ -222,17 +229,15 @@ The details, its fields evenly spaced with no headings:
 - `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule in
   grey, as the README words it (Town: `A city, town, settlement, inn or other inhabited
   interior.`); the Default's `Worn where no other situation applies.`
-- `Random Outfit for #{Name} (?)`, a checkbox: `On: one outfit of the list is picked at random
+- `Random Outfit (for #{Name}) (?)`, a checkbox: `On: one outfit of the list is picked at random
   each time this situation begins for #{Name}, and worn until it ends. Off: only the outfit
   shown is worn, the last one picked; the others stay on the list, hidden.` Unticking it keeps
   the last pick on (§1).
-- 12px of extra room, then `Show Outfit List`, a button centred in the pane; under it, in the
-  small heading style, `Drag outfits from the list onto "#{Situation}" to add them.` A click
-  shows the outfit list, keeps the situation selected, opens its heading if folded and
-  scrolls the left pane to it when the pane can scroll.
-- `Remove` at the left end of Show Outfit List's row, as Restore Presets sits by Save
-  Changes (`Theme::LineLinkAt`, Restore Presets' link without the `(?)`); not on the Default.
-  Its popup: `Remove "Town"?`, then under `It is used by:` the
+- 12px of extra room, then `Show Outfit List`, a button centred in the pane. A click shows
+  the outfit list, keeps the situation selected, opens its heading if folded and scrolls the
+  left pane to it when the pane can scroll.
+- `Remove` at the right end of Show Outfit List's row, drawn as Restore Presets is, without
+  the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove "Town"?`, then under `It is used by:` the
   actors in this save with outfits on their Town row's list, hidden ones included
   (`Lydia: 2 outfit(s)`, the length of `outfits`; a FormID when not in memory), `Restore
   Presets brings "Town" back, without them.` (`... back.` when nobody has any), and with
@@ -241,6 +246,14 @@ The details, its fields evenly spaced with no headings:
   clears the row for every actor in this save, and those wearing it are redressed by
   docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
   The edits are dropped, nothing is selected and the right pane shows the outfit list.
+
+An outfit's details, read only, in Manage Wardrobe's order (`DrawOutfitSummary`): its name
+and gender with no label, `Category`, `Situations for #{Name}` with the rows the page's edits
+give it (`Default, Town`, or `None`), then its pieces under their count line. 12px of extra
+room, then `Edit` and `Back` centred. Back, and Escape, show what the right pane showed
+before and the Inventory page's ticks on the preview. Edit goes to Manage Wardrobe with the
+outfit selected and on the preview, through the unsaved-changes alert when the page has
+edits (§6). A click on a situation's heading closes the details and shows the situation's.
 
 ## 6. Buttons and leaving
 
@@ -294,7 +307,8 @@ The details, its fields evenly spaced with no headings:
   (`SituationHeading` with its `SituationHeadingLook`, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
   drag grip (`OutfitRow`'s `grip`, `OutfitTagsWidth(grip)`, `FoldHeading`'s `grip`), the
-  details' Remove link (`LineLinkAt`), Restore Presets' (`LineHelpLinkAt`).
+  details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`), the select arrow in
+  a selected draggable row's grip room.
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name, description,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
   `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,
@@ -318,7 +332,8 @@ refused or failed one changes none; the same load and write rules as the library
 - Step B: no `situations.json` until something is written; the summary line and the HUD
   read `, in Town`; an empty description adds nothing.
 - Step C: each drop of §4's table; the 1 s open; Show Outfit List's scroll and open; Edit and
-  a click on the selected heading with the outfit list showing; Save Changes greyed
+  a click on the selected heading with the outfit list showing; an outfit's details from
+  either pane, with Back, Escape and Edit, and the preview; Save Changes greyed
   and saved (Live Preview on and off); Random Outfit on, picks at situation changes;
   rename refused when empty or taken; Remove and its popup, the rows gone, the
   Save page and Manage Wardrobe without it; Restore Presets brings it back empty; the

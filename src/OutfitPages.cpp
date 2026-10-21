@@ -252,15 +252,16 @@ namespace CaptureWindow::Internal
 
 	// One outfit of the list: its name, with its tags under it while they show (Show Tags), and
 	// at its right end the marks of the outfit the actor wears now or has as their Default and
-	// of one chosen for a situation (Theme::OutfitMarks); `a_striped` for every second row
-	// under a heading.
-	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped, bool a_grip)
+	// of one chosen for a situation (Theme::OutfitMarks), the last with `a_situationMark` only;
+	// `a_striped` for every second row under a heading.
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped, bool a_grip,
+		bool a_situationMark)
 	{
 		const auto&                    outfit = OutfitAt(a_state, a_index);
 		const auto&                    situations = a_browser.situations[static_cast<std::size_t>(a_index)];
 		const Theme::OutfitMarks       marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
 			.defaultOutfit = HoldsOutfit(a_state, 0, outfit.id),
-			.situations = situations.empty() ? nullptr : situations.c_str() };
+			.situations = a_situationMark && !situations.empty() ? situations.c_str() : nullptr };
 		const std::vector<std::string> none;
 		const auto&                    tags = a_state.showTags ? a_browser.tags[static_cast<std::size_t>(a_index)] : none;
 		const int                      gender = a_state.showTags ? outfit.gender : -1;  // the gender is a tag too
@@ -275,7 +276,7 @@ namespace CaptureWindow::Internal
 	// not move the buttons; `a_reserved` is the browser's height (ListHeight).
 	// Returns the index into request.existingOutfits of the one clicked, or -1;
 	// a click plays the focus sound. `a_draggable` (Manage Situations): each row has a grip
-	// and drags a copy of its outfit, and a click selects nothing.
+	// and drags a copy of its outfit.
 	// Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable)
 	{
@@ -317,7 +318,7 @@ namespace CaptureWindow::Internal
 					continue;
 				}
 				ImGui::PushID(index);
-				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1, a_draggable) && !a_draggable) {
+				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1, a_draggable)) {
 					clicked = index;
 				}
 				if (a_draggable) {
@@ -383,6 +384,19 @@ namespace CaptureWindow::Internal
 		DrawPieceNames(a_state, a_outfit.pieces);
 	}
 
+	// The outfit's Category, wrapped under its label: the window's categories it has, or None.
+	void DrawClassField(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
+	{
+		Theme::LabelText(CaptureWindow::kClassGroup);
+		std::vector<std::string> classes;
+		for (const auto& option : a_state.request.categories) {
+			if (IsClass(option) && std::ranges::find(a_outfit.categories, option.name) != a_outfit.categories.end()) {
+				classes.push_back(option.name);
+			}
+		}
+		ImGui::TextWrapped("%s", classes.empty() ? "None" : JoinNames(classes).c_str());
+	}
+
 	// Right column of the Load and Select pages: the selected outfit's name, categories and
 	// pieces, read only; `a_hint` while none is selected.
 	void DrawOutfitDetails(const State& a_state, int a_selected, const char* a_hint)
@@ -390,15 +404,22 @@ namespace CaptureWindow::Internal
 		if (!DrawSelectedName(a_state, a_selected, a_hint)) {
 			return;
 		}
-		Theme::LabelText(CaptureWindow::kClassGroup);
-		const auto&              outfit = OutfitAt(a_state, a_selected);
-		std::vector<std::string> classes;
-		for (const auto& option : a_state.request.categories) {
-			if (IsClass(option) && std::ranges::find(outfit.categories, option.name) != outfit.categories.end()) {
-				classes.push_back(option.name);
-			}
-		}
-		ImGui::TextWrapped("%s", classes.empty() ? "None" : JoinNames(classes).c_str());
+		const auto& outfit = OutfitAt(a_state, a_selected);
+		DrawClassField(a_state, outfit);
+		Theme::AfterFieldGap();
+		DrawOutfitPieces(a_state, outfit);
+	}
+
+	// The name and gender with no label, as Manage Wardrobe's fields.
+	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations)
+	{
+		DrawSelectedName(a_state, a_index, "");
+		const auto& outfit = OutfitAt(a_state, a_index);
+		Theme::SectionGap();  // a field with no label
+		ImGui::TextUnformatted(GenderName(outfit.gender));
+		DrawClassField(a_state, outfit);
+		Theme::LabelText(a_state.situationsLabel.c_str());
+		ImGui::TextWrapped("%s", a_situations.c_str());
 		Theme::AfterFieldGap();
 		DrawOutfitPieces(a_state, outfit);
 	}
