@@ -93,9 +93,9 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   situation applies. With nothing ticked here, not even Default, the outfit is only stored:
   Livery does not dress #{Name} in it, and once they change clothes, for a situation outfit,
   for better armor or by another mod, nothing brings it back."
-- Replace confirm: when a ticked row already has another outfit (random off, §7), one modal
-  lists them (`Town: "A" → "B"`) with `Replace` / `Keep "A"` (save without that assignment;
-  with several rows, keep all) / `Cancel`.
+- Replace confirm: when a ticked row already wears another outfit (random off, §7), one
+  modal lists them (`Town: "B" replaces "A"`) with `Confirm` / `Cancel`; the replaced outfit
+  stays on the row's list, hidden (docs/situation-management-ui.md §1).
 - Update tab: the ticks start from this actor's assignments of the outfit; unticking removes
   the assignment, Default included (a clear-default API: the worn default comes off, its
   situations stay). Update always replaces the outfit's pieces with the ticks: a pure
@@ -107,8 +107,8 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   message for the library and one for the assignment.
 
 Checks: Create with Town ticked in a town dresses at once; Update renames; replace confirm
-with Keep; untick Default on the Update tab leaves the situations; a failed write assigns
-nothing.
+with Confirm and Cancel; untick Default on the Update tab leaves the situations; a failed
+write assigns nothing.
 
 ## 5. Apply
 
@@ -121,9 +121,11 @@ nothing.
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced
     redress puts the updated outfit on (new Assignments API; `WearFor` only redresses on a
     change).
-  - `No, just apply`: `Assign(ticks, 0)`. Its `(?)`: the pieces become #{Name}'s Default
-    without a saved outfit, so editing the library does not change them; while a situation
-    outfit is worn the new Default shows only when that situation ends.
+  - `No, apply as is`: `Assign(ticks, 0)`: the ticks become the Default's pieces, `chosen`
+    0, random off. Its `(?)`: the pieces become #{Name}'s Default as they are, without a
+    saved outfit, so editing the library does not change them; a random Default is turned
+    off; while a situation outfit is worn the new Default shows only when that situation
+    ends.
   - `Cancel`: back to the window.
 - Apply is greyed with no ticked piece (`kNeedPiece`).
 

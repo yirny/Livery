@@ -90,10 +90,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   (or `"Apply" gives #{Name} a new copy of each ticked piece; yours stay with you.`), then
   `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
   are not listed.`
-- The Apply popup's `No, just apply (?)` help: `The ticked pieces become #{Name}'s Default
-  without being added to the wardrobe. While a situation outfit is worn, the new Default
-  shows only when that situation ends.` A button with a `(?)` (the Apply popup's `No, just apply`)
-  draws it inside its frame.
+- The Apply popup's `No, apply as is (?)` help: `The ticked pieces become #{Name}'s Default
+  as they are, without being added to the wardrobe; a random Default is turned off. While a
+  situation outfit is worn, the new Default shows only when that situation ends.` A button
+  with a `(?)` (the Apply popup's `No, apply as is`) draws it inside its frame.
 - Vanilla and Nordic draw text fields and dropdowns underlined, not framed. A text field has
   a grey pen at its right end, white while the field or the pen is hovered or the field is
   being typed in; a click on the pen starts typing, so the click area is the field's. A
@@ -145,9 +145,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     gender, pieces) or its rows differ from the actor's, and with an empty name
     (`kNeedName`). A popup (`Save changes?`) lists what changes (pieces, Category, rename,
     gender, then `Town: added` / `Town: removed`), as the Save page's Update tab does; a
-    ticked row another outfit holds reads `Town: "A" → "B"` and the buttons are `Replace`
-    / `Keep` (saves without those rows; `Keep "A"`, `Keep All`) / `Cancel`, else `Confirm`
-    / `Cancel` (random picks, docs/ui-redesign.md §7, will skip the question). The window
+    ticked row that wears another outfit with random off reads `Town: "B" replaces "A"`
+    (the replaced one stays on the row's list, hidden), a random row `Town: added`
+    (docs/situation-management-ui.md §1); the buttons are `Confirm` / `Cancel`. The window
     hands the edits and rows to `Request::onManageUpdate`. CLAUDE.md §2.1 applies: a name
     another outfit has (ASCII case ignored) is refused, and a refused or failed write changes
     nothing, assigns nothing and shows the error. On success the rows are changed in one
@@ -162,9 +162,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     #{Name} in this outfit for Town, Warm.` / `... as their Default.` It asks first
     (`Apply outfit?`) when there is anything to say: library edits (`Save your changes to
     "#{Outfit}", then apply it to #{Name} for Town?` and their lines, the button `Update and
-    Apply`), row changes (`Town: added`, `Town: "A" → "B"`, which Apply takes over) or,
-    with no row ticked, a Default it replaces (`#{Name} already has a Default outfit, "A".
-    It will be replaced.`); else `Apply "#{Outfit}" to #{Name} for Town?` with `Apply` /
+    Apply`), row changes (`Town: added`, `Town: "B" replaces "A"`) or, with no row ticked,
+    a Default whose worn outfit it replaces, random off (`#{Name} already has a Default
+    outfit, "A". It will be replaced.`); else `Apply "#{Outfit}" to #{Name} for Town?` with `Apply` /
     `Cancel`; with nothing to say it dresses at once. With library edits it goes through
     `onManageUpdate` with `apply`: the library write first (CLAUDE.md §2.1), a refused or
     failed one assigns nothing and shows the error; else through `Request::onManageApply`
@@ -192,20 +192,22 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 - `Remove` on Manage Wardrobe, enabled with an outfit selected. A popup names the outfit and
   lists who uses it among Livery's assignments in this save: each actor (their FormID when
-  not in memory) with their rows (`Lydia: Default, Town`), then `Remove` / `Cancel`.
-- Order: `Library::Remove` writes the file first; a refused or failed write changes no
-  assignment. Then `Assignments::ForgetOutfit` clears every situation row holding the
-  outfit; a default from it keeps its pieces with outfit id 0. One HUD message sums it up.
+  not in memory) with the rows that hold it (`Lydia: Default, Town`), then `Remove` /
+  `Cancel`.
+- Order: the outfit's loaded pieces are read, then `Library::Remove` writes the file; a
+  refused or failed write changes no assignment. Then `Assignments::ForgetOutfit` takes the
+  outfit off every row (docs/situation-management-ui.md §1): a `chosen` that was it becomes
+  0, so an outfit hidden behind it is not worn, and a Default this leaves wearing nothing
+  gets those pieces as its pieces. One HUD message sums it up.
 - An actor wearing it for a situation is redressed for what applies now (§6), one not in
-  memory at their next situation change. A default worn from it stays on.
+  memory at their next situation change; a random row with others on its list picks again
+  from them. A Default worn from it stays on.
 - Afterwards the list is rebuilt without it and nothing is selected; the preview shows the
   Inventory page's ticks. The Inventory page's loaded outfit and the Save page's chosen
   outfit are cleared when they were it.
 - Other saves change nothing at load: a situation outfit the library no longer has puts
   nothing on and falls back to the default (design.md §7), and restoring outfits.json
   brings it back.
-- Once situation lists with random picks exist (docs/ui-redesign.md §7), a list loses the
-  outfit, and a random pick of it picks again from the rest.
 
 ## 6. Redressing while the window is open (steps 2 and 3)
 
@@ -272,8 +274,8 @@ assigns with the preview ended.
 - Step 3: Remove of an outfit in use lists its users; the captured actor wearing it for a
   situation changes at once (Live Preview on) or at close; a default from it keeps its
   pieces; the assignments survive save and load.
-- Situations and Apply: ticking a free situation and Default, then one another outfit
-  holds (Replace, Keep, Cancel) and saving with Update, Live Preview on (at once) and off
+- Situations and Apply: ticking a free situation and Default, then one that wears another
+  outfit (`"B" replaces "A"`, Confirm, Cancel) and saving with Update, Live Preview on (at once) and off
   (at close); Apply to #{Name} with nothing to say, with edits (Update and Apply; a taken
   name refused, nothing assigned), for ticked rows and as a replaced Default; the row marks
   and their tooltips; Restore's popup; the heading's `(?)`; Exit with and without edits;

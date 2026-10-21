@@ -65,10 +65,11 @@ The outfit the window's Apply gives (`Assignments::Assign`) is the actor's defau
 replaces it while the situation lasts, by the same steps: the worn pieces are released
 (copies removed, the actor's own pieces back on) and the new outfit is dressed. When the
 actor wears a library outfit and the ticks differ from it, Apply asks first: Yes updates
-that outfit's pieces (`Library::Update`, name, gender and classes kept), then the default
-gets the ticks with its id, or, for a situation outfit, `Assignments::Refresh` dresses the
-updated outfit with the default untouched; No assigns the ticks as a default that is not
-a saved outfit. The library write comes first; a failed one moves and assigns nothing.
+that outfit's pieces (`Library::Update`, name, gender and classes kept), then the Default
+gets the outfit, or, for a situation outfit, `Assignments::Refresh` dresses the updated
+outfit with the Default untouched; No, apply as is makes the ticks the Default's pieces,
+not a saved outfit, with `chosen` 0 and random off. The library write comes first; a
+failed one moves and assigns nothing.
 
 Never through `TESNPC::defaultOutfit` (DOFT): `Actor::SetDefaultOutfit` writes an NPC_
 change form into the save, a runtime 0xFF outfit does not survive a load,
@@ -158,32 +159,38 @@ would have to be kept in step).
   keeps the other stored categories; a name is taken when another outfit has it (ASCII case
   ignored).
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
-  then clears its situation rows in this save, and a default from it keeps its pieces with
-  outfit id 0. Other saves' rows naming it put nothing on and fall back to the default (§7).
+  then takes it off every row in this save (a `chosen` that was it becomes 0), and a Default
+  this leaves wearing nothing gets the outfit's pieces, read before the remove, as its
+  pieces. Other saves' rows naming it put nothing on and fall back to the Default (§7).
 - Settings: INI, as today.
 
 ## 5. Co-save
 
-Co-save id `LVRY`, one record `ASGN` (version 3; versions 1 and 2 are still read), read
+Co-save id `LVRY`, one record `ASGN` (version 4; versions 1 to 3 are still read), read
 in the SKSE load callback, cleared on revert:
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
-  pieces Livery has on them, each as its instance key `(armor FormID, ExtraUniqueID
-  baseID, uniqueID)` and two flags: Livery added the copy, Livery set its lock. NPCs
-  are locked, the player never, so no per-actor lock flag is stored. Then the instance
-  keys of their own copies Livery took off (§2 step 4).
-- The default outfit: the library outfit id the pieces came from, 0 when the ticked
-  pieces were not exactly a saved outfit, and its armor FormIDs, so it can go back on
-  after a situation outfit. Then one library outfit id per situation (§7, in
-  `Situations::kChoosable` order), 0 for none, and which of them the pieces are for
-  (one byte). The window names the outfits from the ids. An edit of the library
-  reaches the default only when the player assigns again; a situation outfit is read
-  from the library each time it goes on.
-- Version 1 has no outfit id and no own pieces; versions 1 and 2 have no default armor
-  and no situations: their pieces' armor becomes the default.
-- A piece, own copy or default armor whose plugin is gone is dropped at load, and an
-  assignment with nothing on the actor and no situation chosen. A key whose instance is
-  gone is skipped whenever the actor is dressed or released.
+  library outfit the pieces on them are from (`wornOutfit`, 0 for none or the Default's
+  pieces), the pieces Livery has on them, each as its instance key `(armor FormID,
+  ExtraUniqueID baseID, uniqueID)` and two flags: Livery added the copy, Livery set its
+  lock. NPCs are locked, the player never, so no per-actor lock flag is stored. Then the
+  instance keys of their own copies Livery took off (§2 step 4).
+- The Default's pieces: armor FormIDs not in the wardrobe, worn while the Default's row
+  wears no outfit (docs/situation-management-ui.md §1). Then which row the pieces are for
+  (one byte, the `Situations::Situation` value), and the rows (`OutfitRows`): a count, and
+  per row its situation (one byte), random, `chosen` and its library outfit ids. Every row
+  reads its outfit from the library each time it goes on; the window names the outfits
+  from the ids. A row for a situation the version does not know is dropped with a log line.
+- Version 3 has the default's outfit id and armor and one library outfit id per situation
+  (`Situations::kChoosable` order) instead of the rows. Version 1 has no outfit id and no
+  own pieces; versions 1 and 2 have no default armor and no situations: their pieces'
+  armor becomes the default. At load, a default whose outfit id the library has becomes
+  the Default's row (`outfits = [id]`, `chosen = id`) and its armor is dropped; else its
+  armor becomes the Default's pieces. Each situation id becomes a row of it, chosen; random
+  is off everywhere. The library is loaded at `kDataLoaded`, before any co-save load.
+- A piece, own copy or Default piece whose plugin is gone is dropped at load, and an
+  assignment with nothing on the actor and no situation row holding an outfit. A key whose
+  instance is gone is skipped whenever the actor is dressed or released.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
 can come later if sharing across characters is wanted.
@@ -221,13 +228,17 @@ can come later if sharing across characters is wanted.
 
 ## 7. Situations
 
-An assigned actor can have a library outfit per situation: Town, Home, Sleep, Swimming,
-Warm (`Situations::kChoosable`). The default, what the window's Apply gives, is worn
-where none of them applies. A situation records a library outfit's id, since the outfit is
-read from the library each time it goes on; the default keeps the armor it was given. The
-Save page's "wears it for" rows set and clear the default and the situations for the
-captured actor in one `Assignments::Change`, after the library write, with one forced
-redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
+An assigned actor has a row per situation, Town, Home, Sleep, Swimming, Warm
+(`Situations::kChoosable`), and the Default, what the window's Apply gives, worn where
+none of them applies. A row is a list of library outfit ids, a random flag and the one
+chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
+pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
+on. Random off, the row wears `chosen`; random on, one of the list is picked as the row
+goes on and kept until it changes, a forced redress keeping it while it is on the list.
+Giving a row an outfit puts it at the front of the list and, random off, makes it
+`chosen`; the one it replaces stays on the list, hidden. The Save page's "wears it for"
+rows give and take the outfit for the captured actor in one `Assignments::Change`, after
+the library write, with one forced redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
 included) with it; Update saves them the same way, and its `Apply to #{Name}` dresses the
 actor for the ticked rows, or makes the outfit the default with none, as Apply does. An actor can have situation outfits without a default and then wears their
 own clothes outside them. Restore Original Outfit forgets the choices with the rest. The
@@ -236,7 +247,7 @@ player has the same rows.
 ### Detection (`Situations::Evaluate`)
 
 The situations an actor is in, the most specific first (`Situations::Applicable`); the
-first one they have an outfit for is worn, else the default. The rules are Tailor 3.0's
+first one whose row holds an outfit is worn, else the Default (`OutfitRows::Resolve`). The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
 (§6): Town, Warm by weather, combat, Swimming by wading. Not yet: Home, Sleep, Warm by a
 snowy region. The rules:
@@ -268,7 +279,7 @@ is on, since a redress would undo the preview's restore. For each actor with a s
 outfit, or still wearing one whose row a Remove cleared, who is 3D-loaded and alive, the player not in beast form (a race that is not
 playable: werewolf, Vampire Lord; the transformation takes the gear off and puts it back
 on), it evaluates the situations and, when they differ from the last poll's, calls `Assignments::WearFor`, which redresses only when the resolved
-outfit differs from the one worn (`worn` in the record). One redress per poll: when the
+row or the outfit it wears differs from the one worn (`worn`, `wornOutfit` in the record). One redress per poll: when the
 weather turns for everyone, the others follow at the next polls. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
 again until the situations change. With `[Situations] NotifyChanges` on (off by default),
