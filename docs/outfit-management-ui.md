@@ -47,7 +47,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   (after Nordic's arrow), then the label; Tailor a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
   of them: a dressed form (a gown on the stand) for the outfit the actor wears now
-  (`Request::wornOutfit`), a star (a pentagram with its inner pentagon) for an outfit the
+  (`Request::wornOutfit`), a star (point down, lines from its centre to its inner corners) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
   over it: `Current outfit`, `For Town, Warm` (`OutfitBrowser::State::situations`, computed
   at Rebuild). Both side by side when both apply; drawn with or without Show Categories.
