@@ -225,7 +225,6 @@ namespace CaptureWindow::Internal
 	void                     DrawError(const std::string& a_message);
 	void                     RequestCancel();
 	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name);
-	void                     DrawClassField(const State& a_state, bool* a_ticked);
 	void                     DrawGenderField(int& a_gender);
 	bool                     BeginModal(const char* a_id);
 	std::vector<std::string> TickedCategories(const State& a_state, const bool* a_ticked);
@@ -288,4 +287,13 @@ namespace CaptureWindow::Internal
 	// Starts Manage Wardrobe' edits of outfit `a_index` (-1 for none) from the library,
 	// without touching the preview.
 	void FillManageForm(State& a_state, int a_index);
+
+	// The form fields Manage Wardrobe and the Save page share: a multi-choice dropdown over
+	// `a_ticked` (one per request.categories, kClassGroup's used) under the Category label,
+	// and one over the actor's rows (`a_ticked`, one per request.assigned: Default, then the
+	// situations) under `a_label` with its "(?)", which returns true while that mark is
+	// hovered, for the caller's help tooltip. Each frame names the ticked ones, or `None`
+	// greyed.
+	void DrawCategoryDropdown(const State& a_state, bool* a_ticked);
+	bool DrawRowsDropdown(const State& a_state, const char* a_label, bool* a_ticked);
 }

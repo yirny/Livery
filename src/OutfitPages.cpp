@@ -655,8 +655,6 @@ namespace CaptureWindow::Internal
 		ShowInventoryPage(a_state);
 	}
 
-	// A multi-choice dropdown over `a_ticked` (one per request.categories, kClassGroup's
-	// used) under the Category label: its frame names the ticked ones, or `None` greyed.
 	void DrawCategoryDropdown(const State& a_state, bool* a_ticked)
 	{
 		const auto& options = a_state.request.categories;
@@ -680,20 +678,13 @@ namespace CaptureWindow::Internal
 		Theme::EndCombo(open, ticked.empty() ? "None" : ticked.c_str(), style);
 	}
 
-	// "Situations for #{Name}" with its "(?)" over a multi-choice dropdown of the rows
-	// (Default, then the situations) the actor wears the selected outfit for, as edited: its
-	// frame names the ticked ones, or `None` greyed. The ticks are part of the edits.
-	void DrawSituationsField(State& a_state)
+	bool DrawRowsDropdown(const State& a_state, const char* a_label, bool* a_ticked)
 	{
-		auto& form = a_state.manage;
-		Theme::LabelText(a_state.manageSituationsLabel.c_str());
-		if (Theme::LabelHelpMark()) {
-			const auto& name = a_state.request.actorName;
-			DrawHelpTooltip(std::format("Where {0} wears this outfit, saved with Update or Apply. These choices are {0}'s own: other characters keep theirs.", name));
-		}
+		Theme::LabelText(a_label);
+		const bool  helpHovered = Theme::LabelHelpMark();
 		std::string ticked;
 		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			if (form.wearsFor[row]) {
+			if (a_ticked[row]) {
 				ticked += std::format("{}{}", ticked.empty() ? "" : ", ", RowName(a_state, row));
 			}
 		}
@@ -703,11 +694,22 @@ namespace CaptureWindow::Internal
 		if (open) {
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
 			for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-				DrawCategoryRow(RowName(a_state, row), form.wearsFor[row]);
+				DrawCategoryRow(RowName(a_state, row), a_ticked[row]);
 			}
 			ImGui::PopStyleVar();
 		}
 		Theme::EndCombo(open, ticked.empty() ? "None" : ticked.c_str(), style);
+		return helpHovered;
+	}
+
+	// "Situations for #{Name}": the rows the actor wears the selected outfit for, as edited.
+	// The ticks are part of the edits.
+	void DrawSituationsField(State& a_state)
+	{
+		if (DrawRowsDropdown(a_state, a_state.manageSituationsLabel.c_str(), a_state.manage.wearsFor.get())) {
+			const auto& name = a_state.request.actorName;
+			DrawHelpTooltip(std::format("Where {0} wears this outfit, saved with Update or Apply. These choices are {0}'s own: other characters keep theirs.", name));
+		}
 	}
 
 	// Right column: the selected outfit's name, gender and categories as edited, the rows
@@ -1026,16 +1028,15 @@ namespace CaptureWindow::Internal
 		return remove;
 	}
 
-	// Hands the outfit to onManageRemove with the Inventory page's ticks, which the preview
-	// shows once it is gone; until the handler ends with SetOutfits or SetError the page is
-	// greyed.
+	// Hands the outfit to onManageRemove; until the handler ends with SetOutfits or SetError
+	// the page is greyed.
 	// Contract: the handler changes no assignment for a refused or failed write (CLAUDE.md §2.1).
 	void RequestManageRemove(State& a_state)
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		auto onRemove = a_state.request.onManageRemove;
-		SKSE::GetTaskInterface()->AddTask([onRemove, outfit = ManagedOutfitId(a_state), shown = TickedPieces(a_state)] { onRemove(outfit, shown); });
+		SKSE::GetTaskInterface()->AddTask([onRemove, outfit = ManagedOutfitId(a_state)] { onRemove(outfit); });
 	}
 
 	// Apply with no library edits: hands the outfit and its rows to onManageApply, which
