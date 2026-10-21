@@ -3,9 +3,9 @@
 Written 2026-10-20 for the AI that implements it, from the user's draft and the decisions
 made on it; current spec only. Three steps, each built, checked in game and committed
 before the next, each with CLAUDE.md §1 approval first: (1) the outfit list and the
-Inventory page's buttons, (2) the tab column and the Manage Outfits page with Update,
+Inventory page's buttons, (2) the tab column and the Manage Wardrobe page with Update,
 (3) Remove. Docs follow the code in the step that makes them stale: design.md, README, and
-CLAUDE.md §2.1 (step 2 adds the Manage Outfits Update path, step 3 the window's delete).
+CLAUDE.md §2.1 (step 2 adds the Manage Wardrobe Update path, step 3 the window's delete).
 
 The Inventory page is today's Capture page (`Page::kCapture`), titled `#{Name}'s Inventory`.
 Docs call it the Inventory page; code identifiers stay.
@@ -13,7 +13,7 @@ Docs call it the Inventory page; code identifiers stay.
 ## 1. Outfit list (step 1)
 
 The outfit list shared by the Load page, the Save page's outfit selection (the Select page)
-and the Manage Outfits page. Each page keeps its own search and sort.
+and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 - Wording: `Category` everywhere (the Save page's field, the details column, the sort
   option, the filter group, the piece list's column header); the window calls the library
@@ -24,7 +24,7 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   with none left, Clothing. Other stored categories (older files' Adventuring, Town, ...)
   stay in the file, unshown, until categories can be added (design.md §8).
 - Two category groups, in this order:
-  - Category: the categories above, which the Save page and Manage Outfits edit.
+  - Category: the categories above, which the Save page and Manage Wardrobe edit.
   - Situation: the captured actor's "wears it for" rows that hold the outfit (Default and
     the situations), from `Request::assigned`. Never stored in the library.
 - Each row: the name, then under it, in the small font and grey, its tags in this order:
@@ -45,6 +45,13 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   mark on piece rows; Nordic puts the arrow on a ticked dropdown row too, at its start.
 - A multi-choice dropdown row: Vanilla and Nordic draw the game's checkbox at the row's start
   (after Nordic's arrow), then the label; Tailor a check mark at its right end.
+- Marks at the right end of each row's name line, in LabelText's grey, the name cut short
+  of them: a dressed form (a gown on the stand) for the outfit the actor wears now
+  (`Request::wornOutfit`), a star (a pentagram with its inner pentagon) for an outfit the
+  actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
+  over it: `Current outfit`, `For Town, Warm` (`OutfitBrowser::State::situations`, computed
+  at Rebuild). Both side by side when both apply; drawn with or without Show Categories.
+- `Sort by`'s text is right-aligned, ending 6px short of its arrow.
 - A `Show Categories` tick under the list, on each time the window opens; off, rows show the
   name only.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
@@ -71,7 +78,17 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   - Cancel: none.
 - `Restore Original Outfit (?)`, while Livery dresses the actor, sits at the right end of
   the count line in its font and colour, lit on hover; the `(?)` is inside its click area
-  and hovering it shows the help. A button with a `(?)` (the Apply popup's `No, just apply`)
+  and hovering it shows the help. A click asks `Restore #{Name}'s original outfit?` / `This
+  takes Livery's outfit off #{Name} and forgets every situation outfit chosen for them.` with
+  `Restore` / `Cancel`.
+- The `From Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
+  is over that mark alone: `"Apply" moves the ticked pieces from your inventory to #{Name}.`
+  (or `"Apply" gives #{Name} a new copy of each ticked piece; yours stay with you.`), then
+  `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
+  are not listed.`
+- The Apply popup's `No, just apply (?)` help: `The ticked pieces become #{Name}'s Default
+  without being added to the wardrobe. While a situation outfit is worn, the new Default
+  shows only when that situation ends.` A button with a `(?)` (the Apply popup's `No, just apply`)
   draws it inside its frame.
 - Vanilla and Nordic draw text fields and dropdowns underlined, not framed. A text field has
   a grey pen at its right end, white while the field or the pen is hovered or the field is
@@ -81,16 +98,17 @@ and the Manage Outfits page. Each page keeps its own search and sort.
 ## 3. Tab column (step 2)
 
 - A column of icon tabs at the window's left edge, a rule between it and the page:
-  Inventory (a backpack) and Manage Outfits (a dress form: a padded torso on a stand).
+  Inventory (a backpack) and Manage Wardrobe (a bare dress form: a padded torso on a stand,
+  each shoulder one arc).
   Manage Situations (a simple snowflake) comes with the Situation Management window.
 - Icons only, drawn as ImDrawList lines, so they scale with the resolution and take the
   skin's colours: the selected tab in the text colour on a faint fill, the others in
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
 - Each tab is centred between the window's left edge and the rule. Nordic's start 8px
   lower, clear of the corner knot.
-- Shown on the Inventory and Manage Outfits pages only; the Load, Save, Select and Edit
+- Shown on the Inventory and Manage Wardrobe pages only; the Load, Save, Select and Edit
   pages have none.
-- Switching tabs keeps everything: the Inventory page's ticks and Manage Outfits' edits stay
+- Switching tabs keeps everything: the Inventory page's ticks and Manage Wardrobe' edits stay
   until the window closes.
 - The rule: Tailor, 1px in its border colour (Tailor's sidebar divider). Vanilla, 2px in its
   rule grey. Nordic, NORDIC UI's vertical rope, the ornament left and right of the level-up
@@ -98,52 +116,61 @@ and the Manage Outfits page. Each page keeps its own search and sort.
   `NORDIC-UI-CREDITS.txt`; without the texture, 1px in its rule colour.
 - Nordic's corner knots frame the whole window, tab column included.
 
-## 4. Manage Outfits page (step 2)
+## 4. Manage Wardrobe page (step 2)
 
-- Title `Manage Outfits`, no summary line. Two columns as on the Load page: the outfit list
-  (§1) on the left; on the right the selected outfit, editable:
-  - name, Category and gender, as the Save page's fields.
-  - `Situations for #{Name}` with a `(?)` (the choices are this actor's own; other
-    characters keep theirs), over a multi-select dropdown of the situations (not Default)
-    the captured actor wears the outfit for, its frame naming them (`Town, Warm`) or `None`.
-    They are the actor's rows, no part of the edits (§6).
-  - its pieces, read only, under a count line ending in `Edit` (`Theme::LabelLink`). The
-    count includes pieces from plugins that are not loaded, which stay in the outfit.
+- Title `Manage Wardrobe` (the tab's name too), no summary line. Two columns as on the Load
+  page: the outfit list (§1) on the left; on the right the selected outfit, editable:
+  - name and gender, as the Save page's fields; then Category as a multi-choice dropdown of
+    the window's categories, its frame naming the ticked ones or `None`.
+  - `Situations for #{Name}` with a `(?)` (the choices are this actor's own, saved with
+    Update or Apply; other characters keep theirs), over a multi-choice dropdown of the
+    rows, Default first, the captured actor wears the outfit for, its frame naming them
+    (`Default, Town`) or `None`. The ticks are part of the edits (`ManageForm::wearsFor`),
+    started from the actor's rows.
+  - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
+    (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
+    stay in the outfit. The Load and Select pages' details keep the same room before their
+    count line.
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
   has unsaved edits asks `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited; with none selected, the Inventory page's
   ticks.
-- A tick in the Situations dropdown changes the row at once through
-  `Request::onManageAssign`. A row another outfit holds first closes the dropdown and asks
-  `#{Name} already has an outfit for Town:` / `Town: "A" → "B"` with `Replace` / `Cancel`
-  (random picks, docs/ui-redesign.md §7, will skip it). The window stays open with the rows
-  rebuilt (`SetOutfits` with `keepEdits`, so the edits stay), and the Save page's Update tab
-  ticks follow the rows changed for its outfit. Nothing is written to the library.
 - Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Exit`.
   - Update: greyed until the outfit differs from the library (trimmed name, Category,
-    gender, pieces), and with an empty name (`kNeedName`). A popup lists what changes
-    (pieces, Category, rename, gender), as the Save page's Update tab does, then the
-    window hands over to `Request::onManageUpdate`. CLAUDE.md §2.1 applies: a name another
-    outfit has (ASCII case ignored) is refused, and a refused or failed write changes
-    nothing and shows the error. On success the window stays open: the list is rebuilt
-    (`CaptureWindow::SetOutfits`), the edits are cleared, the outfit stays selected (found
-    by id), and the captured actor is redressed when they wear it (§6).
-  - Apply to #{Name}: the outfit becomes the actor's Default (`Request::onManageApply`,
-    `Assignments::Assign(pieces, id)`), then the window closes, as the Inventory page's
-    Apply does; nothing moves from the player's inventory. With unsaved edits it first asks
-    `Update and apply?`: `Save your changes to "#{Outfit}", then apply it to #{Name}?` and
-    the Update popup's change lines, then `Update and Apply` / `Cancel`. Update and Apply
-    hands the edits to `onManageUpdate` with `apply`: the library write first, as Update's
-    (CLAUDE.md §2.1); a refused or failed one assigns nothing and shows the error; then the
-    window closes and the outfit as written becomes the Default. Greyed with no outfit
-    selected, with no edited piece (`kNoLoadedPiece`), and with unsaved edits and an empty
-    name (`kNeedName`).
+    gender, pieces) or its rows differ from the actor's, and with an empty name
+    (`kNeedName`). A popup (`Save changes?`) lists what changes (pieces, Category, rename,
+    gender, then `Town: added` / `Town: removed`), as the Save page's Update tab does; a
+    ticked row another outfit holds reads `Town: "A" → "B"` and the buttons are `Replace`
+    / `Keep` (saves without those rows; `Keep "A"`, `Keep All`) / `Cancel`, else `Confirm`
+    / `Cancel` (random picks, docs/ui-redesign.md §7, will skip the question). The window
+    hands the edits and rows to `Request::onManageUpdate`. CLAUDE.md §2.1 applies: a name
+    another outfit has (ASCII case ignored) is refused, and a refused or failed write changes
+    nothing, assigns nothing and shows the error. On success the rows are changed in one
+    `Assignments::Change` (§6), the window stays open: the list is rebuilt
+    (`CaptureWindow::SetOutfits`), the edits start again from the library, the outfit stays
+    selected (found by id), the Save page's Update tab ticks follow the rows changed for its
+    outfit, and the captured actor is redressed when they wear it (§6).
+  - Apply to #{Name}: dresses the actor in the outfit for the ticked rows, as the Save page
+    gives it (`Assignments::Change`), or makes it their Default with none ticked
+    (`Assignments::Assign(pieces, id)`), then the window closes, as the Inventory page's
+    Apply does; nothing moves from the player's inventory. Its tooltip says which: `Dress
+    #{Name} in this outfit for Town, Warm.` / `... as their Default.` It asks first
+    (`Apply outfit?`) when there is anything to say: library edits (`Save your changes to
+    "#{Outfit}", then apply it to #{Name} for Town?` and their lines, the button `Update and
+    Apply`), row changes (`Town: added`, `Town: "A" → "B"`, which Apply takes over) or,
+    with no row ticked, a Default it replaces (`#{Name} already has a Default outfit, "A".
+    It will be replaced.`); else `Apply "#{Outfit}" to #{Name} for Town?` with `Apply` /
+    `Cancel`; with nothing to say it dresses at once. With library edits it goes through
+    `onManageUpdate` with `apply`: the library write first (CLAUDE.md §2.1), a refused or
+    failed one assigns nothing and shows the error; else through `Request::onManageApply`
+    with the rows. Greyed with no outfit selected, with no edited piece (`kNoLoadedPiece`),
+    and with library edits and an empty name (`kNeedName`).
   - Exit closes the window; with unsaved edits it first asks `Discard changes and exit` /
     `Back`. Escape does what Exit does (it first clears a search, as on the Load page).
 - Leaving for the Inventory tab with unsaved edits shows
   `You have unsaved changes for "#{Outfit}".` with `OK` / `Back`: OK switches and the edits
-  stay, Back stays on Manage Outfits. Closing the window from the Inventory page (Save,
+  stay, Back stays on Manage Wardrobe. Closing the window from the Inventory page (Save,
   Apply, Restore, Cancel) drops them without asking.
 
 ### Edit page
@@ -154,12 +181,12 @@ and the Manage Outfits page. Each page keeps its own search and sort.
 - Title `Edit "#{Outfit}"`, no summary line, no tab column. It has the window's Live Preview
   tick; the preview shows this page's ticks.
 - `Use Ticked Pieces` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
-  pieces and the page returns to Manage Outfits; nothing is written. `Back` and Escape
+  pieces and the page returns to Manage Wardrobe; nothing is written. `Back` and Escape
   return with the edited pieces as they were.
 
 ## 5. Remove (step 3)
 
-- `Remove` on Manage Outfits, enabled with an outfit selected. A popup names the outfit and
+- `Remove` on Manage Wardrobe, enabled with an outfit selected. A popup names the outfit and
   lists who uses it among Livery's assignments in this save: each actor (their FormID when
   not in memory) with their rows (`Lydia: Default, Town`), then `Remove` / `Cancel`.
 - Order: `Library::Remove` writes the file first; a refused or failed write changes no
@@ -179,7 +206,7 @@ and the Manage Outfits page. Each page keeps its own search and sort.
 ## 6. Redressing while the window is open (steps 2 and 3)
 
 Assignments run only with no preview on, since the preview restores what it found at
-`OutfitPreview::Begin`. A Manage Outfits change that redresses:
+`OutfitPreview::Begin`. A Manage Wardrobe change that redresses:
 
 - the captured actor, Live Preview on: one SKSE task runs `OutfitPreview::End`, the
   assignment change, then `OutfitPreview::Begin` with the pieces the window shows, so the
@@ -196,35 +223,38 @@ they lack); nothing moves from the player's inventory. Not worn now: nothing, si
 situation outfit is read from the library each time it goes on and a default from it keeps
 its pieces until assigned again. Remove: §5.
 
-A situation row of `Situations for #{Name}` is recorded at once, Live Preview on or off
-(`Assignments::Record`, which changes the rows and dresses no one), and the captured actor
-is dressed anew for their situations in `onClose` (`Assignments::Refresh`, queued as above).
-Apply to #{Name} closes the window first, so it assigns with the preview ended.
+Rows Update changed (`SaveRequest::assign` / `remove`) are made and dressed for in one
+`Assignments::Change`, through the same path (`PendingRedress::change`: at once with Live
+Preview on, in `onClose` with it off). Apply to #{Name} closes the window first, so it
+assigns with the preview ended.
 
 ## 7. Code
 
 - `src/CaptureWindow.cpp` (about 2400 lines) splits at the start of step 2, in a move-only
-  commit: the outfit browser, the outfit lists and the Load, Select, Manage Outfits and Edit
+  commit: the outfit browser, the outfit lists and the Load, Select, Manage Wardrobe and Edit
   pages go to `src/OutfitPages.cpp`; the state and shared helpers to a header private to
   the two files. `CMakeLists.txt` gains the file (CLAUDE.md §1, build system).
-- `CaptureWindow`: pages for Manage Outfits and Edit; `SetOutfits` (the rebuilt outfits,
+- `CaptureWindow`: pages for Manage Wardrobe and Edit; `SetOutfits` (the rebuilt outfits,
   categories and rows, the window's indices into them found again by id); a call that greys
-  Live Preview with a reason; `Request::onManageUpdate` and, in step 3, `onManageRemove` and
-  each outfit's users for Remove's popup; `onManageAssign` and `onManageApply`, and
-  `OutfitList::keepEdits`.
+  Live Preview with a reason; `Request::onManageUpdate` (with the rows) and, in step 3,
+  `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with the rows;
+  the Save page's and Manage Wardrobe's row helpers shared (`TakenRows`, `AssignedRows`,
+  `RemovedRows`, `DrawRowChangeLines`).
 - `OutfitBrowser`: sort keys Name, Gender, Category, Situation (`SetSort`); per outfit its
-  heading and tag text; the folded headings. Unit tests cover the keys, the headings, the
-  stored categories the window does not offer and the folding.
+  heading, tag text and situation mark text; the folded headings. Unit tests cover the
+  keys, the headings, the stored categories the window does not offer, the folding and the
+  marks.
 - `Library`: Jewelry out of `Categories()` and dropped at Load; `Remove` (step 3), written
   through the temporary file as Create and Update are.
-- `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it; `Record`.
+- `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it.
 - `Theme`: the tab column, its icons and rule (Nordic's rope texture), the outfit row with
-  tags (Tailor's chips), the folding headings of a sorted outfit list (`FoldHeading`), the
-  rows' fills and NORDIC UI's line, the dropdown rows (`DropdownRow`), a label's `(?)`
-  (`LabelHelpMark`), a link with its `(?)` (`LabelHelpLink`), a button with one
-  (`HelpButton`), the underlined fields with the pen.
+  tags (Tailor's chips) and marks (`OutfitMarks`), the folding headings of a sorted outfit
+  list (`FoldHeading`), the rows' fills and NORDIC UI's line, the dropdown rows
+  (`DropdownRow`), a label's `(?)` (`LabelHelpMark`), a list heading's (`ListHeadingHelp`),
+  a link with its `(?)` (`LabelHelpLink`), a button with one (`HelpButton`), the underlined
+  fields with the pen, the icons (bare and dressed form, star), `AfterFieldGap`.
 - `Plugin.cpp`: the two category groups for `Request::categories` and each outfit, the
-  Manage Outfits handlers, the redress queue (§6).
+  Manage Wardrobe handlers, the redress queue (§6).
 
 ## 8. Checks
 
@@ -238,11 +268,12 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
 - Step 3: Remove of an outfit in use lists its users; the captured actor wearing it for a
   situation changes at once (Live Preview on) or at close; a default from it keeps its
   pieces; the assignments survive save and load.
-- Situations and Apply: ticking a free situation, then one another outfit holds (Replace,
-  Cancel), with unsaved edits kept; the actor dressed for them at close, Live Preview on and
-  off; Apply to #{Name} closes and dresses, with unsaved edits after Update and Apply (a
-  taken name refused, nothing assigned); Exit with and without edits; leaving for the
-  Inventory tab with edits, OK and Back.
+- Situations and Apply: ticking a free situation and Default, then one another outfit
+  holds (Replace, Keep, Cancel) and saving with Update, Live Preview on (at once) and off
+  (at close); Apply to #{Name} with nothing to say, with edits (Update and Apply; a taken
+  name refused, nothing assigned), for ticked rows and as a replaced Default; the row marks
+  and their tooltips; Restore's popup; the heading's `(?)`; Exit with and without edits;
+  leaving for the Inventory tab with edits, OK and Back.
 
 ## 9. Later
 

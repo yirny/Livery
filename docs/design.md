@@ -227,10 +227,9 @@ where none of them applies. A situation records a library outfit's id, since the
 read from the library each time it goes on; the default keeps the armor it was given. The
 Save page's "wears it for" rows set and clear the default and the situations for the
 captured actor in one `Assignments::Change`, after the library write, with one forced
-redress. Manage Outfits' `Situations for #{Name}` changes one situation row of the selected
-outfit at once (`Assignments::Record`, no redress) and the actor is dressed for it when the
-window closes (`Assignments::Refresh`); its `Apply to #{Name}` makes the outfit the default
-as Apply does. An actor can have situation outfits without a default and then wears their
+redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
+included) with it; Update saves them the same way, and its `Apply to #{Name}` dresses the
+actor for the ticked rows, or makes the outfit the default with none, as Apply does. An actor can have situation outfits without a default and then wears their
 own clothes outside them. Restore Original Outfit forgets the choices with the rest. The
 player has the same rows.
 
@@ -302,7 +301,7 @@ Each stage ends with an in-game check before the next starts.
    game.
 7. Outfit management in the capture window (docs/outfit-management-ui.md): step 1, the
    outfit list and the Inventory page's buttons: done. Step 2, the tab column and the
-   Manage Outfits page with Update, the captured actor redressed while the window is open
+   Manage Wardrobe page with Update, the captured actor redressed while the window is open
    (§6 there): done. Step 3, Remove, which deals with the assignments and situation
    choices that name the outfit: done.
 8. Adding categories beyond Light, Heavy and Clothing (a separate task), which the outfit
