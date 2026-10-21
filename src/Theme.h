@@ -33,11 +33,15 @@ namespace Theme
 	// The widgets below draw in the active skin, between Apply and Render.
 	// Nordic decorates them; the other skins draw plain ImGui widgets.
 
-	// False when the skin draws its window without a title bar (Nordic).
+	// False when the skin draws its main window without a title bar (Vanilla, Nordic), or its
+	// popups (Nordic).
 	bool HasTitleBar();
+	bool HasPopupTitleBar();
 
-	// Call right after ImGui::Begin: corner ornaments (Nordic).
-	void DecorateWindow();
+	// Call right after ImGui::Begin, or BeginPopupModal with `popup`: corner ornaments (Nordic);
+	// on the main window, Vanilla's frame, a 5px band of the rule colour inside its edge and a
+	// 2px band of the window's glass outside it, in place of ImGui's border.
+	void DecorateWindow(bool popup = false);
 
 	// One line in the heading font, then the subtitle (if any) greyed close under
 	// it; Nordic centres both over an ornamented rule.
@@ -105,7 +109,8 @@ namespace Theme
 	// Nordic. LabelText adds it itself, so call it only before a field that has no label.
 	void SectionGap();
 
-	// Returns true when pressed. Nordic draws a pointed-end frame.
+	// Returns true when pressed. Nordic draws a pointed-end frame; Vanilla no frame, its label
+	// 2px larger than the body font, filled while hovered, with 2px clear on either side.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Button(const char* label);
 

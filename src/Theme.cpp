@@ -8,7 +8,8 @@
 //                alpha masks), the game's and NORDIC UI's equipped-item marks,
 //                the game's checkbox and dropdown arrow; the row hover glow, made
 //                in code
-//   Ornaments  - Nordic's corner knots, heading rule and pointed button frame;
+//   Ornaments  - Nordic's corner knots, heading rule and pointed button frame; Vanilla's
+//                text buttons and window frame;
 //                list rows (Tailor's tick row, the SkyUI-style tick row of the
 //                Vanilla and Nordic skins) and their hover fill (Vanilla's and
 //                Nordic's soft ellipse); the dropdown arrows; the game's
@@ -105,6 +106,10 @@ namespace
 	constexpr const char* kHelpMark = "(?)";
 	// Between the tabs of a page heading made of tabs (BeginHeadingTabs).
 	constexpr const char* kTabSeparator = "/";
+	// Vanilla's buttons: how much larger their label is than the body font, and the clear room
+	// on either side of each, which sets them further apart (pixels at 1080p).
+	constexpr float kVanillaButtonFontGrowth = 2.0f;
+	constexpr float kVanillaButtonMargin = 2.0f;
 	// Room between an outfit row's marks, and between them and the name (pixels at 1080p).
 	constexpr float kOutfitMarkGap = 6.0f;
 	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
@@ -544,6 +549,7 @@ namespace
 		constexpr ImU32 kGlass = IM_COL32(0, 0, 0, 220);
 
 		SetSquareFrames(a_style);
+		a_style.WindowBorderSize = 0.0f;  // DecorateWindow draws the main window's frame
 		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
 		set(ImGuiCol_Text, kWhite);
 		set(ImGuiCol_TextDisabled, kDim);
@@ -755,6 +761,82 @@ namespace
 		draw->AddPolyline(frame, 6, ImGui::GetColorU32(hovered ? kNordicText : kNordicOrnament), ImDrawFlags_Closed, thick);
 		DrawButtonText(draw, topLeft, bottomRight, a_label, a_help);
 		return pressed;
+	}
+
+	// Vanilla's buttons' font: the body font, kVanillaButtonFontGrowth larger. Pop with
+	// ImGui::PopFont.
+	void PushVanillaButtonFont()
+	{
+		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase + kVanillaButtonFontGrowth);
+	}
+
+	// Vanilla's button: text only, in PushVanillaButtonFont, filled as ImGui's button while
+	// hovered or held, with kVanillaButtonMargin clear on either side, outside the item, so
+	// buttons on a line stand further apart. `a_help` puts the help mark after the label.
+	// VanillaButtonWidth is the room it takes, margins included.
+	float VanillaButtonWidth(const char* a_label, bool a_help)
+	{
+		PushVanillaButtonFont();
+		const float width = ButtonTextWidth(a_label, a_help) + (ImGui::GetStyle().FramePadding.x + kVanillaButtonMargin * g_scale) * 2.0f;
+		ImGui::PopFont();
+		return width;
+	}
+
+	bool VanillaButton(const char* a_label, bool a_help)
+	{
+		PushVanillaButtonFont();
+		const auto&  style = ImGui::GetStyle();
+		const float  margin = kVanillaButtonMargin * g_scale;
+		const ImVec2 pos = ImGui::GetCursorScreenPos();
+		const ImVec2 size(ButtonTextWidth(a_label, a_help) + style.FramePadding.x * 2.0f, ImGui::GetFrameHeight());
+		const ImRect frame(ImVec2(pos.x + margin, pos.y), ImVec2(pos.x + margin + size.x, pos.y + size.y));
+		ImGui::ItemSize(ImVec2(size.x + margin * 2.0f, size.y), style.FramePadding.y);
+		const ImGuiID id = ImGui::GetID(a_label);
+		bool          pressed = false;
+		if (ImGui::ItemAdd(frame, id)) {
+			bool hovered = false;
+			bool held = false;
+			pressed = ImGui::ButtonBehavior(frame, id, &hovered, &held);
+			auto* draw = ImGui::GetWindowDrawList();
+			if (hovered || held) {
+				draw->AddRectFilled(frame.Min, frame.Max, ImGui::GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered));
+			}
+			DrawButtonText(draw, frame.Min, frame.Max, a_label, a_help);
+		}
+		ImGui::PopFont();
+		return pressed;
+	}
+
+	// A frame `a_width` wide just inside the rectangle from `a_min` to `a_max`, of four
+	// rectangles that never overlap, so a translucent colour stays even.
+	void FillFrame(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_width, ImU32 a_color)
+	{
+		a_draw->AddRectFilled(a_min, ImVec2(a_max.x, a_min.y + a_width), a_color);
+		a_draw->AddRectFilled(ImVec2(a_min.x, a_max.y - a_width), a_max, a_color);
+		a_draw->AddRectFilled(ImVec2(a_min.x, a_min.y + a_width), ImVec2(a_min.x + a_width, a_max.y - a_width), a_color);
+		a_draw->AddRectFilled(ImVec2(a_max.x - a_width, a_min.y + a_width), ImVec2(a_max.x, a_max.y - a_width), a_color);
+	}
+
+	// Vanilla's main window frame: a band of the rule colour inside the window's edge, and
+	// outside it a band of the window's own glass. The clip rect is the frame's own, so the
+	// outer band shows past the window.
+	void DrawVanillaFrame()
+	{
+		constexpr float kBandWidth = 5.0f;     // pixels at 1080p, the rule-coloured band
+		constexpr float kOutlineWidth = 2.0f;  // pixels at 1080p, the glass outside it
+
+		auto*        draw = ImGui::GetWindowDrawList();
+		const ImVec2 topLeft = ImGui::GetWindowPos();
+		const ImVec2 size = ImGui::GetWindowSize();
+		const ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+		const float  band = (std::max)(1.0f, std::round(kBandWidth * g_scale));
+		const float  outline = (std::max)(1.0f, std::round(kOutlineWidth * g_scale));
+		const ImVec2 outerTopLeft(topLeft.x - outline, topLeft.y - outline);
+		const ImVec2 outerBottomRight(bottomRight.x + outline, bottomRight.y + outline);
+		draw->PushClipRect(outerTopLeft, outerBottomRight, false);
+		FillFrame(draw, topLeft, bottomRight, band, ImGui::GetColorU32(ImGuiCol_Border));
+		FillFrame(draw, outerTopLeft, outerBottomRight, outline, ImGui::GetColorU32(ImGuiCol_WindowBg));
+		draw->PopClipRect();
 	}
 
 	// How far right of the list's indent a list row's text sits: in Tailor, clear
@@ -1772,11 +1854,20 @@ namespace Theme
 
 	bool HasTitleBar()
 	{
+		return g_skin == Skin::kTailor;
+	}
+
+	bool HasPopupTitleBar()
+	{
 		return g_skin != Skin::kNordic;
 	}
 
-	void DecorateWindow()
+	void DecorateWindow(bool a_popup)
 	{
+		if (g_skin == Skin::kVanilla && !a_popup) {
+			DrawVanillaFrame();
+			return;
+		}
 		if (g_skin != Skin::kNordic) {
 			return;
 		}
@@ -2036,16 +2127,25 @@ namespace Theme
 
 	bool Button(const char* a_label)
 	{
-		return g_skin == Skin::kNordic ? PointedButton(a_label) : ImGui::Button(a_label);
+		switch (g_skin) {
+		case Skin::kNordic:
+			return PointedButton(a_label);
+		case Skin::kVanilla:
+			return VanillaButton(a_label, false);
+		default:
+			return ImGui::Button(a_label);
+		}
 	}
 
-	// Tailor and Vanilla: ImGui's button with nothing in its label, sized for the text, which
+	// Tailor: ImGui's button with nothing in its label, sized for the text, which
 	// DrawButtonText draws in two colours.
 	bool HelpButton(const char* a_label, bool* a_hovered)
 	{
 		bool pressed = false;
 		if (g_skin == Skin::kNordic) {
 			pressed = PointedButton(a_label, true);
+		} else if (g_skin == Skin::kVanilla) {
+			pressed = VanillaButton(a_label, true);
 		} else {
 			const auto& style = ImGui::GetStyle();
 			ImGui::PushID(a_label);
@@ -2061,6 +2161,9 @@ namespace Theme
 	{
 		if (g_skin == Skin::kNordic) {
 			return PointedButtonWidth(a_label);
+		}
+		if (g_skin == Skin::kVanilla) {
+			return VanillaButtonWidth(a_label, false);
 		}
 		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f;
 	}
