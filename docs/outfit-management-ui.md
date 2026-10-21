@@ -83,7 +83,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - `Restore Original Outfit (?)`, while Livery dresses the actor, sits at the right end of
   the count line in its font and colour, lit on hover; the `(?)` is inside its click area
   and hovering it shows the help. A click asks `Restore #{Name}'s original outfit?` / `This
-  takes Livery's outfit off #{Name} and forgets every situation outfit chosen for them.` with
+  takes Livery's outfit off #{Name} and forgets every situational outfit chosen for them.` with
   `Restore` / `Cancel`.
 - The `From Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
   is over that mark alone: `"Apply" moves the ticked pieces from your inventory to #{Name}.`
@@ -91,8 +91,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
   are not listed.`
 - The Apply popup's `No, apply as is (?)` help: `The ticked pieces become #{Name}'s Default
-  as they are, without being added to the wardrobe; a random Default is turned off. While a
-  situation outfit is worn, the new Default shows only when that situation ends.` A button
+  as they are, without being added to the wardrobe.`, then, while a situation row of #{Name}
+  holds an outfit, `While a situational outfit is worn, the new Default shows only when that
+  situation ends.` A button
   with a `(?)` (the Apply popup's `No, apply as is`) draws it inside its frame.
 - Vanilla and Nordic draw text fields and dropdowns underlined, not framed. A text field has
   a grey pen at its right end, white while the field or the pen is hovered or the field is
@@ -203,9 +204,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   memory at their next situation change; a random row with others on its list picks again
   from them. A Default worn from it stays on.
 - Afterwards the list is rebuilt without it and nothing is selected; the preview shows the
-  Inventory page's ticks. The Inventory page's loaded outfit and the Save page's chosen
-  outfit are cleared when they were it.
-- Other saves change nothing at load: a situation outfit the library no longer has puts
+  Inventory page's ticks, or, when the captured actor was redressed with Live Preview on,
+  what they wear now, the Inventory page following them (§6). The Inventory page's loaded
+  outfit and the Save page's chosen outfit are cleared when they were it.
+- Other saves change nothing at load: a situational outfit the library no longer has puts
   nothing on and falls back to the default (design.md §7), and restoring outfits.json
   brings it back.
 
@@ -215,19 +217,24 @@ Assignments run only with no preview on, since the preview restores what it foun
 `OutfitPreview::Begin`. A Manage Wardrobe change that redresses:
 
 - the captured actor, Live Preview on: one SKSE task runs `OutfitPreview::End`, the
-  assignment change, then `OutfitPreview::Begin` with the pieces the window shows, so the
-  new state is what the preview later restores. The camera and the movement hold stay.
-  When Begin refuses, the Live Preview tick greys with the reason, as at Open.
+  assignment change, then `OutfitPreview::Begin` with the outfit Manage Wardrobe has
+  selected (Update), or with what they wear now (Remove), so the new state is what the
+  preview later restores. The camera and the movement hold stay. When Begin refuses, the
+  Live Preview tick greys with the reason, as at Open. Then the Inventory page follows what
+  they wear, as Open would list it now (`CaptureWindow::OutfitList::actorPieces`): each
+  piece's heading, the worn pieces ticked (the user's ticks replaced), the heading of
+  Livery's outfit named after the one now on them, the loaded outfit let go. Armor the
+  window did not list at Open cannot be listed, since its indices are fixed: it shows on the
+  preview but is not ticked.
 - the captured actor, Live Preview off: queued and run in `onClose`, after the preview ended.
 - any other actor: queued and run in `onClose`.
 - A load closing the window (`kPreLoadGame`) drops the queue.
 
-What redresses the captured actor: Update of the outfit they wear as their default gives
-the default the new pieces (`Assignments::Assign(pieces, id)`); worn for a situation,
-`Assignments::Refresh`. Pieces are added as Assign adds them (an NPC gets a copy of a piece
-they lack); nothing moves from the player's inventory. Not worn now: nothing, since a
-situation outfit is read from the library each time it goes on and a default from it keeps
-its pieces until assigned again. Remove: §5.
+What redresses the captured actor: Update of the outfit they wear, for any row,
+`Assignments::Refresh`, which reads it from the library again. Pieces are added as Assign
+adds them (an NPC gets a copy of a piece they lack); nothing moves from the player's
+inventory. Not worn now: nothing, since every row reads its outfit from the library each
+time it goes on. Remove: §5.
 
 Rows Update changed (`SaveRequest::assign` / `remove`) are made and dressed for in one
 `Assignments::Change`, through the same path (`PendingRedress::change`: at once with Live
