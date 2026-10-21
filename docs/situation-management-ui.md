@@ -283,7 +283,9 @@ situation's.
   the outfit whose details show (§5), else on what they wear; at close with it off); a
   random row they wear wears the outfit it gained first. The page stays, an outfit's details
   too, and the edits start again from what was saved.
-- Exit closes the window; Escape does what Exit does, first clearing a search.
+- Exit closes the window; Escape does what Exit does, first clearing a search. While a write
+  runs (Save Changes, Remove, Restore Presets) the page is greyed and Escape does nothing,
+  here or as an outfit's Back.
 - Exit, Escape or another tab with unsaved edits asks `You have unsaved changes.` with
   `Save Changes` / `Discard Changes` / `Back`: Save Changes saves as the button does, then
   goes; a refused save stays. Discard Changes drops the edits and goes. Back stays.
