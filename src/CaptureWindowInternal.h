@@ -334,8 +334,9 @@ namespace CaptureWindow::Internal
 	// Situations) the page first shows the unsaved-changes alert (kLeavePopup); else it goes.
 	void RequestLeave(State& a_state, PendingLeave a_leave);
 	// Goes without asking: closes the window, or switches to the tab's page, which keeps every
-	// page's ticks and edits; the preview shows Manage Wardrobe's selected outfit as edited
-	// there, the Inventory page's ticks on the other tabs.
+	// page's ticks and edits but Manage Situations' outfit details, which close; with
+	// `manageOutfit`, Manage Wardrobe first selects it. The preview shows Manage Wardrobe's
+	// selected outfit as edited there, the Inventory page's ticks on the other tabs.
 	void Leave(State& a_state, const PendingLeave& a_leave);
 
 	enum class LeaveChoice

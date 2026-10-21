@@ -558,16 +558,32 @@ namespace CaptureWindow::Internal
 		Leave(a_state, a_leave);
 	}
 
-	// Every heading of Manage Situations is open when its tab opens.
+	// The pieces a tab page keeps on the preview in place of the Inventory page's ticks:
+	// Manage Wardrobe's selected outfit as edited, Manage Situations' outfit whose details
+	// show; nullptr while it shows the ticks. A page that gets a preview of its own adds it here.
+	const std::vector<std::size_t>* PagePreview(const State& a_state, Page a_page)
+	{
+		if (a_page == Page::kManage && a_state.manage.outfit >= 0) {
+			return &a_state.manage.pieces;
+		}
+		if (a_page == Page::kSituations) {
+			if (const int viewed = IndexOfOutfit(a_state, a_state.situationForm.viewedOutfit); viewed >= 0) {
+				return &OutfitAt(a_state, viewed).pieces;
+			}
+		}
+		return nullptr;
+	}
+
+	// Every heading of Manage Situations is open when its tab opens, and an outfit's details
+	// there close as it goes. The preview shows the opened page's own pieces (PagePreview), or
+	// the ticks again when only the page left had its own.
 	void Leave(State& a_state, const PendingLeave& a_leave)
 	{
 		if (a_leave.exit) {
 			RequestCancel();
 			return;
 		}
-		// Manage Situations' outfit details show their outfit on the preview; they close as the
-		// page goes, and the next page's preview replaces it.
-		const bool viewing = a_state.page == Page::kSituations && a_state.situationForm.viewedOutfit != 0;
+		const bool ownPreview = PagePreview(a_state, a_state.page) != nullptr;
 		a_state.situationForm.viewedOutfit = 0;
 		const int target = a_leave.page == Page::kManage ? IndexOfOutfit(a_state, a_leave.manageOutfit) : -1;
 		if (target >= 0) {
@@ -575,10 +591,9 @@ namespace CaptureWindow::Internal
 			// the unsaved-changes alert, which saved or dropped them.
 			FillManageForm(a_state, target);
 		}
-		const bool managed = a_state.manage.outfit >= 0;
-		if (a_leave.page == Page::kManage && managed) {
-			QueuePreview(a_state, a_state.manage.pieces);
-		} else if ((a_state.page == Page::kManage && managed) || viewing) {
+		if (const auto* pieces = PagePreview(a_state, a_leave.page)) {
+			QueuePreview(a_state, *pieces);
+		} else if (ownPreview) {
 			QueuePreview(a_state, TickedPieces(a_state));
 		}
 		if (a_leave.page == Page::kSituations) {
