@@ -22,6 +22,8 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 
 **A request ≠ approval.** Still confirm for: 「実装してください」「進めて」「お願いします」; settled/agreed approach; 1–2 files; 「ついでに」 follow-ons; tiny fix around a commit; contract comments / default-OFF debug logging only.
 
+**Exempt (since 2026-10-21):** plain wording changes and small position / layout tweaks may be implemented without approval when nothing is in doubt. Any open question, an error in the request (typo, wrong name, mismatch with code or docs), or a possible breakage (layout, behavior) still needs approval first. High-impact items are never exempt.
+
 **High impact:** hooks or memory patches (`REL::Relocation`, trampoline `write_call`/`write_branch`, vtable writes); per-frame or per-input logic (input / crosshair / menu sinks, update hooks); any new write to the outfit library (§2.1); SKSE serialization / co-save; SKSE message handling and init order (`kPostLoad`, `kDataLoaded`, `kPostLoadGame`, …); build system (`CMakeLists.txt`, `CMakePresets.json`, `vcpkg.json`, `cmake/`, submodule bumps); cross-cutting API change.
 
 **Speak up first** on ambiguous scope, unstated assumptions, or easy bugs / hard debt — surface the tradeoff (one question or alternative); never guess silently. Skip taste / easy reverts.
