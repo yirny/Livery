@@ -21,21 +21,34 @@ namespace
 	}
 }
 
-TEST_CASE("Give puts the outfit at the front and makes it chosen with random off", "[rows]")
+TEST_CASE("Give with random off replaces the chosen outfit in its place", "[rows]")
 {
 	Row row;
-	OutfitRows::Give(row, 1);
-	OutfitRows::Give(row, 2);
-	CHECK(row.outfits == Ids{ 2, 1 });
+	OutfitRows::Give(row, 1);  // an empty list: added
+	CHECK(row.outfits == Ids{ 1 });
+	CHECK(row.chosen == 1);
+
+	OutfitRows::Give(row, 2);  // takes the chosen one's place, which leaves
+	CHECK(row.outfits == Ids{ 2 });
 	CHECK(row.chosen == 2);
 
-	OutfitRows::Give(row, 1);  // already on the list: moves to the front
-	CHECK(row.outfits == Ids{ 1, 2 });
-	CHECK(row.chosen == 1);
+	Row hidden{ .outfits = { 3, 1, 2 }, .chosen = 1 };  // others on the list from random
+	OutfitRows::Give(hidden, 4);
+	CHECK(hidden.outfits == Ids{ 3, 4, 2 });
+	CHECK(hidden.chosen == 4);
 
-	OutfitRows::Give(row, 0);  // not an outfit
-	CHECK(row.outfits == Ids{ 1, 2 });
-	CHECK(row.chosen == 1);
+	OutfitRows::Give(hidden, 2);  // on the list already: chosen where it is
+	CHECK(hidden.outfits == Ids{ 3, 4, 2 });
+	CHECK(hidden.chosen == 2);
+
+	Row none{ .outfits = { 1, 2 } };  // nothing chosen: added at the front
+	OutfitRows::Give(none, 3);
+	CHECK(none.outfits == Ids{ 3, 1, 2 });
+	CHECK(none.chosen == 3);
+
+	OutfitRows::Give(none, 0);  // not an outfit
+	CHECK(none.outfits == Ids{ 3, 1, 2 });
+	CHECK(none.chosen == 3);
 }
 
 TEST_CASE("Give with random on adds to the list and leaves chosen", "[rows]")
@@ -44,6 +57,49 @@ TEST_CASE("Give with random on adds to the list and leaves chosen", "[rows]")
 	OutfitRows::Give(row, 2);
 	CHECK(row.outfits == Ids{ 2, 1 });
 	CHECK(row.chosen == 1);
+}
+
+TEST_CASE("Place with random on puts the outfit at the drop place, moving it when on the list", "[rows]")
+{
+	Row row{ .outfits = { 1, 2, 3 }, .random = true };
+	OutfitRows::Place(row, 1, 2);  // between 2 and 3
+	CHECK(row.outfits == Ids{ 2, 1, 3 });
+	OutfitRows::Place(row, 3, 0);
+	CHECK(row.outfits == Ids{ 3, 2, 1 });
+	OutfitRows::Place(row, 3, 3);  // after the last
+	CHECK(row.outfits == Ids{ 2, 1, 3 });
+	OutfitRows::Place(row, 4, 1);  // not on the list yet
+	CHECK(row.outfits == Ids{ 2, 4, 1, 3 });
+	OutfitRows::Place(row, 5, 9);  // past the end: last
+	CHECK(row.outfits == Ids{ 2, 4, 1, 3, 5 });
+	CHECK(row.chosen == 0);  // random on leaves chosen
+
+	Row off{ .outfits = { 1, 2 } };  // random off with nothing chosen: the place counts
+	OutfitRows::Place(off, 3, 1);
+	CHECK(off.outfits == Ids{ 1, 3, 2 });
+	CHECK(off.chosen == 3);
+	OutfitRows::Place(off, 0, 0);  // not an outfit
+	CHECK(off.outfits == Ids{ 1, 3, 2 });
+}
+
+TEST_CASE("SetRandom off keeps the last pick, or chooses the first with none", "[rows]")
+{
+	Row row{ .outfits = { 1, 2 }, .random = true, .chosen = 2 };  // the pick worn last
+	OutfitRows::SetRandom(row, false);
+	CHECK_FALSE(row.random);
+	CHECK(row.chosen == 2);
+
+	Row fresh{ .outfits = { 3, 4 }, .random = true };  // never worn
+	OutfitRows::SetRandom(fresh, false);
+	CHECK(fresh.chosen == 3);
+
+	Row empty{ .random = true };
+	OutfitRows::SetRandom(empty, false);
+	CHECK(empty.chosen == 0);
+
+	OutfitRows::SetRandom(row, true);
+	CHECK(row.random);
+	CHECK(row.chosen == 2);  // kept for the next off
 }
 
 TEST_CASE("Take removes the outfit and clears chosen only when it was that", "[rows]")

@@ -19,7 +19,9 @@ namespace OutfitRows
 	{
 		std::vector<std::uint32_t> outfits;         // library outfit ids, each once, in the user's order (only how a page lists them)
 		bool                       random = false;  // wear one of `outfits`, picked as the row goes on
-		std::uint32_t              chosen = 0;      // worn with random off; always on `outfits`, or 0 for none
+		// Worn with random off; with random on, the last pick worn (Assignments records it), which
+		// turning random off keeps on. Always on `outfits`, or 0 for none.
+		std::uint32_t chosen = 0;
 
 		friend bool operator==(const Row&, const Row&) = default;
 	};
@@ -44,17 +46,56 @@ namespace OutfitRows
 		}(),
 		"Rows: the situations follow the Default in Situations::kChoosable order");
 
-	// Gives the row library outfit `a_outfit`: it goes to the front of `outfits`, or moves
-	// there when on it already; with random off it becomes `chosen`.
-	inline void Give(Row& a_row, std::uint32_t a_outfit)
+	// Gives the row library outfit `a_outfit` at a place in its list. Random on: it goes before
+	// the outfit at `a_index` of `outfits` (at the end past it), or moves there when on it
+	// already. Random off, the list keeps its length: an outfit on it becomes `chosen` where it
+	// is; one not on it takes `chosen`'s place, which leaves the list (the user replaces the
+	// outfit worn); with no `chosen`, it goes in at `a_index`. Either way it is then `chosen`.
+	// Manage Situations' drop at a place in a row's list.
+	inline void Place(Row& a_row, std::uint32_t a_outfit, std::size_t a_index)
 	{
 		if (a_outfit == 0) {
 			return;
 		}
-		std::erase(a_row.outfits, a_outfit);
-		a_row.outfits.insert(a_row.outfits.begin(), a_outfit);
+		auto&      outfits = a_row.outfits;
+		const auto found = std::ranges::find(outfits, a_outfit);
+		if (!a_row.random) {
+			if (found != outfits.end()) {
+				a_row.chosen = a_outfit;
+				return;
+			}
+			if (const auto chosen = std::ranges::find(outfits, a_row.chosen); a_row.chosen != 0 && chosen != outfits.end()) {
+				*chosen = a_outfit;
+				a_row.chosen = a_outfit;
+				return;
+			}
+		} else if (found != outfits.end()) {
+			if (static_cast<std::size_t>(found - outfits.begin()) < a_index) {
+				--a_index;  // the outfits after it move up one
+			}
+			outfits.erase(found);
+		}
+		a_index = (std::min)(a_index, outfits.size());
+		outfits.insert(outfits.begin() + static_cast<std::ptrdiff_t>(a_index), a_outfit);
 		if (!a_row.random) {
 			a_row.chosen = a_outfit;
+		}
+	}
+
+	// Gives the row library outfit `a_outfit` at the front of its list (Place): random off, in
+	// `chosen`'s place, and it becomes `chosen`.
+	inline void Give(Row& a_row, std::uint32_t a_outfit)
+	{
+		Place(a_row, a_outfit, 0);
+	}
+
+	// Turns random on or off. Off keeps `chosen` on: the last pick worn, or the outfit chosen
+	// before random went on; with none recorded yet, the first of the list.
+	inline void SetRandom(Row& a_row, bool a_random)
+	{
+		a_row.random = a_random;
+		if (!a_random && a_row.chosen == 0 && !a_row.outfits.empty()) {
+			a_row.chosen = a_row.outfits.front();
 		}
 	}
 
@@ -85,7 +126,8 @@ namespace OutfitRows
 
 	// The outfit the row wears, 0 for none (the Default then wears its pieces): `chosen` with
 	// random off; with random on `a_kept` while it is on `outfits` (the pick worn now, or an
-	// outfit just given to the row), else `outfits[a_pick(outfits.size())]`.
+	// outfit just given to the row), else `outfits[a_pick(outfits.size())]`. The caller records
+	// a random row's pick in `chosen` once worn (SetRandom keeps it on).
 	// Contract: `a_pick(n)` returns an index below n.
 	template <class Pick>
 	std::uint32_t Wears(const Row& a_row, std::uint32_t a_kept, Pick&& a_pick)

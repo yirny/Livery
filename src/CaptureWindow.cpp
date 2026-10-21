@@ -7,8 +7,10 @@
 //   Input        - QueueInput translates engine events and moves the game's cursor;
 //                  FeedInput hands them and the cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers; the tab column
-//                  (Inventory, Manage Wardrobe) and its rule beside the Inventory page and
-//                  Manage Wardrobe; mouse and key input over the game goes to onViewInput
+//                  (Inventory, Manage Wardrobe, Manage Situations) and its rule beside those
+//                  pages; leaving a page with unsaved edits through the unsaved-changes alert
+//                  (Save Changes, Discard Changes, Back); mouse and key input over the game
+//                  goes to onViewInput
 //   Capture page - the Inventory page: the actor's pieces under a heading per group (their
 //                  Livery outfit, other worn, carried, the player's, the loaded outfit's), in
 //                  Name / Type / Category columns sorted by a click on a column label (the piece
@@ -26,7 +28,7 @@
 //                  wears, the Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
 //                  fills the Update tab from the Select page's choice
 //   Outfit pages - the outfit browser and lists, the Load, Select, Manage Wardrobe and Edit
-//                  pages: OutfitPages.cpp
+//                  pages: OutfitPages.cpp; the Manage Situations page: SituationPage.cpp
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
@@ -304,6 +306,22 @@ namespace CaptureWindow::Internal
 		return ticks;
 	}
 
+	// Ticks of the rows `a_old` moved onto `a_new`, matched by situation: a row that is gone
+	// (a removed situation) takes its tick with it, a new one (a restored one) starts unticked.
+	std::unique_ptr<bool[]> RemapRows(const std::vector<CaptureWindow::SituationInfo>& a_old, const bool* a_ticks,
+		const std::vector<CaptureWindow::SituationInfo>& a_new)
+	{
+		auto ticks = std::make_unique<bool[]>(a_new.size());  // all false
+		if (!a_ticks) {
+			return ticks;
+		}
+		for (std::size_t i = 0; i < a_new.size(); ++i) {
+			const auto found = std::ranges::find(a_old, a_new[i].situation, &CaptureWindow::SituationInfo::situation);
+			ticks[i] = found != a_old.end() && a_ticks[found - a_old.begin()];
+		}
+		return ticks;
+	}
+
 	// The Inventory page's list: its ticks, the loaded outfit's pieces nobody carries under
 	// the heading LoadOutfit set.
 	PieceList InventoryPieces(const State& a_state)
@@ -482,37 +500,131 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
 	}
 
-	// The Inventory page and Manage Wardrobe have the tab column at the window's left edge;
-	// the pages they lead to do not.
+	// The Inventory page, Manage Wardrobe and Manage Situations have the tab column at the
+	// window's left edge; the pages they lead to do not.
 	bool HasTabs(Page a_page)
 	{
-		return a_page == Page::kCapture || a_page == Page::kManage;
+		return a_page == Page::kCapture || a_page == Page::kManage || a_page == Page::kSituations;
 	}
 
-	// Inventory, then Manage Wardrobe, each centred between the window's left edge and the
-	// rule. A click on the other tab switches pages, keeping every page's ticks and edits
-	// (EnterManagePage, LeaveManagePage).
+	// Inventory, Manage Wardrobe, then Manage Situations, each centred between the window's
+	// left edge and the rule. A click on another tab leaves the page for it (RequestLeave).
 	void DrawTabColumn(State& a_state)
 	{
-		const bool   inventory = a_state.page == Page::kCapture;
+		struct TabOption
+		{
+			Theme::TabIcon icon;
+			const char*    name;
+			Page           page;
+		};
+		constexpr std::array<TabOption, 3> kTabs{ {
+			{ Theme::TabIcon::kInventory, "Inventory", Page::kCapture },
+			{ Theme::TabIcon::kOutfits, "Manage Wardrobe", Page::kManage },
+			{ Theme::TabIcon::kSituations, "Manage Situations", Page::kSituations },
+		} };
+
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
 		const float  left = origin.x + Theme::TabOffsetX();
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		ImGui::SetCursorScreenPos(ImVec2(left, origin.y + Theme::TabTopGap()));
-		if (Theme::Tab(Theme::TabIcon::kInventory, "Inventory", inventory) && !inventory) {
-			QueueMenuSound(kFocusSound);
-			LeaveManagePage(a_state);
-		}
-		ImGui::SetCursorScreenPos(ImVec2(left, ImGui::GetCursorScreenPos().y));  // a new line starts at the content's left edge
-		if (Theme::Tab(Theme::TabIcon::kOutfits, "Manage Wardrobe", !inventory) && inventory) {
-			QueueMenuSound(kFocusSound);
-			EnterManagePage(a_state);
+		for (const auto& tab : kTabs) {
+			const bool selected = a_state.page == tab.page;
+			if (Theme::Tab(tab.icon, tab.name, selected) && !selected) {
+				QueueMenuSound(kFocusSound);
+				RequestLeave(a_state, { .page = tab.page });
+			}
+			ImGui::SetCursorScreenPos(ImVec2(left, ImGui::GetCursorScreenPos().y));  // a new line starts at the content's left edge
 		}
 		ImGui::EndDisabled();
 	}
 
-	// The page's heading: the Inventory page's own title, Manage Wardrobe' and the Edit page's
-	// with no summary line, the others the actor's name. Each over the summary line.
+	void RequestLeave(State& a_state, PendingLeave a_leave)
+	{
+		const bool edits = (a_state.page == Page::kManage && HasManageEdits(a_state)) || (a_state.page == Page::kSituations && HasSituationEdits(a_state));
+		if (edits) {
+			a_state.leave = a_leave;
+			a_state.openLeave = true;  // the page opens the alert in its own ID scope
+			return;
+		}
+		if (a_leave.exit) {
+			QueueMenuSound(kCancelSound);
+		}
+		Leave(a_state, a_leave);
+	}
+
+	// Every heading of Manage Situations is open when its tab opens.
+	void Leave(State& a_state, const PendingLeave& a_leave)
+	{
+		if (a_leave.exit) {
+			RequestCancel();
+			return;
+		}
+		const bool managed = a_state.manage.outfit >= 0;
+		if (a_leave.page == Page::kManage && managed) {
+			QueuePreview(a_state, a_state.manage.pieces);
+		} else if (a_state.page == Page::kManage && managed) {
+			QueuePreview(a_state, TickedPieces(a_state));
+		}
+		if (a_leave.page == Page::kSituations) {
+			for (auto& entry : a_state.situationForm.entries) {
+				entry.folded = false;
+			}
+		}
+		GoToPage(a_state, a_leave.page);
+	}
+
+	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave)
+	{
+		if (!BeginModal(kLeavePopup)) {
+			return LeaveChoice::kNone;
+		}
+		if (!a_state.leave) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return LeaveChoice::kNone;
+		}
+		ImGui::TextUnformatted(a_text.c_str());
+		BeginButtonRow({ "Save Changes", "Discard Changes", "Back" });
+		const bool save = ReasonButton("Save Changes", a_noSave);
+		ImGui::SameLine();
+		const bool discard = Theme::Button("Discard Changes");
+		ImGui::SameLine();
+		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		auto choice = LeaveChoice::kNone;
+		if (save) {
+			choice = LeaveChoice::kSave;
+		} else if (discard) {
+			choice = LeaveChoice::kDiscard;
+		} else if (back) {
+			choice = LeaveChoice::kBack;
+			a_state.leave.reset();
+		}
+		if (choice != LeaveChoice::kNone) {
+			QueueMenuSound(choice == LeaveChoice::kBack ? kCancelSound : kOkSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return choice;
+	}
+
+	// The alert's Save Changes: once the save is over, the leave follows when it took; a
+	// refused save stays, with its error.
+	void FinishLeave(State& a_state)
+	{
+		if (!a_state.leaveAfterSave || a_state.status != Status::kEditing) {
+			return;
+		}
+		a_state.leaveAfterSave = false;
+		const auto leave = std::exchange(a_state.leave, std::nullopt);
+		if (leave && a_state.error.empty()) {
+			Leave(a_state, *leave);
+		}
+	}
+
+	// The page's heading: the Inventory page's own title, Manage Wardrobe's, Manage
+	// Situations' and the Edit page's with no summary line, the others the actor's name.
+	// Each over the summary line.
 	void DrawTitle(const State& a_state)
 	{
 		switch (a_state.page) {
@@ -521,6 +633,9 @@ namespace CaptureWindow::Internal
 			break;
 		case Page::kManage:
 			Theme::HeadingText("Manage Wardrobe");
+			break;
+		case Page::kSituations:
+			Theme::HeadingText(a_state.situationsTitle.c_str());
 			break;
 		case Page::kEdit:
 			Theme::HeadingText(a_state.editTitle.c_str());
@@ -1265,7 +1380,8 @@ namespace CaptureWindow::Internal
 		return true;
 	}
 
-	// The rows of "wears it for": Default, then request.situations.
+	// The actor's rows (request.assigned): the Default, then the situations not removed, named
+	// as request.situations names them.
 	std::size_t RowCount(const State& a_state)
 	{
 		return a_state.request.assigned.size();
@@ -1273,7 +1389,7 @@ namespace CaptureWindow::Internal
 
 	const char* RowName(const State& a_state, std::size_t a_row)
 	{
-		return a_row == 0 ? "Default" : a_state.request.situations[a_row - 1].c_str();
+		return a_state.request.situations[a_row].name.c_str();
 	}
 
 	SaveForm& ActiveForm(State& a_state)
@@ -1529,7 +1645,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// The ticked rows whose worn outfit the save replaces, one line each (`Town: "B" replaces
-	// "A"`), then Confirm or Cancel. The replaced outfit stays on the row's list, hidden.
+	// "A"`), then Confirm or Cancel. The replaced outfit leaves the row's list (OutfitRows::Give).
 	// Returns true on Confirm.
 	bool DrawReplacePopup(const State& a_state)
 	{
@@ -1773,13 +1889,18 @@ namespace CaptureWindow
 			SortPieces(state);
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
-			for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser }) {
+			for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser, &state.situationBrowser }) {
 				OutfitBrowser::Reset(*browser, state.request);
 			}
 			state.showCategories = true;
 			state.manage = { .classTicked = std::make_unique<bool[]>(categories), .wearsFor = std::make_unique<bool[]>(rows) };
 			state.discardFor = -1;
-			state.openUnsaved = false;
+			state.leave.reset();
+			state.leaveAfterSave = false;
+			state.openLeave = false;
+			state.situationForm = {};
+			FillSituationForm(state, state.request.situations);
+			state.situationsTitle = std::format("{}'s Situational Outfits", state.request.actorName);
 			state.manageSituationsLabel = std::format("Situations for {}", state.request.actorName);
 			state.manageApplyLabel = std::format("Apply to {}", state.request.actorName);
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
@@ -1822,6 +1943,7 @@ namespace CaptureWindow
 			state.createForm = {};
 			state.updateForm = {};
 			state.manage = {};
+			state.situationForm = {};
 			state.pending.clear();
 		}
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
@@ -1868,7 +1990,12 @@ namespace CaptureWindow
 		for (auto* ticks : { &state.createForm.classTicked, &state.updateForm.classTicked, &state.manage.classTicked }) {
 			*ticks = RemapTicks(request.categories, ticks->get(), a_list.categories);
 		}
+		for (auto* ticks : { &state.createForm.wearsFor, &state.updateForm.wearsFor, &state.manage.wearsFor }) {
+			*ticks = RemapRows(request.situations, ticks->get(), a_list.situations);
+		}
 		const auto assignedBefore = std::exchange(request.assigned, std::move(a_list.assigned));
+		const auto situationsBefore = std::exchange(request.situations, std::move(a_list.situations));
+		request.restoreChanges = std::move(a_list.restoreChanges);
 		request.existingOutfits = std::move(a_list.existingOutfits);
 		request.categories = std::move(a_list.categories);
 		request.actorSummary = std::move(a_list.actorSummary);
@@ -1884,18 +2011,22 @@ namespace CaptureWindow
 		if (chosen != 0 && state.chosenOutfit < 0) {
 			state.updateTab = false;  // the Save page's Update tab has no outfit left to update
 		}
-		// The Update tab's "wears it for" ticks follow the rows Manage Wardrobe changed for its
-		// outfit, so its Update cannot undo them unseen; the user's other ticks stay.
+		// The Update tab's "wears it for" ticks follow the rows Manage Wardrobe or Manage
+		// Situations changed for its outfit, so its Update cannot undo them unseen; the user's
+		// other ticks stay. Rows are matched by situation, as one may have been removed.
 		for (std::size_t row = 0; state.chosenOutfit >= 0 && row < RowCount(state); ++row) {
-			const bool before = row < assignedBefore.size() && OutfitRows::Holds(assignedBefore[row].row, chosen);
+			const auto found = std::ranges::find(situationsBefore, request.situations[row].situation, &SituationInfo::situation);
+			const auto rowBefore = static_cast<std::size_t>(found - situationsBefore.begin());
+			const bool before = rowBefore < assignedBefore.size() && OutfitRows::Holds(assignedBefore[rowBefore].row, chosen);
 			const bool now = HoldsOutfit(state, row, chosen);
 			if (before != now) {
 				state.updateForm.wearsFor[row] = now;
 			}
 		}
-		for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser }) {
+		for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser, &state.situationBrowser }) {
 			OutfitBrowser::Rebuild(*browser, request);
 		}
+		FillSituationForm(state, situationsBefore);
 		FollowWornOutfit(state);
 		SetGroupHeadings(state);
 		if (state.loadedOutfit >= 0) {
@@ -2002,11 +2133,12 @@ namespace CaptureWindow
 			ResetImGuiState(io);
 			state.resetImGui = false;
 		}
+		FinishLeave(state);  // before the page's width, which a switch changes
 
 		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
-		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, Select and Manage Wardrobe pages
+		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, Select, Manage Wardrobe and Manage Situations pages
 		constexpr float kNarrowWidthRatio = 0.53f;  // of the screen height, for the one-column pages
-		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kSelect || state.page == Page::kManage;
+		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kSelect || state.page == Page::kManage || state.page == Page::kSituations;
 		float           width = io.DisplaySize.y * (twoColumns ? kWindowWidthRatio : kNarrowWidthRatio);
 		if (state.page == Page::kCapture) {
 			width = (std::max)(width, CaptureButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
@@ -2063,6 +2195,9 @@ namespace CaptureWindow
 			break;
 		case Page::kEdit:
 			DrawEditPage(state);
+			break;
+		case Page::kSituations:
+			DrawSituationPage(state);
 			break;
 		}
 		if (tabs) {

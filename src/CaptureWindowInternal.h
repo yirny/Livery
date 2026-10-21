@@ -2,10 +2,11 @@
 #pragma once
 
 // The capture window's constants, state and shared helpers, private to CaptureWindow.cpp
-// (the window and its tab column, the Inventory and Save pages) and OutfitPages.cpp (the
-// outfit browser and lists, the Load, Select, Manage Wardrobe and Edit pages). The helpers
-// are defined in CaptureWindow.cpp, the pages in OutfitPages.cpp; each definition carries
-// its comment.
+// (the window and its tab column, the Inventory and Save pages), OutfitPages.cpp (the
+// outfit browser and lists, the Load, Select, Manage Wardrobe and Edit pages) and
+// SituationPage.cpp (the Manage Situations page). The helpers are defined in
+// CaptureWindow.cpp, the pages in OutfitPages.cpp and SituationPage.cpp; each definition
+// carries its comment.
 //
 // Contract: included after PCH.h. The functions that take a State run with State::mutex
 // held: the draw functions in the capture menu's PostDisplay, as CaptureWindow.h describes.
@@ -17,6 +18,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <initializer_list>
 #include <memory>
 #include <mutex>
@@ -31,14 +33,14 @@ namespace CaptureWindow::Internal
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kReplacePopup = "Replace outfits?";
 	constexpr const char* kApplyPopup = "Update the outfit?";
-	// Manage Wardrobe' popups. The two that discard share a title, told apart after "###".
+	// Manage Wardrobe' popups.
 	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
-	constexpr const char* kDiscardExitPopup = "Discard changes?###discardExit";
-	constexpr const char* kUnsavedPopup = "Unsaved changes";
 	constexpr const char* kManageConfirmPopup = "Save changes?";
 	constexpr const char* kManageApplyPopup = "Apply outfit?";
 	constexpr const char* kRemovePopup = "Remove outfit?";
 	constexpr const char* kRestorePopup = "Restore original outfit?";
+	// The unsaved-changes alert of Manage Wardrobe and Manage Situations (DrawLeavePopup).
+	constexpr const char* kLeavePopup = "Unsaved changes";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one piece.";
@@ -89,6 +91,14 @@ namespace CaptureWindow::Internal
 	constexpr int                        kClassColumn = 2;
 	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Category" };
 
+	// What an outfit row of Manage Situations carries while it is dragged (OfferOutfitDrag).
+	constexpr const char* kOutfitPayload = "LiveryOutfit";
+	struct OutfitPayload
+	{
+		int           from = -1;   // the situation it is dragged from: index into request.situations; -1 for the outfit list
+		std::uint32_t outfit = 0;  // its library id; 0 for the Default's pieces not in the wardrobe
+	};
+
 	// Sound descriptors in Skyrim.esm, whose load index is always 00.
 	constexpr RE::FormID kOpenSound = 0x0003F2BD;    // UIMenuBladeOpenSD
 	constexpr RE::FormID kOkSound = 0x0003C751;      // UIMenuOKSD
@@ -108,8 +118,9 @@ namespace CaptureWindow::Internal
 		kSave,
 		kLoad,
 		kSelect,
-		kManage,  // Manage Wardrobe
-		kEdit     // Manage Wardrobe' piece editor
+		kManage,     // Manage Wardrobe
+		kEdit,       // Manage Wardrobe' piece editor
+		kSituations  // Manage Situations
 	};
 
 	struct InputRecord
@@ -151,6 +162,40 @@ namespace CaptureWindow::Internal
 		std::unique_ptr<bool[]>         wearsFor;     // one per row of "Situations for #{Name}" (request.assigned), Default first
 	};
 
+	// One situation of Manage Situations as edited, in request.situations' order.
+	struct SituationEntry
+	{
+		std::array<char, kNameCapacity> name{};
+		std::array<char, kNameCapacity> description{};
+		std::string                     nameBefore;      // its name as its field's edit began, put back for an empty or taken one
+		OutfitRows::Row                 row;             // the actor's row for it
+		bool                            folded = false;  // its heading in the Situation List is folded
+	};
+
+	// Manage Situations' edits, kept while the window is open; a change a handler made
+	// (SetOutfits) and Discard Changes start them again from the request.
+	struct SituationForm
+	{
+		std::vector<SituationEntry> entries;
+		bool                        defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
+		int                         selected = -1;             // index into entries; -1 for none
+		bool                        details = false;           // the right pane shows the selected one (Back to Outfit List not pressed since)
+		bool                        scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
+		int                         nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
+		ImGuiID                     nameField = 0;             // that field's ImGui ID
+		int                         dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
+		double                      dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
+		float                       outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
+	};
+
+	// Where leaving a page with unsaved edits goes once they are saved or dropped: the
+	// window's close (Exit, Escape), or a tab's page.
+	struct PendingLeave
+	{
+		bool exit = false;
+		Page page = Page::kCapture;
+	};
+
 	struct State
 	{
 		std::mutex               mutex;
@@ -183,25 +228,31 @@ namespace CaptureWindow::Internal
 		bool                     showCategories = true;  // the outfit lists show each outfit's tags (Show Categories)
 		ManageForm               manage;
 		int                      discardFor = -1;        // the outfit to select once Discard changes is chosen: index, -1 for none
-		bool                     openUnsaved = false;    // open the Unsaved changes popup on the next frame (Manage Wardrobe)
 		std::string              manageSituationsLabel;  // "Situations for #{Name}"
 		std::string              manageApplyLabel;       // "Apply to #{Name}"
 		std::unique_ptr<bool[]>  editTicked;             // the Edit page's ticks, one per request.pieces
 		std::vector<std::size_t> editShown;              // the edited pieces it opened with, so those nobody carries stay listed
 		std::string              editTitle;              // "Edit \"#{Outfit}\""
 		std::string              editShownHeading;       // over those nobody carries: "From \"#{Outfit}\" (Not Carried)"
-		int                      recentreFrames = 0;     // frames left to pin the window to its place
-		std::optional<ImVec2>    placeCentre;            // where a pinned window's centre goes; none for the start place
-		ImVec2                   windowPos{};            // of the window in the last frame drawn
-		ImVec2                   windowSize{};
-		bool                     userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
-		unsigned                 session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
-		bool                     previewOn = false;    // Live Preview is on
-		bool                     previewBusy = false;  // a Live Preview tick waits for its SKSE task
-		bool                     frozeGame = false;    // the window froze the game (Live Preview off), so Close unfreezes it
-		int                      viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
-		float                    viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
-		float                    viewDragY = 0.0f;
+		OutfitBrowser::State     situationBrowser;       // Manage Situations' outfit list
+		SituationForm            situationForm;
+		std::string              situationsTitle;  // "#{Name}'s Situational Outfits"
+		// Set while the unsaved-changes alert is open, and while its Save Changes saves.
+		std::optional<PendingLeave> leave;
+		bool                        leaveAfterSave = false;  // the alert's Save Changes is saving: the leave follows a save that took
+		bool                        openLeave = false;       // open the alert on the next frame, in the page's ID scope
+		int                         recentreFrames = 0;      // frames left to pin the window to its place
+		std::optional<ImVec2>       placeCentre;             // where a pinned window's centre goes; none for the start place
+		ImVec2                      windowPos{};             // of the window in the last frame drawn
+		ImVec2                      windowSize{};
+		bool                        userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
+		unsigned                    session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
+		bool                        previewOn = false;    // Live Preview is on
+		bool                        previewBusy = false;  // a Live Preview tick waits for its SKSE task
+		bool                        frozeGame = false;    // the window froze the game (Live Preview off), so Close unfreezes it
+		int                         viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
+		float                       viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
+		float                       viewDragY = 0.0f;
 	};
 
 	// The piece list a page shows (DrawPieceRows): the Inventory page's ticks with the
@@ -235,6 +286,7 @@ namespace CaptureWindow::Internal
 	void                                 GoToPage(State& a_state, Page a_page);
 	std::vector<std::size_t>             TickedPieces(const State& a_state);
 	const CaptureWindow::ExistingOutfit& OutfitAt(const State& a_state, int a_index);
+	int                                  IndexOfOutfit(const State& a_state, std::uint32_t a_id);
 	bool                                 HasPiece(const CaptureWindow::ExistingOutfit& a_outfit, std::size_t a_piece);
 	void                                 QueuePreview(const State& a_state, std::vector<std::size_t> a_pieces);
 	void                                 PreviewOutfitOrTicks(const State& a_state, int a_outfit);
@@ -272,6 +324,27 @@ namespace CaptureWindow::Internal
 	// the taken ones `Town: "B" replaces "A"` (`a_name` is the outfit's name).
 	void DrawRowChangeLines(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, const std::string& a_name);
 
+	// Leaving a page: Exit, Escape or a tab. With unsaved edits (Manage Wardrobe, Manage
+	// Situations) the page first shows the unsaved-changes alert (kLeavePopup); else it goes.
+	void RequestLeave(State& a_state, PendingLeave a_leave);
+	// Goes without asking: closes the window, or switches to the tab's page, which keeps every
+	// page's ticks and edits; the preview shows Manage Wardrobe's selected outfit as edited
+	// there, the Inventory page's ticks on the other tabs.
+	void Leave(State& a_state, const PendingLeave& a_leave);
+
+	enum class LeaveChoice
+	{
+		kNone,
+		kSave,
+		kDiscard,
+		kBack
+	};
+
+	// The unsaved-changes alert: `a_text`, then Save Changes (greyed with `a_noSave`, which shows
+	// on hover), Discard Changes and Back. Back and Escape forget the leave; the page acts on
+	// the other two.
+	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave);
+
 	// --- Pages (OutfitPages.cpp) ----------------------------------------------
 
 	void DrawLoadPage(State& a_state);
@@ -279,14 +352,32 @@ namespace CaptureWindow::Internal
 	void DrawManagePage(State& a_state);
 	void DrawEditPage(State& a_state);
 
-	// The tab column's switches: to Manage Wardrobe from the Inventory page, and back, which
-	// first shows the Unsaved changes notice while the selected outfit has unsaved edits.
-	void EnterManagePage(State& a_state);
-	void LeaveManagePage(State& a_state);
+	// Manage Wardrobe's selected outfit differs from the library, or its rows from the actor's.
+	bool HasManageEdits(const State& a_state);
 
 	// Starts Manage Wardrobe' edits of outfit `a_index` (-1 for none) from the library,
 	// without touching the preview.
 	void FillManageForm(State& a_state, int a_index);
+
+	struct BrowserControls
+	{
+		bool  escapeTaken = false;  // Escape cleared the search, so it is not also Back
+		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
+	};
+
+	// The outfit list's search (and Filter, while kShowFilter) at the top of its column.
+	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser);
+
+	// The outfit list under the browser (`a_reserved` is its height). Returns the index into
+	// request.existingOutfits of the outfit clicked, or -1. `a_draggable`: Manage Situations'
+	// list, whose rows have a grip and drag a copy of their outfit, and whose clicks select
+	// nothing.
+	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable = false);
+
+	// One outfit of a list, `a_index` into request.existingOutfits, with its tags and marks;
+	// `a_grip` draws the drag grip. Returns true when clicked.
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped,
+		bool a_grip = false);
 
 	// The form fields Manage Wardrobe and the Save page share: a multi-choice dropdown over
 	// `a_ticked` (one per request.categories, kClassGroup's used) under the Category label,
@@ -296,4 +387,20 @@ namespace CaptureWindow::Internal
 	// greyed.
 	void DrawCategoryDropdown(const State& a_state, bool* a_ticked);
 	bool DrawRowsDropdown(const State& a_state, const char* a_label, bool* a_ticked);
+
+	// --- Manage Situations (SituationPage.cpp) --------------------------------
+
+	void DrawSituationPage(State& a_state);
+
+	// Starts Manage Situations' edits from the request: each situation's name, description
+	// and row, and the Default's pieces. The selected situation and the folded headings follow
+	// their situations from `a_before`, the request's situations the edits were made for;
+	// none for a situation gone.
+	void FillSituationForm(State& a_state, const std::vector<CaptureWindow::SituationInfo>& a_before);
+
+	// A situation's name or description differs from situations.json, or a row from the actor's.
+	bool HasSituationEdits(const State& a_state);
+
+	// Drags the outfit row just laid out, carrying `a_payload`, with `a_label` beside the cursor.
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label);
 }

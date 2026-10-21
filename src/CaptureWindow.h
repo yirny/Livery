@@ -23,6 +23,8 @@ namespace RE
 // assignments: the Save page's Create and Update hand the outfit and the rows to
 // change to Request::onSave, Manage Wardrobe's Update (with the rows to change) and Remove
 // the outfit to Request::onManageUpdate and onManageRemove and its Apply to onManageApply,
+// Manage Situations' Save Changes, Remove Situation and Restore Presets go to
+// Request::onSituationsSave, onSituationRemove and onRestorePresets,
 // Apply and Restore Outfit go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
@@ -107,6 +109,42 @@ namespace CaptureWindow
 		bool            pieces = false;  // the Default only: it has armor not in the wardrobe, worn while the row wears no outfit
 	};
 
+	// A row of Request::assigned: the Default or a situation not removed, as situations.json
+	// has it (docs/situation-management-ui.md §2).
+	struct SituationInfo
+	{
+		Situations::Situation situation = Situations::Situation::kDefault;  // its key, which the handlers take
+		std::string           name;
+		std::string           description;  // "" for none
+		std::string           conditions;   // when it applies, shown read only on Manage Situations
+		// Who has outfits on its list in this save, one line each, for Remove Situation's popup:
+		// "Lydia: 2 outfit(s)", the actor's FormID when not in memory. Empty for the Default.
+		std::vector<std::string> holders;
+	};
+
+	// A situation's name and description as Manage Situations leaves them.
+	struct SituationEdit
+	{
+		Situations::Situation situation = Situations::Situation::kDefault;
+		std::string           name;         // trimmed, non-empty
+		std::string           description;  // trimmed, maybe empty
+	};
+
+	// One of the actor's rows as Manage Situations leaves it.
+	struct RowEdit
+	{
+		Situations::Situation situation = Situations::Situation::kDefault;
+		OutfitRows::Row       row;
+	};
+
+	// What Manage Situations' Save Changes hands over.
+	struct SituationSave
+	{
+		std::vector<SituationEdit> edits;                      // the situations whose name or description changed; empty for none
+		std::vector<RowEdit>       rows;                       // every row of Request::assigned when any changed, else empty
+		bool                       dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
+	};
+
 	// What the Save page hands over: the outfit to write, then the rows of "wears it for"
 	// (indices into Request::assigned) to change for the actor.
 	struct SaveRequest
@@ -137,8 +175,9 @@ namespace CaptureWindow
 		std::vector<CategoryOption> categories;
 		std::vector<ExistingOutfit> existingOutfits;       // listed on the Load page and the Update tab's selection, in display order
 		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
-		std::vector<std::string>    situations;            // the rows of "wears it for" after Default
-		std::vector<RowAssignment>  assigned;              // one per row: Default, then `situations`
+		std::vector<SituationInfo>  situations;            // one per row of `assigned`: the Default, then the situations not removed
+		std::vector<RowAssignment>  assigned;              // one per row, in `situations`' order
+		std::vector<std::string>    restoreChanges;        // what Restore Presets would change, one line each; empty while every preset is as installed
 		// Apply moves PieceGroup::kPlayer pieces to the NPC; off, the NPC gets copies.
 		bool movesFromPlayer = true;
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
@@ -182,6 +221,16 @@ namespace CaptureWindow
 		// it becomes their Default. It must end by calling Close() or SetError(). Empty greys
 		// the button.
 		std::function<void(std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)> onManageApply;
+
+		// Run on the game thread from Manage Situations (docs/situation-management-ui.md §5, §6):
+		// onSituationsSave with Save Changes' edits, onSituationRemove with the situation Remove
+		// Situation's popup confirmed, onRestorePresets after Restore Presets' popup. Each writes
+		// situations.json first, when it has anything to write, and a refused or failed write
+		// changes no row; each must end by calling SetOutfits() or SetError(). Empty greys the
+		// button.
+		std::function<void(const SituationSave& save)>       onSituationsSave;
+		std::function<void(Situations::Situation situation)> onSituationRemove;
+		std::function<void()>                                onRestorePresets;
 
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns
@@ -234,6 +283,8 @@ namespace CaptureWindow
 		std::vector<ExistingOutfit> existingOutfits;  // indices into Request::pieces as the window has them
 		std::vector<CategoryOption> categories;
 		std::vector<RowAssignment>  assigned;
+		std::vector<SituationInfo>  situations;
+		std::vector<std::string>    restoreChanges;
 		std::string                 actorSummary;
 		// Set when the change redressed the captured actor with Live Preview on, whose preview
 		// the handler began again; the Inventory page then follows what they wear.
@@ -245,12 +296,16 @@ namespace CaptureWindow
 	void SetError(const std::string& message);
 	bool IsOpen();
 
-	// Ends a Manage Wardrobe change the library or the actor's rows took: the window shows
-	// `list` and lets the user edit again. The pages' selections, the loaded outfit and the
-	// Update tab's outfit are found again by id (none when gone, the Update tab then left),
+	// Ends a Manage Wardrobe or Manage Situations change the library, situations.json or the
+	// actor's rows took: the window shows `list` and lets the user edit again. The pages'
+	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
+	// when gone, the Update tab then left), the rows' ticks of the Save page and Manage
+	// Wardrobe follow their situations (a removed one's go, a restored one's start unticked),
 	// the Update tab's "wears it for" ticks follow the rows that changed for its outfit, each
 	// list keeps its search, sort and folded headings, the Inventory page drops ticks on
-	// pieces it no longer lists, and Manage Wardrobe's edits start again from the library, or
+	// pieces it no longer lists, Manage Situations' edits start again from the rows and the
+	// situations (its selected situation and folded headings found again by key), and Manage
+	// Wardrobe's edits start again from the library, or
 	// the preview shows the Inventory page's ticks when its outfit is gone. The heading of the pieces Livery put on
 	// from Request::wornOutfit takes the outfit's name now; when the outfit is gone they
 	// join the other worn pieces and Apply no longer offers to update it.

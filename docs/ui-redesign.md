@@ -96,11 +96,11 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   Default is what #{Name} wears wherever no situation applies."
 - Replace confirm: when a ticked row already wears another outfit (random off, §7), one
   modal lists them (`Town: "B" replaces "A"`) with `Confirm` / `Cancel`; the replaced outfit
-  stays on the row's list, hidden (docs/situation-management-ui.md §1).
+  leaves the row's list (docs/situation-management-ui.md §1).
 - Update tab: the ticks start from this actor's assignments of the outfit; unticking removes
   the assignment, Default included (a clear-default API: the worn default comes off, its
   situations stay). Update always replaces the outfit's pieces with the ticks: a pure
-  assignment edit is the Situation Management window's job. The confirm popup stays and adds
+  assignment edit is Manage Situations' job. The confirm popup stays and adds
   lines for a rename, a gender change and the assignment changes (`Home: removed`,
   `Default: added`).
 - Order: the library write; on failure `SetError` and nothing assigned; on success Close (the

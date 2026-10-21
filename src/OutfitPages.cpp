@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // The capture window's outfit pages (see CaptureWindow.cpp for the window and the
-// Inventory and Save pages, CaptureWindowInternal.h for the state they share).
+// Inventory and Save pages, SituationPage.cpp for Manage Situations, CaptureWindowInternal.h
+// for the state they share).
 //
 // FILE MAP
 //   Outfit browser - Search (and Filter, hidden by kShowFilter), above an outfit page's
@@ -11,7 +12,8 @@
 //                  click folds their outfits away) and each outfit's tags (off with Show
 //                  Categories under it), the selected
 //                  outfit's name (or a hint while none is) and its piece list, which
-//                  the outfit pages share;
+//                  the outfit pages and Manage Situations share (there each row has a grip
+//                  and drags a copy of its outfit);
 //                  on the Load and Select pages the selected outfit is on the preview,
 //                  and a second click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
@@ -28,9 +30,9 @@
 //                  onManageUpdate, Remove names who has the outfit (Remove outfit?) and hands
 //                  it to onManageRemove, Apply to #{Name} dresses the actor for the ticked
 //                  rows (Apply outfit? first when it saves edits, takes over a row or replaces
-//                  a Default) through onManageApply or onManageUpdate; Exit closes the window,
-//                  with unsaved edits after Discard changes and exit / Back; the Unsaved
-//                  changes notice (OK / Back) on leaving for the Inventory tab
+//                  a Default) through onManageApply or onManageUpdate; Exit closes the window;
+//                  Exit, Escape or another tab with unsaved edits shows the unsaved-changes
+//                  alert, whose Save Changes goes through Update's popup
 //   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks
 //                  and Live Preview; Use Ticked Pieces makes them the edited pieces, Back
 //                  leaves them; nothing is written
@@ -146,12 +148,6 @@ namespace CaptureWindow::Internal
 		ImGui::EndDisabled();
 	}
 
-	struct BrowserControls
-	{
-		bool  escapeTaken = false;  // Escape cleared the search, so it is not also Back
-		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
-	};
-
 	// Search over Filter (while kShowFilter), in the small font, with no labels, at the top
 	// of the outfit list's column; refreshes the list only when one of them changed.
 	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser)
@@ -256,7 +252,7 @@ namespace CaptureWindow::Internal
 	// at its right end the marks of the outfit the actor wears now or has as their Default and
 	// of one chosen for a situation (Theme::OutfitMarks); `a_striped` for every second row
 	// under a heading.
-	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped)
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped, bool a_grip)
 	{
 		const auto&                    outfit = OutfitAt(a_state, a_index);
 		const auto&                    situations = a_browser.situations[static_cast<std::size_t>(a_index)];
@@ -266,7 +262,7 @@ namespace CaptureWindow::Internal
 		const std::vector<std::string> none;
 		const auto&                    tags = a_state.showCategories ? a_browser.tags[static_cast<std::size_t>(a_index)] : none;
 		const int                      gender = a_state.showCategories ? outfit.gender : -1;  // the gender is a tag too
-		return Theme::OutfitRow(outfit.name.c_str(), gender, tags, a_tagsWidth, a_selected, marks, a_striped);
+		return Theme::OutfitRow(outfit.name.c_str(), gender, tags, a_tagsWidth, a_selected, marks, a_striped, a_grip);
 	}
 
 	// Left column of the outfit pages: the wardrobe's outfits that pass the
@@ -276,9 +272,10 @@ namespace CaptureWindow::Internal
 	// list stays as tall as the whole wardrobe, so narrowing or folding it does
 	// not move the buttons; `a_reserved` is the browser's height (ListHeight).
 	// Returns the index into request.existingOutfits of the one clicked, or -1;
-	// a click plays the focus sound.
+	// a click plays the focus sound. `a_draggable` (Manage Situations): each row has a grip
+	// and drags a copy of its outfit, and a click selects nothing.
 	// Names are shown as they are (Theme::SelectRow).
-	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved)
+	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto& visible = a_browser.visible;
@@ -291,7 +288,7 @@ namespace CaptureWindow::Internal
 		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
 		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-		const float tagsWidth = Theme::OutfitTagsWidth();
+		const float tagsWidth = Theme::OutfitTagsWidth(a_draggable);
 		// Show Categories, under the list, takes a frame's height too.
 		const float listHeight = OutfitListHeight(a_state, a_browser, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
 		int         clicked = -1;
@@ -318,8 +315,12 @@ namespace CaptureWindow::Internal
 					continue;
 				}
 				ImGui::PushID(index);
-				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1)) {
+				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1, a_draggable) && !a_draggable) {
 					clicked = index;
+				}
+				if (a_draggable) {
+					const auto& outfit = OutfitAt(a_state, index);
+					OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str());
 				}
 				ImGui::PopID();
 			}
@@ -622,40 +623,15 @@ namespace CaptureWindow::Internal
 	}
 
 	// Anything Update would save: library edits or row edits.
-	bool HasUnsavedEdits(const State& a_state)
+	bool HasManageEdits(const State& a_state)
 	{
 		return a_state.manage.outfit >= 0 && (HasLibraryEdits(a_state) || HasRowEdits(a_state));
 	}
 
-	// The line every unsaved-edits popup shows. Contract: an outfit is selected.
+	// The line every unsaved-edits popup shows; "" with no outfit selected.
 	std::string UnsavedText(const State& a_state)
 	{
-		return std::format("You have unsaved changes for \"{}\".", OutfitAt(a_state, a_state.manage.outfit).name);
-	}
-
-	void ShowInventoryPage(State& a_state)
-	{
-		if (a_state.manage.outfit >= 0) {
-			QueuePreview(a_state, TickedPieces(a_state));
-		}
-		GoToPage(a_state, Page::kCapture);
-	}
-
-	void EnterManagePage(State& a_state)
-	{
-		if (a_state.manage.outfit >= 0) {
-			QueuePreview(a_state, a_state.manage.pieces);
-		}
-		GoToPage(a_state, Page::kManage);
-	}
-
-	void LeaveManagePage(State& a_state)
-	{
-		if (HasUnsavedEdits(a_state)) {
-			a_state.openUnsaved = true;  // DrawManagePage opens it in its own ID scope
-			return;
-		}
-		ShowInventoryPage(a_state);
+		return a_state.manage.outfit >= 0 ? std::format("You have unsaved changes for \"{}\".", OutfitAt(a_state, a_state.manage.outfit).name) : std::string{};
 	}
 
 	void DrawCategoryDropdown(const State& a_state, bool* a_ticked)
@@ -781,19 +757,23 @@ namespace CaptureWindow::Internal
 		return HasLibraryEdits(a_state) && Trimmed(form.name.data()).empty() ? kNeedName : nullptr;
 	}
 
+	// Why Update is greyed, or nullptr: it needs unsaved edits and a name.
+	const char* UpdateReason(const State& a_state)
+	{
+		if (!HasManageEdits(a_state)) {
+			return a_state.manage.outfit < 0 ? kNeedOutfit : kNoChanges;
+		}
+		return Trimmed(a_state.manage.name.data()).empty() ? kNeedName : nullptr;
+	}
+
 	// Update / Remove / Apply to #{Name} / Exit centred below a gap. Update needs
-	// Request::onManageUpdate, unsaved edits and a name; Remove needs Request::onManageRemove
+	// Request::onManageUpdate (UpdateReason); Remove needs Request::onManageRemove
 	// and a selected outfit; Apply needs Request::onManageApply (ApplyReason), and says what
 	// it dresses the actor for on hover. a_escapeTaken: the browser used this frame's
 	// Escape, which is otherwise Exit.
 	ManageAction DrawManageButtons(const State& a_state, bool a_escapeTaken)
 	{
-		const char* noUpdate = nullptr;
-		if (!HasUnsavedEdits(a_state)) {
-			noUpdate = a_state.manage.outfit < 0 ? kNeedOutfit : kNoChanges;
-		} else if (Trimmed(a_state.manage.name.data()).empty()) {
-			noUpdate = kNeedName;
-		}
+		const char* noUpdate = UpdateReason(a_state);
 		const char* apply = a_state.manageApplyLabel.c_str();
 		const auto  applyTooltip = a_state.manage.outfit >= 0 ? std::format("Dress {} in this outfit {}.", a_state.request.actorName, ApplyTarget(a_state)) : std::string{};
 		BeginButtonRow({ "Update", "Remove", apply, "Exit" });
@@ -892,8 +872,9 @@ namespace CaptureWindow::Internal
 
 	// Update's popup: `Save your changes to "X"?`, the library and row changes (a ticked row
 	// whose worn outfit it replaces reads `Town: "B" replaces "A"`), then Confirm / Cancel.
-	// Returns true on Confirm.
-	bool DrawManageConfirmPopup(const State& a_state)
+	// Returns true on Confirm. Cancel also calls off the leave the unsaved-changes alert's
+	// Save Changes opened it for.
+	bool DrawManageConfirmPopup(State& a_state)
 	{
 		if (!BeginModal(kManageConfirmPopup)) {
 			return false;
@@ -915,6 +896,9 @@ namespace CaptureWindow::Internal
 		if (confirm || cancel) {
 			QueueMenuSound(confirm ? kOkSound : kCancelSound);
 			ImGui::CloseCurrentPopup();
+		}
+		if (cancel) {
+			a_state.leave.reset();
 		}
 		ImGui::EndPopup();
 		return confirm;
@@ -1060,11 +1044,14 @@ namespace CaptureWindow::Internal
 			[onApply, id, assign = ApplyRows(a_state), remove = RemovedRows(a_state, form.wearsFor.get(), id)] { onApply(id, assign, remove); });
 	}
 
-	// The page's popups, each opened by the page in its own ID scope.
+	// The page's popups, each opened by the page in its own ID scope. The unsaved-changes
+	// alert's Save Changes saves through Update's popup, whose Confirm the leave follows
+	// once the save took (Draw); Discard Changes starts the edits again from the library.
 	void DrawManagePopups(State& a_state)
 	{
 		if (DrawManageConfirmPopup(a_state)) {
 			RequestManageUpdate(a_state, false);
+			a_state.leaveAfterSave = a_state.leave.has_value();
 		}
 		if (DrawManageApplyPopup(a_state)) {
 			RequestManageApply(a_state);
@@ -1075,21 +1062,27 @@ namespace CaptureWindow::Internal
 		if (DrawUnsavedPopup(a_state, kDiscardPopup, "Discard changes", "Keep editing") == UnsavedChoice::kFirst) {
 			SelectManaged(a_state, a_state.discardFor);
 		}
-		if (DrawUnsavedPopup(a_state, kDiscardExitPopup, "Discard changes and exit", "Back") == UnsavedChoice::kFirst) {
-			RequestCancel();
-		}
-		if (DrawUnsavedPopup(a_state, kUnsavedPopup, "OK", "Back") == UnsavedChoice::kFirst) {
-			ShowInventoryPage(a_state);
+		switch (DrawLeavePopup(a_state, UnsavedText(a_state), UpdateReason(a_state))) {
+		case LeaveChoice::kSave:
+			ImGui::OpenPopup(kManageConfirmPopup);
+			break;
+		case LeaveChoice::kDiscard:
+			FillManageForm(a_state, a_state.manage.outfit);
+			Leave(a_state, *std::exchange(a_state.leave, std::nullopt));
+			break;
+		case LeaveChoice::kBack:
+		case LeaveChoice::kNone:
+			break;
 		}
 	}
 
 	// Selecting an outfit starts its edits and shows it on the preview; a second click on
-	// it deselects it. Either asks first while the selected one has unsaved edits, as Exit
-	// does. Apply asks when it has anything to say (ApplyNeedsConfirm), else dresses at once.
+	// it deselects it. Either asks first while the selected one has unsaved edits. Apply asks
+	// when it has anything to say (ApplyNeedsConfirm), else dresses at once.
 	void DrawManagePage(State& a_state)
 	{
-		if (std::exchange(a_state.openUnsaved, false)) {
-			ImGui::OpenPopup(kUnsavedPopup);
+		if (std::exchange(a_state.openLeave, false)) {
+			ImGui::OpenPopup(kLeavePopup);
 		}
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		BrowserControls controls;
@@ -1113,7 +1106,7 @@ namespace CaptureWindow::Internal
 
 		if (clicked >= 0) {
 			const int target = clicked == a_state.manage.outfit ? -1 : clicked;
-			if (HasUnsavedEdits(a_state)) {
+			if (HasManageEdits(a_state)) {
 				a_state.discardFor = target;
 				ImGui::OpenPopup(kDiscardPopup);
 			} else {
@@ -1138,12 +1131,7 @@ namespace CaptureWindow::Internal
 				RequestManageApply(a_state);
 			}
 		} else if (action == ManageAction::kCancel) {
-			if (HasUnsavedEdits(a_state)) {
-				ImGui::OpenPopup(kDiscardExitPopup);
-			} else {
-				QueueMenuSound(kCancelSound);
-				RequestCancel();
-			}
+			RequestLeave(a_state, { .exit = true });
 		}
 		DrawManagePopups(a_state);
 	}

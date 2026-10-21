@@ -104,6 +104,7 @@ else()
         src/Plugin.cpp
         src/PreviewCamera.cpp
         src/Settings.cpp
+        src/SituationPage.cpp
         src/SituationStore.cpp
         src/Situations.cpp
         src/Theme.cpp

@@ -86,6 +86,15 @@ TEST_CASE("Parse replaces the presets' fields an entry has", "[situations]")
 	CHECK(table == SituationTable::Presets());
 }
 
+TEST_CASE("Parse reads an empty file as no file: the presets", "[situations]")
+{
+	SituationTable::Table table;
+	REQUIRE_FALSE(SituationTable::Parse("", table));
+	CHECK(table == SituationTable::Presets());
+	REQUIRE_FALSE(SituationTable::Parse(" \r\n\t\n", table));
+	CHECK(table == SituationTable::Presets());
+}
+
 TEST_CASE("Parse refuses the whole file for an unknown key and leaves the presets", "[situations]")
 {
 	SituationTable::Table table;

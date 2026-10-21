@@ -42,9 +42,9 @@ namespace Library
 		std::vector<PieceRef>    pieces;       // never empty
 	};
 
-	// Reads the file. A missing file is an empty library. A file that cannot be read, or
-	// that a newer version wrote, leaves the library empty and refuses every change, so
-	// the file is never overwritten. The class names of older files ("Light Armor", "Heavy
+	// Reads the file. A missing or empty file (nothing but whitespace) is an empty library. A
+	// file that cannot be read, or that a newer version wrote, leaves the library empty and
+	// refuses every change, so the file is never overwritten. The class names of older files ("Light Armor", "Heavy
 	// Armor") are read as today's, and Jewelry, no longer a category, is dropped; the file is
 	// not written here.
 	void Load();

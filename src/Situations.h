@@ -59,6 +59,26 @@ namespace Situations
 		}
 	}
 
+	// When the situation applies, in the README's words; the Default's says where it is worn.
+	// Manage Situations shows it read only, until conditions can be edited (docs/design.md §8).
+	constexpr const char* ConditionsText(Situation a_situation) noexcept
+	{
+		switch (a_situation) {
+		case Situation::kTown:
+			return "A city, town, settlement, inn or other inhabited interior.";
+		case Situation::kHome:
+			return "A house.";
+		case Situation::kSleep:
+			return "Going to bed, in it or getting up.";
+		case Situation::kSwimming:
+			return "In water; on horseback only swimming counts, not wading.";
+		case Situation::kWarm:
+			return "Outdoors in cloudy, rainy or snowy weather, or anywhere outdoors in a snowy region.";
+		default:
+			return "Worn where no other situation applies.";
+		}
+	}
+
 	// The situations an actor is in now, the most specific first: the first one they have
 	// an outfit for is the one worn (Assignments). Empty in combat, and anywhere none
 	// applies.

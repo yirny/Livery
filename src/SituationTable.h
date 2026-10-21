@@ -172,13 +172,17 @@ namespace SituationTable
 	}
 
 	// Reads situations.json's text into `a_table`, from the presets: an entry replaces the
-	// fields it has of its situation's preset. All or nothing: one entry this version cannot
+	// fields it has of its situation's preset. An empty file (nothing but whitespace) is read
+	// as no file: the presets. All or nothing otherwise: one entry this version cannot
 	// read (an unknown key, a field of another type) or a name rule broken (CheckNames)
 	// makes the whole file unusable, so a rewrite never drops what this version could not
 	// read; `a_table` is then the presets. Returns why, as a sentence, or nullopt.
 	inline std::optional<std::string> Parse(std::string_view a_text, Table& a_table)
 	{
 		a_table = Presets();
+		if (ExampleMod::TrimWhitespace(a_text).empty()) {
+			return std::nullopt;
+		}
 		const auto                 json = nlohmann::json::parse(a_text, nullptr, false);
 		std::optional<std::string> problem;
 		if (json.is_discarded()) {

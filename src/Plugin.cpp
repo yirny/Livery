@@ -24,7 +24,13 @@
 //                    situation out of it: the captured actor at once with the preview on, the
 //                    others at the window's close or, out of reach, when they load; both hand
 //                    the window the rebuilt list (CaptureWindow::SetOutfits), with the captured
-//                    actor's pieces as they are after a redress with the preview on
+//                    actor's pieces as they are after a redress with the preview on;
+//                    Manage Situations' Save Changes writes the situations' names and
+//                    descriptions (SituationStore), then the captured actor's rows
+//                    (Assignments::SetRows) and redresses them as Update does; Remove
+//                    Situation writes situations.json, clears the situation's rows
+//                    (Assignments::ForgetSituation) and takes those wearing it out of it as
+//                    Remove does; Restore Presets writes situations.json
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
 //   Messaging      - situation data and outfit library, settings page, sink and menu registration,
 //                    ready state, the situation poll (Situations) around loads
@@ -525,6 +531,15 @@ namespace
 		return armors.size() - 1;
 	}
 
+	// An actor as the window's Remove popups name them: their name, or their FormID when not
+	// in memory. Contract: game thread.
+	std::string ActorLabel(RE::FormID id)
+	{
+		auto*       actor = RE::TESForm::LookupByID<RE::Actor>(id);
+		const auto* name = actor ? actor->GetDisplayFullName() : nullptr;
+		return name && *name ? name : std::format("{:08X}", id);
+	}
+
 	// Who has library outfit `id` among Livery's assignments, one line each for Remove's
 	// popup: "Lydia: Default, Town", the FormID of an actor not in memory.
 	// Contract: game thread.
@@ -532,15 +547,44 @@ namespace
 	{
 		std::vector<std::string> lines;
 		for (const auto& use : Assignments::UsesOf(id)) {
-			auto*       actor = RE::TESForm::LookupByID<RE::Actor>(use.actor);
-			const auto* name = actor ? actor->GetDisplayFullName() : nullptr;
-			std::string line = name && *name ? name : std::format("{:08X}", use.actor);
+			std::string line = ActorLabel(use.actor);
 			for (std::size_t i = 0; i < use.rows.size(); ++i) {
 				line += std::format("{}{}", i == 0 ? ": " : ", ", SituationStore::Name(use.rows[i]));
 			}
 			lines.push_back(std::move(line));
 		}
 		return lines;
+	}
+
+	// Who has outfits on the situation's list among Livery's assignments, one line each for
+	// Remove Situation's popup: "Lydia: 2 outfit(s)". Contract: game thread.
+	std::vector<std::string> HolderLines(Situations::Situation situation)
+	{
+		std::vector<std::string> lines;
+		for (const auto& holder : Assignments::HoldersOf(situation)) {
+			lines.push_back(std::format("{}: {} outfit(s)", ActorLabel(holder.actor), holder.outfits));
+		}
+		return lines;
+	}
+
+	// The window's rows (Request::situations): the Default, then the situations not removed
+	// (SituationStore::Offered), each with its name, description, conditions and who has
+	// outfits on it. Contract: game thread.
+	std::vector<CaptureWindow::SituationInfo> SituationInfos()
+	{
+		std::vector<CaptureWindow::SituationInfo> infos;
+		const auto                                add = [&infos](Situations::Situation situation, std::vector<std::string> holders) {
+			infos.push_back({ .situation = situation,
+				.name = SituationStore::Name(situation),
+				.description = SituationStore::Description(situation),
+				.conditions = Situations::ConditionsText(situation),
+				.holders = std::move(holders) });
+		};
+		add(Situations::Situation::kDefault, {});
+		for (const auto situation : SituationStore::Offered()) {
+			add(situation, HolderLines(situation));
+		}
+		return infos;
 	}
 
 	// The library's outfits in case-insensitive name order, each with its stored
@@ -742,9 +786,7 @@ namespace
 	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
 		const std::optional<Assignments::Choices>& choices)
 	{
-		for (const auto situation : SituationStore::Offered()) {
-			request.situations.push_back(SituationStore::Name(situation));
-		}
+		request.situations = SituationInfos();
 		request.assigned = AssignedRows(choices);
 		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
 			const auto picked = PickPieces(armors, save.pieces);
@@ -781,10 +823,15 @@ namespace
 		// Rows Manage Wardrobe's Update changed for them, made and dressed for at the redress
 		// (Assignments::Change).
 		std::optional<Assignments::Changes> change;
+		// Manage Situations saved their rows (Assignments::SetRows): dressed for anew
+		// (Assignments::Refresh), the row they wear wearing `pick` when it gained one.
+		bool          refresh = false;
+		std::uint32_t pick = 0;
 
 		friend bool operator==(const PendingRedress& a_left, const PendingRedress& a_right)
 		{
-			return a_left.actor == a_right.actor && a_left.updated == a_right.updated && a_left.change.has_value() == a_right.change.has_value();
+			return a_left.actor == a_right.actor && a_left.updated == a_right.updated && a_left.change.has_value() == a_right.change.has_value() &&
+			       a_left.refresh == a_right.refresh;
 		}
 	};
 
@@ -819,10 +866,13 @@ namespace
 	// before that load closes the window.
 	std::vector<PendingRedress> g_redressAtClose;
 
+	// A later save's pick wins over an earlier one queued for the same refresh.
 	void QueueRedress(const PendingRedress& redress)
 	{
-		if (std::ranges::find(g_redressAtClose, redress) == g_redressAtClose.end()) {
+		if (const auto found = std::ranges::find(g_redressAtClose, redress); found == g_redressAtClose.end()) {
 			g_redressAtClose.push_back(redress);
+		} else if (redress.pick != 0) {
+			found->pick = redress.pick;
 		}
 	}
 
@@ -845,12 +895,15 @@ namespace
 
 	// An updated outfit as RedressFor puts it on; a situation outfit gone from the library
 	// gives way to what applies now: another situation's outfit, or the default; changed
-	// rows are made and dressed for (Assignments::Change).
+	// rows are made and dressed for (Assignments::Change); rows Manage Situations saved are
+	// dressed for (Assignments::Refresh).
 	// Contract: game thread; no preview is on.
 	void RunRedress(RE::Actor& actor, const PendingRedress& redress)
 	{
 		if (redress.change) {
 			Assignments::Change(actor, *redress.change);
+		} else if (redress.refresh) {
+			Assignments::Refresh(actor, {}, redress.pick);
 		} else if (redress.updated != 0) {
 			RedressFor(actor, redress.updated);
 		} else {
@@ -925,7 +978,7 @@ namespace
 	{
 		for (const auto& redress : std::exchange(g_redressAtClose, {})) {
 			auto* actor = RE::TESForm::LookupByID<RE::Actor>(redress.actor);
-			if (!actor || (redress.updated == 0 && !redress.change && (!actor->Is3DLoaded() || actor->IsDead()))) {
+			if (!actor || (redress.updated == 0 && !redress.change && !redress.refresh && (!actor->Is3DLoaded() || actor->IsDead()))) {
 				continue;
 			}
 			RunRedress(*actor, redress);
@@ -937,7 +990,11 @@ namespace
 	CaptureWindow::OutfitList CurrentOutfitList(RE::FormID actorID, const std::vector<RE::TESObjectARMO*>& armors)
 	{
 		const auto                choices = Assignments::ChoicesOf(actorID);
-		CaptureWindow::OutfitList list{ .existingOutfits = RebuiltOutfits(armors), .categories = CategoryGroups(), .assigned = AssignedRows(choices) };
+		CaptureWindow::OutfitList list{ .existingOutfits = RebuiltOutfits(armors),
+			.categories = CategoryGroups(),
+			.assigned = AssignedRows(choices),
+			.situations = SituationInfos(),
+			.restoreChanges = SituationStore::RestoreChanges() };
 		if (choices) {
 			list.actorSummary = DescribeAssignment(*choices);
 		}
@@ -1032,6 +1089,92 @@ namespace
 		};
 	}
 
+	// The actor's rows with Manage Situations' rows put in, by situation.
+	// Contract: game thread.
+	OutfitRows::Rows RowsWith(RE::FormID actorID, const std::vector<CaptureWindow::RowEdit>& edits)
+	{
+		const auto       choices = Assignments::ChoicesOf(actorID);
+		OutfitRows::Rows rows = choices ? choices->rows : OutfitRows::Rows{};
+		for (const auto& [situation, row] : edits) {
+			rows[OutfitRows::RowOf(situation)] = row;
+		}
+		return rows;
+	}
+
+	// Manage Situations' Save Changes, Remove Situation and Restore Presets. Each writes
+	// situations.json first; a refused or failed write changes no row and redresses no one
+	// (CLAUDE.md §2.1). Then the captured actor's rows change and the actors are redressed
+	// (RedressCaptured, QueueRedress), and the window, still open, shows the situations and
+	// the rows as they are now.
+	// Contract: game thread; `armors` matches request.pieces index for index.
+	void AttachSituations(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<RE::TESObjectARMO*>& offered)
+	{
+		const auto handle = actor.GetHandle();
+		const auto actorID = actor.GetFormID();
+		request.restoreChanges = SituationStore::RestoreChanges();
+		// The rows are made at once, so the window shows them, and dressed for in one Refresh:
+		// at once with Live Preview on (RedressCaptured), else at the window's close. The row
+		// they wear, when random, wears the outfit it gained first.
+		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
+			if (!save.edits.empty()) {
+				std::vector<SituationStore::Edit> edits;
+				for (const auto& [situation, name, description] : save.edits) {
+					edits.push_back({ .situation = situation, .name = name, .description = description });
+				}
+				if (const auto error = SituationStore::Apply(edits)) {
+					CaptureWindow::SetError(*error);
+					return;
+				}
+				Notify("Livery: saved the situations' names and descriptions.");
+			}
+			const auto                                target = handle.get();
+			std::optional<CaptureWindow::ActorPieces> redressed;
+			if (target && !save.rows.empty()) {
+				if (const auto pick = Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces)) {
+					redressed = RedressCaptured(*target, { .actor = actorID, .refresh = true, .pick = *pick }, armors, offered, nullptr);
+				}
+			}
+			auto list = CurrentOutfitList(actorID, armors);  // after the rows changed
+			list.actorPieces = std::move(redressed);
+			CaptureWindow::SetOutfits(std::move(list));
+		};
+		// Every row of the situation goes (Assignments::ForgetSituation), and those wearing it
+		// are taken out of it as Remove takes them out of a removed outfit.
+		request.onSituationRemove = [handle, actorID, armors, offered](Situations::Situation situation) {
+			const auto name = SituationStore::Name(situation);  // copied: Remove leaves the reference stale
+			const auto holders = Assignments::HoldersOf(situation).size();
+			if (const auto error = SituationStore::Remove(situation)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			const auto wearing = Assignments::ForgetSituation(situation);
+			Notify(holders > 0 ? std::format("Livery: removed the situation \"{}\"; cleared from {} character(s).", name, holders) :
+								 std::format("Livery: removed the situation \"{}\".", name));
+			const auto                                target = handle.get();
+			std::optional<CaptureWindow::ActorPieces> redressed;
+			for (const auto id : wearing) {
+				if (id == actorID && target) {
+					redressed = RedressCaptured(*target, { .actor = id }, armors, offered, nullptr);
+				} else {
+					QueueRedress({ .actor = id });
+				}
+			}
+			auto list = CurrentOutfitList(actorID, armors);
+			list.actorPieces = std::move(redressed);
+			CaptureWindow::SetOutfits(std::move(list));
+		};
+		// Nobody's rows change: a restored situation comes back empty in this save.
+		request.onRestorePresets = [actorID, armors] {
+			if (const auto error = SituationStore::RestorePresets()) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			Notify("Livery: restored the preset situations.");
+			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
+		};
+	}
+
 	// The player's armor under From Player's Inventory, for an NPC: the forms the NPC does
 	// not carry; the others are listed once, under the NPC's own headings. Returns the armor
 	// it added.
@@ -1092,6 +1235,7 @@ namespace
 		AttachSave(request, actor, armors, choices);
 		AttachPreview(request, actor, armors);
 		AttachManage(request, actor, armors, offered);
+		AttachSituations(request, actor, armors, offered);
 		// Every close, whatever closed the window, ends the preview, redresses the actors
 		// Manage Wardrobe left for it, lets saving back on and lets an NPC walk again.
 		request.onClose = [] {
