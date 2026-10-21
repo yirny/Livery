@@ -2015,9 +2015,9 @@ namespace Theme
 		return RightEndHelpLink(a_label, a_hovered, false, a_x);
 	}
 
-	bool LineLinkAt(const char* a_label, float a_x)
+	bool LineLink(const char* a_label)
 	{
-		return RightEndHelpLink(a_label, nullptr, false, a_x);
+		return RightEndHelpLink(a_label, nullptr, false);
 	}
 
 	// EndList left the item spacing under the list's bottom rule; a label over a list sits that
@@ -2691,13 +2691,19 @@ namespace Theme
 			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(IM_COL32(255, 255, 255, kStripeAlpha)));
 		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
+		// Vanilla's and Nordic's select arrow takes a selected draggable row's grip room, its dots
+		// hidden; Tailor's rule on the row's edge leaves them room.
+		const bool markOnGrip = a_selected && a_grip && g_skin != Theme::Skin::kTailor;
 		if (a_selected) {
 			ListRow nameLine = row;
 			nameLine.min.y = row.min.y + gap * 0.5f;
 			nameLine.max.y = nameLine.min.y + SelectRowHeight();
+			if (markOnGrip) {
+				nameLine.min.x = row.fillMin.x;
+			}
 			DrawSelectMark(draw, nameLine, textX);
 		}
-		if (a_grip) {
+		if (a_grip && !markOnGrip) {
 			DrawGrip(draw, row.fillMin.x, textY + ImGui::GetTextLineHeight() * 0.5f);
 		}
 		// The marks, right of the name on its line, in LabelText's grey; the name is cut

@@ -97,9 +97,9 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineHelpLinkAt(const char* label, float x, bool* hovered);
 
-	// LineHelpLinkAt without the "(?)": `label` alone, lit while hovered.
+	// LineHelpLink without the "(?)": `label` alone at the line's right end, lit while hovered.
 	// Contract: the label is shown as is and is the ImGui ID.
-	bool LineLinkAt(const char* label, float x);
+	bool LineLink(const char* label);
 
 	// Extra room above a field, on top of the item spacing: 6px in Tailor, 8px in Vanilla and
 	// Nordic. LabelText adds it itself, so call it only before a field that has no label.
@@ -282,7 +282,8 @@ namespace Theme
 	// row (every other one) has a faint white under its fills. With `grip`, a drag grip 4px in
 	// from the row's left edge: two columns of three dots, in LabelText's grey at low alpha
 	// (Tailor: its text colour mixed with black), and the name and tags start 12px past the
-	// dots instead. OutfitRowHeight is its height, which holds the row gap: lay rows out with
+	// dots instead; selected, Vanilla and Nordic draw the select arrow in the grip's place.
+	// OutfitRowHeight is its height, which holds the row gap: lay rows out with
 	// no item spacing, so the stripes meet.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.

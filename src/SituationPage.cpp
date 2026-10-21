@@ -11,9 +11,11 @@
 //                     or between two of its outfits) or on the outfit list (taken off its row);
 //                     a folded heading opens once a drag has hovered it a while
 //   Situation List  - the left pane: a heading per situation (a click or Edit selects, its
-//                     chevron folds) over the outfits it shows
-//   Right pane      - the outfit list, or the selected situation's details: name, description,
-//                     conditions, Random Outfit for #{Name}, Show Outfit List with Remove
+//                     chevron folds) over the outfits it shows; a click on an outfit row of
+//                     either pane shows its details and puts it on the preview
+//   Right pane      - the outfit list with what a drag does under it; the selected situation's
+//                     details: name, description, conditions, Random Outfit (for #{Name}), Show
+//                     Outfit List with Remove; or an outfit's details with Edit and Back
 //   Buttons, popups - Restore Presets (?), Save Changes, Exit; Remove's and Restore Presets'
 //                     popups and the unsaved-changes alert, each handing its write to the
 //                     Request's handler
@@ -45,6 +47,9 @@ namespace CaptureWindow::Internal
 
 		// How long a drag hovers a folded heading before it opens (seconds).
 		constexpr double kDragExpandDelay = 1.0;
+		// Room above a button row in the right pane (Show Outfit List; an outfit's Edit and Back),
+		// beyond the item spacing (pixels at 1080p).
+		constexpr float kPaneButtonGap = 12.0f;
 
 		constexpr const char* kRemoveSituationPopup = "Remove situation?";
 		constexpr const char* kRestorePresetsPopup = "Restore presets?";
@@ -199,6 +204,27 @@ namespace CaptureWindow::Internal
 
 		// --- Situation List ---------------------------------------------------
 
+		// Back from an outfit's details: the right pane shows what it showed before them, and
+		// the preview the Inventory page's ticks again.
+		void CloseOutfitView(State& a_state)
+		{
+			a_state.situationForm.viewedOutfit = 0;
+			QueuePreview(a_state, TickedPieces(a_state));
+		}
+
+		// A click on an outfit row of either pane: its details on the right and the outfit on the
+		// preview; on the outfit whose details show, back, as Back does.
+		void ViewOutfit(State& a_state, int a_index)
+		{
+			const auto& outfit = OutfitAt(a_state, a_index);
+			if (a_state.situationForm.viewedOutfit == outfit.id) {
+				CloseOutfitView(a_state);
+				return;
+			}
+			a_state.situationForm.viewedOutfit = outfit.id;
+			QueuePreview(a_state, outfit.pieces);
+		}
+
 		// What a heading shows under it: every outfit on the list with random on, `chosen`
 		// alone with it off.
 		std::vector<std::uint32_t> ShownOutfits(const OutfitRows::Row& a_row)
@@ -289,7 +315,11 @@ namespace CaptureWindow::Internal
 				const float top = ImGui::GetCursorScreenPos().y;
 				const int   index = IndexOfOutfit(a_state, shown[k]);
 				if (index >= 0) {
-					DrawOutfitRow(a_state, a_state.situationBrowser, index, a_tagsWidth, false, k % 2 == 1, true);
+					// No star: every row here is one chosen for a situation.
+					if (DrawOutfitRow(a_state, a_state.situationBrowser, index, a_tagsWidth, form.viewedOutfit == shown[k], k % 2 == 1, true, false)) {
+						QueueMenuSound(kFocusSound);
+						ViewOutfit(a_state, index);
+					}
 				} else {
 					DrawLineRow(kGoneLine, a_tagsWidth, true);
 				}
@@ -306,8 +336,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
-		// chevron selects it and shows its details, or unselects it when its details show; Edit
-		// always selects it and shows them; the chevron folds it. Its count shows
+		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
+		// details show; Edit always selects it and shows them; the chevron folds it. Its count shows
 		// with random on alone; with nothing to show it has no chevron, is never folded (a drop
 		// shows what it got) and its name is greyed. A drop on the heading, its rule included,
 		// adds at the front. `a_dragHovered` becomes the entry while a drag hovers its folded
@@ -338,7 +368,11 @@ namespace CaptureWindow::Internal
 				entry.folded = !entry.folded;
 			} else if (click == Theme::HeadingClick::kSelect || click == Theme::HeadingClick::kEdit) {
 				QueueMenuSound(kFocusSound);
-				const bool unselect = click == Theme::HeadingClick::kSelect && form.selected == index && form.details;
+				const bool viewing = form.viewedOutfit != 0;
+				const bool unselect = click == Theme::HeadingClick::kSelect && form.selected == index && form.details && !viewing;
+				if (viewing) {
+					CloseOutfitView(a_state);
+				}
 				form.selected = unselect ? -1 : index;
 				form.details = !unselect;
 			}
@@ -394,26 +428,49 @@ namespace CaptureWindow::Internal
 
 		// --- Right pane -------------------------------------------------------
 
-		// The right pane shows the selected situation while one is selected, Show Outfit List was
-		// not pressed since, and no drag from the Situation List is on.
-		bool ShowsDetails(const State& a_state)
+		enum class RightPane
+		{
+			kOutfitList,
+			kSituation,  // the selected situation's details
+			kOutfit      // the details of the outfit clicked last
+		};
+
+		// What the right pane shows: the outfit list while a drag from the Situation List is on;
+		// else the outfit clicked last, until Back; else the selected situation, until Show
+		// Outfit List; else the outfit list.
+		RightPane ShownPane(const State& a_state)
 		{
 			const auto& form = a_state.situationForm;
 			const auto* dragged = DraggedOutfit();
-			return form.selected >= 0 && form.details && !(dragged && dragged->from >= 0);
+			if (dragged && dragged->from >= 0) {
+				return RightPane::kOutfitList;
+			}
+			if (IndexOfOutfit(a_state, form.viewedOutfit) >= 0) {
+				return RightPane::kOutfit;
+			}
+			return form.selected >= 0 && form.details ? RightPane::kSituation : RightPane::kOutfitList;
 		}
 
-		// The outfit list with its own search, sort and Show Tags, its rows dragged as
-		// copies. A drag from the Situation List dropped anywhere on it takes that outfit, or the
-		// Default's pieces, off its row. Returns whether Escape cleared the search.
+		// The outfit list with its own search, sort and Show Tags, its rows dragged as copies and
+		// a click on one showing its details, then what a drag does, in the small font. A drag
+		// from the Situation List dropped anywhere on it takes that outfit, or the Default's
+		// pieces, off its row. Returns whether Escape cleared the search.
 		bool DrawOutfitPane(State& a_state)
 		{
-			constexpr float kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
+			constexpr float       kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
+			constexpr const char* kDragNote = "Drag an outfit onto a situation to add it.";
 
 			const ImVec2 top = ImGui::GetCursorScreenPos();
 			const float  width = ImGui::GetContentRegionAvail().x;
 			const auto   controls = DrawBrowserControls(a_state, a_state.situationBrowser);
-			DrawOutfitList(a_state, a_state.situationBrowser, -1, controls.height, true);
+			Theme::PushSmallFont();
+			const float noteHeight = ImGui::GetTextLineHeightWithSpacing();
+			Theme::PopSmallFont();
+			const int viewed = IndexOfOutfit(a_state, a_state.situationForm.viewedOutfit);
+			const int clicked = DrawOutfitList(a_state, a_state.situationBrowser, viewed, controls.height + noteHeight, true);
+			Theme::PushSmallFont();
+			ImGui::TextWrapped("%s", kDragNote);
+			Theme::PopSmallFont();
 			const float bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 			a_state.situationForm.outfitPaneHeight = bottom - top.y;
 			const ImRect pane(top, ImVec2(top.x + width, bottom));
@@ -430,22 +487,18 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::EndDragDropTarget();
 			}
+			if (clicked >= 0) {
+				ViewOutfit(a_state, clicked);  // DrawOutfitList played the focus sound
+			}
 			return controls.escapeTaken;
 		}
 
-		// Text in the small heading style: the small font, greyed; centred when it fits.
-		void DrawNote(const std::string& a_text, bool a_centred)
+		// Text in the small heading style: the small font, greyed, wrapped.
+		void DrawNote(const std::string& a_text)
 		{
 			Theme::PushSmallFont();
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			const float width = ImGui::CalcTextSize(a_text.c_str()).x;
-			const float room = ImGui::GetContentRegionAvail().x;
-			if (a_centred && width <= room) {
-				ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (room - width) * 0.5f);
-				ImGui::TextUnformatted(a_text.c_str());
-			} else {
-				ImGui::TextWrapped("%s", a_text.c_str());
-			}
+			ImGui::TextWrapped("%s", a_text.c_str());
 			ImGui::PopStyleColor();
 			Theme::PopSmallFont();
 		}
@@ -478,7 +531,7 @@ namespace CaptureWindow::Internal
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##description", entry.description.data(), entry.description.size(), ImGuiInputTextFlags_None);
 			const auto description = Trimmed(entry.description.data());
-			DrawNote(std::format("Shown as: Dressed by Livery in \"Outfit\"{}.", description.empty() ? "" : ", " + description), false);
+			DrawNote(std::format("Shown as: Dressed by Livery in \"Outfit\"{}.", description.empty() ? "" : ", " + description));
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			ImGui::TextWrapped("%s", a_state.request.situations[a_entry].conditions.c_str());
@@ -493,12 +546,11 @@ namespace CaptureWindow::Internal
 		};
 
 		// The selected situation's details as edited: its name, description and conditions,
-		// Random Outfit for #{Name}, then Show Outfit List centred with Remove at the row's left
-		// end (not for the Default), as Restore Presets sits by the page's buttons.
+		// Random Outfit (for #{Name}), then Show Outfit List centred with Remove at the row's
+		// right end (not for the Default).
 		DetailsAction DrawSituationDetails(State& a_state)
 		{
 			constexpr const char* kShowList = "Show Outfit List";
-			constexpr float       kButtonGap = 12.0f;  // pixels at 1080p, above the Show Outfit List row beyond the item spacing
 
 			auto&       form = a_state.situationForm;
 			const auto  selected = static_cast<std::size_t>(form.selected);
@@ -509,7 +561,7 @@ namespace CaptureWindow::Internal
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
-			const std::string randomLabel = std::format("Random Outfit for {}", name);
+			const std::string randomLabel = std::format("Random Outfit (for {})", name);
 			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
 				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
@@ -523,16 +575,57 @@ namespace CaptureWindow::Internal
 					name));
 			}
 
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kButtonGap * Theme::Scale());
-			const float left = ImGui::GetCursorPosX();
-			ImGui::SetCursorPosX(left + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - Theme::ButtonWidth(kShowList)) * 0.5f));
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - Theme::ButtonWidth(kShowList)) * 0.5f));
 			auto action = Theme::Button(kShowList) ? DetailsAction::kShowList : DetailsAction::kNone;
-			if (selected > 0 && Theme::LineLinkAt("Remove", left)) {
+			if (selected > 0 && Theme::LineLink("Remove")) {
 				action = DetailsAction::kRemove;
 			}
-			DrawNote(std::format("Drag outfits from the list onto \"{}\" to add them.", Trimmed(entry.name.data())), true);
 			ImGui::PopID();
 			return action;
+		}
+
+		enum class OutfitViewAction
+		{
+			kNone,
+			kEdit,
+			kBack
+		};
+
+		// The rows the page's edits give outfit `a_outfit`, named as Manage Wardrobe's dropdown
+		// names them (`Default, Town`), or `None`.
+		std::string HeldRowsText(const State& a_state, std::uint32_t a_outfit)
+		{
+			std::string names;
+			for (const auto& entry : a_state.situationForm.entries) {
+				if (OutfitRows::Holds(entry.row, a_outfit)) {
+					names += std::format("{}{}", names.empty() ? "" : ", ", Trimmed(entry.name.data()));
+				}
+			}
+			return names.empty() ? "None" : names;
+		}
+
+		// The outfit clicked last, read only as Manage Wardrobe lays it out (DrawOutfitSummary),
+		// its rows as the page's edits have them; then Edit and Back centred. Escape is Back, and
+		// sets `a_escapeTaken` so it is not also Exit.
+		// Contract: ShownPane is RightPane::kOutfit.
+		OutfitViewAction DrawOutfitView(State& a_state, bool& a_escapeTaken)
+		{
+			const auto id = a_state.situationForm.viewedOutfit;
+			ImGui::PushID("outfitView");
+			DrawOutfitSummary(a_state, IndexOfOutfit(a_state, id), HeldRowsText(a_state, id));
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - ButtonRowWidth({ "Edit", "Back" })) * 0.5f));
+			const bool edit = Theme::Button("Edit");
+			ImGui::SameLine();
+			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+			const bool back = Theme::Button("Back") || escape;
+			ImGui::PopID();
+			a_escapeTaken = a_escapeTaken || escape;
+			if (edit) {
+				return OutfitViewAction::kEdit;
+			}
+			return back ? OutfitViewAction::kBack : OutfitViewAction::kNone;
 		}
 
 		// --- Buttons, popups --------------------------------------------------
@@ -799,15 +892,22 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		bool escapeTaken = false;
 		auto details = DetailsAction::kNone;
+		auto outfitView = OutfitViewAction::kNone;
 		if (BeginColumns("situations")) {
 			ImGui::TableNextColumn();
 			DrawSituationList(a_state);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
-			if (ShowsDetails(a_state)) {
+			switch (ShownPane(a_state)) {
+			case RightPane::kOutfit:
+				outfitView = DrawOutfitView(a_state, escapeTaken);
+				break;
+			case RightPane::kSituation:
 				details = DrawSituationDetails(a_state);
-			} else {
+				break;
+			case RightPane::kOutfitList:
 				escapeTaken = DrawOutfitPane(a_state);
+				break;
 			}
 			EndColumns();
 		}
@@ -818,6 +918,13 @@ namespace CaptureWindow::Internal
 		EndButtonRow();
 		ImGui::EndDisabled();
 
+		if (outfitView == OutfitViewAction::kBack) {
+			QueueMenuSound(kCancelSound);
+			CloseOutfitView(a_state);
+		} else if (outfitView == OutfitViewAction::kEdit) {
+			QueueMenuSound(kOkSound);
+			RequestLeave(a_state, { .page = Page::kManage, .manageOutfit = form.viewedOutfit });
+		}
 		if (details == DetailsAction::kShowList) {
 			QueueMenuSound(kFocusSound);
 			form.details = false;

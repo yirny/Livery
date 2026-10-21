@@ -565,10 +565,20 @@ namespace CaptureWindow::Internal
 			RequestCancel();
 			return;
 		}
+		// Manage Situations' outfit details show their outfit on the preview; they close as the
+		// page goes, and the next page's preview replaces it.
+		const bool viewing = a_state.page == Page::kSituations && a_state.situationForm.viewedOutfit != 0;
+		a_state.situationForm.viewedOutfit = 0;
+		const int target = a_leave.page == Page::kManage ? IndexOfOutfit(a_state, a_leave.manageOutfit) : -1;
+		if (target >= 0) {
+			// Contract: Manage Wardrobe has no unsaved edits now: leaving it with any went through
+			// the unsaved-changes alert, which saved or dropped them.
+			FillManageForm(a_state, target);
+		}
 		const bool managed = a_state.manage.outfit >= 0;
 		if (a_leave.page == Page::kManage && managed) {
 			QueuePreview(a_state, a_state.manage.pieces);
-		} else if (a_state.page == Page::kManage && managed) {
+		} else if ((a_state.page == Page::kManage && managed) || viewing) {
 			QueuePreview(a_state, TickedPieces(a_state));
 		}
 		if (a_leave.page == Page::kSituations) {
