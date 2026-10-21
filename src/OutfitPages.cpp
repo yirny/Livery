@@ -364,11 +364,14 @@ namespace CaptureWindow::Internal
 		return a_unloaded ? std::format("{} piece(s), {} not loaded", total, a_unloaded) : std::format("{} piece(s)", total);
 	}
 
-	// Pieces' names in read-only rows laid out as the outfit list's beside them.
-	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces)
+	// Pieces' names in read-only rows laid out as the outfit list's beside them. The list ends by
+	// screen Y `a_bottom`, its rows scrolling when they need more; one row shows at least.
+	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces, float a_bottom = FLT_MAX)
 	{
 		PushListRowSpacing();  // as the outfit list beside it
-		const float listHeight = ListHeight(a_pieces.size(), Theme::SelectRowHeight() + ImGui::GetStyle().ItemSpacing.y);
+		const float rowHeight = Theme::SelectRowHeight() + ImGui::GetStyle().ItemSpacing.y;
+		const float room = a_bottom - ImGui::GetCursorScreenPos().y;
+		const float listHeight = (std::max)(rowHeight, (std::min)(ListHeight(a_pieces.size(), rowHeight), room));
 		if (Theme::BeginList("outfitPieces", listHeight)) {
 			for (const auto index : a_pieces) {
 				Theme::TextRow(a_state.request.pieces[index].name.c_str());
@@ -378,11 +381,12 @@ namespace CaptureWindow::Internal
 		Theme::EndList();
 	}
 
-	// The outfit's pieces as the library had them when the window opened.
-	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
+	// The outfit's pieces as the library had them when the window opened, their list ending by
+	// screen Y `a_bottom` (DrawPieceNames).
+	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit, float a_bottom = FLT_MAX)
 	{
 		Theme::LabelText(PieceCountText(a_outfit.pieces.size(), a_outfit.unloadedPieces).c_str());
-		DrawPieceNames(a_state, a_outfit.pieces);
+		DrawPieceNames(a_state, a_outfit.pieces, a_bottom);
 	}
 
 	// The outfit's Category, wrapped under its label: the window's categories it has, or None.
@@ -412,7 +416,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// The name and gender with no label, as Manage Wardrobe's fields.
-	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations)
+	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom)
 	{
 		DrawSelectedName(a_state, a_index, "");
 		const auto& outfit = OutfitAt(a_state, a_index);
@@ -422,7 +426,7 @@ namespace CaptureWindow::Internal
 		Theme::LabelText(a_state.situationsLabel.c_str());
 		ImGui::TextWrapped("%s", a_situations.c_str());
 		Theme::AfterFieldGap();
-		DrawOutfitPieces(a_state, outfit);
+		DrawOutfitPieces(a_state, outfit, a_bottom);
 	}
 
 	// --- Load page ------------------------------------------------------------

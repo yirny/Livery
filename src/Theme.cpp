@@ -2198,6 +2198,17 @@ namespace Theme
 		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f;
 	}
 
+	float ButtonHeight()
+	{
+		if (g_skin != Skin::kVanilla) {
+			return ImGui::GetFrameHeight();
+		}
+		PushVanillaButtonFont();
+		const float height = ImGui::GetFrameHeight();
+		ImGui::PopFont();
+		return height;
+	}
+
 	float ColumnsWidth()
 	{
 		return (std::max)(0.0f, ImGui::GetContentRegionAvail().x - TickTextShift() - ImGui::GetStyle().FramePadding.x);
