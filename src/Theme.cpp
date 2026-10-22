@@ -111,6 +111,8 @@ namespace
 	constexpr float kVanillaButtonMargin = 2.0f;
 	// Room between an outfit row's marks, and between them and the name (pixels at 1080p).
 	constexpr float kOutfitMarkGap = 6.0f;
+	// The dice mark's left and right corners, in from its square's sides (of the side).
+	constexpr float kDiceInset = 0.14f;
 	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
 	// Tailor 3.0's outfit list indents them (pixels at 1080p).
 	constexpr float kOutfitRowPadX = 14.0f;
@@ -1619,6 +1621,27 @@ namespace
 		}
 	}
 
+	// A die seen from above a corner: a hexagon, its corners kDiceInset in from the sides,
+	// split into its three faces by lines from the centre; one pip on the top face, three on
+	// the left one and two on the right one, each run of pips across its face's diagonal.
+	void DrawDiceIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		const float                 left = kDiceInset;
+		const float                 right = 1.0f - kDiceInset;
+		const std::array<ImVec2, 6> outline{ a_frame.At(0.50f, 0.08f), a_frame.At(right, 0.29f), a_frame.At(right, 0.71f), a_frame.At(0.50f, 0.92f),
+			a_frame.At(left, 0.71f), a_frame.At(left, 0.29f) };
+		a_draw->AddPolyline(outline.data(), static_cast<int>(outline.size()), a_color, ImDrawFlags_Closed, a_thick);
+		const ImVec2 centre = a_frame.At(0.50f, 0.50f);
+		for (const std::size_t corner : { std::size_t{ 1 }, std::size_t{ 3 }, std::size_t{ 5 } }) {
+			a_draw->AddLine(centre, outline[corner], a_color, a_thick);
+		}
+		const float radius = (std::max)(1.0f, 0.05f * a_frame.side);
+		for (const auto pip : { a_frame.At(0.50f, 0.29f), a_frame.At(0.26f, 0.50f), a_frame.At(0.32f, 0.605f), a_frame.At(0.38f, 0.71f),
+				 a_frame.At(0.74f, 0.50f), a_frame.At(0.62f, 0.71f) }) {
+			a_draw->AddCircleFilled(pip, radius, a_color);
+		}
+	}
+
 	// The radius of a drag grip's dots on the back buffer.
 	float GripDotRadius()
 	{
@@ -2662,8 +2685,13 @@ namespace Theme
 		const float  side = ImGui::GetFontSize() * kChevronRatio;
 		PopSmallFont();
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
-		const float countX = nameRight + ImGui::GetStyle().ItemInnerSpacing.x;
-		const float textRight = count.empty() ? nameRight : countX + countSize.x;
+		const float gapX = ImGui::GetStyle().ItemInnerSpacing.x;
+		// The die's outline, not its square, sits gapX from the name and from the count.
+		const float diceSide = ImGui::GetTextLineHeight();
+		const float diceLeft = nameRight + gapX - diceSide * kDiceInset;  // its square's
+		const float afterName = a_look.random ? nameRight + gapX + diceSide * (1.0f - kDiceInset * 2.0f) : nameRight;
+		const float countX = afterName + gapX;
+		const float textRight = count.empty() ? afterName : countX + countSize.x;
 		const float chevronX = textRight + pad * 2.0f;
 		const float editX = fillMax.x - pad - editSize.x;
 		const float editLeft = editX - pad;
@@ -2691,14 +2719,17 @@ namespace Theme
 			DrawSelectMark(draw, nameLine, textX);
 		}
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+		const float thick = (std::max)(1.0f, 1.5f * g_scale);
 		draw->AddText(ImVec2(textX, textY), a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		if (a_look.random) {
+			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, grey, thick);
+		}
 
 		PushSmallFont();
 		if (!count.empty()) {
 			draw->AddText(ImVec2(countX, midY - countSize.y * 0.5f), grey, count.c_str());
 		}
 		const ImU32 chevron = foldHovered ? LinkColor(true) : grey;
-		const float thick = (std::max)(1.0f, 1.5f * g_scale);
 		if (a_look.foldable && a_look.open) {
 			const ImVec2 points[] = { { chevronX, midY - side * 0.25f }, { chevronX + side * 0.5f, midY + side * 0.25f }, { chevronX + side, midY - side * 0.25f } };
 			draw->AddPolyline(points, 3, chevron, ImDrawFlags_None, thick);

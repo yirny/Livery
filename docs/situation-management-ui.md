@@ -162,13 +162,15 @@ outfit for Town any more`.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
   order. Each: the name in the outfit list's row style, where an outfit row without a grip
   starts its name, so the select mark has the room it has on Manage Wardrobe's list; with
-  random on, `(n)`,
-  the length of `outfits`, in the small heading style; while anything shows under it, a
-  chevron, pointing down while open and right while folded, grey, lit while hovered (white in
-  Vanilla and Nordic, amber in Tailor); then, 12px on, a rule in the list's rule colour, and
-  12px on `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A
-  heading with nothing under it wears nothing: its name is greyed, it has no chevron and is
-  never folded. Every heading is open when the page opens.
+  random on, a die (a hexagon split into three faces with one, three and two pips, a square of
+  the name's line height, grey) and `(n)`, the length of `outfits`, in the small heading style,
+  the die's outline as far from the name and from `(n)` as `(n)` is from a name without it
+  (`ItemInnerSpacing.x`); with random on and anything showing under it, a chevron, pointing
+  down while open and right while folded, grey, lit while hovered (white in Vanilla and
+  Nordic, amber in Tailor); then, 12px on, a rule in the list's rule colour, and 12px on
+  `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
+  without a chevron is never folded: random off shows its one outfit; a heading with nothing
+  under it wears nothing and its name is greyed. Every heading is open when the page opens.
 - Click areas: from the chevron (with its padding) to Edit, rule included, folds; left of it
   selects (with no chevron, everything left of Edit selects); Edit with its padding to the
   right end. A click on the name selects the situation (the single-choice row highlight of the
@@ -318,7 +320,7 @@ shows the situation's.
 - `src/OutfitRows.h`: `Place`, a drop at a place in a row's list (`Give` is a drop at the
   front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick.
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
-  (`SituationHeading` with its `SituationHeadingLook`, right-hand chevron and Edit with their
+  (`SituationHeading` with its `SituationHeadingLook`, the die of random on, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
   drag grip (`Theme::Grip` for `OutfitRow`, `OutfitTagsWidth` and `FoldHeading`), the
   details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`).

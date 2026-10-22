@@ -253,6 +253,7 @@ namespace Theme
 	struct SituationHeadingLook
 	{
 		int  count = -1;        // shown as "(count)" after the name; -1 for none
+		bool random = false;    // a die between the name and the count: the outfit is picked at random
 		bool open = true;       // the chevron points down; folded, right
 		bool foldable = true;   // it has rows to fold: the chevron and its click area show
 		bool selected = false;  // marked and filled as a selected SelectRow
@@ -261,7 +262,9 @@ namespace Theme
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
 	// `name` where an outfit row without a grip starts its name, level with the rows' grip dots
-	// under it (Grip::kName), the select mark left of it, its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
+	// under it (Grip::kName), the select mark left of it; with `random` a die after it, a square
+	// of its line height, greyed, the die's outline ItemInnerSpacing.x from the name and from the
+	// count; its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
 	// lit while hovered, then, 12px on, a rule in the list's rule colour, and 12px on `Edit` at
 	// the list's right end, in the small font, greyed and lit while hovered. A hovered one left
 	// of the chevron gets the row's hover fill.
