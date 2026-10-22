@@ -820,9 +820,9 @@ namespace CaptureWindow::Internal
 		});
 	}
 
-	// SetOutfits after the captured actor was redressed with Live Preview on: the Inventory
-	// page lists their pieces as they are now, ticks the ones they wear and lets the loaded
-	// outfit go, as if the window had just opened.
+	// SetOutfits after the captured actor was redressed at once (Live Preview on, or an Apply):
+	// the Inventory page lists their pieces as they are now, ticks the ones they wear and lets
+	// the loaded outfit go, as if the window had just opened.
 	// Contract: `a_pieces.groups` has one group per request.pieces.
 	void FollowActorPieces(State& a_state, const CaptureWindow::ActorPieces& a_pieces)
 	{
@@ -1043,11 +1043,11 @@ namespace CaptureWindow::Internal
 	}
 
 	// Restore Outfit and its "(?)" at the right end of the Live Preview line, while Livery
-	// dresses the character (Request::onRestore). Returns true when it is clicked.
+	// dresses the character (Request::dressed, Request::onRestore). Returns true when it is clicked.
 	// Contract: right after DrawPreviewToggle, on its line.
 	bool DrawRestoreLink(const State& a_state)
 	{
-		if (!a_state.request.onRestore) {
+		if (!a_state.request.onRestore || !a_state.request.dressed) {
 			return false;
 		}
 		bool       hovered = false;
@@ -2065,6 +2065,7 @@ namespace CaptureWindow
 		request.existingOutfits = std::move(a_list.existingOutfits);
 		request.categories = std::move(a_list.categories);
 		request.actorSummary = std::move(a_list.actorSummary);
+		request.dressed = a_list.dressed;
 
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
 		state.loadedOutfit = IndexOfOutfit(state, loaded);
