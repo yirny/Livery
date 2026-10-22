@@ -22,9 +22,11 @@ popups scroll with the game's journal scroll bar, 16px wide at 1080p with 2px cl
 either side: its arrows are the game's art, its track and thumb drawn in code with 1px lines
 at any resolution, the thumb's rim and its fill while held in the track's light grey
 (#cccccc) (Tailor keeps a 1px rule and ImGui's bar). Fonts at 1080p: Vanilla's body 22px
-and headings 28px (Oswald), Nordic's 20px and 26px (Sovngarde). Field labels, count lines,
-the links and help marks on their lines, column labels and list headings take the label font:
-the small font (0.85 of the body), in Nordic the tags' size (0.7, 14px).
+and headings 28px (Oswald), Nordic's 20px and 26px (Sovngarde). Field labels, their help
+marks, column labels and list headings take the label font: the small font (0.85 of the body),
+in Nordic the tags' size (0.7, 14px). Count lines, the links (`Add pieces from Wardrobe...`,
+`Edit`, `Show Tags`, `Restore Outfit`, `Remove`, `Restore Presets`) and `Sort by` take the
+small font in every skin.
 
 ## 1. Outfit list (step 1)
 
