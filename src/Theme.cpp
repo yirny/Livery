@@ -141,6 +141,8 @@ namespace
 	constexpr float kGripTextGap = 12.0f;
 	// Room between a list heading's text (or chevron) and the rule after it (pixels at 1080p).
 	constexpr float kTextRuleGap = 12.0f;
+	// From a list heading's rule to the list's right end (pixels at 1080p).
+	constexpr float kRuleEndPad = 4.0f;
 	// Extra room between a field and the label under it, beyond SectionGap (pixels at 1080p).
 	constexpr float kAfterFieldGap = 4.0f;
 	// Room between a right-aligned preview's text and the dropdown arrow (pixels at 1080p).
@@ -3077,17 +3079,30 @@ namespace Theme
 		ImGui::GetWindowDrawList()->AddText(text, ImGui::GetColorU32(ImGuiCol_Text), a_label);
 	}
 
-	// Laid out as TextRow lays out its text, the icon first.
+	// The rule after a ListHeading's text, kTextRuleGap past `a_textRight`, to kRuleEndPad short of
+	// where the row's fills end (RowFillRight), as FoldHeading's. `a_cursor` is the heading's cursor
+	// before its Dummy, `a_width` the content width it took.
+	void DrawListHeadingRule(ImDrawList* a_draw, ImVec2 a_cursor, float a_width, float a_textRight, float a_midY)
+	{
+		const float fillRight = RowFillRight(ImGui::GetWindowPos().x, a_cursor.x + a_width);
+		DrawTextRule(a_draw, a_textRight + kTextRuleGap * g_scale, fillRight - kRuleEndPad * g_scale, a_midY);
+	}
+
+	// Laid out as TextRow lays out its text, the icon first, then the rule to the list's right end.
 	void ListHeading(const char* a_text, HeadingIcon a_icon)
 	{
 		PushLabelFont();
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
-		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
+		const float  width = ImGui::GetContentRegionAvail().x;
+		ImGui::Dummy(ImVec2(width, SelectRowHeight()));
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		auto*       draw = ImGui::GetWindowDrawList();
 		ImVec2      text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
 		text.x += DrawHeadingIcon(draw, text, a_icon, grey);
-		draw->AddText(text, grey, Caps(a_text).c_str());
+		const Caps caps(a_text);
+		draw->AddText(text, grey, caps.c_str());
+		const ImVec2 size = ImGui::CalcTextSize(caps.c_str());
+		DrawListHeadingRule(draw, cursor, width, text.x + size.x, text.y + size.y * 0.5f);
 		ImGui::PopFont();
 	}
 
@@ -3096,8 +3111,6 @@ namespace Theme
 	// where the rows' fills end.
 	bool FoldHeading(const char* a_text, bool a_open)
 	{
-		constexpr float kRuleEndPad = 4.0f;  // pixels at 1080p, from the rule to the list's right end
-
 		PushLabelFont();
 		const float   gap = ListPaddingY();  // the row gap the outfit list leaves out, half above and half below
 		const ListRow row = LayOutListRow(a_text, SelectRowHeight() + gap);
@@ -3283,12 +3296,13 @@ namespace Theme
 	}
 
 	// Laid out as TextRow lays out its text, or from the list's indent as a situation heading's
-	// name, the icon first.
+	// name, the icon first; the rule after the mark, to the list's right end, unless indented.
 	bool ListHeadingHelp(const char* a_text, bool a_situationIndent, HeadingIcon a_icon)
 	{
 		PushLabelFont();
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
-		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
+		const float  width = ImGui::GetContentRegionAvail().x;
+		ImGui::Dummy(ImVec2(width, SelectRowHeight()));
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		auto*       draw = ImGui::GetWindowDrawList();
 		ImVec2      text(cursor.x + (a_situationIndent ? SituationNameInset() : RowTextShift()), cursor.y + kSelectRowPadY * g_scale);
@@ -3298,6 +3312,9 @@ namespace Theme
 		const ImVec2 markSize = ImGui::CalcTextSize(kHelpMark);
 		draw->AddText(text, grey, caps.c_str());
 		draw->AddText(ImVec2(markX, text.y), grey, kHelpMark);
+		if (!a_situationIndent) {
+			DrawListHeadingRule(draw, cursor, width, markX + markSize.x, text.y + markSize.y * 0.5f);
+		}
 		ImGui::PopFont();
 		return ImGui::IsMouseHoveringRect(ImVec2(markX, text.y), ImVec2(markX + markSize.x, text.y + markSize.y));
 	}
