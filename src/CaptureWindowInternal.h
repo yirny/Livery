@@ -233,7 +233,6 @@ namespace CaptureWindow::Internal
 		OutfitBrowser::State     loadBrowser;           // search, filter and sort of the Load page's outfit list
 		OutfitBrowser::State     selectBrowser;         // the Select page's
 		OutfitBrowser::State     manageBrowser;         // Manage Wardrobe'
-		bool                     showTags = true;       // the outfit lists show each outfit's tags (Show Tags / Hide Tags)
 		ManageForm               manage;
 		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
 		std::string              manageApplyLabel;  // "Apply to #{Name}"
@@ -383,10 +382,10 @@ namespace CaptureWindow::Internal
 	// list, whose rows have a grip and drag a copy of their outfit.
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable = false);
 
-	// One outfit of a list, `a_index` into request.existingOutfits, with its tags and marks
-	// (the star of one chosen for a situation only with `a_situationMark`); `a_grip` places the
-	// drag grip. Returns true when clicked.
-	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped,
+	// One outfit of a list, `a_index` into request.existingOutfits, with its marks (the star of
+	// one chosen for a situation only with `a_situationMark`); `a_grip` places the drag grip.
+	// Returns true when clicked.
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped,
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
 	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:

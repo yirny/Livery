@@ -8,9 +8,8 @@
 //   Outfit browser - Search (and Filter, hidden by kShowFilter), above an outfit page's
 //                  list in its column, in the small font (OutfitBrowser.cpp narrows and
 //                  orders it); each page has its own; Escape first clears the search
-//   Outfit lists - the library outfit list with its Sort dropdown, the sort's headings (a
-//                  click folds their outfits away) and each outfit's tags (Hide Tags under
-//                  it hides them, Show Tags brings them back), the selected outfit's name
+//   Outfit lists - the library outfit list with its Sort dropdown and the sort's headings (a
+//                  click folds their outfits away), the selected outfit's name
 //                  (or a hint while none is) and its piece list, and an outfit read only
 //                  in Manage Wardrobe's order, which the outfit pages and Manage Situations
 //                  share (there each row has a grip and drags a copy of its outfit);
@@ -238,43 +237,33 @@ namespace CaptureWindow::Internal
 
 	// Height of the outfit list with every library outfit and every heading of the sort in
 	// view, capped as ListHeight caps it, so narrowing the list does not move the buttons.
-	// Contract: called with the list's row spacing pushed, outside BeginList at its indent
-	// (`a_tagsWidth` is Theme::OutfitTagsWidth there).
-	float OutfitListHeight(const State& a_state, const OutfitBrowser::State& a_browser, float a_tagsWidth, float a_reserved)
+	// Contract: called with the list's row spacing pushed.
+	float OutfitListHeight(const State& a_state, const OutfitBrowser::State& a_browser, float a_reserved)
 	{
-		const auto&                    outfits = a_state.request.existingOutfits;
-		const std::vector<std::string> none;
-		const float                    minHeight = Theme::OutfitRowHeight(-1, none, a_tagsWidth);
-		float                          rows = static_cast<float>(a_browser.headingCount) * Theme::FoldHeadingHeight();
-		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			rows += a_state.showTags ? Theme::OutfitRowHeight(outfits[i].gender, a_browser.tags[i], a_tagsWidth) : minHeight;
-		}
-		return FittedListHeight((std::max)(rows, minHeight), minHeight, a_reserved);
+		const float rowHeight = Theme::OutfitRowHeight();
+		const float rows = static_cast<float>(a_browser.headingCount) * Theme::FoldHeadingHeight() +
+		                   static_cast<float>(a_state.request.existingOutfits.size()) * rowHeight;
+		return FittedListHeight((std::max)(rows, rowHeight), rowHeight, a_reserved);
 	}
 
-	// One outfit of the list: its name, with its tags under it while they show (Show Tags), and
-	// at its right end the marks of the outfit the actor wears now or has as their Default and
-	// of one chosen for a situation (Theme::OutfitMarks), the last with `a_situationMark` only;
+	// One outfit of the list: its name, and at its right end the marks of the outfit the actor
+	// wears now or has as their Default and of one chosen for a situation (Theme::OutfitMarks), the last with `a_situationMark` only;
 	// `a_striped` for every second row under a heading.
-	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, float a_tagsWidth, bool a_selected, bool a_striped,
-		Theme::Grip a_grip, bool a_situationMark)
+	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped, Theme::Grip a_grip,
+		bool a_situationMark)
 	{
-		const auto&                    outfit = OutfitAt(a_state, a_index);
-		const auto&                    situations = a_browser.situations[static_cast<std::size_t>(a_index)];
-		const Theme::OutfitMarks       marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
+		const auto&              outfit = OutfitAt(a_state, a_index);
+		const auto&              situations = a_browser.situations[static_cast<std::size_t>(a_index)];
+		const Theme::OutfitMarks marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
 			.defaultOutfit = HoldsOutfit(a_state, 0, outfit.id),
 			.situations = a_situationMark && !situations.empty() ? situations.c_str() : nullptr };
-		const std::vector<std::string> none;
-		const auto&                    tags = a_state.showTags ? a_browser.tags[static_cast<std::size_t>(a_index)] : none;
-		const int                      gender = a_state.showTags ? outfit.gender : -1;  // the gender is a tag too
-		return Theme::OutfitRow(outfit.name.c_str(), gender, tags, a_tagsWidth, a_selected, marks, a_striped, a_grip);
+		return Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip);
 	}
 
 	// Left column of the outfit pages: the wardrobe's outfits that pass the
 	// browser, in its order, under the sort's headings, `a_selected`
-	// highlighted, under a label with the Sort dropdown, and Show Tags (Hide Tags
-	// while they show) under the list. A click on a heading folds its outfits away or back. The
-	// list stays as tall as the whole wardrobe, so narrowing or folding it does
+	// highlighted, under a label with the Sort dropdown. A click on a heading folds its
+	// outfits away or back. The list stays as tall as the whole wardrobe, so narrowing or folding it does
 	// not move the buttons; `a_reserved` is the browser's height (ListHeight).
 	// Returns the index into request.existingOutfits of the one clicked, or -1;
 	// a click plays the focus sound. `a_draggable` (Manage Situations): each row has a grip
@@ -294,9 +283,7 @@ namespace CaptureWindow::Internal
 		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 		const auto  grip = a_draggable ? Theme::Grip::kEdge : Theme::Grip::kNone;
-		const float tagsWidth = Theme::OutfitTagsWidth(grip);
-		// Show Tags, under the list, takes a line; a frame's height leaves room for it.
-		const float listHeight = OutfitListHeight(a_state, a_browser, tagsWidth, a_reserved + ImGui::GetFrameHeightWithSpacing());
+		const float listHeight = OutfitListHeight(a_state, a_browser, a_reserved);
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
 			if (visible.empty()) {
@@ -321,7 +308,7 @@ namespace CaptureWindow::Internal
 					continue;
 				}
 				ImGui::PushID(index);
-				if (DrawOutfitRow(a_state, a_browser, index, tagsWidth, a_selected == index, drawn++ % 2 == 1, grip)) {
+				if (DrawOutfitRow(a_state, a_browser, index, a_selected == index, drawn++ % 2 == 1, grip)) {
 					clicked = index;
 				}
 				if (a_draggable) {
@@ -335,10 +322,6 @@ namespace CaptureWindow::Internal
 		Theme::EndList();
 		if (clicked >= 0) {
 			QueueMenuSound(kFocusSound);
-		}
-		if (Theme::ListFooterLink(a_state.showTags ? "Hide Tags" : "Show Tags")) {
-			QueueMenuSound(kFocusSound);
-			a_state.showTags = !a_state.showTags;
 		}
 		return clicked;
 	}

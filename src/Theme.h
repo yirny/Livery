@@ -67,7 +67,7 @@ namespace Theme
 
 	// A field is a label (or none) and the control or list it names; a list's count line
 	// under it belongs to the list's field. LabelText is a field label in the label font (the
-	// small font; in Nordic the tags' size, 14px), in ASCII capitals: grey in Vanilla and
+	// small font; in Nordic 0.7 of the body font, 14px), in ASCII capitals: grey in Vanilla and
 	// Nordic, plain text in Tailor. The help marks and column labels on a label's line, and
 	// list headings, take the same font. It
 	// opens its field with SectionGap and sits a little closer to the control below it than the
@@ -150,14 +150,6 @@ namespace Theme
 	// columns clip the outer sides short of the window's edges (Vanilla, Nordic).
 	bool BeginList(const char* id, float height, bool rules = true);
 	void EndList();
-
-	// `label` on the line right under a list, in CountText's font and colour, lit while hovered
-	// (white in Vanilla and Nordic, amber in Tailor): as far below the list's bottom rule as a
-	// label over a list sits above its top rule. Returns true when clicked. Faded and inert
-	// inside BeginDisabled.
-	// Contract: right after EndList, with the item spacing it was laid out with; the label is
-	// shown as is and is the ImGui ID.
-	bool ListFooterLink(const char* label);
 
 	// Pixels on the back buffer: the padding between a list's rules and its
 	// rows, and the gap between rows. The padding is the piece list's row gap
@@ -255,7 +247,7 @@ namespace Theme
 	void AfterFieldGap();
 
 	// Where an outfit row's drag grip goes, if it has one: two columns of three dots, its name
-	// and tags 12px past them.
+	// 12px past them.
 	enum class Grip
 	{
 		kNone,
@@ -332,16 +324,11 @@ namespace Theme
 		const char* situations = nullptr;
 	};
 
-	// A SelectRow with the outfit's tags under its name (in the small font in Tailor, 0.7 of the
-	// body font in Vanilla and Nordic: 15.4px and 14px), wrapping onto
-	// more lines within `tagsWidth` (OutfitTagsWidth), in capitals: its gender first unless unisex (-1
-	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
-	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
-	// Nordic as grey text, comma separated. The name ends in an ellipsis short of `marks`.
-	// The name and tags start 22px in from the row's left edge in every skin, and a `striped`
+	// A SelectRow with the outfit's name, ending in an ellipsis short of `marks`.
+	// The name starts 22px in from the row's left edge in every skin, and a `striped`
 	// row (every other one) has a faint white under its fills. With `grip`, a drag grip where
 	// it says, in LabelText's grey at low alpha (Tailor: its text colour mixed with black), and
-	// the name and tags start 12px past its dots instead. Selected, Vanilla and Nordic mark it
+	// the name starts 12px past its dots instead. Selected, Vanilla and Nordic mark it
 	// with the equipped mark of a ticked piece instead of the select arrow, 2px right of the
 	// centre of the room left of the name, or centred left of the dots with Grip::kName; with Grip::kEdge in the dots' place,
 	// the dots hidden, shrunk to leave 2px on either side.
@@ -349,14 +336,8 @@ namespace Theme
 	// no item spacing, so the stripes meet.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.
-	bool  OutfitRow(const char* name, int gender, std::span<const std::string> tags, float tagsWidth, bool selected, const OutfitMarks& marks,
-		bool striped, Grip grip = Grip::kNone);
-	float OutfitRowHeight(int gender, std::span<const std::string> tags, float tagsWidth);
-
-	// Room for an outfit row's tags, from where its text starts (past the grip with `grip`) to
-	// the list's right end.
-	// Contract: called outside BeginList, at the list's indent, as ColumnsWidth is.
-	float OutfitTagsWidth(Grip grip = Grip::kNone);
+	bool  OutfitRow(const char* name, bool selected, const OutfitMarks& marks, bool striped, Grip grip = Grip::kNone);
+	float OutfitRowHeight();
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Tailor a

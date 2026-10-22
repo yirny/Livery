@@ -2042,7 +2042,6 @@ namespace CaptureWindow
 			for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser, &state.situationBrowser }) {
 				OutfitBrowser::Reset(*browser, state.request);
 			}
-			state.showTags = true;
 			state.manage = { .classTicked = std::make_unique<bool[]>(categories) };
 			state.discardFor = -1;
 			state.leave.reset();

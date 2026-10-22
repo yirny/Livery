@@ -42,7 +42,7 @@ What a row wears:
   clothes.
 - A row *holds* an outfit when it is `chosen` (random off) or on `outfits` (random on).
   "Holds" is what `Situations for #{Name}` ticks on the Save page, and
-  the outfit list's Situation tags, headings and star mark, and Remove's popup show.
+  the outfit list's Situation headings and star mark, and Remove's popup show.
 
 Every row reads its outfit from the library each time it goes on, the Default included;
 only the Default's `pieces` are kept as given.
@@ -135,7 +135,7 @@ empty. Only these:
 | Refresh HUD | `Livery: Lydia now wears "X" for Town` | `Livery: Lydia now wears "X", in Town` |
 
 The names stay in: the Apply popup's `"X" is Lydia's Town outfit.`, the star's `For Town,
-Warm`, the Situation tags and headings, the rows' labels and change lines (`Town: added`),
+Warm`, the Situation headings, the rows' labels and change lines (`Town: added`),
 Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Warm` and `no
 outfit for Town any more`.
 
@@ -178,12 +178,12 @@ outfit for Town any more`.
   skin) and shows its details on the right; a click on the selected one while its details
   show unselects it and the right pane shows the outfit list. Edit always selects the
   situation and shows its details.
-- Under a heading, its outfits as rows of the outfit list (name, tags, the form marks but no
+- Under a heading, its outfits as rows of the outfit list (name, the form marks but no
   star, since each is chosen for a situation), each with a drag grip: two columns of three
   dots, Vanilla and Nordic in LabelText's grey at low alpha, Tailor in its text colour mixed
   with black, here level with the headings' names (`Theme::Grip::kName`), in the right pane's
-  outfit list where its fold headings' text starts, after the chevron (`kEdge`); the name and
-  tags start 12px past the dots. Random on: every outfit on the list. Random off: `chosen`
+  outfit list where its fold headings' text starts, after the chevron (`kEdge`); the name
+  starts 12px past the dots. Random on: every outfit on the list. Random off: `chosen`
   only. A row that wears nothing shows nothing under its heading; the Default wearing its
   `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id the library no longer
   has (another save's) shows nothing (§1).
@@ -224,7 +224,7 @@ outfit clicked last, until Back; else the selected situation's details, until Sh
 List; else the outfit list.
 
 The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
-search, sort and Show Tags, each row with the drag grip, and nothing under Show Tags. While
+search and sort, each row with the drag grip, and nothing under the list. While
 an outfit's details show, the
 selected situation's heading is drawn unselected (no fill, no mark); closing them brings it
 back.
@@ -325,7 +325,7 @@ shows the situation's.
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
   (`SituationHeading` with its `SituationHeadingLook`, the die of random on, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
-  drag grip (`Theme::Grip` for `OutfitRow` and `OutfitTagsWidth`), the
+  drag grip (`Theme::Grip` for `OutfitRow`), the
   details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name, description,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,

@@ -16,15 +16,14 @@
 //                Vanilla and Nordic skins) and their hover fill (Vanilla's and
 //                Nordic's soft ellipse); the dropdown arrows; the game's
 //                checkbox of the Vanilla and Nordic skins; the fainter field
-//                border; the selected single-choice row's mark; an outfit row's
-//                tags (Tailor 3.0's chips and gender pills, or grey text)
+//                border; the selected single-choice row's mark
 //   Labels     - a field label's line spacing; the colour of clickable labels and their
 //                click area (LinkButton); LabelLink's plus-in-square mark
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets, the
 //                lists between rules (BeginList / EndList) and their columns
 //                (HeaderRow over multi-column tick rows), list headings (the
 //                outfit lists' folding ones, Manage Situations' situation headings)
-//                and outfit rows with tags and a drag grip
+//                and outfit rows with a drag grip
 //
 // The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
 // TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
@@ -85,12 +84,11 @@ namespace
 	constexpr float kSquareSectionGap = 8.0f;
 	// Extra room above a list's count line under it, part of the list's field (pixels at 1080p).
 	constexpr float kCountLineGap = 6.0f;
-	// The small font's size, of the body font's (Theme::PushSmallFont); Tailor's tags, the count
-	// lines and the links use it too.
+	// The small font's size, of the body font's (Theme::PushSmallFont); the count lines and the
+	// links use it too.
 	constexpr float kSmallFontRatio = 0.85f;
-	// The tags' size in Vanilla and Nordic, of the body font's (PushTagFont), which Nordic's
-	// labels and list headings take too (PushLabelFont): 14px at 1080p in Nordic.
-	constexpr float kSquareTagRatio = 0.7f;
+	// Nordic's labels and list headings, of the body font's (PushLabelFont): 14px at 1080p.
+	constexpr float kNordicLabelRatio = 0.7f;
 	// A fold heading's chevron: its box, of the font size (FoldHeading), and its stroke
 	// (pixels at 1080p).
 	constexpr float kFoldChevronRatio = 0.5f;
@@ -109,8 +107,6 @@ namespace
 	constexpr float kTailorRuleGap = 8.0f;
 	// Room above and below the text of a single-choice list row; its fill covers it (pixels at 1080p).
 	constexpr float kSelectRowPadY = 4.0f;
-	// Room between an outfit row's name and its tags (OutfitRow; pixels at 1080p).
-	constexpr float kOutfitTagsGap = 2.0f;
 	// A tab of the tab column, a square with its fill, and the room between the tabs and the
 	// rule beside them (pixels at 1080p).
 	constexpr float kTabSide = 34.0f;
@@ -129,14 +125,14 @@ namespace
 	constexpr float kOutfitMarkGap = 6.0f;
 	// The dice mark's left and right corners, in from its square's sides (of the side).
 	constexpr float kDiceInset = 0.14f;
-	// From an outfit list row's left edge to its name and tags, without a grip, in every skin
+	// From an outfit list row's left edge to its name, without a grip, in every skin
 	// (pixels at 1080p).
 	constexpr float kOutfitRowPadX = 22.0f;
 	// From a situation heading's left edge to its name, and from a Situation List row's left
 	// edge to its grip's dots, level with that name (pixels at 1080p).
 	constexpr float kSituationNamePadX = 14.0f;
 	// A draggable outfit row's grip (DrawGrip): the step between its dots' centres, then the
-	// room from its dots to the row's name and tags (pixels at 1080p).
+	// room from its dots to the row's name (pixels at 1080p).
 	constexpr float kGripDotStep = 4.0f;
 	constexpr float kGripTextGap = 12.0f;
 	// Room between a list heading's text (or chevron) and the rule after it (pixels at 1080p).
@@ -191,9 +187,6 @@ namespace
 	constexpr ImU32 kAmber = IM_COL32(245, 158, 11, 255);
 	constexpr ImU32 kAmberLight = IM_COL32(251, 191, 36, 255);
 	constexpr ImU32 kCopper = IM_COL32(184, 115, 51, 255);
-	constexpr ImU32 kCopperLight = IM_COL32(217, 149, 99, 255);
-	constexpr ImU32 kRose = IM_COL32(224, 160, 142, 255);   // the Female tag
-	constexpr ImU32 kSteel = IM_COL32(158, 184, 217, 255);  // the Male tag
 	constexpr ImU32 kText = IM_COL32(244, 235, 216, 255);
 	constexpr ImU32 kGhost = IM_COL32(244, 235, 216, 102);
 	constexpr ImU32 kBorder = IM_COL32(244, 235, 216, 20);
@@ -396,11 +389,11 @@ namespace
 		}
 	}
 
-	// The size of field labels and list headings, of the body font's: the tags' in Nordic, the
-	// small font's otherwise.
+	// The size of field labels and list headings, of the body font's: kNordicLabelRatio in Nordic,
+	// the small font's otherwise.
 	float LabelFontRatio()
 	{
-		return g_skin == Theme::Skin::kNordic ? kSquareTagRatio : kSmallFontRatio;
+		return g_skin == Theme::Skin::kNordic ? kNordicLabelRatio : kSmallFontRatio;
 	}
 
 	// The font of field labels, their help marks, column labels and list headings
@@ -1798,8 +1791,8 @@ namespace
 		DrawSelectArrow(a_draw, ImVec2((a_row.min.x + a_textX) * 0.5f, (a_row.min.y + a_row.max.y) * 0.5f));
 	}
 
-	// A label's text in ASCII capitals, as the field labels, list headings, column labels and
-	// outfit tags are drawn, held on the stack: no allocation on the per-frame path. A text
+	// A label's text in ASCII capitals, as the field labels, list headings and column labels
+	// are drawn, held on the stack: no allocation on the per-frame path. A text
 	// longer than the buffer is cut at the last whole UTF-8 character that fits.
 	class Caps
 	{
@@ -1829,92 +1822,6 @@ namespace
 	constexpr ImU32 WithAlpha(ImU32 a_color, unsigned a_alpha)
 	{
 		return (a_color & ~IM_COL32_A_MASK) | (a_alpha << IM_COL32_A_SHIFT);
-	}
-
-	// One of an outfit row's tags in Tailor: Tailor 3.0's category chip (TailorScreen.cpp
-	// Chip), or its rose or steel gender pill (SexTag); `a_pill` with `a_ink` its colour.
-	// Returns its size, and draws it at `a_topLeft` when `a_draw` is set.
-	ImVec2 TailorTag(ImDrawList* a_draw, ImVec2 a_topLeft, const char* a_text, bool a_pill, ImU32 a_ink)
-	{
-		constexpr float    kChipPadX = 7.0f;  // pixels at 1080p, from the frame to the text
-		constexpr float    kPillPadX = 10.0f;
-		constexpr float    kPillMinWidth = 56.0f;  // so Female and Male pills match
-		constexpr float    kPadY = 2.0f;
-		constexpr float    kChipRounding = 4.0f;
-		constexpr unsigned kChipFill = 36;  // alpha of Copper
-		constexpr unsigned kPillFill = 31;  // alpha of the gender's ink
-		constexpr unsigned kBorder = 64;
-
-		const ImVec2 text = ImGui::CalcTextSize(a_text);
-		const float  width = a_pill ? (std::max)(kPillMinWidth * g_scale, text.x + kPillPadX * 2.0f * g_scale) : text.x + kChipPadX * 2.0f * g_scale;
-		const ImVec2 size(width, text.y + kPadY * 2.0f * g_scale);
-		if (!a_draw) {
-			return size;
-		}
-		const ImVec2 bottomRight(a_topLeft.x + size.x, a_topLeft.y + size.y);
-		const float  rounding = a_pill ? size.y * 0.5f : kChipRounding * g_scale;
-		const ImU32  frame = a_pill ? a_ink : kCopper;
-		a_draw->AddRectFilled(a_topLeft, bottomRight, ImGui::GetColorU32(WithAlpha(frame, a_pill ? kPillFill : kChipFill)), rounding);
-		a_draw->AddRect(a_topLeft, bottomRight, ImGui::GetColorU32(WithAlpha(frame, kBorder)), rounding);
-		a_draw->AddText(ImVec2(a_topLeft.x + (size.x - text.x) * 0.5f, a_topLeft.y + kPadY * g_scale), ImGui::GetColorU32(a_ink), a_text);
-		return size;
-	}
-
-	// The tags' font: the small font in Tailor, whose chips frame it; a little smaller in
-	// Vanilla and Nordic. Pop with ImGui::PopFont.
-	void PushTagFont()
-	{
-		const float ratio = g_skin == Theme::Skin::kTailor ? kSmallFontRatio : kSquareTagRatio;
-		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * ratio);
-	}
-
-	// An outfit row's tags left to right from `a_topLeft`, in capitals (Caps), wrapping onto a new
-	// line where the next one would pass `a_width`: its gender unless unisex, then `a_tags`. Tailor draws
-	// them as framed tags (TailorTag), Vanilla and Nordic as grey text, comma separated.
-	// Draws them when `a_draw` is set. Returns their height; 0 for no tag.
-	// Contract: in the tags' font (PushTagFont).
-	float LayOutTags(ImDrawList* a_draw, ImVec2 a_topLeft, float a_width, int a_gender, std::span<const std::string> a_tags)
-	{
-		constexpr float kChipGap = 6.0f;  // pixels at 1080p, between Tailor's tags and their lines
-
-		const char*       gender = a_gender == 1 ? "Female" : (a_gender == 0 ? "Male" : nullptr);
-		const std::size_t count = a_tags.size() + (gender ? 1 : 0);
-		if (count == 0) {
-			return 0.0f;
-		}
-		const bool  tailor = g_skin == Theme::Skin::kTailor;
-		const float gapX = tailor ? kChipGap * g_scale : ImGui::CalcTextSize(" ").x;
-		const float gapY = tailor ? kChipGap * g_scale : 0.0f;
-		const float commaWidth = ImGui::CalcTextSize(",").x;
-		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		ImVec2      at = a_topLeft;
-		float       lineHeight = 0.0f;
-		for (std::size_t i = 0; i < count; ++i) {
-			const bool  isGender = gender && i == 0;
-			const Caps  caps(isGender ? gender : a_tags[i - (gender ? 1 : 0)].c_str());
-			const char* text = caps.c_str();
-			const bool  last = i + 1 == count;
-			ImVec2      size = ImGui::CalcTextSize(text);
-			if (tailor) {
-				size = TailorTag(nullptr, at, text, isGender, 0);
-			} else if (!last) {
-				size.x += commaWidth;
-			}
-			if (at.x > a_topLeft.x && at.x + size.x > a_topLeft.x + a_width) {
-				at = ImVec2(a_topLeft.x, at.y + lineHeight + gapY);
-			}
-			if (a_draw && tailor) {
-				TailorTag(a_draw, at, text, isGender, isGender ? (a_gender == 1 ? kRose : kSteel) : kCopperLight);
-			} else if (a_draw) {
-				a_draw->AddText(at, grey, text);
-				if (!last) {
-					a_draw->AddText(ImVec2(at.x + size.x - commaWidth, at.y), grey, ",");
-				}
-			}
-			lineHeight = size.y;
-			at.x += size.x + gapX;
-		}
-		return at.y + lineHeight - a_topLeft.y;
 	}
 
 	// The square a tab column icon is drawn in; its points are given as fractions of the side.
@@ -2070,7 +1977,7 @@ namespace
 		}
 	}
 
-	// From an outfit row's left edge to its name and tags (pixels on the back buffer):
+	// From an outfit row's left edge to its name (pixels on the back buffer):
 	// kOutfitRowPadX, or on a draggable row kGripTextGap past its grip's dots (DrawGrip).
 	float RowTextInset(Theme::Grip a_grip)
 	{
@@ -2616,17 +2523,6 @@ namespace Theme
 	bool LineLink(const char* a_label)
 	{
 		return RightEndHelpLink(a_label, nullptr, false);
-	}
-
-	// EndList left the item spacing under the list's bottom rule; a label over a list sits that
-	// spacing less LabelGapTrim above its top rule.
-	bool ListFooterLink(const char* a_label)
-	{
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() - LabelGapTrim());
-		PushSmallFont();
-		const bool clicked = LinkButton(a_label, ImGui::CalcTextSize(a_label));
-		ImGui::PopFont();
-		return clicked;
 	}
 
 	bool Button(const char* a_label)
@@ -3332,11 +3228,6 @@ namespace Theme
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kAfterFieldGap * g_scale);
 	}
 
-	float OutfitTagsWidth(Grip a_grip)
-	{
-		return (std::max)(0.0f, ImGui::GetContentRegionAvail().x - RowTextInset(a_grip) - ImGui::GetStyle().FramePadding.x);
-	}
-
 	float FoldHeadingHeight()
 	{
 		return ListHeadingHeight() + ListPaddingY();
@@ -3347,19 +3238,13 @@ namespace Theme
 		return SelectRowHeight() + ListPaddingY();
 	}
 
-	float OutfitRowHeight(int a_gender, std::span<const std::string> a_tags, float a_tagsWidth)
+	float OutfitRowHeight()
 	{
-		PushTagFont();
-		const float tags = LayOutTags(nullptr, ImVec2(0.0f, 0.0f), a_tagsWidth, a_gender, a_tags);
-		ImGui::PopFont();
-		return SelectRowHeight() + ListPaddingY() + (tags > 0.0f ? kOutfitTagsGap * g_scale + tags : 0.0f);
+		return SelectRowHeight() + ListPaddingY();
 	}
 
-	// SelectRow with the tags under the name, inside the row's bottom padding; the row gap the
-	// list leaves out is half above the name and half below the tags. The selected row's
-	// Vanilla and Nordic arrow stays level with the name.
-	bool OutfitRow(const char* a_name, int a_gender, std::span<const std::string> a_tags, float a_tagsWidth, bool a_selected, const OutfitMarks& a_marks,
-		bool a_striped, Grip a_grip)
+	// SelectRow holding the row gap the list leaves out, half above the name and half below it.
+	bool OutfitRow(const char* a_name, bool a_selected, const OutfitMarks& a_marks, bool a_striped, Grip a_grip)
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
 		constexpr int   kStripeAlpha = 16;      // of the white over a striped row, out of 255
@@ -3367,7 +3252,7 @@ namespace Theme
 		constexpr float kMarkShift = 2.0f;      // pixels at 1080p, an equipped mark right of its room's centre on a row without a grip
 
 		const float   gap = ListPaddingY();
-		const ListRow row = LayOutListRow(a_name, OutfitRowHeight(a_gender, a_tags, a_tagsWidth));
+		const ListRow row = LayOutListRow(a_name, OutfitRowHeight());
 		const float   textX = row.fillMin.x + RowTextInset(a_grip);
 		const float   textY = row.min.y + gap * 0.5f + kSelectRowPadY * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
@@ -3418,10 +3303,6 @@ namespace Theme
 				ImGui::SetTooltip("%s", star ? a_marks.situations : FormMarkTooltip(a_marks));
 			}
 		}
-		const float tagsY = textY + ImGui::GetTextLineHeight() + kOutfitTagsGap * g_scale;
-		PushTagFont();
-		LayOutTags(draw, ImVec2(textX, tagsY), a_tagsWidth, a_gender, a_tags);
-		ImGui::PopFont();
 		return row.pressed;
 	}
 }

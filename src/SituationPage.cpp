@@ -249,40 +249,27 @@ namespace CaptureWindow::Internal
 		}
 
 		// A grey line in an outfit row's place (kPiecesLine).
-		void DrawLineRow(const char* a_text, float a_tagsWidth, Theme::Grip a_grip)
+		void DrawLineRow(const char* a_text, Theme::Grip a_grip)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			Theme::OutfitRow(a_text, -1, {}, a_tagsWidth, false, {}, false, a_grip);
+			Theme::OutfitRow(a_text, false, {}, false, a_grip);
 			ImGui::PopStyleColor();
-		}
-
-		// An outfit row's height in the panes: with its tags while they show (Show Tags).
-		float ShownRowHeight(const State& a_state, std::uint32_t a_outfit, float a_tagsWidth)
-		{
-			const int index = IndexOfOutfit(a_state, a_outfit);
-			if (index < 0 || !a_state.showTags) {
-				return Theme::OutfitRowHeight(-1, {}, a_tagsWidth);
-			}
-			return Theme::OutfitRowHeight(OutfitAt(a_state, index).gender, a_state.situationBrowser.tags[static_cast<std::size_t>(index)], a_tagsWidth);
 		}
 
 		// The Situation List's height with every heading open, capped as ListHeight caps it, and
 		// at least the right pane's with the outfit list, so neither folding nor the right pane
 		// moves the buttons. An outfit's details may be taller, moving them (DrawOutfitView).
-		// Contract: with no item spacing pushed, outside BeginList at its indent, as
-		// Theme::OutfitTagsWidth gave `a_tagsWidth`.
-		float SituationListHeight(const State& a_state, float a_tagsWidth)
+		// Contract: with no item spacing pushed.
+		float SituationListHeight(const State& a_state)
 		{
 			const auto& form = a_state.situationForm;
 			float       rows = Theme::ListHeadingHeight();
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				rows += Theme::SituationHeadingHeight();
 				if (ShowsPieces(form, i)) {
-					rows += Theme::OutfitRowHeight(-1, {}, a_tagsWidth);
+					rows += Theme::OutfitRowHeight();
 				}
-				for (const auto outfit : ShownOutfits(form.entries[i].row)) {
-					rows += ShownRowHeight(a_state, outfit, a_tagsWidth);
-				}
+				rows += static_cast<float>(ShownOutfits(form.entries[i].row).size()) * Theme::OutfitRowHeight();
 			}
 			return (std::max)(FittedListHeight(rows, Theme::ListHeadingHeight()), form.outfitPaneHeight);
 		}
@@ -291,7 +278,7 @@ namespace CaptureWindow::Internal
 		// place: before it on its upper half, after it on its lower half (random on; the front
 		// with it off). With none, the Default's pieces line, which drags to the outfit list and
 		// takes a drop at the front, or nothing.
-		void DrawShownOutfits(State& a_state, std::size_t a_entry, float a_tagsWidth)
+		void DrawShownOutfits(State& a_state, std::size_t a_entry)
 		{
 			auto&      form = a_state.situationForm;
 			const auto shown = ShownOutfits(form.entries[a_entry].row);
@@ -300,7 +287,7 @@ namespace CaptureWindow::Internal
 					return;
 				}
 				const float top = ImGui::GetCursorScreenPos().y;
-				DrawLineRow(kPiecesLine, a_tagsWidth, Theme::Grip::kNone);
+				DrawLineRow(kPiecesLine, Theme::Grip::kNone);
 				OfferOutfitDrag({ .from = 0 }, kPiecesLine);
 				if (ImGui::BeginDragDropTarget()) {
 					if (const auto dropped = AcceptOnSituation(top)) {
@@ -320,7 +307,7 @@ namespace CaptureWindow::Internal
 				ImGui::PushID(static_cast<int>(k));
 				const float top = ImGui::GetCursorScreenPos().y;
 				// No star: every row here is one chosen for a situation.
-				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, a_tagsWidth, form.viewedOutfit == shown[k], k % 2 == 1, Theme::Grip::kName, false)) {
+				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, form.viewedOutfit == shown[k], k % 2 == 1, Theme::Grip::kName, false)) {
 					QueueMenuSound(kFocusSound);
 					ViewOutfit(a_state, index);
 				}
@@ -344,7 +331,7 @@ namespace CaptureWindow::Internal
 		// got). With nothing to show its name is greyed. A drop on the heading, its rule included,
 		// adds at the front. `a_dragHovered` becomes the entry while a drag hovers its folded
 		// heading, which opens once DrawSituationList has seen that for kDragExpandDelay.
-		void DrawSituationEntry(State& a_state, std::size_t a_entry, float a_tagsWidth, int& a_dragHovered)
+		void DrawSituationEntry(State& a_state, std::size_t a_entry, int& a_dragHovered)
 		{
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
@@ -394,7 +381,7 @@ namespace CaptureWindow::Internal
 				}
 			}
 			if (!entry.folded) {
-				DrawShownOutfits(a_state, a_entry, a_tagsWidth);
+				DrawShownOutfits(a_state, a_entry);
 			}
 		}
 
@@ -405,9 +392,8 @@ namespace CaptureWindow::Internal
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
 			// Popped before EndList, as the outfit list's spacing is.
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			const float tagsWidth = Theme::OutfitTagsWidth(Theme::Grip::kName);
-			int         dragHovered = -1;
-			if (Theme::BeginList("situations", SituationListHeight(a_state, tagsWidth), false)) {
+			int dragHovered = -1;
+			if (Theme::BeginList("situations", SituationListHeight(a_state), false)) {
 				// Its text starts where the situations' names do, clear of a selected one's mark.
 				if (Theme::ListHeadingHelp("Situation List", true)) {
 					DrawHelpTooltip(std::format(
@@ -418,7 +404,7 @@ namespace CaptureWindow::Internal
 				}
 				for (std::size_t i = 0; i < form.entries.size(); ++i) {
 					ImGui::PushID(static_cast<int>(i));
-					DrawSituationEntry(a_state, i, tagsWidth, dragHovered);
+					DrawSituationEntry(a_state, i, dragHovered);
 					ImGui::PopID();
 				}
 			}
@@ -456,7 +442,7 @@ namespace CaptureWindow::Internal
 			return form.selected >= 0 && form.details ? RightPane::kSituation : RightPane::kOutfitList;
 		}
 
-		// The outfit list with its own search, sort and Show Tags, its rows dragged as copies and
+		// The outfit list with its own search and sort, its rows dragged as copies and
 		// a click on one showing its details (`a_viewed`'s row selected). A drag from the Situation
 		// List dropped anywhere on it takes that outfit, or the Default's pieces, off its row.
 		// Returns whether Escape cleared the search.

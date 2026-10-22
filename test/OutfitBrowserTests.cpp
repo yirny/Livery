@@ -69,6 +69,16 @@ namespace
 		return names;
 	}
 
+	// The names of the categories outfit `outfit` is in, in Request::categories' order.
+	std::vector<std::string> CategoryNames(const OutfitBrowser::State& state, const CaptureWindow::Request& request, std::size_t outfit)
+	{
+		std::vector<std::string> names;
+		for (const int index : state.categories[outfit]) {
+			names.push_back(request.categories[static_cast<std::size_t>(index)].name);
+		}
+		return names;
+	}
+
 	std::vector<std::string> VisibleHeadings(const OutfitBrowser::State& state)
 	{
 		std::vector<std::string> headings;
@@ -114,15 +124,15 @@ TEST_CASE("Reset lists every outfit by name, ignoring case", "[browser]")
 	CHECK(OutfitBrowser::FilterPreview(state) == "Any category");
 }
 
-TEST_CASE("Tags: categories, then the rows holding the outfit; unoffered stored categories stay out", "[browser]")
+TEST_CASE("Categories, then the rows holding the outfit; unoffered stored categories stay out", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	CHECK(state.tags[4] == std::vector<std::string>{ "Light", "Heavy", "Town" });        // Scout: the situation Town
-	CHECK(state.tags[2] == std::vector<std::string>{ "Clothing", "Default", "Sleep" });  // Town Dress
-	CHECK(state.tags[1] == std::vector<std::string>{ "Light", "Swimming" });             // Guard Uniform
-	CHECK(state.tags[3].empty());                                                        // Bare
+	CHECK(CategoryNames(state, request, 4) == std::vector<std::string>{ "Light", "Heavy", "Town" });        // Scout: the situation Town
+	CHECK(CategoryNames(state, request, 2) == std::vector<std::string>{ "Clothing", "Default", "Sleep" });  // Town Dress
+	CHECK(CategoryNames(state, request, 1) == std::vector<std::string>{ "Light", "Swimming" });             // Guard Uniform
+	CHECK(state.categories[3].empty());                                                                     // Bare
 }
 
 TEST_CASE("Situation marks name the situations, never Default", "[browser]")
@@ -263,7 +273,7 @@ TEST_CASE("Rebuild keeps the search and sort for changed outfits", "[browser]")
 	CHECK(OutfitBrowser::IsSearching(state));
 	CHECK_FALSE(OutfitBrowser::IsFiltering(state));
 	CHECK(state.sort == OutfitBrowser::SortKey::kClass);
-	CHECK(state.tags[0] == std::vector<std::string>{ "Light" });
+	CHECK(CategoryNames(state, request, 0) == std::vector<std::string>{ "Light" });
 	// "s" matches Steel Set, Scout and Town Dress: Light, then Light + Heavy, then Clothing.
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Steel Set", "Scout", "Town Dress" });
 }
