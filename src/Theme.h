@@ -226,7 +226,7 @@ namespace Theme
 	{
 		kNone,
 		kEdge,  // 4px in from the row's left edge (Manage Situations' outfit list)
-		kName   // where a row without a grip starts its name (the Situation List, level with its headings' names)
+		kName   // 14px in from the row's left edge (the Situation List, level with its headings' names)
 	};
 
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
@@ -234,8 +234,8 @@ namespace Theme
 	// ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
 	// then, 12px on, a rule in the list's rule colour to the list's right end. The whole row is
 	// the click target; returns true when clicked, and the caller folds or unfolds.
-	// Its chevron starts where the outfit rows' names do; with `grip` (the rows' grip), where
-	// their grip's dots start, and the text where their names start.
+	// Its chevron starts at the list's left edge, the text after it; with `grip` (the rows'
+	// grip), the text starts where the rows' names do.
 	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are; the
 	// text is shown as is and is the row's ImGui ID.
 	bool  FoldHeading(const char* text, bool open, Grip grip = Grip::kNone);
@@ -261,8 +261,8 @@ namespace Theme
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
-	// `name` where an outfit row without a grip starts its name, level with the rows' grip dots
-	// under it (Grip::kName), the select mark left of it; with `random` a die after it, a square
+	// `name` 14px in from its left edge, level with the rows' grip dots under it (Grip::kName),
+	// the select mark left of it; with `random` a die after it, a square
 	// 4px short of its line height, greyed, the die's outline ItemInnerSpacing.x from the name and from the
 	// count; its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
 	// lit while hovered, then, 12px on, a rule in the list's rule colour, and 12px on `Edit` at
@@ -299,12 +299,12 @@ namespace Theme
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
 	// Nordic as grey text, comma separated. The name ends in an ellipsis short of `marks`.
-	// The name and tags start 14px in from the row's left edge in every skin, and a `striped`
+	// The name and tags start 22px in from the row's left edge in every skin, and a `striped`
 	// row (every other one) has a faint white under its fills. With `grip`, a drag grip where
 	// it says, in LabelText's grey at low alpha (Tailor: its text colour mixed with black), and
 	// the name and tags start 12px past its dots instead. Selected, Vanilla and Nordic mark it
-	// with the equipped mark of a ticked piece instead of the select arrow, centred in the room
-	// left of the name, or of the dots with Grip::kName; with Grip::kEdge in the dots' place,
+	// with the equipped mark of a ticked piece instead of the select arrow, 2px right of the
+	// centre of the room left of the name, or centred left of the dots with Grip::kName; with Grip::kEdge in the dots' place,
 	// the dots hidden, shrunk to leave 2px on either side.
 	// OutfitRowHeight is its height, which holds the row gap: lay rows out with
 	// no item spacing, so the stripes meet.

@@ -160,8 +160,8 @@ outfit for Town any more`.
   it, or back to the outfit list to take it off.`
 - The list has no rules above and below it.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
-  order. Each: the name in the outfit list's row style, where an outfit row without a grip
-  starts its name, so the select mark has the room it has on Manage Wardrobe's list; with
+  order. Each: the name in the outfit list's row style, 14px in from the row's left edge,
+  which leaves the select mark its room; with
   random on, a die (a hexagon split into three faces with one, three and two pips, a square 4px
   short of the name's line height, grey) and `(n)`, the length of `outfits`, in the small heading style,
   the die's outline as far from the name and from `(n)` as `(n)` is from a name without it
