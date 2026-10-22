@@ -28,7 +28,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 **Manual:**
 
 1. Install the requirements above.
-2. Copy the `SKSE` folder from the archive into `Data\` (it holds `livery.dll` and the fonts and textures of the window skins).
+2. Copy the `SKSE` folder from the archive into `Data\` (it holds `livery.dll` and the fonts, textures and palettes of the window skins).
 3. Launch Skyrim via SKSE.
 
 ## Compatibility
@@ -116,7 +116,8 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 | ------------ | ------------------------------ | -------- | ------------------------------------------------------------------------------------------------------ |
 | `General`    | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                               |
 | `General`    | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.     |
-| `UI`         | `Skin`                         | `Tailor` | Look of the capture window: `Tailor`, `Vanilla` or `Nordic`.                                           |
+| `UI`         | `Skin`                         | `Modern` | Look of the capture window: `Modern`, `Vanilla` or `Nordic` (an old `Tailor` reads as Modern).         |
+| `UI`         | `Palette`                      | `Edge`   | Colours of the Modern skin: a file in `Livery\palettes\`, named without `.ini` (see Palettes).         |
 | `Hotkey`     | `Key`                          | `68`     | Capture key as a DirectInput scan code (`68` = F10). In game, click the hotkey button and press a key. |
 | `Hotkey`     | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).            |
 | `Camera`     | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).              |
@@ -130,7 +131,9 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 
 The wardrobe, Livery's outfit library, is `Data\SKSE\Plugins\Livery\outfits.json`, shared by every save and character; each piece is stored as its plugin name and FormID, so an outfit survives a load order change. `situations.json` beside it (see [Situations](#situations)) is shared the same way. Back them up with your saves. The outfit categories older versions wrote to `outfits.json` are ignored and gone at the next save. An empty file counts as no file; one that cannot be read leaves the wardrobe empty and is never overwritten, and `Livery.log` says why.
 
-Skins: **Tailor** matches [Tailor](https://github.com/heathbrownkeyworks/Tailor) 3.0's menus and uses the fonts Tailor ships (ImGui's default font without Tailor); **Vanilla** mimics the game's menus, with no title bar, a light band round the window and grey text buttons that turn white when you point at them; **Nordic** mimics NORDIC UI, with its corner knot and heading rope, and marks a hovered row with NORDIC UI's list line. Both mark the selected outfit with the equipped mark of a ticked piece, draw the rule after a list heading as SkyUI's MCM header rule with its knot and lists' scroll bars as the game's journal scroll bar, and draw text fields and dropdowns as a rule under the text: a text field has a pen at its right end, and a dropdown's arrow is grey until you point at it. The fonts and textures of the Vanilla and Nordic skins ship in `Data\SKSE\Plugins\Livery\` with their licences.
+Skins: **Modern**, the default, draws dark panels with nearly square frames after [Edge UI](https://www.nexusmods.com/skyrimspecialedition/mods/130983), in the Jost font, its labels grey and a selected row marked by a rule in the accent colour at its left edge; its colours come from a palette. **Vanilla** mimics the game's menus, with no title bar, a light band round the window and grey text buttons that turn white when you point at them; **Nordic** mimics NORDIC UI, with its corner knot and heading rope, and marks a hovered row with NORDIC UI's list line. Both mark the selected outfit with the equipped mark of a ticked piece, draw the rule after a list heading as SkyUI's MCM header rule with its knot and lists' scroll bars as the game's journal scroll bar, and draw text fields and dropdowns as a rule under the text: a text field has a pen at its right end, and a dropdown's arrow is grey until you point at it. The skins' fonts, textures and palettes ship in `Data\SKSE\Plugins\Livery\`, with the licences of the fonts and textures.
+
+Palettes: each `.ini` in `Data\SKSE\Plugins\Livery\palettes\` is a set of the Modern skin's colours, picked by its file name in `Palette` or on the SKSE Menu Framework page. Livery ships **Edge** (dark, with a muted gold accent, after Edge UI) and **Norden** (a muted monochrome on grey panels, after [Norden UI](https://www.nexusmods.com/skyrimspecialedition/mods/166086)). To make your own, copy one under a new name in that folder and change its colours, each `#RRGGBB` or `#RRGGBBAA` (`AA` the opacity) with a comment saying what it colours; it is listed the next time the game starts, and the file can be shared as it is. A colour left out or written otherwise keeps Edge's, and `Livery.log` names it.
 
 ### Limits
 
@@ -219,7 +222,7 @@ The DLL lands in `build/release-linux/livery.dll`.
 
 #### Deploy to a mod manager
 
-The `deploy` target copies `livery.dll`, its PDB and the `Data/SKSE/Plugins/Livery` folder (skin fonts and textures) into `<deploy dir>/SKSE/Plugins/`. No INI is deployed; the plugin creates it on first start.
+The `deploy` target copies `livery.dll`, its PDB and the `Data/SKSE/Plugins/Livery` folder (skin fonts, textures and palettes) into `<deploy dir>/SKSE/Plugins/`. No INI is deployed; the plugin creates it on first start.
 
 The deploy directory is, in order: `-DDEPLOY_DIR_OVERRIDE=<path>` given at configure time; `$SKYRIM_MODS_FOLDER/livery` (your mod manager's staging folder); `$SKYRIM_FOLDER/Data`; else `build/<preset>/deploy/`. Copy `.env.example` to `.env` to set the environment variables.
 
@@ -336,4 +339,4 @@ python3 scripts/generate-nexus-page.py --copy
 
 ## License
 
-Copyright (c) 2026 Livery Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later. The SKSE Menu Framework header in `lib/extern/` is LGPL-2.1; the Oswald and Sovngarde fonts are under the SIL Open Font License; the Nordic skin's ornaments are NORDIC UI art by Dopesan, used under the permissions on its mod page; the list heading rule is SkyUI art by the SkyUI Team, used under the permissions on its mod page (see `Data/SKSE/Plugins/Livery/textures/SKYUI-CREDITS.txt`); the placeholder piece icons are from game-icons.net under CC BY 3.0 (see `Data/SKSE/Plugins/Livery/icons/GAME-ICONS-CREDITS.txt`).
+Copyright (c) 2026 Livery Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later. The SKSE Menu Framework header in `lib/extern/` is LGPL-2.1; the Jost, Oswald and Sovngarde fonts are under the SIL Open Font License; the Nordic skin's ornaments are NORDIC UI art by Dopesan, used under the permissions on its mod page; the list heading rule is SkyUI art by the SkyUI Team, used under the permissions on its mod page (see `Data/SKSE/Plugins/Livery/textures/SKYUI-CREDITS.txt`); the placeholder piece icons are from game-icons.net under CC BY 3.0 (see `Data/SKSE/Plugins/Livery/icons/GAME-ICONS-CREDITS.txt`).
