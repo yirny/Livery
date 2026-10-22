@@ -237,14 +237,14 @@ namespace CaptureWindow::Internal
 		// The Default wears its pieces not in the wardrobe: it has them and shows no outfit.
 		bool ShowsPieces(const SituationForm& a_form, std::size_t a_entry)
 		{
-			return a_entry == 0 && a_form.defaultPieces && ShownOutfits(a_form.entries[0].row).empty();
+			return a_entry == 0 && a_form.defaultPieces && !OutfitRows::HoldsAny(a_form.entries[0].row);
 		}
 
 		// Something shows under situation `a_entry`'s heading: an outfit, or the Default's
 		// pieces. One with nothing wears nothing: its heading has no chevron and a greyed name.
 		bool ShowsAnything(const SituationForm& a_form, std::size_t a_entry)
 		{
-			return !ShownOutfits(a_form.entries[a_entry].row).empty() || ShowsPieces(a_form, a_entry);
+			return OutfitRows::HoldsAny(a_form.entries[a_entry].row) || ShowsPieces(a_form, a_entry);
 		}
 
 		// A grey line in an outfit row's place (kPiecesLine).
