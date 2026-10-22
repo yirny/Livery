@@ -268,7 +268,7 @@ namespace CaptureWindow::Internal
 
 		// The Situation List's height with every heading open, capped as ListHeight caps it, and
 		// at least the right pane's with the outfit list, so neither folding nor the right pane
-		// moves the buttons; an outfit's details keep within it (DrawOutfitView).
+		// moves the buttons. An outfit's details may be taller, moving them (DrawOutfitView).
 		// Contract: with no item spacing pushed, outside BeginList at its indent, as
 		// Theme::OutfitTagsWidth gave `a_tagsWidth`.
 		float SituationListHeight(const State& a_state, float a_tagsWidth)
@@ -395,8 +395,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// The left pane: Situation List (?) over a heading per situation, the Default first.
-		// Returns the list's bottom (screen Y), which an outfit's details keep above.
-		float DrawSituationList(State& a_state)
+		void DrawSituationList(State& a_state)
 		{
 			auto& form = a_state.situationForm;
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
@@ -421,12 +420,10 @@ namespace CaptureWindow::Internal
 			}
 			ImGui::PopStyleVar();
 			Theme::EndList();
-			const float bottom = ImGui::GetItemRectMax().y;
 			if (form.dragHover != dragHovered) {
 				form.dragHover = dragHovered;
 				form.dragHoverSince = ImGui::GetTime();
 			}
-			return bottom;
 		}
 
 		// --- Right pane -------------------------------------------------------
@@ -617,16 +614,17 @@ namespace CaptureWindow::Internal
 
 		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits), read only
 		// as Manage Wardrobe lays it out (DrawOutfitSummary), its rows as the page's edits have
-		// them; then Edit and Back centred. Its pieces' list ends where Edit and Back still end by
-		// the Situation List's bottom `a_listBottom` (screen Y), so the view does not move the
-		// page's buttons, and scrolls when the pieces need more. Escape is Back, and sets
-		// `a_escapeTaken` so it is not also Exit.
-		// Contract: ShownPane is RightPane::kOutfit.
-		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, float a_listBottom, bool& a_escapeTaken)
+		// them; then Edit and Back centred. It grows with the pieces, moving the page's buttons
+		// when taller than the Situation List; its pieces' list scrolls only to keep the whole view
+		// within kMaxListHeightRatio of the screen, as every list's column keeps, so the window
+		// stays on screen. Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
+		// Contract: ShownPane is RightPane::kOutfit; called at the top of the right pane.
+		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, bool& a_escapeTaken)
 		{
 			const float buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight();  // under the pieces' list
+			const float bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;      // the view's lowest
 			ImGui::PushID("outfitView");
-			DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, a_state.situationForm.viewedOutfit), a_listBottom - buttonRow);
+			DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, a_state.situationForm.viewedOutfit), bottom - buttonRow);
 			BeginPaneButtonRow({ "Edit", "Back" });
 			const bool edit = Theme::Button("Edit");
 			ImGui::SameLine();
@@ -910,13 +908,13 @@ namespace CaptureWindow::Internal
 		auto outfitView = OutfitViewAction::kNone;
 		if (BeginColumns("situations")) {
 			ImGui::TableNextColumn();
-			const float listBottom = DrawSituationList(a_state);
+			DrawSituationList(a_state);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			const int viewed = IndexOfOutfit(a_state, form.viewedOutfit);  // after the Situation List, whose clicks change it
 			switch (ShownPane(a_state, viewed)) {
 			case RightPane::kOutfit:
-				outfitView = DrawOutfitView(a_state, viewed, listBottom, escapeTaken);
+				outfitView = DrawOutfitView(a_state, viewed, escapeTaken);
 				break;
 			case RightPane::kSituation:
 				details = DrawSituationDetails(a_state);
