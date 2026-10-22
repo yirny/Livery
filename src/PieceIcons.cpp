@@ -4,7 +4,9 @@
 //   Constants  - the icon and rule folders, SkyUI's icon swf and armor icon colours
 //   Keys       - an icon's key from a rule's iconSource and iconLabel
 //   Rules      - an I4 Armor rule: reading its match (formType, keywords, formId, parts) and
-//                assign (iconSource, iconLabel, iconColor), and testing an armor against it
+//                assign (iconSource, iconLabel, iconColor, subTypeDisplay), and testing an
+//                armor against it
+//   Type text  - a rule's subTypeDisplay as the game's translations show it
 //   SkyUI      - the icon label and colour SkyUI 5 gives an armor
 //   PieceIcons - FindFiles / Load / Resolve
 //
@@ -16,7 +18,8 @@
 // uses keywords, formId and parts alone. It reads each of those as I4's documentation states:
 // a value, or {"anyOf": [...]} met by any of its values, or an array of these that must all be
 // met (I4 itself keeps only an array's last one). A rule's icon counts only when its PNG exists,
-// as I4 drops a rule's icon when its swf is missing.
+// as I4 drops a rule's icon when its swf is missing. A rule's subTypeDisplay counts only when it
+// has no "$" or the game has a translation for it, so a piece never shows a raw "$" key.
 #include "PCH.h"
 
 #include "PieceIcons.h"
@@ -60,6 +63,7 @@ namespace
 		std::vector<std::vector<std::uint32_t>> parts;     // biped slot bits
 		std::string                             key;       // the icon's key; "" when the rule sets none or no PNG has it
 		std::optional<std::uint32_t>            color;     // 0xRRGGBB
+		std::string                             typeName;  // subTypeDisplay as written, a "$" key or the text; "" for none
 	};
 
 	// Game thread only; written by Load.
@@ -214,7 +218,8 @@ namespace
 		return true;
 	}
 
-	// A rule for formType "Armor" that Livery can test and that assigns an icon or a colour.
+	// A rule for formType "Armor" that Livery can test and that assigns an icon, a colour or a
+	// Type text.
 	std::optional<Rule> ReadRule(const nlohmann::json& a_rule)
 	{
 		if (!a_rule.is_object()) {
@@ -263,7 +268,10 @@ namespace
 		if (const auto color = assign->find("iconColor"); color != assign->end()) {
 			rule.color = ReadColor(*color);
 		}
-		if (rule.key.empty() && !rule.color) {
+		if (const auto type = assign->find("subTypeDisplay"); type != assign->end() && type->is_string()) {
+			rule.typeName = type->get<std::string>();
+		}
+		if (rule.key.empty() && !rule.color && rule.typeName.empty()) {
 			return std::nullopt;
 		}
 		return rule;
@@ -312,6 +320,28 @@ namespace
 		return MeetsAll(a_rule.parts, [&](std::uint32_t a_bit) { return (slots & a_bit) != 0; }) &&
 		       MeetsAll(a_rule.formIds, [&](RE::FormID a_id) { return a_id == formID; }) &&
 		       MeetsAll(a_rule.keywords, [&](const std::string& a_keyword) { return a_armor.HasKeywordString(a_keyword); });
+	}
+
+	// --- Type text ------------------------------------------------------------
+
+	// A rule's subTypeDisplay as SkyUI's Type column shows it: a "$" key through the game's
+	// translations (Interface/Translations/<name>_<sLanguage>.txt), other text as written.
+	// None for no text or a key with no translation.
+	// Contract: game thread; reads the Scaleform translator, so only once the game has made it
+	// (the capture window's listing, never Load).
+	std::optional<std::string> TypeText(const std::string& a_typeName)
+	{
+		if (a_typeName.empty()) {
+			return std::nullopt;
+		}
+		if (!a_typeName.starts_with('$')) {
+			return a_typeName;
+		}
+		std::string text;
+		if (!SKSE::Translation::Translate(a_typeName, text) || text.empty()) {
+			return std::nullopt;
+		}
+		return text;
 	}
 
 	// --- SkyUI ----------------------------------------------------------------
@@ -460,7 +490,7 @@ namespace PieceIcons
 				rule.key.clear();
 			}
 		}
-		std::erase_if(g_rules, [](const Rule& a_rule) { return a_rule.key.empty() && !a_rule.color; });
+		std::erase_if(g_rules, [](const Rule& a_rule) { return a_rule.key.empty() && !a_rule.color && a_rule.typeName.empty(); });
 		logger::info("Found {} piece icon(s); using {} armor icon rule(s) from {} InventoryInjector file(s)", g_keys.size(), g_rules.size(), files);
 	}
 
@@ -471,6 +501,7 @@ namespace PieceIcons
 		if (!g_keys.contains(key)) {
 			key.clear();
 		}
+		std::string typeName;
 		for (const auto& rule : g_rules) {
 			if (!Matches(rule, a_armor)) {
 				continue;
@@ -481,7 +512,10 @@ namespace PieceIcons
 			if (rule.color) {
 				color = *rule.color;
 			}
+			if (auto text = TypeText(rule.typeName)) {
+				typeName = std::move(*text);
+			}
 		}
-		return { std::move(key), color };
+		return { std::move(key), color, std::move(typeName) };
 	}
 }

@@ -10,7 +10,8 @@
 // icon is a white PNG in Data/SKSE/Plugins/Livery/icons/, at <iconSource without .swf>/<iconLabel>.png:
 // named as SkyUI or an Inventory Interface Information Injector (I4) rule names the icon in its
 // swf. A piece takes the icon SkyUI gives its armor, then each I4 Armor rule it matches overrides
-// the icon, the colour or both, in the order I4 reads the rules (PieceIcons.cpp).
+// the icon, the colour, the Type column's text or any of these, in the order I4 reads the rules
+// (PieceIcons.cpp).
 namespace PieceIcons
 {
 	// A PNG under the icons folder. Its key is its path from that folder without ".png", in
@@ -28,6 +29,7 @@ namespace PieceIcons
 	{
 		std::string   key;        // a File's key; "" when no PNG has the piece's icon
 		std::uint32_t color = 0;  // the tint of the white icon, 0xRRGGBB
+		std::string   typeName;   // the Type column's text an I4 rule gives the piece; "" for none
 	};
 
 	// Reads the icons folder and the Armor rules of the I4 files named after the active plugins.
@@ -36,6 +38,6 @@ namespace PieceIcons
 	void Load();
 
 	// Contract: game thread, after Load; when the capture window lists pieces, never per frame
-	// (it tests the armor against every rule).
+	// (it tests the armor against every rule and looks up the game's translations).
 	Icon Resolve(const RE::TESObjectARMO& a_armor);
 }

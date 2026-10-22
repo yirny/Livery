@@ -521,7 +521,8 @@ namespace
 	}
 
 	// A row of the window's piece list, with SkyUI's Type and Class (ArmorInfo), its icon and
-	// what the window's suggested class and gender need.
+	// what the window's suggested class and gender need. An I4 rule's Type text replaces SkyUI's,
+	// as SkyUI with I4 shows it; the sort order stays the slot's.
 	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected)
 	{
 		const auto type = ArmorInfo::TypeOf(armor);
@@ -531,7 +532,7 @@ namespace
 			.selected = selected,
 			.slots = armor.GetSlotMask().underlying(),
 			.group = group,
-			.type = type.name,
+			.type = icon.typeName.empty() ? std::string(type.name) : std::move(icon.typeName),
 			.typeOrder = type.order,
 			.armorClass = ArmorInfo::ClassName(armorClass),
 			.classOrder = static_cast<int>(armorClass),

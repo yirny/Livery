@@ -368,12 +368,17 @@ Each stage ends with an in-game check before the next starts.
   tinted `#756000` for Light, `#6B7585` for Heavy and `#EDDA87` otherwise.
 - Then the rules of Inventory Interface Information Injector (I4), read at `kDataLoaded`
   as I4 reads them: `SKSE/Plugins/InventoryInjector/<plugin>.json` for each active plugin,
-  in load order. Each rule a piece matches sets the icon and the colour it assigns, so a
-  later rule wins field by field. Livery reads only the rules for `formType: "Armor"` whose
+  in load order. Each rule a piece matches sets the icon, the colour and the Type text
+  (`subTypeDisplay`) it assigns, so a later rule wins field by field. Livery reads only the rules for `formType: "Armor"` whose
   match uses `keywords`, `formId` and `parts` alone; an array there is conditions that must
   all hold, `{"anyOf": [...]}` one met by any of its values. A rule's icon whose PNG is
   missing is ignored and the earlier icon stays; a rule without `iconSource` names
   SkyUI's swf.
+- A piece's Type column shows the Type text of its rules in place of SkyUI's slot name, as
+  SkyUI with I4 does; the column still sorts by slot. A `$` key is looked up in the game's
+  translations (`Interface/Translations/<name>_<sLanguage>.txt`, through
+  `SKSE::Translation::Translate`) when the window lists the pieces; a key with no
+  translation is ignored and the earlier text stays, so a raw `$` key never shows.
 - Keywords are tested by editor ID when the window lists the pieces, so those KID adds count.
 - The PNGs under SkyUI's labels are game-icons.net placeholders (CC BY 3.0,
   `icons/GAME-ICONS-CREDITS.txt`) until permitted art replaces them.
