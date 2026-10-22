@@ -15,7 +15,11 @@ outfit tags are drawn in ASCII capitals (`Theme`'s `Caps`), the strings in code 
 written; count lines (`Theme::CountText`), notes, buttons and links keep their case. In
 Vanilla and Nordic a page's two columns have a faint 1px rule between them, 4px short of
 the columns' top and bottom. Tooltips sit (32, 20)px from the mouse at 1080p
-(`style.MouseCursorScale`), clear of the game's cursor.
+(`style.MouseCursorScale`), clear of the game's cursor. In Vanilla and Nordic the rule after
+a list heading's text (folding outfit list headings, Manage Situations' situation headings)
+is SkyUI's MCM header rule, knot at its left end, in the headings' grey; lists and dropdown
+popups scroll with the game's journal scroll bar, 16px wide at 1080p (Tailor keeps a 1px rule
+and ImGui's bar).
 
 ## 1. Outfit list (step 1)
 

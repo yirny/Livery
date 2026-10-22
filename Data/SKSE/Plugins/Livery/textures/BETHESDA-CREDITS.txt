@@ -16,3 +16,9 @@ vanilla-dropdown.png is the arrow of the game's settings option stepper
 (interface/quest_journal.swf, symbol OptionStepperArrowBtn), rendered from its
 vector shape in its own colours and turned to point down; the plugin draws it
 untinted on the Vanilla and Nordic skins' dropdowns. Same terms as above.
+
+vanilla-scroll-track.png and vanilla-scroll-arrow.png are the track and up arrow of the
+game's journal scroll bar (interface/quest_journal.swf, symbols ScrollBar_track and
+ScrollIndicator_upArrow), rendered from their vector shapes in their own colours; the
+plugin draws them untinted, the arrow flipped for the bar's bottom end, on the Vanilla
+and Nordic skins' scroll bars. Same terms as above.
