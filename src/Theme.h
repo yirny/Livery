@@ -140,7 +140,9 @@ namespace Theme
 	// sides, never into the gap between columns), and their text keeps that
 	// padding as an indent. Used like
 	// BeginChild / EndChild: always call EndList, before the next BeginList.
-	// Rows go through TickRow, SelectRow or TextRow.
+	// Rows go through TickRow, SelectRow or TextRow. Vanilla and Nordic draw the game's scroll
+	// bar (arrows at its ends, its track, a thumb in the style's grab colours) over ImGui's,
+	// which still takes the clicks; without its textures, ImGui's own.
 	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
 	// columns clip the outer sides short of the window's edges (Vanilla, Nordic).
 	bool BeginList(const char* id, float height, bool rules = true);
@@ -246,10 +248,15 @@ namespace Theme
 		kName   // 14px in from the row's left edge (the Situation List, level with its headings' names)
 	};
 
+	// A list heading rule (FoldHeading, SituationHeading): in Vanilla and Nordic, SkyUI's MCM
+	// header rule in ListHeading's grey, a knot at its left end and a double line on to its
+	// closed right end, 0.7 times the small font's size tall; in Tailor, or without its texture
+	// or room for its two ends, a 1px line in the list's rule colour.
+
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
 	// away: a chevron pointing down while `open` and right while folded, then the text in
 	// capitals, both in ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
-	// then, 12px on, a rule in the list's rule colour to the list's right end. The whole row is
+	// then, 12px on, a list heading rule to 4px short of the list's right end. The whole row is
 	// the click target; returns true when clicked, and the caller folds or unfolds.
 	// Its chevron starts at the list's left edge, the text after it; with `grip` (the rows'
 	// grip), the text starts where the rows' names do.
@@ -282,7 +289,7 @@ namespace Theme
 	// the select mark left of it; with `random` a die after it, a square
 	// 4px short of its line height, greyed, the die's outline ItemInnerSpacing.x from the name and from the
 	// count; its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
-	// lit while hovered, then, 12px on, a rule in the list's rule colour, and 12px on `Edit` at
+	// lit while hovered, then, 12px on, a list heading rule, and 12px on `Edit` at
 	// the list's right end, in the small font, greyed and lit while hovered. A hovered one left
 	// of the chevron gets the row's hover fill.
 	// Contract: inside BeginList, laid out with no item spacing; PushID around each heading.
@@ -399,8 +406,8 @@ namespace Theme
 	// preview. Every skin gives the popup its own padding. Tailor replaces
 	// ImGui's arrow with a small amber chevron; Vanilla and Nordic replace it
 	// with the game's diamond stepper arrow, grey and white while hovered or open,
-	// or keep ImGui's when its texture is missing, and draw the popup's border fainter.
-	// `flags` are ImGuiComboFlags.
+	// or keep ImGui's when its texture is missing, and draw the popup's border fainter
+	// and its scroll bar as BeginList's. `flags` are ImGuiComboFlags.
 	bool BeginCombo(const char* id, int flags, const FieldStyle& style = {});
 	void EndCombo(bool open, const char* preview, const FieldStyle& style = {});
 
