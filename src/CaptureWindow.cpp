@@ -1491,6 +1491,17 @@ namespace CaptureWindow::Internal
 		return rows;
 	}
 
+	std::vector<std::size_t> AddedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit)
+	{
+		std::vector<std::size_t> rows;
+		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
+			if (a_wearsFor[row] && !HoldsOutfit(a_state, row, a_outfit)) {
+				rows.push_back(row);
+			}
+		}
+		return rows;
+	}
+
 	std::vector<std::size_t> RemovedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit)
 	{
 		std::vector<std::size_t> rows;
