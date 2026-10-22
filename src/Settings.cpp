@@ -94,7 +94,7 @@ namespace
 			L"0 = those pieces are left out, and the message on screen names them.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kWindowSection, kShowPlayerInventoryKey, L"1",
-			L"1 = the capture window of an NPC also lists your armor, under From Player's Inventory.\n"
+			L"1 = the capture window of an NPC also lists your armor, under Player's Inventory.\n"
 			L"0 = it lists only the NPC's own pieces and those of the loaded outfit.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kWindowSection, kShowPlayerWornKey, L"0",

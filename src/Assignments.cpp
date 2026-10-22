@@ -917,16 +917,15 @@ namespace Assignments
 		DropIfEmpty(id);
 		SyncManaged();
 		if (!result) {
-			Notify(std::format("Livery: {} will wear {} piece(s) by default; dressed now{}.", NameOf(a_actor), a_armor.size(), SituationStore::Suffix(wornFor)));
+			Notify(std::format("Livery: {} will wear these by default; dressed now{}.", NameOf(a_actor), SituationStore::Suffix(wornFor)));
 			return;
 		}
 
-		const auto worn = result->worn.size();
 		const auto added = std::ranges::count_if(result->worn, &Dressing::Piece::added);
-		auto       text = a_actor.IsPlayerRef() ? std::format("Livery: you now wear {} piece(s)", worn) : std::format("Livery: {} now wears {} piece(s)", NameOf(a_actor), worn);
+		auto       text = a_actor.IsPlayerRef() ? std::string("Livery: you now wear these") : std::format("Livery: {} now wears these", NameOf(a_actor));
 		text += SituationStore::Suffix(wornFor);
 		if (added > 0) {
-			text += std::format(", {} of them added", added);
+			text += std::format(", {} added", added);
 		}
 		Notify(text + DressingNotes(*result) + ".");
 	}
@@ -966,7 +965,7 @@ namespace Assignments
 		for (std::size_t i = 0; i < parts.size(); ++i) {
 			text += (i == 0 ? " " : "; ") + parts[i];
 		}
-		text += pieces > 0 ? std::format(". Dressed now{}, {} piece(s)", SituationStore::Suffix(worn), pieces) : ". Own clothes now";
+		text += pieces > 0 ? std::format(". Dressed now{}", SituationStore::Suffix(worn)) : ". Own clothes now";
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
 	}
 
@@ -1020,8 +1019,8 @@ namespace Assignments
 		const auto pieces = assignment->pieces.size();
 		DropIfEmpty(id);
 		SyncManaged();
-		auto text = pieces > 0 ? std::format("Livery: {} now wears {}{}, {} piece(s)", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default pieces",
-									 SituationStore::Suffix(worn), pieces) :
+		auto text = pieces > 0 ? std::format("Livery: {} now wears {}{}", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default pieces",
+									 SituationStore::Suffix(worn)) :
 		                         std::format("Livery: {}: own clothes now", NameOf(a_actor));
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
 	}

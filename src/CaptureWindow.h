@@ -164,6 +164,11 @@ namespace CaptureWindow
 		std::vector<std::string> categories;  // the ticked categories (kClassGroup), in the order of Request::categories, maybe none
 		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row another outfit is worn for only after Confirm
 		std::vector<std::size_t> remove;      // Update only: rows that had the outfit and are unticked, ascending
+		// Create and Apply: once saved and given its rows, the outfit goes on as the Inventory
+		// page's Apply puts it on, the pieces in `fromPlayer` (those of `pieces` the window lists
+		// under Player's Inventory) moved first. Always false and empty for Update.
+		bool                     apply = false;
+		std::vector<std::size_t> fromPlayer;
 	};
 
 	struct Request
@@ -190,13 +195,13 @@ namespace CaptureWindow
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
 		bool protectsFavorites = true;
 
-		// Runs on the game thread when the user saves on the Save page: after Create,
-		// or after confirming the Update tab's popup. It must end by calling Close()
+		// Runs on the game thread when the user saves on the Save page: after Create or
+		// Create and Apply, or after confirming the Update tab's popup. It must end by calling Close()
 		// (done) or SetError() (keep the window open).
 		std::function<void(const SaveRequest& save)> onSave;
 
 		// Runs on the game thread when the user applies the ticked pieces, with their indices
-		// into `pieces` (ascending, never empty), those of them the window lists under From
+		// into `pieces` (ascending, never empty), those of them the window lists under
 		// Player's Inventory now (PieceGroup::kPlayer) in `fromPlayer`, and `outfit`: with
 		// `updateWorn` (Yes in the Apply popup) `wornOutfit`, which the ticks are to replace the
 		// pieces of first; else the outfit last loaded, or `wornOutfit`, when the ticks are
