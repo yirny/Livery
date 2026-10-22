@@ -7,7 +7,7 @@
 //   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow (white
 //                alpha masks), the game's and NORDIC UI's equipped-item marks,
 //                the game's checkbox and dropdown arrow; the row hover glow, made
-//                in code
+//                in code; the piece icons (PieceIcons), each with its halvings
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame; Vanilla's
 //                text buttons and window frame;
 //                list rows (Tailor's tick row, the SkyUI-style tick row of the
@@ -39,6 +39,8 @@
 
 #include "Theme.h"
 
+#include "PieceIcons.h"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
@@ -51,6 +53,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -59,6 +62,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -136,6 +140,10 @@ namespace
 	constexpr float kUnderlinedPadY = 4.0f;
 	// Width (and height) of a field's icon, of the font size.
 	constexpr float kFieldIconRatio = 0.9f;
+	// A tick row's icon (Theme::RowIcon): its side, of the row's height, and the gap between
+	// it and the row's first column (pixels at 1080p).
+	constexpr float kRowIconRatio = 0.8f;
+	constexpr float kRowIconGap = 6.0f;
 
 	struct FontFile
 	{
@@ -197,6 +205,24 @@ namespace
 		ImTextureID Id() const { return reinterpret_cast<ImTextureID>(view.Get()); }
 	};
 
+	// A piece icon: its PNG and each halving of it down to 1 pixel, one view each. ImGui's
+	// sampler reads only a view's top level, so drawing from the smallest level still as wide
+	// as the icon on screen keeps a large PNG smooth when drawn small.
+	struct IconTexture
+	{
+		std::vector<Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>> levels;        // [0] the PNG, each next one half as wide
+		float                                                         width = 0.0f;  // pixels of level 0
+
+		ImTextureID Id(float a_side) const
+		{
+			std::size_t level = 0;
+			while (level + 1 < levels.size() && width / static_cast<float>(1u << (level + 1)) >= a_side) {
+				++level;
+			}
+			return reinterpret_cast<ImTextureID>(levels[level].Get());
+		}
+	};
+
 	struct LoadedFonts
 	{
 		ImFont* body = nullptr;     // nullptr when the file is missing
@@ -223,6 +249,9 @@ namespace
 	Ornament    g_dropdownArrow{ nullptr, ImVec2(13.0f, 16.0f) };    // the game's option stepper arrow, turned to point down
 	Ornament    g_selectArrow{ nullptr, ImVec2(15.0f, 16.0f) };      // NORDIC UI's MCM page arrow, a white mask tinted on draw
 	Ornament    g_hoverGlow{ nullptr, ImVec2(0.0f, 0.0f) };          // a white ellipse fading out to its edges (MakeHoverGlow), stretched over a hovered row
+
+	// The piece icons by PieceIcons' key, loaded once. Render thread only.
+	std::map<std::string, IconTexture, std::less<>> g_rowIcons;
 
 	const SkinFonts& FontFilesOf(Theme::Skin a_skin)
 	{
@@ -409,6 +438,100 @@ namespace
 			a_out.view.Reset();
 			logger::warn("Could not load {} (HRESULT {:#x}); the skin draws a plain stand-in instead", path.string(), static_cast<unsigned>(hr));
 		}
+	}
+
+	// Straight-alpha RGBA at half the width and height (at least 1), each pixel the mean of a 2x2
+	// block, its colour weighted by alpha so transparent pixels lend none.
+	std::vector<std::uint8_t> HalveImage(const std::vector<std::uint8_t>& a_pixels, UINT a_width, UINT a_height)
+	{
+		const UINT                width = (std::max)(1u, a_width / 2);
+		const UINT                height = (std::max)(1u, a_height / 2);
+		std::vector<std::uint8_t> half(static_cast<std::size_t>(width) * height * 4);
+		for (UINT y = 0; y < height; ++y) {
+			for (UINT x = 0; x < width; ++x) {
+				std::array<unsigned, 4> sum{};  // alpha-weighted red, green and blue, then alpha
+				for (UINT dy = 0; dy < 2; ++dy) {
+					for (UINT dx = 0; dx < 2; ++dx) {
+						const UINT  sx = (std::min)(x * 2 + dx, a_width - 1);
+						const UINT  sy = (std::min)(y * 2 + dy, a_height - 1);
+						const auto* pixel = &a_pixels[(static_cast<std::size_t>(sy) * a_width + sx) * 4];
+						for (int c = 0; c < 3; ++c) {
+							sum[c] += pixel[c] * pixel[3];
+						}
+						sum[3] += pixel[3];
+					}
+				}
+				auto* out = &half[(static_cast<std::size_t>(y) * width + x) * 4];
+				for (int c = 0; c < 3; ++c) {
+					out[c] = static_cast<std::uint8_t>(sum[3] > 0 ? sum[c] / sum[3] : 0);
+				}
+				out[3] = static_cast<std::uint8_t>((sum[3] + 2) / 4);
+			}
+		}
+		return half;
+	}
+
+	// Contract: render thread, on the game's D3D11 device.
+	HRESULT CreateIconTexture(ID3D11Device* a_device, UINT a_width, UINT a_height, std::vector<std::uint8_t> a_pixels, IconTexture& a_out)
+	{
+		std::vector<std::vector<std::uint8_t>> images;
+		images.push_back(std::move(a_pixels));
+		for (UINT width = a_width, height = a_height; width > 1 || height > 1; width = (std::max)(1u, width / 2), height = (std::max)(1u, height / 2)) {
+			images.push_back(HalveImage(images.back(), width, height));
+		}
+		std::vector<D3D11_SUBRESOURCE_DATA> data;
+		for (std::size_t level = 0; level < images.size(); ++level) {
+			data.push_back({ images[level].data(), (std::max)(1u, a_width >> level) * 4, 0 });
+		}
+		D3D11_TEXTURE2D_DESC desc{};
+		desc.Width = a_width;
+		desc.Height = a_height;
+		desc.MipLevels = static_cast<UINT>(images.size());
+		desc.ArraySize = 1;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+		if (const auto hr = a_device->CreateTexture2D(&desc, data.data(), &texture); FAILED(hr)) {
+			return hr;
+		}
+		for (UINT level = 0; level < desc.MipLevels; ++level) {
+			D3D11_SHADER_RESOURCE_VIEW_DESC view{};
+			view.Format = desc.Format;
+			view.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			view.Texture2D.MostDetailedMip = level;
+			view.Texture2D.MipLevels = 1;
+			Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> levelView;
+			if (const auto hr = a_device->CreateShaderResourceView(texture.Get(), &view, &levelView); FAILED(hr)) {
+				return hr;
+			}
+			a_out.levels.push_back(std::move(levelView));
+		}
+		a_out.width = static_cast<float>(a_width);
+		return S_OK;
+	}
+
+	// Contract: render thread, once, on the game's D3D11 device; the textures live as long as
+	// the process. A PNG that does not load is left out, with a warning.
+	void LoadRowIcons(ID3D11Device* a_device, IWICImagingFactory* a_wic)
+	{
+		for (auto& file : PieceIcons::FindFiles()) {
+			UINT                      width = 0;
+			UINT                      height = 0;
+			std::vector<std::uint8_t> pixels;
+			IconTexture               texture;
+			auto                      hr = DecodePng(a_wic, file.path.c_str(), width, height, pixels);
+			if (SUCCEEDED(hr)) {
+				hr = CreateIconTexture(a_device, width, height, std::move(pixels), texture);
+			}
+			if (FAILED(hr)) {
+				logger::warn("Could not load the piece icon {} (HRESULT {:#x}); its pieces show none", file.key, static_cast<unsigned>(hr));
+				continue;
+			}
+			g_rowIcons.insert_or_assign(std::move(file.key), std::move(texture));
+		}
+		logger::info("Loaded {} piece icon(s)", g_rowIcons.size());
 	}
 
 	// A white ellipse filling the texture, opaque at its centre and fading to nothing at its
@@ -1029,10 +1152,30 @@ namespace
 		}
 	}
 
+	// A tick row's icon side on the back buffer.
+	float RowIconSide()
+	{
+		return std::round(ImGui::GetFrameHeight() * kRowIconRatio);
+	}
+
+	// A tick row's icon (Theme::RowIcon), RowIconSide square, its left edge at `a_left` and
+	// centred on `a_midY`, tinted through the style alpha; nothing for a key without a texture.
+	void DrawRowIcon(ImDrawList* a_draw, float a_left, float a_midY, const Theme::RowIcon& a_icon)
+	{
+		const auto found = g_rowIcons.find(a_icon.key);
+		if (found == g_rowIcons.end()) {
+			return;
+		}
+		const float  side = RowIconSide();
+		const ImVec2 topLeft(std::round(a_left), std::round(a_midY - side * 0.5f));
+		const ImU32  tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
+		a_draw->AddImage(found->second.Id(side), topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+	}
+
 	// Tailor 3.0's selected list row: while ticked, the row's fill in the faint
 	// amber selection colour with an amber rule down its left edge; the muted
 	// brown hover fill while hovered. The text sits clear of the rule.
-	bool TailorRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
+	bool TailorRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
 	{
 		const float   height = ImGui::GetFrameHeight();
 		const ListRow row = LayOutListRow(a_cells[0], height);
@@ -1051,7 +1194,10 @@ namespace
 			draw->AddRectFilled(row.fillMin, ImVec2(row.fillMin.x + kTailorRuleWidth * g_scale, row.fillMax.y), ImGui::GetColorU32(kAmber));
 		}
 		const float right = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
-		DrawCells(draw, row.min.x + row.inset + TickTextShift(), row.min.y + height * 0.5f, right, a_cells, a_columnX);
+		const float textX = row.min.x + row.inset + TickTextShift();
+		const float midY = row.min.y + height * 0.5f;
+		DrawRowIcon(draw, textX, midY, a_icon);
+		DrawCells(draw, textX, midY, right, a_cells, a_columnX);
 		return row.pressed;
 	}
 
@@ -1085,7 +1231,7 @@ namespace
 	// A SkyUI-style inventory row: while ticked, the skin's equipped mark at the left, and in
 	// Vanilla its selection bar (Nordic marks it with the mark alone); the hover fill while
 	// hovered. The mark's column stays on unticked rows so the names line up.
-	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
+	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
 	{
 		const auto&   style = ImGui::GetStyle();
 		const float   height = ImGui::GetFrameHeight();
@@ -1109,7 +1255,9 @@ namespace
 			const float side = EquippedMarkSide();
 			DrawEquippedMark(draw, ImVec2(topLeft.x + row.inset + side * 0.5f, midY), side);
 		}
-		DrawCells(draw, topLeft.x + row.inset + TickTextShift(), midY, row.fillMax.x - style.FramePadding.x, a_cells, a_columnX);
+		const float textX = topLeft.x + row.inset + TickTextShift();
+		DrawRowIcon(draw, textX, midY, a_icon);
+		DrawCells(draw, textX, midY, row.fillMax.x - style.FramePadding.x, a_cells, a_columnX);
 		return row.pressed;
 	}
 
@@ -1888,6 +2036,7 @@ namespace Theme
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-checkmark.png", g_checkMark);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-dropdown.png", g_dropdownArrow);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-select-arrow.png", g_selectArrow);
+			LoadRowIcons(a_device, wic.Get());
 		}
 		MakeHoverGlow(a_device);
 		wic.Reset();
@@ -2294,9 +2443,14 @@ namespace Theme
 		return clicked;
 	}
 
-	bool TickRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked)
+	bool TickRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const RowIcon& a_icon)
 	{
-		return g_skin == Skin::kTailor ? TailorRow(a_cells, a_columnX, a_ticked) : InventoryRow(a_cells, a_columnX, a_ticked);
+		return g_skin == Skin::kTailor ? TailorRow(a_cells, a_columnX, a_ticked, a_icon) : InventoryRow(a_cells, a_columnX, a_ticked, a_icon);
+	}
+
+	float RowIconRoom()
+	{
+		return g_rowIcons.empty() ? 0.0f : RowIconSide() + kRowIconGap * g_scale;
 	}
 
 	bool TextTab(const char* a_label, bool a_selected)
