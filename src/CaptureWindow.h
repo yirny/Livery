@@ -174,6 +174,7 @@ namespace CaptureWindow
 	struct Request
 	{
 		std::string        actorName;          // the title line names them
+		std::string        playerName;         // PieceGroup::kPlayer's heading names them; "" for "Player"
 		std::string        actorSummary;       // shown greyed under the title line; "" for none
 		std::string        outfitName;         // the library outfit of PieceGroup::kLiveryOutfit's heading
 		std::uint32_t      wornOutfit = 0;     // that outfit's library id, which the Apply popup offers to update; 0 for none

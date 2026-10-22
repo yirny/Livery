@@ -1264,6 +1264,9 @@ namespace
 	{
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
+		if (const auto* player = RE::PlayerCharacter::GetSingleton(); player && player->GetName()) {
+			request.playerName = player->GetName();
+		}
 		request.suggestedName = NextAutomaticName();
 		request.categories = CategoryGroups();
 		const auto  choices = Assignments::ChoicesOf(actor.GetFormID());
