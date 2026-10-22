@@ -132,7 +132,7 @@ namespace
 
 		ImGui_ImplDX11_NewFrame();
 		ImGui_ImplWin32_NewFrame();  // sets io.DisplaySize; also queues the OS cursor, which FeedInput overrides
-		Theme::Apply(Settings::Skin(), Theme::Palette{}, ImGui::GetIO().DisplaySize.y);
+		Theme::Apply(Settings::Skin(), Settings::Palette(), ImGui::GetIO().DisplaySize.y);
 		CaptureWindow::FeedInput();
 		ImGui::NewFrame();
 
