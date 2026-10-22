@@ -843,18 +843,19 @@ namespace
 		return changes;
 	}
 
-	// Manage Wardrobe's Apply: the outfit goes on for the rows the user ticked, as the Save
-	// page gives it; with none ticked it becomes the Default, as the Inventory page's Apply
-	// makes the ticks it.
+	// Manage Wardrobe's Apply: the outfit goes on for the rows the user ticked and leaves the
+	// rows they unticked, as the Save page gives and takes it; with none ticked it becomes
+	// the Default, unless the user unticked the Default for it.
 	// Contract: game thread; no preview is on (the window closed first).
-	void ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, const std::vector<RE::TESObjectARMO*>& pieces, const std::vector<std::size_t>& assign,
-		const std::vector<std::size_t>& remove)
+	void ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)
 	{
-		if (assign.empty()) {
-			Assignments::Assign(actor, pieces, outfit);
-			return;
+		constexpr std::size_t kDefaultRow = 0;  // RowSituation's
+
+		auto rows = assign;
+		if (rows.empty() && std::ranges::find(remove, kDefaultRow) == remove.end()) {
+			rows.push_back(kDefaultRow);
 		}
-		Assignments::Change(actor, RowChanges(outfit, assign, remove));
+		Assignments::Change(actor, RowChanges(outfit, rows, remove));
 	}
 
 	// Contract: game thread; emptied by the close that runs them, and at kPreLoadGame
@@ -1019,7 +1020,7 @@ namespace
 			if (apply) {
 				CaptureWindow::Close();
 				if (target) {
-					ApplyOutfit(*target, edit.outfit, picked, edit.assign, edit.remove);
+					ApplyOutfit(*target, edit.outfit, edit.assign, edit.remove);
 				}
 				return;
 			}
@@ -1065,21 +1066,20 @@ namespace
 			CaptureWindow::SetOutfits(std::move(list));
 		};
 		// Apply to #{Name}: the window closes first, ending the preview, then the outfit as the
-		// library has it goes on for the ticked rows, or as the Default with none.
+		// library has it goes on for the ticked rows and leaves the unticked ones (ApplyOutfit).
 		request.onManageApply = [handle](std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove) {
 			const auto* stored = Library::Find(outfit);
 			if (!stored) {
 				CaptureWindow::SetError("The outfit no longer exists.");
 				return;
 			}
-			const auto pieces = Library::LoadedPieces(*stored);
-			if (pieces.empty()) {
+			if (Library::LoadedPieces(*stored).empty()) {
 				CaptureWindow::SetError("None of its pieces is loaded.");
 				return;
 			}
 			CaptureWindow::Close();
 			if (const auto target = handle.get()) {
-				ApplyOutfit(*target, outfit, pieces, assign, remove);
+				ApplyOutfit(*target, outfit, assign, remove);
 			}
 		};
 	}

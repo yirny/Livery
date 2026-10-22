@@ -779,6 +779,14 @@ namespace CaptureWindow::Internal
 		return AssignedRows(a_state, a_state.manage.wearsFor.get());
 	}
 
+	// With no row ticked, Apply makes the outfit the Default, unless the Default holds it: the
+	// user unticked it there, and Apply only takes it off the unticked rows.
+	// Contract: an outfit is selected.
+	bool ApplyTakesOffDefault(const State& a_state)
+	{
+		return ApplyRows(a_state).empty() && HoldsOutfit(a_state, 0, ManagedOutfitId(a_state));
+	}
+
 	// `for Town, Warm` from the rows Apply gives the outfit, or `as #{Name}'s Default` with
 	// none ticked, when it becomes the Default.
 	std::string ApplyTarget(const State& a_state)
@@ -826,7 +834,11 @@ namespace CaptureWindow::Internal
 	{
 		const char* noUpdate = UpdateReason(a_state);
 		const char* apply = a_state.manageApplyLabel.c_str();
-		const auto  applyTooltip = a_state.manage.outfit >= 0 ? std::format("Dress {} in this outfit {}.", a_state.request.actorName, ApplyTarget(a_state)) : std::string{};
+		std::string applyTooltip;
+		if (a_state.manage.outfit >= 0) {
+			applyTooltip = ApplyTakesOffDefault(a_state) ? std::format("Take this outfit off {}'s unticked situations.", a_state.request.actorName) :
+			                                               std::format("Dress {} in this outfit {}.", a_state.request.actorName, ApplyTarget(a_state));
+		}
 		BeginButtonRow({ "Update", "Remove", apply, "Exit" });
 		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
 		const bool update = ReasonButton("Update", noUpdate);
@@ -966,8 +978,9 @@ namespace CaptureWindow::Internal
 	}
 
 	// Apply's popup: `Apply "X" to #{Name} for Town, Warm?`, or with library edits `Save your
-	// changes to "X", then apply it ...?` and their lines; the row changes; and, with no row
-	// ticked, the Default it replaces. Then Update and Apply or Apply, and Cancel. Returns
+	// changes to "X", then apply it ...?` and their lines (with the Default unticked `Take "X"
+	// off #{Name}'s unticked situations?`); the row changes; and, with no row ticked, the
+	// Default it replaces. Then Update and Apply or Apply, and Cancel. Returns
 	// true on the first.
 	bool DrawManageApplyPopup(const State& a_state)
 	{
@@ -985,11 +998,17 @@ namespace CaptureWindow::Internal
 		const auto& name = a_state.request.actorName;
 		const bool  edits = HasLibraryEdits(a_state);
 		const auto  target = ApplyTarget(a_state);
-		if (edits) {
-			ImGui::TextUnformatted(std::format("Save your changes to \"{}\", then apply it to {} {}?", outfit.name, name, target).c_str());
-			DrawLibraryChangeLines(a_state);
+		std::string question;
+		if (ApplyTakesOffDefault(a_state)) {
+			question = edits ? std::format("Save your changes to \"{}\", then take it off {}'s unticked situations?", outfit.name, name) :
+			                   std::format("Take \"{}\" off {}'s unticked situations?", outfit.name, name);
 		} else {
-			ImGui::TextUnformatted(std::format("Apply \"{}\" to {} {}?", outfit.name, name, target).c_str());
+			question = edits ? std::format("Save your changes to \"{}\", then apply it to {} {}?", outfit.name, name, target) :
+			                   std::format("Apply \"{}\" to {} {}?", outfit.name, name, target);
+		}
+		ImGui::TextUnformatted(question.c_str());
+		if (edits) {
+			DrawLibraryChangeLines(a_state);
 		}
 		DrawRowChangeLines(a_state, form.wearsFor.get(), id, Trimmed(form.name.data()));
 		if (ApplyRows(a_state).empty() && IsTaken(a_state, 0, id)) {

@@ -223,8 +223,8 @@ namespace CaptureWindow
 		// with no unsaved edits: library outfit `outfit`, as the library has it, goes to the
 		// actor for the rows of `assigned` in `assign` and leaves those in `remove` (the
 		// Situations dropdown's ticks against the rows it holds now); with no row in `assign`
-		// it becomes their Default. It must end by calling Close() or SetError(). Empty greys
-		// the button.
+		// it becomes their Default too, unless the Default is in `remove`. It must end by
+		// calling Close() or SetError(). Empty greys the button.
 		std::function<void(std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)> onManageApply;
 
 		// Run on the game thread from Manage Situations (docs/situation-management-ui.md §5, §6):
