@@ -310,7 +310,7 @@ namespace Theme
 		const char* situations = nullptr;
 	};
 
-	// A SelectRow with the outfit's tags under its name (in the small font in Tailor, 16px in
+	// A SelectRow with the outfit's tags under its name (in the small font in Tailor, 14px in
 	// Vanilla and Nordic), wrapping onto
 	// more lines within `tagsWidth` (OutfitTagsWidth), in capitals: its gender first unless unisex (-1
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each

@@ -36,7 +36,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   - Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that hold the outfit
     (Default and the situations), from `Request::assigned`. Never stored in the library.
 - Each row: the name, then under it, in grey, its tags (Tailor: in the small font; Vanilla
-  and Nordic: 16px) in this order:
+  and Nordic: 14px) in this order:
   Female or Male (Unisex has none), Category, Situation, wrapping onto more lines when they
   do not fit. Tailor draws each tag as a framed chip, as Tailor 3.0's outfit list does;
   Vanilla and Nordic as plain text, comma separated.
