@@ -787,13 +787,13 @@ namespace CaptureWindow::Internal
 		return ApplyRows(a_state).empty() && HoldsOutfit(a_state, 0, ManagedOutfitId(a_state));
 	}
 
-	// `for Town, Warm` from the rows Apply gives the outfit, or `as #{Name}'s Default` with
-	// none ticked, when it becomes the Default.
+	// `for Town, Warm` from the rows Apply gives the outfit, or `as their Default` with none
+	// ticked, when it becomes the Default.
 	std::string ApplyTarget(const State& a_state)
 	{
 		const auto rows = ApplyRows(a_state);
 		if (rows.empty()) {
-			return std::format("as {}'s Default", a_state.request.actorName);
+			return "as their Default";
 		}
 		std::string names;
 		for (const auto row : rows) {
@@ -997,14 +997,15 @@ namespace CaptureWindow::Internal
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		const auto& name = a_state.request.actorName;
 		const bool  edits = HasLibraryEdits(a_state);
-		const auto  target = ApplyTarget(a_state);
+		// The name once: `to #{Name} for Town`, or `as #{Name}'s Default` with no row ticked.
+		const auto  target = ApplyRows(a_state).empty() ? std::format("as {}'s Default", name) : std::format("to {} {}", name, ApplyTarget(a_state));
 		std::string question;
 		if (ApplyTakesOffDefault(a_state)) {
 			question = edits ? std::format("Save your changes to \"{}\", then take it off {}'s unticked situations?", outfit.name, name) :
 			                   std::format("Take \"{}\" off {}'s unticked situations?", outfit.name, name);
 		} else {
-			question = edits ? std::format("Save your changes to \"{}\", then apply it to {} {}?", outfit.name, name, target) :
-			                   std::format("Apply \"{}\" to {} {}?", outfit.name, name, target);
+			question = edits ? std::format("Save your changes to \"{}\", then apply it {}?", outfit.name, target) :
+			                   std::format("Apply \"{}\" {}?", outfit.name, target);
 		}
 		ImGui::TextUnformatted(question.c_str());
 		if (edits) {
@@ -1012,7 +1013,7 @@ namespace CaptureWindow::Internal
 		}
 		DrawRowChangeLines(a_state, form.wearsFor.get(), id, Trimmed(form.name.data()));
 		if (ApplyRows(a_state).empty() && IsTaken(a_state, 0, id)) {
-			ImGui::TextUnformatted(std::format("{} already has a Default outfit, {}. It will be replaced.", name, HeldOutfitName(a_state, 0)).c_str());
+			ImGui::TextUnformatted(std::format("The current Default, {}, will be replaced.", HeldOutfitName(a_state, 0)).c_str());
 		}
 		const char* applyLabel = edits ? "Update and Apply" : "Apply";
 		BeginButtonRow({ applyLabel, "Cancel" });
