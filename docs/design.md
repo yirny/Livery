@@ -255,11 +255,11 @@ outfit (`OutfitRows::Give`) with random on puts it at the front of the list; wit
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
 the list keeps its length. The Save page's `Situations for
 #{Name}` rows give and take the outfit for the captured actor in one `Assignments::Change`, after
-the library write, with one forced redress. Manage Wardrobe's `SITUATIONS (#{Name})` edits the selected outfit's rows (Default
-included) with it; Update makes them at once (`Assignments::ChangeRows`) and dresses them
-once as Manage Situations does, and its `Apply to #{Name}` dresses the
-actor for the ticked rows and takes it off the unticked ones; with none ticked it also
-makes the outfit the default, unless the user unticked the Default for it.
+the library write, with one forced redress. Manage Wardrobe's Update changes no row; its `Apply to #{Name}` changes
+what the actor wears now: while they wear another outfit for a situation, its popup gives
+the outfit that row (Yes, `OutfitRows::Give`, worn now) or the Default (Apply as Default,
+the situation's outfit staying on); else the outfit goes to the situation they wear it
+for, or the Default.
 Manage Situations (docs/situation-management-ui.md §3-§6) edits every row of the captured
 actor by drag and drop, the random flags included, and the situations' names and
 descriptions; its Save Changes writes `situations.json` first, then replaces the rows

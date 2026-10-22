@@ -875,7 +875,7 @@ namespace
 	{
 		RE::FormID    actor = 0;
 		std::uint32_t updated = 0;  // the outfit Update changed; 0 when a situation outfit they wear left the library
-		// Their rows changed already (Assignments::ChangeRows, SetRows): dressed for anew
+		// Their rows changed already (Assignments::SetRows): dressed for anew
 		// (Assignments::Refresh), the row they wear wearing `pick` when it gained one.
 		bool          refresh = false;
 		std::uint32_t pick = 0;
@@ -887,32 +887,14 @@ namespace
 		}
 	};
 
-	// Assignments::Changes from the window's rows (RowSituation).
-	Assignments::Changes RowChanges(std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)
-	{
-		Assignments::Changes changes{ .outfit = outfit };
-		for (const auto row : assign) {
-			changes.assign.push_back(RowSituation(row));
-		}
-		for (const auto row : remove) {
-			changes.remove.push_back(RowSituation(row));
-		}
-		return changes;
-	}
-
-	// Manage Wardrobe's Apply: the outfit goes on for the rows the user ticked and leaves the
-	// rows they unticked, as the Save page gives and takes it; with none ticked it becomes
-	// the Default, unless the user unticked the Default for it.
+	// Manage Wardrobe's Apply: the outfit goes to window row `row` (RowSituation), the one the
+	// window chose: the situation they wear another outfit for now, after the user agreed in
+	// its popup, the one they wear it for, or the Default; then they are dressed for their
+	// situations now.
 	// Contract: game thread; no preview is on (the window closed first).
-	void ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)
+	void ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row)
 	{
-		constexpr std::size_t kDefaultRow = 0;  // RowSituation's
-
-		auto rows = assign;
-		if (rows.empty() && std::ranges::find(remove, kDefaultRow) == remove.end()) {
-			rows.push_back(kDefaultRow);
-		}
-		Assignments::Change(actor, RowChanges(outfit, rows, remove));
+		Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) } });
 	}
 
 	// Contract: game thread; emptied by the close that runs them, and at kPreLoadGame
@@ -976,6 +958,7 @@ namespace
 		if (livery) {
 			pieces.outfitName = livery->name;
 			pieces.wornOutfit = livery->id;
+			pieces.wornFor = choices->worn;
 			if (choices->worn != Situations::Situation::kDefault) {
 				pieces.wornSituation = SituationStore::Name(choices->worn);
 			}
@@ -1051,22 +1034,19 @@ namespace
 		return list;
 	}
 
-	// Manage Wardrobe' Update and Remove, its situation rows and its Apply. Update and Remove
-	// write the library first; a refused or failed write changes nothing, assigns nothing and
-	// redresses no one (CLAUDE.md §2.1). Then the actors are redressed (RedressCaptured,
-	// QueueRedress), and the window, still open, shows the library as written. The situation
-	// rows and Apply write nothing to the library.
+	// Manage Wardrobe' Update, Remove and Apply. Update and Remove write the library first; a
+	// refused or failed write changes nothing, assigns nothing and redresses no one (CLAUDE.md
+	// §2.1). Then the actors are redressed (RedressCaptured, QueueRedress), and the window,
+	// still open, shows the library as written. Apply writes nothing to the library.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachManage(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors, const std::vector<RE::TESObjectARMO*>& offered)
 	{
 		const auto handle = actor.GetHandle();
 		const auto actorID = actor.GetFormID();
-		// The rows the user changed are made after the write, at once, so the window shows them
-		// (Assignments::ChangeRows), and dressed for in one Refresh: at once with Live Preview
-		// on (RedressCaptured keeps the preview in step, on the outfit as edited, and the
-		// Inventory page follows what they wear), else at the window's close. With none the
-		// outfit they wear is dressed again as RedressFor does. Update and Apply instead closes
-		// the window, ending the preview, and dresses them as Apply does.
+		// When they wear the outfit, it is dressed again as RedressFor does: at once with Live
+		// Preview on (RedressCaptured keeps the preview in step, on the outfit as edited, and
+		// the Inventory page follows what they wear), else at the window's close. Update and
+		// Apply instead closes the window, ending the preview, and dresses them as Apply does.
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
 			if (const auto error = UpdateOutfit(edit.outfit, edit.name, edit.gender, picked, edit.categories)) {
@@ -1076,20 +1056,16 @@ namespace
 			const auto target = handle.get();
 			if (apply) {
 				CaptureWindow::Close();
-				if (target) {
-					ApplyOutfit(*target, edit.outfit, edit.assign, edit.remove);
+				if (target && !edit.assign.empty()) {
+					ApplyOutfit(*target, edit.outfit, edit.assign.front());
 				}
 				return;
 			}
 			std::optional<CaptureWindow::ActorPieces> redressed;
-			if (target && (!edit.assign.empty() || !edit.remove.empty())) {
-				if (const auto pick = Assignments::ChangeRows(*target, RowChanges(edit.outfit, edit.assign, edit.remove))) {
-					redressed = RedressCaptured(*target, { .actor = actorID, .refresh = true, .pick = *pick }, armors, offered, &picked);
-				}
-			} else if (target && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
+			if (target && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
 				redressed = RedressCaptured(*target, { .actor = actorID, .updated = edit.outfit }, armors, offered, &picked);
 			}
-			auto list = CurrentOutfitList(actorID, armors);  // after the rows changed
+			auto list = CurrentOutfitList(actorID, armors);
 			list.actorPieces = std::move(redressed);
 			CaptureWindow::SetOutfits(std::move(list));
 		};
@@ -1123,8 +1099,8 @@ namespace
 			CaptureWindow::SetOutfits(std::move(list));
 		};
 		// Apply to #{Name}: the window closes first, ending the preview, then the outfit as the
-		// library has it goes on for the ticked rows and leaves the unticked ones (ApplyOutfit).
-		request.onManageApply = [handle](std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove) {
+		// library has it goes to the row the window chose and on (ApplyOutfit).
+		request.onManageApply = [handle](std::uint32_t outfit, std::size_t row) {
 			const auto* stored = Library::Find(outfit);
 			if (!stored) {
 				CaptureWindow::SetError("The outfit no longer exists.");
@@ -1136,7 +1112,7 @@ namespace
 			}
 			CaptureWindow::Close();
 			if (const auto target = handle.get()) {
-				ApplyOutfit(*target, outfit, assign, remove);
+				ApplyOutfit(*target, outfit, row);
 			}
 		};
 	}
@@ -1274,6 +1250,7 @@ namespace
 		if (livery) {
 			request.outfitName = livery->name;
 			request.wornOutfit = livery->id;
+			request.wornFor = choices->worn;
 			if (choices->worn != Situations::Situation::kDefault) {
 				request.wornSituation = SituationStore::Name(choices->worn);
 			}

@@ -56,12 +56,6 @@ namespace Assignments
 	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
 	void Change(RE::Actor& a_actor, const Changes& a_changes);
 
-	// Manage Wardrobe's Update, whose window stays open: makes every change of Change and
-	// dresses nobody, as SetRows does, which it returns. Refresh with the returned pick
-	// dresses them for the new rows.
-	// Contract: game thread; no row is in both lists.
-	std::optional<std::uint32_t> ChangeRows(RE::Actor& a_actor, const Changes& a_changes);
-
 	// Manage Situations' Save Changes: their rows become `a_rows` (the rows of situations
 	// removed in situations.json stay empty), and with `a_dropDefaultPieces` the Default's
 	// pieces go. Nobody is dressed here: Refresh with the returned pick dresses them for the new

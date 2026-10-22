@@ -23,15 +23,15 @@
 //                  one's details; Select fills the Update tab (ChooseOutfit), Cancel
 //                  leaves it as it was
 //   Manage Wardrobe - the tab beside the Inventory page: library outfits and the selected
-//                  one's name, gender, categories, the actor's rows for it ("Situations for
-//                  #{Name}") and pieces, edited in place and kept for one outfit at a time
-//                  (Discard changes / Keep editing before another is selected); the edited
-//                  outfit on the preview; Update lists the changes (Save changes?, a row
-//                  whose worn outfit it replaces among them; Confirm / Cancel) and hands them to
-//                  onManageUpdate, Remove names who has the outfit (Remove outfit?) and hands
-//                  it to onManageRemove, Apply to #{Name} dresses the actor for the ticked
-//                  rows (Apply outfit? first when it saves edits, takes over a row or replaces
-//                  a Default) through onManageApply or onManageUpdate; Exit closes the window;
+//                  one's name, gender, categories and pieces, edited in place and kept for
+//                  one outfit at a time (Discard changes / Keep editing before another is
+//                  selected); the edited outfit on the preview; Update lists the changes
+//                  (Save changes?; Confirm / Cancel) and hands them to onManageUpdate, Remove
+//                  names who has the outfit (Remove outfit?) and hands it to onManageRemove,
+//                  Apply to #{Name} changes what the actor wears now: the situation outfit
+//                  they wear, when they agree in Apply outfit? (Yes), else the Default (Apply
+//                  as Default; Apply outfit? first when it saves edits or replaces a Default),
+//                  through onManageApply or onManageUpdate; Exit closes the window;
 //                  Exit, Escape or another tab with unsaved edits shows the unsaved-changes
 //                  alert, whose Save Changes goes through Update's popup
 //   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks,
@@ -47,9 +47,11 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <format>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -597,8 +599,8 @@ namespace CaptureWindow::Internal
 	//
 	// The tab beside the Inventory page. The edits belong to the selected outfit and stay
 	// until another is selected or the window closes; the preview shows them, or the
-	// Inventory page's ticks while none is selected. The actor's rows for the outfit are
-	// edited with it and take effect with Update or Apply.
+	// Inventory page's ticks while none is selected. The actor's rows change only by Apply,
+	// which dresses them in the outfit now (DrawManageApplyPopup).
 
 	bool IsInClass(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::CategoryOption& a_option)
 	{
@@ -629,9 +631,6 @@ namespace CaptureWindow::Internal
 		}
 		form.gender = outfit.gender;
 		form.pieces = outfit.pieces;
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			form.wearsFor[row] = HoldsOutfit(a_state, row, outfit.id);
-		}
 	}
 
 	// Starts the edits of outfit `a_index` (-1 for none) and shows it on the preview, or
@@ -640,19 +639,6 @@ namespace CaptureWindow::Internal
 	{
 		FillManageForm(a_state, a_index);
 		QueuePreview(a_state, a_index >= 0 ? a_state.manage.pieces : TickedPieces(a_state));
-	}
-
-	// The selected outfit's rows differ from the actor's: a row ticked that they do not have
-	// it for, or one they have it for unticked.
-	bool HasRowEdits(const State& a_state)
-	{
-		const auto& form = a_state.manage;
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			if (form.wearsFor[row] != HoldsOutfit(a_state, row, ManagedOutfitId(a_state))) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	// The selected outfit's edits differ from the library: its trimmed name, categories,
@@ -673,10 +659,10 @@ namespace CaptureWindow::Internal
 		return false;
 	}
 
-	// Anything Update would save: library edits or row edits.
+	// Anything Update would save: an outfit is selected and has library edits.
 	bool HasManageEdits(const State& a_state)
 	{
-		return a_state.manage.outfit >= 0 && (HasLibraryEdits(a_state) || HasRowEdits(a_state));
+		return a_state.manage.outfit >= 0 && HasLibraryEdits(a_state);
 	}
 
 	// The line every unsaved-edits popup shows; "" with no outfit selected.
@@ -732,19 +718,8 @@ namespace CaptureWindow::Internal
 		return helpHovered;
 	}
 
-	// "SITUATIONS (#{Name})": the rows the actor wears the selected outfit for, as edited.
-	// The ticks are part of the edits.
-	void DrawSituationsField(State& a_state)
-	{
-		if (DrawRowsDropdown(a_state, a_state.situationsLabel.c_str(), a_state.manage.wearsFor.get())) {
-			const auto& name = a_state.request.actorName;
-			DrawHelpTooltip(std::format("Where {0} wears this outfit, saved with Update or Apply. These choices are {0}'s own: other characters keep theirs.", name));
-		}
-	}
-
-	// Right column: the selected outfit's name, gender and categories as edited, the rows
-	// the actor wears it for, then its pieces as edited under a count line ending in Edit.
-	// Returns true when Edit is clicked.
+	// Right column: the selected outfit's name, gender and categories as edited, then its
+	// pieces as edited under a count line ending in Edit. Returns true when Edit is clicked.
 	bool DrawManageForm(State& a_state)
 	{
 		auto& form = a_state.manage;
@@ -755,7 +730,6 @@ namespace CaptureWindow::Internal
 		DrawNameField(a_state, form.name);
 		DrawGenderField(form.gender);
 		DrawCategoryDropdown(a_state, form.classTicked.get());
-		DrawSituationsField(a_state);
 		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str());
 		const bool edit = Theme::LabelLink("Edit");
@@ -772,34 +746,51 @@ namespace CaptureWindow::Internal
 		kCancel
 	};
 
-	// The rows Apply gives the outfit: the ticked ones; the outfit another one wears is
-	// replaced, as Apply's popup says. Contract: an outfit is selected.
-	std::vector<std::size_t> ApplyRows(const State& a_state)
+	// Apply to #{Name} changes what the actor wears now (docs/outfit-management-ui.md §4): the
+	// outfit goes to one row, the situation outfit they wear when the user agrees, else the
+	// Default (row 0).
+
+	// The row of the situation the actor wears a library outfit for now (Request::wornFor), or
+	// nullopt: they wear the Default, nothing of Livery's, or a situation removed since.
+	std::optional<std::size_t> WornSituationRow(const State& a_state)
 	{
-		return AssignedRows(a_state, a_state.manage.wearsFor.get());
+		const auto& request = a_state.request;
+		if (request.wornOutfit == 0 || request.wornFor == Situations::Situation::kDefault) {
+			return std::nullopt;
+		}
+		const auto found = std::ranges::find(request.situations, request.wornFor, &CaptureWindow::SituationInfo::situation);
+		if (found == request.situations.end()) {
+			return std::nullopt;
+		}
+		return static_cast<std::size_t>(found - request.situations.begin());
 	}
 
-	// With no row ticked, Apply makes the outfit the Default, unless the Default holds it: the
-	// user unticked it there, and Apply only takes it off the unticked rows.
+	// The situation row Apply's popup offers to give the selected outfit (Yes) beside the
+	// Default: the one the actor wears another outfit for now. nullopt when they wear the
+	// Default, nothing of Livery's or the selected outfit itself.
 	// Contract: an outfit is selected.
-	bool ApplyTakesOffDefault(const State& a_state)
+	std::optional<std::size_t> OfferedRow(const State& a_state)
 	{
-		return ApplyRows(a_state).empty() && HoldsOutfit(a_state, 0, ManagedOutfitId(a_state));
+		const auto row = WornSituationRow(a_state);
+		return row && a_state.request.wornOutfit != ManagedOutfitId(a_state) ? row : std::nullopt;
 	}
 
-	// `for Town, Warm` from the rows Apply gives the outfit, or `as their Default` with none
-	// ticked, when it becomes the Default.
-	std::string ApplyTarget(const State& a_state)
+	// The row Apply gives the outfit when no row is offered (OfferedRow): the situation the
+	// actor wears it for now, which it is dressed again for, else the Default.
+	std::size_t DirectApplyRow(const State& a_state)
 	{
-		const auto rows = ApplyRows(a_state);
-		if (rows.empty()) {
-			return "as their Default";
+		return WornSituationRow(a_state).value_or(0);
+	}
+
+	// Apply's tooltip: what it dresses the actor for. Contract: an outfit is selected.
+	std::string ApplyTooltip(const State& a_state)
+	{
+		const auto& name = a_state.request.actorName;
+		if (const auto offered = OfferedRow(a_state)) {
+			return std::format("Dress {} in this outfit as their {} outfit, or make it their Default.", name, RowName(a_state, *offered));
 		}
-		std::string names;
-		for (const auto row : rows) {
-			names += std::format("{}{}", names.empty() ? "" : ", ", RowName(a_state, row));
-		}
-		return "for " + names;
+		const auto row = DirectApplyRow(a_state);
+		return row == 0 ? std::format("Dress {} in this outfit as their Default.", name) : std::format("Dress {} in this outfit for {}.", name, RowName(a_state, row));
 	}
 
 	// Why Apply to #{Name} is greyed, or nullptr. It dresses the actor in the outfit as
@@ -834,11 +825,7 @@ namespace CaptureWindow::Internal
 	{
 		const char* noUpdate = UpdateReason(a_state);
 		const char* apply = a_state.manageApplyLabel.c_str();
-		std::string applyTooltip;
-		if (a_state.manage.outfit >= 0) {
-			applyTooltip = ApplyTakesOffDefault(a_state) ? std::format("Take this outfit off {}'s unticked situations.", a_state.request.actorName) :
-			                                               std::format("Dress {} in this outfit {}.", a_state.request.actorName, ApplyTarget(a_state));
-		}
+		const auto  applyTooltip = a_state.manage.outfit >= 0 ? ApplyTooltip(a_state) : std::string{};
 		BeginButtonRow({ "Update", "Remove", apply, "Exit" });
 		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
 		const bool update = ReasonButton("Update", noUpdate);
@@ -933,8 +920,7 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// Update's popup: `Save your changes to "X"?`, the library and row changes (a ticked row
-	// whose worn outfit it replaces reads `Town: "B" replaces "A"`), then Confirm / Cancel.
+	// Update's popup: `Save your changes to "X"?`, the library changes, then Confirm / Cancel.
 	// Returns true on Confirm. Cancel also calls off the leave the unsaved-changes alert's
 	// Save Changes opened it for.
 	bool DrawManageConfirmPopup(State& a_state)
@@ -950,7 +936,6 @@ namespace CaptureWindow::Internal
 		}
 		ImGui::TextUnformatted(std::format("Save your changes to \"{}\"?", OutfitAt(a_state, form.outfit).name).c_str());
 		DrawLibraryChangeLines(a_state);
-		DrawRowChangeLines(a_state, form.wearsFor.get(), ManagedOutfitId(a_state), Trimmed(form.name.data()));
 		BeginButtonRow({ "Confirm", "Cancel" });
 		const bool confirm = Theme::Button("Confirm");
 		ImGui::SameLine();
@@ -967,52 +952,117 @@ namespace CaptureWindow::Internal
 		return confirm;
 	}
 
-	// Whether Apply needs the popup: with library edits (saved first), row changes (the
-	// outfit a row wears may be replaced), or a Default whose worn outfit it would replace
-	// with no row ticked.
+	// Whether Apply needs the popup: a situation row is offered (OfferedRow), there are
+	// library edits (saved first), or the Default's worn outfit would be replaced.
 	// Contract: an outfit is selected.
 	bool ApplyNeedsConfirm(const State& a_state)
 	{
-		const bool replacesDefault = ApplyRows(a_state).empty() && IsTaken(a_state, 0, ManagedOutfitId(a_state));
-		return HasLibraryEdits(a_state) || HasRowEdits(a_state) || replacesDefault;
+		if (OfferedRow(a_state) || HasLibraryEdits(a_state)) {
+			return true;
+		}
+		return DirectApplyRow(a_state) == 0 && IsTaken(a_state, 0, ManagedOutfitId(a_state));
 	}
 
-	// Apply's popup: `Apply "X" to #{Name} for Town, Warm?`, or with library edits `Save your
-	// changes to "X", then apply it ...?` and their lines (with the Default unticked `Take "X"
-	// off #{Name}'s unticked situations?`); the row changes; and, with no row ticked, the
-	// Default it replaces. Then Update and Apply or Apply, and Cancel. Returns
-	// true on the first.
-	bool DrawManageApplyPopup(const State& a_state)
+	// The question of Apply's popup for offered row `a_row`: random off `Make "A" their new
+	// Town outfit?` ("B" leaves the row), random on `Add "A" to them and wear it now?`, or
+	// with "A" on that list already `Wear "A" from them now?`; with library edits `Save your
+	// changes to "A", then make it ...?`.
+	std::string OfferQuestion(const State& a_state, std::size_t a_row)
 	{
-		if (!BeginModal(kManageApplyPopup)) {
-			return false;
-		}
-		const auto& form = a_state.manage;
-		if (form.outfit < 0) {
-			ImGui::CloseCurrentPopup();
-			ImGui::EndPopup();
-			return false;
-		}
-		const auto  id = ManagedOutfitId(a_state);
-		const auto& outfit = OutfitAt(a_state, form.outfit);
-		const auto& name = a_state.request.actorName;
+		const auto& outfit = OutfitAt(a_state, a_state.manage.outfit);
+		const auto& row = a_state.request.assigned[a_row].row;
 		const bool  edits = HasLibraryEdits(a_state);
-		// The name once: `to #{Name} for Town`, or `as #{Name}'s Default` with no row ticked.
-		const auto  target = ApplyRows(a_state).empty() ? std::format("as {}'s Default", name) : std::format("to {} {}", name, ApplyTarget(a_state));
-		std::string question;
-		if (ApplyTakesOffDefault(a_state)) {
-			question = edits ? std::format("Save your changes to \"{}\", then take it off {}'s unticked situations?", outfit.name, name) :
-			                   std::format("Take \"{}\" off {}'s unticked situations?", outfit.name, name);
+		const auto  it = edits ? std::string("it") : std::format("\"{}\"", outfit.name);
+		std::string action;
+		if (!row.random) {
+			action = std::format("make {} their new {} outfit", it, RowName(a_state, a_row));
+		} else if (OutfitRows::Holds(row, outfit.id)) {
+			action = std::format("wear {} from them now", it);
 		} else {
-			question = edits ? std::format("Save your changes to \"{}\", then apply it {}?", outfit.name, target) :
-			                   std::format("Apply \"{}\" {}?", outfit.name, target);
+			action = std::format("add {} to them and wear it now", it);
 		}
+		if (edits) {
+			return std::format("Save your changes to \"{}\", then {}?", outfit.name, action);
+		}
+		action.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(action.front())));
+		return action + "?";
+	}
+
+	// What Apply as Default does, for its "(?)": the outfit becomes the Default and row
+	// `a_row` keeps its outfit, so the new Default shows only once no situation outfit applies.
+	std::string AsDefaultHelp(const State& a_state, std::size_t a_row)
+	{
+		const auto& name = a_state.request.actorName;
+		const auto& outfit = OutfitAt(a_state, a_state.manage.outfit);
+		const auto* situation = RowName(a_state, a_row);
+		auto        help = std::format("\"{}\" becomes {}'s Default instead, and their {} outfit stays. The new Default shows only when {} ends and no other situational outfit applies.",
+			outfit.name, name, situation, situation);
+		if (IsTaken(a_state, 0, outfit.id)) {
+			help += std::format(" It replaces the current Default, {}.", HeldOutfitName(a_state, 0));
+		}
+		if (HasLibraryEdits(a_state)) {
+			help += " Your changes are saved first.";
+		}
+		return help;
+	}
+
+	// Apply's popup when it offers row `a_row`, the situation the actor wears another outfit
+	// for now: `Lydia is wearing their Town outfit, "B".` (`one of their Town outfits` with
+	// random on), the question (OfferQuestion), the library edits' lines, then Yes, Apply as
+	// Default (its "(?)" says what that does, AsDefaultHelp) and Cancel. Returns `a_row` on
+	// Yes, the Default (0) on Apply as Default.
+	std::optional<std::size_t> DrawOfferPopupBody(const State& a_state, std::size_t a_row)
+	{
+		constexpr const char* kAsDefault = "Apply as Default";
+		constexpr const char* kAsDefaultWidth = "Apply as Default (?)";  // what the button's width is measured on (Theme::HelpButton)
+
+		const auto& request = a_state.request;
+		const auto* situation = RowName(a_state, a_row);
+		const auto  wearing = request.assigned[a_row].row.random ? std::format("{} is wearing one of their {} outfits, \"{}\".", request.actorName, situation, request.outfitName) :
+		                                                           std::format("{} is wearing their {} outfit, \"{}\".", request.actorName, situation, request.outfitName);
+		ImGui::TextUnformatted(wearing.c_str());
+		ImGui::TextUnformatted(OfferQuestion(a_state, a_row).c_str());
+		if (HasLibraryEdits(a_state)) {
+			DrawLibraryChangeLines(a_state);
+		}
+		BeginButtonRow({ "Yes", kAsDefaultWidth, "Cancel" });
+		const bool yes = Theme::Button("Yes");
+		ImGui::SameLine();
+		bool       helpHovered = false;
+		const bool asDefault = Theme::HelpButton(kAsDefault, &helpHovered);
+		if (helpHovered) {
+			DrawHelpTooltip(AsDefaultHelp(a_state, a_row));
+		}
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		if (yes || asDefault || cancel) {
+			QueueMenuSound(cancel ? kCancelSound : kOkSound);
+			ImGui::CloseCurrentPopup();
+		}
+		if (yes) {
+			return a_row;
+		}
+		return asDefault ? std::optional<std::size_t>(0) : std::nullopt;
+	}
+
+	// Apply's popup with no row offered: `Apply "A" as #{Name}'s Default?` (`... to #{Name} for
+	// Town?` when they wear it for that situation now), or with library edits `Save your
+	// changes to "A", then apply it ...?` and their lines; the Default it replaces. Then
+	// Update and Apply or Apply, and Cancel. Returns the row (DirectApplyRow) on the first.
+	std::optional<std::size_t> DrawDirectApplyPopupBody(const State& a_state)
+	{
+		const auto& outfit = OutfitAt(a_state, a_state.manage.outfit);
+		const auto& name = a_state.request.actorName;
+		const auto  row = DirectApplyRow(a_state);
+		const bool  edits = HasLibraryEdits(a_state);
+		const auto  target = row == 0 ? std::format("as {}'s Default", name) : std::format("to {} for {}", name, RowName(a_state, row));
+		const auto  question = edits ? std::format("Save your changes to \"{}\", then apply it {}?", outfit.name, target) : std::format("Apply \"{}\" {}?", outfit.name, target);
 		ImGui::TextUnformatted(question.c_str());
 		if (edits) {
 			DrawLibraryChangeLines(a_state);
 		}
-		DrawRowChangeLines(a_state, form.wearsFor.get(), id, Trimmed(form.name.data()));
-		if (ApplyRows(a_state).empty() && IsTaken(a_state, 0, id)) {
+		if (row == 0 && IsTaken(a_state, 0, outfit.id)) {
 			ImGui::TextUnformatted(std::format("The current Default, {}, will be replaced.", HeldOutfitName(a_state, 0)).c_str());
 		}
 		const char* applyLabel = edits ? "Update and Apply" : "Apply";
@@ -1025,32 +1075,49 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(apply ? kOkSound : kCancelSound);
 			ImGui::CloseCurrentPopup();
 		}
-		ImGui::EndPopup();
-		return apply;
+		return apply ? std::optional<std::size_t>(row) : std::nullopt;
 	}
 
-	// Hands the edits and the rows to onManageUpdate, which writes the library, changes the
-	// rows and ends with SetOutfits, or with `a_apply` dresses the actor and closes the
-	// window, or ends with SetError; until then the page is greyed. Update gives the outfit
-	// only to the rows that do not hold it yet, so a row's list and pick stay as they are;
-	// Update and Apply gives it to every ticked row, as Apply does.
+	// Apply's popup: DrawOfferPopupBody with a row offered (OfferedRow), else
+	// DrawDirectApplyPopupBody. Returns the row the user applies the outfit to, or nullopt.
+	std::optional<std::size_t> DrawManageApplyPopup(const State& a_state)
+	{
+		if (!BeginModal(kManageApplyPopup)) {
+			return std::nullopt;
+		}
+		if (a_state.manage.outfit < 0) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return std::nullopt;
+		}
+		const auto offered = OfferedRow(a_state);
+		const auto row = offered ? DrawOfferPopupBody(a_state, *offered) : DrawDirectApplyPopupBody(a_state);
+		ImGui::EndPopup();
+		return row;
+	}
+
+	// Hands the edits to onManageUpdate, which writes the library and ends with SetOutfits,
+	// or with `a_applyRow` (Update and Apply) dresses the actor for that row as Apply does and
+	// closes the window, or ends with SetError; until then the page is greyed. Update alone
+	// changes no row.
 	// Contract: the handler writes nothing for a refused name or a failed write, and then
 	// assigns nothing (CLAUDE.md §2.1).
-	void RequestManageUpdate(State& a_state, bool a_apply)
+	void RequestManageUpdate(State& a_state, std::optional<std::size_t> a_applyRow)
 	{
 		const auto& form = a_state.manage;
-		const auto  id = ManagedOutfitId(a_state);
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
-		CaptureWindow::SaveRequest edit{ .outfit = id,
+		CaptureWindow::SaveRequest edit{ .outfit = ManagedOutfitId(a_state),
 			.name = Trimmed(form.name.data()),
 			.gender = form.gender,
 			.pieces = form.pieces,
-			.categories = TickedCategories(a_state, form.classTicked.get()),
-			.assign = a_apply ? AssignedRows(a_state, form.wearsFor.get()) : AddedRows(a_state, form.wearsFor.get(), id),
-			.remove = RemovedRows(a_state, form.wearsFor.get(), id) };
-		auto                       onUpdate = a_state.request.onManageUpdate;
-		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit), a_apply] { onUpdate(edit, a_apply); });
+			.categories = TickedCategories(a_state, form.classTicked.get()) };
+		if (a_applyRow) {
+			edit.assign.push_back(*a_applyRow);
+		}
+		const bool apply = a_applyRow.has_value();
+		auto       onUpdate = a_state.request.onManageUpdate;
+		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit), apply] { onUpdate(edit, apply); });
 	}
 
 	// Names the outfit and who has it among Livery's assignments in this save, then Remove /
@@ -1099,22 +1166,19 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([onRemove, outfit = ManagedOutfitId(a_state)] { onRemove(outfit); });
 	}
 
-	// Apply with no library edits: hands the outfit and its rows to onManageApply, which
+	// Apply with no library edits: hands the outfit and row `a_row` to onManageApply, which
 	// dresses the actor and closes the window, or ends with SetError; until then the page
 	// is greyed. With library edits RequestManageUpdate saves them first.
-	void RequestManageApply(State& a_state)
+	void RequestManageApply(State& a_state, std::size_t a_row)
 	{
 		if (HasLibraryEdits(a_state)) {
-			RequestManageUpdate(a_state, true);
+			RequestManageUpdate(a_state, a_row);
 			return;
 		}
-		const auto& form = a_state.manage;
-		const auto  id = ManagedOutfitId(a_state);
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		auto onApply = a_state.request.onManageApply;
-		SKSE::GetTaskInterface()->AddTask(
-			[onApply, id, assign = ApplyRows(a_state), remove = RemovedRows(a_state, form.wearsFor.get(), id)] { onApply(id, assign, remove); });
+		SKSE::GetTaskInterface()->AddTask([onApply, id = ManagedOutfitId(a_state), a_row] { onApply(id, a_row); });
 	}
 
 	// The page's popups, each opened by the page in its own ID scope. The unsaved-changes
@@ -1123,11 +1187,11 @@ namespace CaptureWindow::Internal
 	void DrawManagePopups(State& a_state)
 	{
 		if (DrawManageConfirmPopup(a_state)) {
-			RequestManageUpdate(a_state, false);
+			RequestManageUpdate(a_state, std::nullopt);
 			a_state.leaveAfterSave = a_state.leave.has_value();
 		}
-		if (DrawManageApplyPopup(a_state)) {
-			RequestManageApply(a_state);
+		if (const auto row = DrawManageApplyPopup(a_state)) {
+			RequestManageApply(a_state, *row);
 		}
 		if (DrawRemovePopup(a_state)) {
 			RequestManageRemove(a_state);
@@ -1201,7 +1265,7 @@ namespace CaptureWindow::Internal
 			if (ApplyNeedsConfirm(a_state)) {
 				ImGui::OpenPopup(kManageApplyPopup);
 			} else {
-				RequestManageApply(a_state);
+				RequestManageApply(a_state, DirectApplyRow(a_state));
 			}
 		} else if (action == ManageAction::kCancel) {
 			RequestLeave(a_state, { .exit = true });
