@@ -41,7 +41,7 @@ What a row wears:
   is walked as today, the first row that has one is worn, else the Default, else their own
   clothes.
 - A row *holds* an outfit when it is `chosen` (random off) or on `outfits` (random on).
-  "Holds" is what `Situations for #{Name}` ticks on the Save page and Manage Wardrobe, and
+  "Holds" is what `Situations for #{Name}` ticks on the Save page, and
   the outfit list's Situation tags, headings and star mark, and Remove's popup show.
 
 Every row reads its outfit from the library each time it goes on, the Default included;
@@ -49,7 +49,7 @@ only the Default's `pieces` are kept as given.
 
 Changes:
 
-- Giving a row an outfit (a tick on the Save page or Manage Wardrobe, Apply, Apply to
+- Giving a row an outfit (a tick on the Save page, Apply, Apply to
   #{Name}, a drop on the page; `OutfitRows::Give`, `Place`): random on, it goes to the front
   of `outfits` (a drop: the drop place), or moves there if it is on it already. Random off
   the list keeps its length: an outfit on it becomes `chosen` where it is; one not on it
@@ -60,9 +60,9 @@ Changes:
 - A library outfit made the Default's `chosen` with random off drops the Default's `pieces`.
 - Turning random off (`OutfitRows::SetRandom`) keeps `chosen` on: the last pick worn, or the
   outfit chosen before random went on; with none, the first of the list.
-- Unticking a row on the Save page or Manage Wardrobe takes the outfit off `outfits`;
+- Unticking a row on the Save page takes the outfit off `outfits`;
   `chosen` becomes 0 if it was that.
-- The Save page's and Manage Wardrobe's taken-row line reads `Town: "B" replaces "A"` (random
+- The Save page's taken-row line reads `Town: "B" replaces "A"` (random
   off, another `chosen`); the buttons are `Confirm` / `Cancel`; the replaced outfit leaves
   the list. A random-on row reads `Town: added`.
 - The Inventory page's Apply popup: `No, apply as is (?)` (was `No, just apply`). The ticks
@@ -354,7 +354,7 @@ refused or failed one changes none; the same load and write rules as the library
   either pane, with Back, Escape and Edit, and the preview; Save Changes greyed
   and saved (Live Preview on and off); Random Outfit on, picks at situation changes;
   rename refused when empty or taken; Remove and its popup, the rows gone, the
-  Save page and Manage Wardrobe without it; Restore Presets brings it back empty; the
+  Save page without it; Restore Presets brings it back empty; the
   unsaved alert on Exit, Escape and both tabs, on both pages; the three skins.
 
 ## 9. Later

@@ -21,8 +21,8 @@ namespace RE
 // QueueInput runs on the game thread from the input dispatch hook. All state is
 // guarded by one mutex. Nothing here touches the outfit library or the
 // assignments: the Save page's Create and Update hand the outfit and the rows to
-// change to Request::onSave, Manage Wardrobe's Update (with the rows to change) and Remove
-// the outfit to Request::onManageUpdate and onManageRemove and its Apply to onManageApply,
+// change to Request::onSave, Manage Wardrobe's Update and Remove the outfit to
+// Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
 // Manage Situations' Save Changes, Remove (a situation) and Restore Presets go to
 // Request::onSituationsSave, onSituationRemove and onRestorePresets,
 // Apply and Restore Outfit go to
@@ -154,7 +154,8 @@ namespace CaptureWindow
 	};
 
 	// What the Save page hands over: the outfit to write, then the rows of "Situations for #{Name}"
-	// (indices into Request::assigned) to change for the actor.
+	// (indices into Request::assigned) to change for the actor. Manage Wardrobe's Update hands
+	// over the outfit alone, and its Update and Apply the one row in `assign` it dresses for.
 	struct SaveRequest
 	{
 		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
@@ -183,6 +184,9 @@ namespace CaptureWindow
 		bool               previewOn = false;  // Live Preview is on as the window opens; off, the window freezes the game
 		std::string        previewNote;        // why Live Preview cannot be on, shown over its greyed tick; "" when it can
 		std::string        suggestedName;      // initial text of the name field
+		// What `wornOutfit` is worn for as a row's key, kDefault for the default: Manage
+		// Wardrobe's Apply offers that situation.
+		Situations::Situation wornFor = Situations::Situation::kDefault;
 		// One run per group, in the groups' order: kClassGroup's categories, then kSituationGroup
 		// with one entry per row of `assigned`, in its order. The outfit lists tag and sort by
 		// them; the Save page ticks only kClassGroup's.
@@ -216,12 +220,12 @@ namespace CaptureWindow
 		std::function<void()> onRestore;
 
 		// Runs on the game thread when the user confirms Manage Wardrobe's Update: `edit` holds
-		// the outfit, its new name, gender, pieces and categories, and the rows of `assigned`
-		// to change for the actor, as the Save page's Update tab hands them. The library write
-		// comes first; a refused or failed write assigns nothing. The window stays open: it
+		// the outfit, its new name, gender, pieces and categories; no row changes. The library
+		// write comes first; a refused or failed write assigns nothing. The window stays open: it
 		// must end by calling SetOutfits() with the library as written, or SetError(). With
 		// `apply` (Update and Apply, from Apply to #{Name} with unsaved edits) it ends by
-		// calling Close() and dresses the actor as onManageApply does. Empty greys Update.
+		// calling Close() and dresses the actor as onManageApply does, for the one row in
+		// `edit.assign`. Empty greys Update.
 		std::function<void(const SaveRequest& edit, bool apply)> onManageUpdate;
 
 		// Runs on the game thread when the user confirms Manage Wardrobe' Remove of library
@@ -231,11 +235,11 @@ namespace CaptureWindow
 
 		// Runs on the game thread when the user presses Manage Wardrobe's "Apply to #{Name}"
 		// with no unsaved edits: library outfit `outfit`, as the library has it, goes to the
-		// actor for the rows of `assigned` in `assign` and leaves those in `remove` (the
-		// Situations dropdown's ticks against the rows it holds now); with no row in `assign`
-		// it becomes their Default too, unless the Default is in `remove`. It must end by
-		// calling Close() or SetError(). Empty greys the button.
-		std::function<void(std::uint32_t outfit, const std::vector<std::size_t>& assign, const std::vector<std::size_t>& remove)> onManageApply;
+		// actor for row `row` of `assigned` (the situation they wear another outfit for now,
+		// when the user agreed in Apply's popup, the one they wear it for, or the Default), and
+		// they are dressed for their situations now. It must end by calling Close() or
+		// SetError(). Empty greys the button.
+		std::function<void(std::uint32_t outfit, std::size_t row)> onManageApply;
 
 		// Run on the game thread from Manage Situations (docs/situation-management-ui.md §5, §6):
 		// onSituationsSave with Save Changes' edits, onSituationRemove with the situation Remove
@@ -290,6 +294,8 @@ namespace CaptureWindow
 		std::string              outfitName;      // as Request::outfitName
 		std::uint32_t            wornOutfit = 0;  // as Request::wornOutfit
 		std::string              wornSituation;   // as Request::wornSituation
+		// As Request::wornFor.
+		Situations::Situation wornFor = Situations::Situation::kDefault;
 	};
 
 	// What SetOutfits replaces in the open window's Request, as Open had them.

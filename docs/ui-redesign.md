@@ -100,7 +100,7 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   multi-choice dropdown), then `SITUATIONS (#{Name})`.
 - Field `SITUATIONS (#{Name})`, replacing the library's situation categories, which leave
   the library (no situation filter or sort in the outfit browser): a multi-choice dropdown of
-  `Default` and the situations, as on Manage Wardrobe. A tick gives
+  `Default` and the situations. A tick gives
   the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's
   `(?)`: "Situational outfit. #{Name} changes into it whenever a ticked situation applies.
   Default is what #{Name} wears wherever no situation applies."

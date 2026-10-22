@@ -992,15 +992,6 @@ namespace Assignments
 		return pick;
 	}
 
-	std::optional<std::uint32_t> ChangeRows(RE::Actor& a_actor, const Changes& a_changes)
-	{
-		const auto* found = FindAssignment(a_actor.GetFormID());
-		auto        changed = found ? *found : Assignment{ .actor = a_actor.GetFormID() };
-		ApplyChanges(changed, a_changes);
-		// Dropped only when the change took them (GiveRow), so an empty list is no change.
-		return SetRows(a_actor, changed.rows, changed.defaultPieces.empty());
-	}
-
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, std::uint32_t a_pick)
 	{
 		const auto id = a_actor.GetFormID();

@@ -160,7 +160,6 @@ namespace CaptureWindow::Internal
 		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only kClassGroup's are used
 		int                             gender = -1;  // -1 unisex, 0 male, 1 female
 		std::vector<std::size_t>        pieces;       // its loaded pieces as edited: indices into request.pieces, ascending
-		std::unique_ptr<bool[]>         wearsFor;     // one per row of "SITUATIONS (#{Name})" (request.assigned), Default first
 	};
 
 	// One situation of Manage Situations as edited, in request.situations' order.
@@ -324,11 +323,10 @@ namespace CaptureWindow::Internal
 	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
 	// The rows a form's "SITUATIONS (#{Name})" ticks (`a_wearsFor`, one per row of request.assigned)
 	// change for library outfit `a_outfit`: those ticked whose worn outfit the save replaces
-	// (IsTaken), which it gives the outfit only after Confirm; those the save gives it; of
-	// those, the ones that do not hold it yet; those that hold it and are unticked.
+	// (IsTaken), which it gives the outfit only after Confirm; those the save gives it; those
+	// that hold it and are unticked.
 	std::vector<std::size_t> TakenRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
 	std::vector<std::size_t> AssignedRows(const State& a_state, const bool* a_wearsFor);
-	std::vector<std::size_t> AddedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
 	std::vector<std::size_t> RemovedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
 	// The lines a confirm popup shows for those rows: `Town: added`, `Town: removed`, and for
 	// the taken ones `Town: "B" replaces "A"` (`a_name` is the outfit's name).

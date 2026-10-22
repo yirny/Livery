@@ -855,6 +855,7 @@ namespace CaptureWindow::Internal
 		request.outfitName = a_pieces.outfitName;
 		request.wornOutfit = a_pieces.wornOutfit;
 		request.wornSituation = a_pieces.wornSituation;
+		request.wornFor = a_pieces.wornFor;
 		a_state.loadedOutfit = -1;
 		SortPieces(a_state);
 	}
@@ -874,6 +875,7 @@ namespace CaptureWindow::Internal
 		}
 		request.wornOutfit = 0;
 		request.wornSituation.clear();
+		request.wornFor = Situations::Situation::kDefault;
 		request.outfitName.clear();
 		for (auto& piece : request.pieces) {
 			if (piece.group == CaptureWindow::PieceGroup::kLiveryOutfit) {
@@ -1552,17 +1554,6 @@ namespace CaptureWindow::Internal
 		return rows;
 	}
 
-	std::vector<std::size_t> AddedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit)
-	{
-		std::vector<std::size_t> rows;
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			if (a_wearsFor[row] && !HoldsOutfit(a_state, row, a_outfit)) {
-				rows.push_back(row);
-			}
-		}
-		return rows;
-	}
-
 	std::vector<std::size_t> RemovedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit)
 	{
 		std::vector<std::size_t> rows;
@@ -2023,7 +2014,7 @@ namespace CaptureWindow
 				OutfitBrowser::Reset(*browser, state.request);
 			}
 			state.showTags = true;
-			state.manage = { .classTicked = std::make_unique<bool[]>(categories), .wearsFor = std::make_unique<bool[]>(rows) };
+			state.manage = { .classTicked = std::make_unique<bool[]>(categories) };
 			state.discardFor = -1;
 			state.leave.reset();
 			state.leaveAfterSave = false;
@@ -2120,7 +2111,7 @@ namespace CaptureWindow
 		for (auto* ticks : { &state.createForm.classTicked, &state.updateForm.classTicked, &state.manage.classTicked }) {
 			*ticks = RemapTicks(request.categories, ticks->get(), a_list.categories);
 		}
-		for (auto* ticks : { &state.createForm.wearsFor, &state.updateForm.wearsFor, &state.manage.wearsFor }) {
+		for (auto* ticks : { &state.createForm.wearsFor, &state.updateForm.wearsFor }) {
 			*ticks = RemapRows(request.situations, ticks->get(), a_list.situations);
 		}
 		const auto assignedBefore = std::exchange(request.assigned, std::move(a_list.assigned));
@@ -2141,9 +2132,9 @@ namespace CaptureWindow
 		if (chosen != 0 && state.chosenOutfit < 0) {
 			state.updateTab = false;  // the Save page's Update tab has no outfit left to update
 		}
-		// The Update tab's "SITUATIONS (#{Name})" ticks follow the rows Manage Wardrobe or Manage
-		// Situations changed for its outfit, so its Update cannot undo them unseen; the user's
-		// other ticks stay. Rows are matched by situation, as one may have been removed.
+		// The Update tab's "SITUATIONS (#{Name})" ticks follow the rows Manage Situations changed
+		// for its outfit, so its Update cannot undo them unseen; the user's other ticks stay. Rows
+		// are matched by situation, as one may have been removed.
 		for (std::size_t row = 0; state.chosenOutfit >= 0 && row < RowCount(state); ++row) {
 			const auto found = std::ranges::find(situationsBefore, request.situations[row].situation, &SituationInfo::situation);
 			const auto rowBefore = static_cast<std::size_t>(found - situationsBefore.begin());
