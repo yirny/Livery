@@ -202,6 +202,9 @@ namespace
 	// The light grey of the game's scroll bar (#cccccc): its track's inner lines, and in Vanilla and
 	// Nordic the thumb's rim and its fill while held (DrawSkinScrollbar).
 	constexpr ImU32 kScrollLight = IM_COL32(204, 204, 204, 255);
+	// Its track's edge down each side, a dark and a light 1px line; the thumb fills the track
+	// between them (whole pixels at any resolution).
+	constexpr float kScrollTrackEdge = 2.0f;
 
 	// A texture and the size it is drawn at, in pixels at 1080p before scaling
 	// (the PNGs are rendered at six to eight times that from the UIs' vector art).
@@ -864,9 +867,9 @@ namespace
 		const float top = a_min.y;
 		const float bottom = a_max.y;
 		a_draw->AddRectFilled(ImVec2(a_min.x, top), ImVec2(a_min.x + 1.0f, bottom), dark);
-		a_draw->AddRectFilled(ImVec2(a_min.x + 1.0f, top), ImVec2(a_min.x + 2.0f, bottom), light);
-		a_draw->AddRectFilled(ImVec2(a_min.x + 2.0f, top), ImVec2(a_max.x - 2.0f, bottom), ImGui::GetColorU32(kFill));
-		a_draw->AddRectFilled(ImVec2(a_max.x - 2.0f, top), ImVec2(a_max.x - 1.0f, bottom), light);
+		a_draw->AddRectFilled(ImVec2(a_min.x + 1.0f, top), ImVec2(a_min.x + kScrollTrackEdge, bottom), light);
+		a_draw->AddRectFilled(ImVec2(a_min.x + kScrollTrackEdge, top), ImVec2(a_max.x - kScrollTrackEdge, bottom), ImGui::GetColorU32(kFill));
+		a_draw->AddRectFilled(ImVec2(a_max.x - kScrollTrackEdge, top), ImVec2(a_max.x - 1.0f, bottom), light);
 		a_draw->AddRectFilled(ImVec2(a_max.x - 1.0f, top), ImVec2(a_max.x, bottom), dark);
 	}
 
@@ -895,8 +898,7 @@ namespace
 	// sits up to an arrow's height off ImGui's unseen one.
 	void DrawSkinScrollbar()
 	{
-		constexpr float kThumbWidthRatio = 8.9f / 11.95f;  // the thumb's width, of the bar's (the game's art)
-		constexpr float kSideMargin = 2.0f;                // left and right of the art, inside ImGui's bar (pixels at 1080p)
+		constexpr float kSideMargin = 2.0f;  // left and right of the art, inside ImGui's bar (pixels at 1080p)
 
 		ImGuiWindow* window = ImGui::GetCurrentWindow();
 		if (!HasSkinScrollbar() || !window || !window->ScrollbarY) {
@@ -926,8 +928,6 @@ namespace
 			const float   thumbHeight = std::clamp(std::floor(trackHeight * visible / contents), (std::min)(trackHeight, g.Style.GrabMinSize), trackHeight);
 			const float   ratio = std::clamp(window->Scroll.y / (std::max)(1.0f, contents - visible), 0.0f, 1.0f);
 			const float   top = std::floor(trackTop + ratio * (trackHeight - thumbHeight));
-			const float   thumbWidth = std::round(width * kThumbWidthRatio);
-			const float   left = std::floor(bar.Min.x + (width - thumbWidth) * 0.5f);
 			const ImGuiID id = ImGui::GetWindowScrollbarID(window, ImGuiAxis_Y);
 			const ImU32   light = ImGui::GetColorU32(kScrollLight);
 			ImU32         fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrab);
@@ -936,8 +936,8 @@ namespace
 			} else if (g.HoveredId == id) {
 				fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrabHovered);
 			}
-			const ImVec2 thumbMin(left, top);
-			const ImVec2 thumbMax(left + thumbWidth, top + thumbHeight);
+			const ImVec2 thumbMin(bar.Min.x + kScrollTrackEdge, top);
+			const ImVec2 thumbMax(bar.Max.x - kScrollTrackEdge, top + thumbHeight);
 			draw->AddRectFilled(thumbMin, thumbMax, fill);
 			draw->AddRect(thumbMin, thumbMax, light, 0.0f, ImDrawFlags_None, 1.0f);
 		}
