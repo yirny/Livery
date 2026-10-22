@@ -26,6 +26,8 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 
 **High impact:** hooks or memory patches (`REL::Relocation`, trampoline `write_call`/`write_branch`, vtable writes); per-frame or per-input logic (input / crosshair / menu sinks, update hooks); any new write to the outfit library (§2.1); SKSE serialization / co-save; SKSE message handling and init order (`kPostLoad`, `kDataLoaded`, `kPostLoadGame`, …); build system (`CMakeLists.txt`, `CMakePresets.json`, `vcpkg.json`, `cmake/`, submodule bumps); cross-cutting API change.
 
+**Model hint:** at the top of every approval request and every §8 review, print one line `⚖️ モデル目安: 重い / 軽い — 理由` ("重い" = any high-impact item, 3+ files, or a new invariant), so the user can switch model before implementation. Also print it the moment a conversation turns to a high-impact topic.
+
 **Speak up first** on ambiguous scope, unstated assumptions, or easy bugs / hard debt — surface the tradeoff (one question or alternative); never guess silently. Skip taste / easy reverts.
 
 ## 2. Where you may work
