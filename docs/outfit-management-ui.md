@@ -61,8 +61,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   Nordic shows no fill. In Vanilla and Nordic a list's fills (hover and selected) stop 6px
   short of its scroll bar while one shows. The mark: NORDIC UI's MCM page arrow on single-choice and dropdown
   rows in Vanilla and Nordic (Nordic's 4px larger, its window padding 32px); the equipped
-  mark on piece rows, and on a selected outfit row (the outfit the preview shows), centred
-  where the arrow would be (on an outfit row without a drag grip, 2px right of that); Nordic puts the arrow on a ticked dropdown row too, at its start.
+  mark on piece rows. A selected outfit row (the outfit the preview shows) has Vanilla's
+  equipped mark or Nordic's MCM page arrow, centred where the arrow would be (on an outfit
+  row without a drag grip, 2px right of that); Nordic puts the arrow on a ticked dropdown row too, at its start.
 - A multi-choice dropdown row: Vanilla and Nordic draw the game's checkbox at the row's start
   (after Nordic's arrow), then the label; Tailor a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short

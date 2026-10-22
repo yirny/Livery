@@ -328,8 +328,8 @@ namespace Theme
 	// The name starts 22px in from the row's left edge in every skin, and a `striped`
 	// row (every other one) has a faint white under its fills. With `grip`, a drag grip where
 	// it says, in LabelText's grey at low alpha (Tailor: its text colour mixed with black), and
-	// the name starts 12px past its dots instead. Selected, Vanilla and Nordic mark it
-	// with the equipped mark of a ticked piece instead of the select arrow, 2px right of the
+	// the name starts 12px past its dots instead. Selected, Vanilla marks it with the equipped
+	// mark of a ticked piece and Nordic with the select arrow, 2px right of the
 	// centre of the room left of the name, or centred left of the dots with Grip::kName; with Grip::kEdge in the dots' place,
 	// the dots hidden, shrunk to leave 2px on either side.
 	// OutfitRowHeight is its height, which holds the row gap: lay rows out with

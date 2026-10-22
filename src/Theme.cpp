@@ -1305,11 +1305,12 @@ namespace
 		return ImVec2((g_selectArrow.size.x + grow) * g_scale, (g_selectArrow.size.y + grow) * g_scale);
 	}
 
-	// That arrow centred on `a_centre` (screen pixels); a small triangle without the texture.
-	void DrawSelectArrow(ImDrawList* a_draw, ImVec2 a_centre)
+	// That arrow `a_size` pixels across (screen pixels), centred on `a_centre`; a small triangle
+	// without the texture.
+	void DrawSelectArrow(ImDrawList* a_draw, ImVec2 a_centre, ImVec2 a_size = SelectArrowSize())
 	{
 		const ImU32  tint = ImGui::GetColorU32(g_skin == Theme::Skin::kNordic ? kNordicOrnament : IM_COL32_WHITE);
-		const ImVec2 size = SelectArrowSize();
+		const ImVec2 size = a_size;
 		const ImVec2 topLeft(a_centre.x - size.x * 0.5f, a_centre.y - size.y * 0.5f);
 		if (g_selectArrow.view) {
 			a_draw->AddImage(g_selectArrow.Id(), topLeft, ImVec2(topLeft.x + size.x, topLeft.y + size.y), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
@@ -3248,8 +3249,8 @@ namespace Theme
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
 		constexpr int   kStripeAlpha = 16;      // of the white over a striped row, out of 255
-		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of an equipped mark in an edge grip's room
-		constexpr float kMarkShift = 2.0f;      // pixels at 1080p, an equipped mark right of its room's centre on a row without a grip
+		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of the select mark in an edge grip's room
+		constexpr float kMarkShift = 2.0f;      // pixels at 1080p, the select mark right of its room's centre on a row without a grip
 
 		const float   gap = ListPaddingY();
 		const ListRow row = LayOutListRow(a_name, OutfitRowHeight());
@@ -3261,23 +3262,31 @@ namespace Theme
 		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		// Selected: Tailor's rule on the row's edge (DrawSelectMark), which leaves the grip room;
-		// Vanilla's and Nordic's equipped mark, as on a ticked piece, 2px right of the centre of
-		// the room left of the name, or centred left of the dots at the name's place; at the edge
-		// it takes the dots' place, shrunk to fit.
+		// Vanilla's equipped mark, as on a ticked piece, or Nordic's select arrow (its equipped
+		// mark stays the inventory's), 2px right of the centre of the room left of the name, or
+		// centred left of the dots at the name's place; at the edge it takes the dots' place,
+		// shrunk to fit.
 		const float nameMidY = textY + ImGui::GetTextLineHeight() * 0.5f;
 		const bool  tailor = g_skin == Theme::Skin::kTailor;
 		const bool  markOnGrip = a_selected && !tailor && a_grip == Grip::kEdge;
 		if (a_selected && tailor) {
 			DrawSelectMark(draw, row, textX);
 		} else if (a_selected) {
-			const float left = markOnGrip ? row.fillMin.x : row.min.x;
-			const float right = a_grip == Grip::kName ? row.fillMin.x + GripPadX(a_grip) : textX;
-			float       side = EquippedMarkSide();
-			if (markOnGrip) {
-				side = (std::max)(1.0f, (std::min)(side, right - left - kEdgeMarkPad * 2.0f * g_scale));
+			const float  left = markOnGrip ? row.fillMin.x : row.min.x;
+			const float  right = a_grip == Grip::kName ? row.fillMin.x + GripPadX(a_grip) : textX;
+			const float  room = (std::max)(1.0f, right - left - kEdgeMarkPad * 2.0f * g_scale);  // across, at the edge
+			const float  shift = a_grip == Grip::kNone ? kMarkShift * g_scale : 0.0f;
+			const ImVec2 centre((left + right) * 0.5f + shift, nameMidY);
+			if (g_skin == Theme::Skin::kNordic) {
+				ImVec2 size = SelectArrowSize();
+				if (markOnGrip && size.x > room) {
+					size = ImVec2(room, size.y * room / size.x);
+				}
+				DrawSelectArrow(draw, centre, size);
+			} else {
+				const float side = markOnGrip ? (std::min)(EquippedMarkSide(), room) : EquippedMarkSide();
+				DrawEquippedMark(draw, centre, side);
 			}
-			const float shift = a_grip == Grip::kNone ? kMarkShift * g_scale : 0.0f;
-			DrawEquippedMark(draw, ImVec2((left + right) * 0.5f + shift, nameMidY), side);
 		}
 		if (a_grip != Grip::kNone && !markOnGrip) {
 			DrawGrip(draw, row.fillMin.x, nameMidY, a_grip);
