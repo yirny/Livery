@@ -22,16 +22,18 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
      a form the NPC also carries is listed once, under 1–4.
   6. `"#{Outfit}"`: pieces of the loaded outfit nobody carries, listed while
      it is loaded (today's `owned == false` rows).
-- Three columns: Name, Type, Class. Strings and rules are SkyUI's: Type from the biped slots,
-  Class Light / Heavy / Clothing / Jewelry, taken from the SkyUI source (schlangster/skyui on
-  GitHub, the inventory data setter) at implementation time, never from memory. A click on a
+- Three columns: Name, Type, Slot. Type's strings and rules are SkyUI's, from the biped
+  slots, taken from the SkyUI source (schlangster/skyui on GitHub, the inventory data setter)
+  at implementation time, never from memory. Slot lists the piece's body slots by number,
+  lowest first (`32, 34`), sorts by the lowest, and is as wide as its widest text up to four
+  slots; a longer list ends in an ellipsis. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
   come first; Name ascending to start.
 - The count line `x of y piece(s) selected` moves under the list, ending in `Add pieces from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview stays as it is.
 - Assign for and `Situations...` go, with the Situations page (§4 covers assignment).
 - Buttons: `Save` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
-  `Cancel`. `Restore Outfit` at the right end of the Live Preview line: a borderless text
+  `Exit`. `Restore Outfit` at the right end of the Live Preview line: a borderless text
   button lit on hover, with a `(?)`, shown only while Livery dresses the actor. It ends
   Livery's dressing of them. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
   situational outfits. Items moved from your inventory stay with them."

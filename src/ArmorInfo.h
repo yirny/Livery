@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <string_view>
 
-// An armor's Type and Class as SkyUI's inventory shows them, the capture window's columns and
+// An armor's Type and Class as SkyUI's inventory shows them, the piece list's Type column and
 // the library's Class categories. The rules are SkyUI 5's (schlangster/skyui on GitHub,
 // src/ItemMenus/InventoryDataSetter.as: processArmorClass, processArmorPartMask,
 // processArmorOther, processArmorBaseId; src/Common/skyui/defines/Armor.as), with SkyUI's
@@ -27,8 +27,8 @@ namespace ArmorInfo
 		kOther
 	};
 
-	// The library stores the first three as its Armor Class categories; the piece list's
-	// Class column shows all five.
+	// The library stores the first three as its Armor Class categories; the Create tab's
+	// suggested category skips the other two.
 	constexpr std::array<const char*, 5> kClassNames{ "Light", "Heavy", "Clothing", "Jewelry", "Other" };
 
 	constexpr const char* ClassName(ArmorClass a_class)

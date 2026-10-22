@@ -13,13 +13,13 @@
 //                  goes to onViewInput
 //   Capture page - the Inventory page: the actor's pieces under a heading per group (their
 //                  Livery outfit, other worn, carried, the player's, the loaded outfit's), in
-//                  Name / Type / Category columns sorted by a click on a column label (the piece
+//                  Name / Type / Slot columns sorted by a click on a column label (the piece
 //                  list the Edit page shows too, PieceList), each tick handed to
 //                  onPieceToggled; under the list the count line, ending in Add pieces from
 //                  Wardrobe... (the Load page; greyed while the library has no outfits); the
 //                  Live Preview tick, handed to onPreviewOn / onPreviewOff in an SKSE task that
 //                  also freezes or unfreezes the game, with Restore Outfit at its line's right
-//                  end while Livery dresses the actor; Save / Apply / Cancel; Apply asks first
+//                  end while Livery dresses the actor; Save / Apply / Exit; Apply asks first
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
@@ -803,15 +803,15 @@ namespace CaptureWindow::Internal
 		switch (a_column) {
 		case kTypeColumn:
 			return a_left.typeOrder - a_right.typeOrder;
-		case kClassColumn:
-			return a_left.classOrder - a_right.classOrder;
+		case kSlotColumn:
+			return a_left.slotOrder - a_right.slotOrder;
 		default:
 			return 0;  // the name decides below
 		}
 	}
 
 	// Orders the pieces for the list: by group, as the headings go, then by the sorted
-	// column (Type and Class in SkyUI's order), the name breaking ties, all of it reversed
+	// column (Type in SkyUI's order, Slot by the lowest slot), the name breaking ties, all of it reversed
 	// while descending. Run at Open and on a click on a column label, never per frame.
 	void SortPieces(State& a_state)
 	{
@@ -885,22 +885,26 @@ namespace CaptureWindow::Internal
 		SortPieces(a_state);
 	}
 
-	// Name takes what Type and Class leave at the list's right end, each of them as wide
-	// as its widest text, or its label with room for the sort arrow; it starts past the
-	// pieces' icons.
+	// Name takes what Type and Slot leave at the list's right end, each of them as wide
+	// as its widest text, or its label with room for the sort arrow; Slot no wider than four
+	// slots, a longer list ending in an ellipsis. Name starts past the pieces' icons.
 	std::array<float, 3> ColumnPositions(const State& a_state)
 	{
+		constexpr const char* kWidestSlots = "00, 00, 00, 00";  // the Slot column's widest
+
 		const float labelRoom = ImGui::GetFontSize();  // the small-font label's arrow and its gap fit in a body-font em
+		const float slotLabel = ImGui::CalcTextSize(kColumnLabels[kSlotColumn]).x + labelRoom;
 		float       typeWidth = ImGui::CalcTextSize(kColumnLabels[kTypeColumn]).x + labelRoom;
-		float       classWidth = ImGui::CalcTextSize(kColumnLabels[kClassColumn]).x + labelRoom;
+		float       slotWidth = slotLabel;
 		for (const auto& piece : a_state.request.pieces) {
 			typeWidth = (std::max)(typeWidth, ImGui::CalcTextSize(piece.type.c_str()).x);
-			classWidth = (std::max)(classWidth, ImGui::CalcTextSize(piece.armorClass.c_str()).x);
+			slotWidth = (std::max)(slotWidth, ImGui::CalcTextSize(piece.slotText.c_str()).x);
 		}
-		const float classX = (std::max)(0.0f, Theme::ColumnsWidth() - classWidth);
+		slotWidth = (std::min)(slotWidth, (std::max)(slotLabel, ImGui::CalcTextSize(kWidestSlots).x));
+		const float slotX = (std::max)(0.0f, Theme::ColumnsWidth() - slotWidth);
 		const float nameX = Theme::RowIconRoom();
-		const float typeX = (std::max)(nameX, classX - Theme::ColumnGap() - typeWidth);
-		return { nameX, typeX, classX };
+		const float typeX = (std::max)(nameX, slotX - Theme::ColumnGap() - typeWidth);
+		return { nameX, typeX, slotX };
 	}
 
 	// Ticking a piece unticks the ticked ones sharing a body slot with it, as
@@ -932,17 +936,35 @@ namespace CaptureWindow::Internal
 		return static_cast<std::size_t>(std::ranges::count(listed, true));
 	}
 
-	// A group's heading inside the list: greyed, in the small font, left of the names. The
-	// player's group explains on hover what Apply does with its pieces and what it leaves out.
+	// A group's icon: the Inventory tab's backpack over carried pieces, a dressed form over worn
+	// ones, a bare form over a loaded outfit's.
+	Theme::HeadingIcon GroupIcon(CaptureWindow::PieceGroup a_group)
+	{
+		using Group = CaptureWindow::PieceGroup;
+		switch (a_group) {
+		case Group::kCarried:
+		case Group::kPlayer:
+			return Theme::HeadingIcon::kBackpack;
+		case Group::kNotCarried:
+			return Theme::HeadingIcon::kBareForm;
+		default:
+			return Theme::HeadingIcon::kDressedForm;
+		}
+	}
+
+	// A group's heading inside the list: greyed, in the label font, left of the names, its icon
+	// first (GroupIcon). The player's group explains on hover what Apply does with its pieces
+	// and what it leaves out.
 	void DrawGroupHeading(const State& a_state, const PieceList& a_list, CaptureWindow::PieceGroup a_group)
 	{
 		const bool  notCarried = a_group == CaptureWindow::PieceGroup::kNotCarried;
 		const auto& heading = notCarried ? *a_list.heading : a_state.headings[GroupIndex(a_group)];
+		const auto  icon = GroupIcon(a_group);
 		if (a_group != CaptureWindow::PieceGroup::kPlayer) {
-			Theme::ListHeading(heading.c_str());
+			Theme::ListHeading(heading.c_str(), icon);
 			return;
 		}
-		if (!Theme::ListHeadingHelp(heading.c_str())) {
+		if (!Theme::ListHeadingHelp(heading.c_str(), false, icon)) {
 			return;
 		}
 		const auto& name = a_state.request.actorName;
@@ -991,7 +1013,7 @@ namespace CaptureWindow::Internal
 					DrawGroupHeading(a_state, a_list, pieces[i].group);
 				}
 				ImGui::PushID(static_cast<int>(i));
-				const std::array<const char*, 3> cells{ pieces[i].name.c_str(), pieces[i].type.c_str(), pieces[i].armorClass.c_str() };
+				const std::array<const char*, 3> cells{ pieces[i].name.c_str(), pieces[i].type.c_str(), pieces[i].slotText.c_str() };
 				if (Theme::TickRow(cells, columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor })) {
 					QueueMenuSound(kFocusSound);
 					if (a_list.ticked[i]) {
@@ -1174,7 +1196,7 @@ namespace CaptureWindow::Internal
 	// The widest button row of the Capture page, which sets the page's least width.
 	float CaptureButtonsWidth()
 	{
-		return ButtonRowWidth({ "Save", "Apply", "Cancel" });
+		return ButtonRowWidth({ "Save", "Apply", "Exit" });
 	}
 
 	enum class CaptureAction
@@ -1184,24 +1206,24 @@ namespace CaptureWindow::Internal
 		kSavePage,
 		kApply,
 		kRestore,
-		kCancel
+		kExit
 	};
 
-	// Save / Apply / Cancel centred below a gap. Save and Apply act on the ticked pieces, so
+	// Save / Apply / Exit centred below a gap. Save and Apply act on the ticked pieces, so
 	// they need at least one. `a_load`: Add pieces from Wardrobe... was clicked on the count
 	// line; `a_restore`: Restore Outfit on the Live Preview line.
 	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load, bool a_restore)
 	{
 		constexpr const char* kSaveTooltip = "Save the ticked pieces as a new outfit, or into an existing one.";
 
-		BeginButtonRow({ "Save", "Apply", "Cancel" });
+		BeginButtonRow({ "Save", "Apply", "Exit" });
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
 		const bool  save = ReasonButton("Save", noPiece, kSaveTooltip);
 		ImGui::SameLine();
 		const bool apply = ReasonButton("Apply", noPiece, a_state.applyTooltip.c_str());
 		ImGui::SameLine();
 		// While the Apply or Restore popup is open, Escape is its own Cancel.
-		const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		const bool exitPressed = Theme::Button("Exit") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Applying...");
@@ -1219,7 +1241,7 @@ namespace CaptureWindow::Internal
 		if (a_restore) {
 			return CaptureAction::kRestore;
 		}
-		return cancel ? CaptureAction::kCancel : CaptureAction::kNone;
+		return exitPressed ? CaptureAction::kExit : CaptureAction::kNone;
 	}
 
 	// The ticked pieces under Player's Inventory, as the list shows them now: those Apply moves.
@@ -1454,7 +1476,7 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kOkSound);
 			ImGui::OpenPopup(kRestorePopup);
 			break;
-		case CaptureAction::kCancel:
+		case CaptureAction::kExit:
 			QueueMenuSound(kCancelSound);
 			RequestCancel();
 			break;

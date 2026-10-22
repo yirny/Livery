@@ -87,6 +87,13 @@ namespace
 	constexpr float kCountLineGap = 6.0f;
 	// The small font's size, of the body font's (Theme::PushSmallFont); Tailor's tags use it too.
 	constexpr float kSmallFontRatio = 0.85f;
+	// The tags' size in Vanilla and Nordic, of the body font's (PushTagFont), which Nordic's
+	// labels and list headings take too (PushLabelFont): 14px at 1080p in Nordic.
+	constexpr float kSquareTagRatio = 0.7f;
+	// A fold heading's chevron: its box, of the font size (FoldHeading), and its stroke
+	// (pixels at 1080p).
+	constexpr float kFoldChevronRatio = 0.5f;
+	constexpr float kFoldChevronStroke = 1.5f;
 
 	// Tailor 3.0's tight lists: the gap between rows, and the dropdown popup's
 	// padding (pixels at 1080p).
@@ -168,8 +175,8 @@ namespace
 		{ L"Poppins-Regular.ttf", 14.0f * kFontMetricScale, L"segoeui.ttf" },
 		{ L"Montserrat-Black.ttf", 18.0f * kFontMetricScale, L"seguibl.ttf" } };
 	constexpr SkinFonts kVanillaFonts{ "Vanilla", kOwnFontDir,
-		{ L"Oswald-Regular.ttf", 20.0f, L"segoeui.ttf" },
-		{ L"Oswald-SemiBold.ttf", 26.0f, L"seguisb.ttf" } };
+		{ L"Oswald-Regular.ttf", 22.0f, L"segoeui.ttf" },
+		{ L"Oswald-SemiBold.ttf", 28.0f, L"seguisb.ttf" } };
 	constexpr SkinFonts kNordicFonts{ "Nordic", kOwnFontDir,
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
 		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" } };
@@ -384,6 +391,20 @@ namespace
 		} else {
 			logger::warn("{} fonts missing in {}; the skin uses the default font", files.skin, folder.string());
 		}
+	}
+
+	// The size of field labels and list headings, of the body font's: the tags' in Nordic, the
+	// small font's otherwise.
+	float LabelFontRatio()
+	{
+		return g_skin == Theme::Skin::kNordic ? kSquareTagRatio : kSmallFontRatio;
+	}
+
+	// The font of field labels, the links and column labels laid out as they are, and list
+	// headings (LabelFontRatio). Pop with ImGui::PopFont.
+	void PushLabelFont()
+	{
+		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * LabelFontRatio());
 	}
 
 	// --- Textures -------------------------------------------------------------
@@ -823,7 +844,7 @@ namespace
 	// border colour.
 	void DrawTextRule(ImDrawList* a_draw, float a_left, float a_right, float a_midY)
 	{
-		constexpr float kKnotHeightRatio = 0.7f;  // the art's height, of the small font's size (the MCM's to its header text)
+		constexpr float kKnotHeightRatio = 0.7f;  // the art's height, of the heading text's size (the MCM's to its header text)
 		// Where the knot ends and where the line's closed end starts, of the art's width (its vector shape).
 		constexpr float kKnotEnd = 23.0f / 226.25f;
 		constexpr float kCapStart = 221.55f / 226.25f;
@@ -831,7 +852,7 @@ namespace
 		if (a_right <= a_left) {
 			return;
 		}
-		const float height = FontFilesOf(g_skin).body.size * kSmallFontRatio * kKnotHeightRatio * g_scale;
+		const float height = FontFilesOf(g_skin).body.size * LabelFontRatio() * kKnotHeightRatio * g_scale;
 		const float aspect = g_headingKnot.size.x / g_headingKnot.size.y;
 		const float knotWidth = height * aspect * kKnotEnd;
 		const float capWidth = height * aspect * (1.0f - kCapStart);
@@ -1840,8 +1861,6 @@ namespace
 	// Vanilla and Nordic. Pop with ImGui::PopFont.
 	void PushTagFont()
 	{
-		constexpr float kSquareTagRatio = 0.7f;  // of the body font's size, in Vanilla and Nordic: 14px at 1080p
-
 		const float ratio = g_skin == Theme::Skin::kTailor ? kSmallFontRatio : kSquareTagRatio;
 		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * ratio);
 	}
@@ -2000,12 +2019,28 @@ namespace
 		return (std::max)(1.0f, kRadius * g_scale);
 	}
 
-	// From an outfit row's left edge to its grip's dots (pixels at 1080p).
+	// A fold heading's chevron stroke on the back buffer (FoldHeading).
+	float FoldChevronThickness()
+	{
+		return (std::max)(1.0f, kFoldChevronStroke * g_scale);
+	}
+
+	// From a fold heading's left edge to its text (pixels on the back buffer): half the
+	// chevron's stroke, its box and the inner spacing after it (FoldHeading).
+	float FoldTextInset()
+	{
+		PushLabelFont();
+		const float inset = FoldChevronThickness() * 0.5f + ImGui::GetFontSize() * kFoldChevronRatio + ImGui::GetStyle().ItemInnerSpacing.x;
+		ImGui::PopFont();
+		return inset;
+	}
+
+	// From an outfit row's left edge to its grip's dots (pixels on the back buffer): with
+	// Theme::Grip::kEdge where the fold headings' text starts (FoldTextInset), so the dots line
+	// up with it.
 	float GripPadX(Theme::Grip a_grip)
 	{
-		constexpr float kEdgePad = 4.0f;  // pixels at 1080p, Theme::Grip::kEdge's
-
-		return a_grip == Theme::Grip::kEdge ? kEdgePad : kSituationNamePadX;
+		return a_grip == Theme::Grip::kEdge ? FoldTextInset() : kSituationNamePadX * g_scale;
 	}
 
 	// A drag grip placed by `a_grip` from a row's left edge `a_left`, its middle dots at `a_midY`
@@ -2023,7 +2058,7 @@ namespace
 		}
 		color = ImGui::GetColorU32(color);  // faded inside BeginDisabled
 		const float radius = GripDotRadius();
-		const float firstX = a_left + GripPadX(a_grip) * g_scale + radius;  // the left column's centres
+		const float firstX = a_left + GripPadX(a_grip) + radius;  // the left column's centres
 		const float step = kGripDotStep * g_scale;
 		for (const float column : { 0.0f, 1.0f }) {
 			for (const float row : { -1.0f, 0.0f, 1.0f }) {
@@ -2039,7 +2074,7 @@ namespace
 		if (a_grip == Theme::Grip::kNone) {
 			return kOutfitRowPadX * g_scale;
 		}
-		return (GripPadX(a_grip) + kGripDotStep + kGripTextGap) * g_scale + GripDotRadius() * 2.0f;
+		return GripPadX(a_grip) + (kGripDotStep + kGripTextGap) * g_scale + GripDotRadius() * 2.0f;
 	}
 
 	// From a situation heading's left edge to its name (pixels on the back buffer), which leaves
@@ -2094,6 +2129,36 @@ namespace
 	{
 		const int count = (HasFormMark(a_marks) ? 1 : 0) + (a_marks.situations ? 1 : 0);
 		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
+	}
+
+	// A list heading's icon (Theme::HeadingIcon) in a square of the text height from `a_topLeft`,
+	// in `a_color`. Returns the room it takes before the text, the inner spacing included; 0
+	// for none.
+	// Contract: in the heading's font.
+	float DrawHeadingIcon(ImDrawList* a_draw, ImVec2 a_topLeft, Theme::HeadingIcon a_icon, ImU32 a_color)
+	{
+		constexpr float kLineWidth = 1.2f;  // pixels at 1080p, as an outfit row's marks
+
+		void (*icon)(ImDrawList*, const IconFrame&, ImU32, float) = nullptr;
+		switch (a_icon) {
+		case Theme::HeadingIcon::kBackpack:
+			icon = DrawBackpackIcon;
+			break;
+		case Theme::HeadingIcon::kDressedForm:
+			icon = DrawDressedFormIcon;
+			break;
+		case Theme::HeadingIcon::kBareForm:
+			icon = DrawDressFormIcon;
+			break;
+		case Theme::HeadingIcon::kNone:
+			break;
+		}
+		if (!icon) {
+			return 0.0f;
+		}
+		const float side = ImGui::GetTextLineHeight();
+		icon(a_draw, IconFrame{ a_topLeft, side }, a_color, (std::max)(1.0f, kLineWidth * g_scale));
+		return side + ImGui::GetStyle().ItemInnerSpacing.x;
 	}
 
 	// The rule beside the tab column: Tailor's 1px border (its sidebar divider), Vanilla's
@@ -2440,9 +2505,9 @@ namespace Theme
 		if (grey) {
 			ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);  // NORDIC UI's label grey, in Vanilla too
 		}
-		PushSmallFont();
+		PushLabelFont();
 		ImGui::TextUnformatted(a_text);
-		PopSmallFont();
+		ImGui::PopFont();
 		if (grey) {
 			ImGui::PopStyleColor();
 		}
@@ -2451,7 +2516,7 @@ namespace Theme
 
 	bool LabelLink(const char* a_label)
 	{
-		PushSmallFont();
+		PushLabelFont();
 		const auto&  style = ImGui::GetStyle();
 		const float  side = ImGui::GetFontSize();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -2468,19 +2533,19 @@ namespace Theme
 		auto*       draw = ImGui::GetWindowDrawList();
 		DrawPlusSquare(draw, topLeft, side, color);
 		draw->AddText(ImVec2(topLeft.x + side + style.ItemInnerSpacing.x, topLeft.y), color, a_label);
-		PopSmallFont();
+		ImGui::PopFont();
 		return clicked;
 	}
 
 	bool LabelHelpMark()
 	{
-		PushSmallFont();
+		PushLabelFont();
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
 		PushLabelSpacing();  // the line's gap below stays LabelText's
 		ImGui::TextDisabled("%s", kHelpMark);
 		const bool hovered = ImGui::IsItemHovered();
 		ImGui::PopStyleVar();
-		PopSmallFont();
+		ImGui::PopFont();
 		return hovered;
 	}
 
@@ -2490,7 +2555,7 @@ namespace Theme
 	// or with `a_x` at that cursor X. With `a_hovered` null, no help mark.
 	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine, std::optional<float> a_x = std::nullopt)
 	{
-		PushSmallFont();
+		PushLabelFont();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 		const bool   help = a_hovered != nullptr;
 		const float  markX = text.x + ImGui::CalcTextSize(" ").x;
@@ -2514,7 +2579,7 @@ namespace Theme
 		if (help) {
 			ImGui::GetWindowDrawList()->AddText(ImVec2(topLeft.x + markX, topLeft.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), kHelpMark);
 		}
-		PopSmallFont();
+		ImGui::PopFont();
 		return clicked;
 	}
 
@@ -2543,9 +2608,9 @@ namespace Theme
 	bool ListFooterLink(const char* a_label)
 	{
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() - LabelGapTrim());
-		PushSmallFont();
+		PushLabelFont();
 		const bool clicked = LinkButton(a_label, ImGui::CalcTextSize(a_label));
-		PopSmallFont();
+		ImGui::PopFont();
 		return clicked;
 	}
 
@@ -2620,7 +2685,7 @@ namespace Theme
 
 		SectionGap();
 		PushLabelSpacing();  // the gap below is LabelText's
-		PushSmallFont();
+		PushLabelFont();
 		const auto&  style = ImGui::GetStyle();
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
 		const float  textX = origin.x + TickTextShift();
@@ -2650,7 +2715,7 @@ namespace Theme
 				draw->AddTriangleFilled(ImVec2(left, midY - tip), ImVec2(left + arrow, midY - tip), ImVec2(left + half, midY + tip), color);
 			}
 		}
-		PopSmallFont();
+		ImGui::PopFont();
 		ImGui::PopStyleVar();
 		return clicked;
 	}
@@ -2999,30 +3064,34 @@ namespace Theme
 		ImGui::GetWindowDrawList()->AddText(text, ImGui::GetColorU32(ImGuiCol_Text), a_label);
 	}
 
-	void ListHeading(const char* a_text)
+	// Laid out as TextRow lays out its text, the icon first.
+	void ListHeading(const char* a_text, HeadingIcon a_icon)
 	{
-		PushSmallFont();
-		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-		TextRow(Caps(a_text).c_str());
-		ImGui::PopStyleColor();
-		PopSmallFont();
+		PushLabelFont();
+		const ImVec2 cursor = ImGui::GetCursorScreenPos();
+		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
+		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+		auto*       draw = ImGui::GetWindowDrawList();
+		ImVec2      text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
+		text.x += DrawHeadingIcon(draw, text, a_icon, grey);
+		draw->AddText(text, grey, Caps(a_text).c_str());
+		ImGui::PopFont();
 	}
 
 	// The chevron's box starts at the list's left edge, where the rows' fills do, the text
-	// after it; with `a_grip` the text starts where the rows' names do. The rule ends 4px short
-	// of where the rows' fills end.
-	bool FoldHeading(const char* a_text, bool a_open, Grip a_grip)
+	// after it (FoldTextInset, where a draggable row's grip starts). The rule ends 4px short of
+	// where the rows' fills end.
+	bool FoldHeading(const char* a_text, bool a_open)
 	{
-		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the font size
-		constexpr float kRuleEndPad = 4.0f;    // pixels at 1080p, from the rule to the list's right end
+		constexpr float kRuleEndPad = 4.0f;  // pixels at 1080p, from the rule to the list's right end
 
-		PushSmallFont();
+		PushLabelFont();
 		const float   gap = ListPaddingY();  // the row gap the outfit list leaves out, half above and half below
 		const ListRow row = LayOutListRow(a_text, SelectRowHeight() + gap);
-		const float   side = ImGui::GetFontSize() * kChevronRatio;
+		const float   side = ImGui::GetFontSize() * kFoldChevronRatio;
 		const float   midY = (row.min.y + row.max.y) * 0.5f;
 		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		const float   thick = (std::max)(1.0f, 1.5f * g_scale);
+		const float   thick = FoldChevronThickness();
 		// Half the stroke in, so its outer edge sits on the list's edge; in Tailor that edge is
 		// the list's clip, which would cut the stroke.
 		const float left = row.fillMin.x + thick * 0.5f;
@@ -3034,12 +3103,12 @@ namespace Theme
 			const ImVec2 points[] = { { left + side * 0.25f, midY - side * 0.5f }, { left + side * 0.75f, midY }, { left + side * 0.25f, midY + side * 0.5f } };
 			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
 		}
-		const float textX = a_grip != Grip::kNone ? row.fillMin.x + RowTextInset(a_grip) : left + side + ImGui::GetStyle().ItemInnerSpacing.x;
+		const float textX = row.fillMin.x + FoldTextInset();
 		const Caps  text(a_text);  // shown; the ImGui ID stays a_text
 		draw->AddText(ImVec2(textX, row.min.y + gap * 0.5f + kSelectRowPadY * g_scale), color, text.c_str());
 		const float ruleLeft = textX + ImGui::CalcTextSize(text.c_str()).x + kTextRuleGap * g_scale;
 		DrawTextRule(draw, ruleLeft, row.fillMax.x - kRuleEndPad * g_scale, midY);
-		PopSmallFont();
+		ImGui::PopFont();
 		return row.pressed;
 	}
 
@@ -3200,29 +3269,31 @@ namespace Theme
 		return width;
 	}
 
-	// Laid out as TextRow lays out its text, or from the list's indent as a situation heading's name.
-	bool ListHeadingHelp(const char* a_text, bool a_situationIndent)
+	// Laid out as TextRow lays out its text, or from the list's indent as a situation heading's
+	// name, the icon first.
+	bool ListHeadingHelp(const char* a_text, bool a_situationIndent, HeadingIcon a_icon)
 	{
-		PushSmallFont();
+		PushLabelFont();
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
-		const ImU32  grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		const ImVec2 text(cursor.x + (a_situationIndent ? SituationNameInset() : RowTextShift()), cursor.y + kSelectRowPadY * g_scale);
+		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+		auto*       draw = ImGui::GetWindowDrawList();
+		ImVec2      text(cursor.x + (a_situationIndent ? SituationNameInset() : RowTextShift()), cursor.y + kSelectRowPadY * g_scale);
+		text.x += DrawHeadingIcon(draw, text, a_icon, grey);
 		const Caps   caps(a_text);
 		const float  markX = text.x + ImGui::CalcTextSize(caps.c_str()).x + ImGui::CalcTextSize(" ").x;
 		const ImVec2 markSize = ImGui::CalcTextSize(kHelpMark);
-		auto*        draw = ImGui::GetWindowDrawList();
 		draw->AddText(text, grey, caps.c_str());
 		draw->AddText(ImVec2(markX, text.y), grey, kHelpMark);
-		PopSmallFont();
+		ImGui::PopFont();
 		return ImGui::IsMouseHoveringRect(ImVec2(markX, text.y), ImVec2(markX + markSize.x, text.y + markSize.y));
 	}
 
 	float ListHeadingHeight()
 	{
-		PushSmallFont();
+		PushLabelFont();
 		const float height = SelectRowHeight();
-		PopSmallFont();
+		ImGui::PopFont();
 		return height;
 	}
 
@@ -3285,7 +3356,7 @@ namespace Theme
 			DrawSelectMark(draw, row, textX);
 		} else if (a_selected) {
 			const float left = markOnGrip ? row.fillMin.x : row.min.x;
-			const float right = a_grip == Grip::kName ? row.fillMin.x + GripPadX(a_grip) * g_scale : textX;
+			const float right = a_grip == Grip::kName ? row.fillMin.x + GripPadX(a_grip) : textX;
 			float       side = EquippedMarkSide();
 			if (markOnGrip) {
 				side = (std::max)(1.0f, (std::min)(side, right - left - kEdgeMarkPad * 2.0f * g_scale));

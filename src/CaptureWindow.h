@@ -63,10 +63,11 @@ namespace CaptureWindow
 		bool          selected = false;  // initial state of its checkbox
 		std::uint32_t slots = 0;         // body slot mask; ticking the piece unticks others sharing a slot
 		PieceGroup    group = PieceGroup::kCarried;
-		std::string   type;            // the Type column (ArmorInfo::TypeOf); "" for none
-		int           typeOrder = 0;   // what the Type column sorts by
-		std::string   armorClass;      // the Class column (ArmorInfo::ClassOf)
-		int           classOrder = 0;  // what the Class column sorts by
+		std::string   type;           // the Type column (ArmorInfo::TypeOf); "" for none
+		int           typeOrder = 0;  // what the Type column sorts by
+		std::string   armorClass;     // its class (ArmorInfo::ClassOf), which the suggested category reads
+		std::string   slotText;       // the Slot column: its body slots by number, lowest first ("32, 34")
+		int           slotOrder = 0;  // what the Slot column sorts by: its lowest slot
 		// The ticked piece with the lowest rank decides the Create tab's suggested category and
 		// gender: the index of its first slot of Body, Head, Hands, Feet, Circlet; -1 for none.
 		int           suggestRank = -1;

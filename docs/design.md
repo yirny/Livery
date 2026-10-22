@@ -350,8 +350,8 @@ Each stage ends with an in-game check before the next starts.
    extending `Situations::Applicable` (§7).
 10. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
     the window open, then New Game; the player's left-hand weapon back after a shield
-    preview; tempered player gear after Cancel; a follower's given armor gone after Load
-    Outfit + Cancel (seen while Tailor managed her).
+    preview; tempered player gear after Exit; a follower's given armor gone after Load
+    Outfit + Exit (seen while Tailor managed her).
 
 ## 9. Piece icons
 
