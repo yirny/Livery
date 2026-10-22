@@ -622,7 +622,7 @@ namespace CaptureWindow::Internal
 		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, bool& a_escapeTaken)
 		{
 			const float buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight();  // under the pieces' list
-			const float bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;      // the view's lowest
+			const float bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;            // the view's lowest
 			ImGui::PushID("outfitView");
 			DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, a_state.situationForm.viewedOutfit), bottom - buttonRow);
 			BeginPaneButtonRow({ "Edit", "Back" });
