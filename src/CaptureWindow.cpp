@@ -1214,14 +1214,19 @@ namespace CaptureWindow::Internal
 	}
 
 	// `a_updateWorn`: Yes in the Apply popup, so `a_outfit` is the worn library outfit, which
-	// the handler updates with the ticks before it dresses the actor.
+	// the handler updates with the ticks before it dresses the actor. The ticked pieces under
+	// From Player's Inventory, as the list shows them now, are those that move.
 	void RequestApply(State& a_state, std::uint32_t a_outfit, bool a_updateWorn)
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
+		auto pieces = TickedPieces(a_state);
+		auto fromPlayer = pieces;
+		std::erase_if(fromPlayer, [&a_state](std::size_t a_piece) { return a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kPlayer; });
 		auto onApply = a_state.request.onApply;
-		SKSE::GetTaskInterface()->AddTask(
-			[onApply, pieces = TickedPieces(a_state), a_outfit, a_updateWorn] { onApply(pieces, a_outfit, a_updateWorn); });
+		SKSE::GetTaskInterface()->AddTask([onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn] {
+			onApply(pieces, fromPlayer, a_outfit, a_updateWorn);
+		});
 	}
 
 	// Apply: the popup first when Livery has a library outfit on the actor and the ticks are
