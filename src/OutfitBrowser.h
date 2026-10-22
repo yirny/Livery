@@ -24,8 +24,7 @@ namespace OutfitBrowser
 	{
 		kName,      // name only
 		kGender,    // Female, Male, then Unisex
-		kClass,     // the outfit's categories (CaptureWindow::kClassGroup)
-		kSituation  // the actor's rows holding it (kSituationGroup)
+		kSituation  // the actor's rows holding the outfit (CaptureWindow::kSituationGroup)
 	};
 
 	// One row of the Filter dropdown: a category, or the row for outfits in

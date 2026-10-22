@@ -99,11 +99,9 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   page's Apply does with the new outfit: the Player's Inventory pieces move first, then the
   rows change, then the ticks become the Default (`SaveRequest::apply`).
 - Fields, as Manage Wardrobe's: the name, with no label (`Outfit Name` on hover while not
-  being typed in; a failed save's error instead), the gender, with no label, Category (a
-  multi-choice dropdown), then `SITUATIONS (#{Name})`.
-- Field `SITUATIONS (#{Name})`, replacing the library's situation categories, which leave
-  the library (no situation filter or sort in the outfit browser): a multi-choice dropdown of
-  `Default` and the situations. A tick gives
+  being typed in; a failed save's error instead), the gender, with no label, then
+  `SITUATIONS (#{Name})`.
+- Field `SITUATIONS (#{Name})`: a multi-choice dropdown of `Default` and the situations. A tick gives
   the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's
   `(?)`: "Situational outfit. #{Name} changes into it whenever a ticked situation applies.
   Default is what #{Name} wears wherever no situation applies."
@@ -131,7 +129,7 @@ write assigns nothing.
   now is a library outfit (the default's id when the default is worn, else the worn
   situation's) and the ticks differ from its loaded pieces. For a situation it adds `"X" is
   #{Name}'s Town outfit.`
-  - `Yes`: `Library::Update(X, pieces = ticks, name, gender and categories kept)`. Default
+  - `Yes`: `Library::Update(X, pieces = ticks, name and gender kept)`. Default
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced
     redress puts the updated outfit on (new Assignments API; `WearFor` only redresses on a
     change).
@@ -164,7 +162,6 @@ and the outfit worn with random off. Spec and steps: docs/situation-management-u
 - `Assignments::Choices`: the armor FormIDs Livery has on the actor (§1).
 - `Assignments`: clear the default alone; apply several assignment changes with one redress;
   force a redress of the worn situation outfit (§4, §5).
-- `Library::Update`: name and gender (§4). `Library::Categories`: Class group, Jewelry, no
-  situations (§1, §4). `Load`: old class names mapped.
+- `Library::Update`: name and gender (§4).
 - `Settings`: the four keys of §2 and their menu entries.
 - `Theme`: column header row, multi-column `TickRow`, text-only tabs, borderless text button.

@@ -32,17 +32,14 @@ namespace RE
 // onPreviewOff, in an SKSE task.
 namespace CaptureWindow
 {
-	// The groups of Request::categories, in their order (docs/outfit-management-ui.md §1).
-	// The categories (Library::Categories: Light, Heavy, Clothing) are the Save page's row of
-	// checkboxes.
-	constexpr const char* kClassGroup = "Category";
-	// Default and the situations: the actor's "Situations for #{Name}" rows. Never stored in the library.
+	// The group of Request::categories (docs/outfit-management-ui.md §1): Default and the
+	// situations, the actor's "Situations for #{Name}" rows. Never stored in the library.
 	constexpr const char* kSituationGroup = "Situation";
 
 	struct CategoryOption
 	{
-		std::string group;  // kClassGroup or kSituationGroup
-		std::string name;   // the category's name as the library stores it; a row's name for kSituationGroup
+		std::string group;  // kSituationGroup
+		std::string name;   // the row's name
 	};
 
 	// Where a piece comes from: the Capture page lists the pieces under one heading per
@@ -65,11 +62,10 @@ namespace CaptureWindow
 		PieceGroup    group = PieceGroup::kCarried;
 		std::string   type;           // the Type column (ArmorInfo::TypeOf); "" for none
 		int           typeOrder = 0;  // what the Type column sorts by
-		std::string   armorClass;     // its class (ArmorInfo::ClassOf), which the suggested category reads
 		std::string   slotText;       // the Slot column: its body slots by number, lowest first ("32, 34")
 		int           slotOrder = 0;  // what the Slot column sorts by: its lowest slot
-		// The ticked piece with the lowest rank decides the Create tab's suggested category and
-		// gender: the index of its first slot of Body, Head, Hands, Feet, Circlet; -1 for none.
+		// The ticked piece with the lowest rank decides the Create tab's suggested gender: the
+		// index of its first slot of Body, Head, Hands, Feet, Circlet; -1 for none.
 		int           suggestRank = -1;
 		bool          femaleOnly = false;  // none of its armor addons has a male model, one has a female model
 		std::string   icon;                // PieceIcons' key of the icon left of its name; "" for none
@@ -95,8 +91,7 @@ namespace CaptureWindow
 	struct ExistingOutfit
 	{
 		std::string              name;
-		std::vector<std::string> categories;  // the stored ones; the Update tab starts its ticks from them, and those the window does not offer stay unshown
-		std::vector<std::size_t> pieces;      // indices into Request::pieces of its loaded pieces, ascending, no repeats
+		std::vector<std::size_t> pieces;  // indices into Request::pieces of its loaded pieces, ascending, no repeats
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
 		std::size_t   unloadedPieces = 0;
@@ -162,10 +157,9 @@ namespace CaptureWindow
 		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
 		std::string              name;        // trimmed, non-empty
 		int                      gender = -1;
-		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
-		std::vector<std::string> categories;  // the ticked categories (kClassGroup), in the order of Request::categories, maybe none
-		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row another outfit is worn for only after Confirm
-		std::vector<std::size_t> remove;      // Update only: rows that had the outfit and are unticked, ascending
+		std::vector<std::size_t> pieces;  // ticked indices into Request::pieces, ascending, never empty
+		std::vector<std::size_t> assign;  // rows that get the outfit, ascending; a row another outfit is worn for only after Confirm
+		std::vector<std::size_t> remove;  // Update only: rows that had the outfit and are unticked, ascending
 		// Create and Apply: once saved and given its rows, the outfit goes on as the Inventory
 		// page's Apply puts it on, the pieces in `fromPlayer` (those of `pieces` the window lists
 		// under Player's Inventory) moved first. Always false and empty for Update.
@@ -188,9 +182,8 @@ namespace CaptureWindow
 		// What `wornOutfit` is worn for as a row's key, kDefault for the default: Manage
 		// Wardrobe's Apply offers that situation.
 		Situations::Situation wornFor = Situations::Situation::kDefault;
-		// One run per group, in the groups' order: kClassGroup's categories, then kSituationGroup
-		// with one entry per row of `assigned`, in its order. The outfit lists tag and sort by
-		// them; the Save page ticks only kClassGroup's.
+		// kSituationGroup, one entry per row of `assigned`, in its order. The outfit lists tag
+		// and sort by them.
 		std::vector<CategoryOption> categories;
 		std::vector<ExistingOutfit> existingOutfits;  // listed on the Load page and the Update tab's selection, in display order
 		std::vector<SituationInfo>  situations;       // one per row of `assigned`: the Default, then the situations not removed
@@ -221,7 +214,7 @@ namespace CaptureWindow
 		std::function<void()> onRestore;
 
 		// Runs on the game thread when the user confirms Manage Wardrobe's Update: `edit` holds
-		// the outfit, its new name, gender, pieces and categories; no row changes. The library
+		// the outfit, its new name, gender and pieces; no row changes. The library
 		// write comes first; a refused or failed write assigns nothing. The window stays open: it
 		// must end by calling SetOutfits() with the library as written, or SetError(). With
 		// `apply` (Update and Apply, from Apply to #{Name} with unsaved edits) it ends by

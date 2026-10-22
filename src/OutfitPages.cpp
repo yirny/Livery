@@ -22,7 +22,7 @@
 //                  one's details; Select fills the Update tab (ChooseOutfit), Cancel
 //                  leaves it as it was
 //   Manage Wardrobe - the tab beside the Inventory page: library outfits and the selected
-//                  one's name, gender, categories and pieces, edited in place and kept for
+//                  one's name, gender and pieces, edited in place and kept for
 //                  one outfit at a time (Discard changes / Keep editing before another is
 //                  selected); the edited outfit on the preview; Update lists the changes
 //                  (Save changes?; Confirm / Cancel) and hands them to onManageUpdate, Remove
@@ -374,28 +374,14 @@ namespace CaptureWindow::Internal
 		DrawPieceNames(a_state, a_outfit.pieces, a_bottom);
 	}
 
-	// The outfit's Category, wrapped under its label: the window's categories it has, or None.
-	void DrawClassField(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit)
-	{
-		Theme::LabelText(CaptureWindow::kClassGroup);
-		std::vector<std::string> classes;
-		for (const auto& option : a_state.request.categories) {
-			if (IsClass(option) && std::ranges::find(a_outfit.categories, option.name) != a_outfit.categories.end()) {
-				classes.push_back(option.name);
-			}
-		}
-		ImGui::TextWrapped("%s", classes.empty() ? "None" : JoinNames(classes).c_str());
-	}
-
-	// Right column of the Load and Select pages: the selected outfit's name, categories and
-	// pieces, read only; `a_hint` while none is selected.
+	// Right column of the Load and Select pages: the selected outfit's name and pieces, read
+	// only; `a_hint` while none is selected.
 	void DrawOutfitDetails(const State& a_state, int a_selected, const char* a_hint)
 	{
 		if (!DrawSelectedName(a_state, a_selected, a_hint)) {
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_selected);
-		DrawClassField(a_state, outfit);
 		Theme::AfterFieldGap();
 		DrawOutfitPieces(a_state, outfit);
 	}
@@ -407,7 +393,6 @@ namespace CaptureWindow::Internal
 		const auto& outfit = OutfitAt(a_state, a_index);
 		Theme::SectionGap();  // a field with no label
 		ImGui::TextUnformatted(GenderName(outfit.gender));
-		DrawClassField(a_state, outfit);
 		Theme::LabelText(a_state.situationsLabel.c_str());
 		ImGui::TextWrapped("%s", a_situations.c_str());
 		Theme::AfterFieldGap();
@@ -585,11 +570,6 @@ namespace CaptureWindow::Internal
 	// Inventory page's ticks while none is selected. The actor's rows change only by Apply,
 	// which dresses them in the outfit now (DrawManageApplyPopup).
 
-	bool IsInClass(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::CategoryOption& a_option)
-	{
-		return IsClass(a_option) && std::ranges::find(a_outfit.categories, a_option.name) != a_outfit.categories.end();
-	}
-
 	// The selected outfit's library id. Contract: an outfit is selected.
 	std::uint32_t ManagedOutfitId(const State& a_state)
 	{
@@ -606,12 +586,8 @@ namespace CaptureWindow::Internal
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_index);
-		const auto& options = a_state.request.categories;
 		form.name.fill('\0');
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
-		for (std::size_t i = 0; i < options.size(); ++i) {
-			form.classTicked[i] = IsInClass(outfit, options[i]);
-		}
 		form.gender = outfit.gender;
 		form.pieces = outfit.pieces;
 	}
@@ -624,22 +600,13 @@ namespace CaptureWindow::Internal
 		QueuePreview(a_state, a_index >= 0 ? a_state.manage.pieces : TickedPieces(a_state));
 	}
 
-	// The selected outfit's edits differ from the library: its trimmed name, categories,
-	// gender or loaded pieces.
+	// The selected outfit's edits differ from the library: its trimmed name, gender or
+	// loaded pieces.
 	bool HasLibraryEdits(const State& a_state)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		if (Trimmed(form.name.data()) != outfit.name || form.gender != outfit.gender || form.pieces != outfit.pieces) {
-			return true;
-		}
-		const auto& options = a_state.request.categories;
-		for (std::size_t i = 0; i < options.size(); ++i) {
-			if (IsClass(options[i]) && form.classTicked[i] != IsInClass(outfit, options[i])) {
-				return true;
-			}
-		}
-		return false;
+		return Trimmed(form.name.data()) != outfit.name || form.gender != outfit.gender || form.pieces != outfit.pieces;
 	}
 
 	// Anything Update would save: an outfit is selected and has library edits.
@@ -652,29 +619,6 @@ namespace CaptureWindow::Internal
 	std::string UnsavedText(const State& a_state)
 	{
 		return a_state.manage.outfit >= 0 ? std::format("You have unsaved changes for \"{}\".", OutfitAt(a_state, a_state.manage.outfit).name) : std::string{};
-	}
-
-	void DrawCategoryDropdown(const State& a_state, bool* a_ticked)
-	{
-		const auto& options = a_state.request.categories;
-		if (std::ranges::none_of(options, IsClass)) {
-			return;
-		}
-		Theme::LabelText(CaptureWindow::kClassGroup);
-		const auto              ticked = JoinNames(TickedCategories(a_state, a_ticked));
-		const Theme::FieldStyle style{ .previewIsHint = ticked.empty() };
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		const bool open = Theme::BeginCombo("##category", ImGuiComboFlags_HeightLargest, style);
-		if (open) {
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));  // rows carry their own gap
-			for (std::size_t i = 0; i < options.size(); ++i) {
-				if (IsClass(options[i])) {
-					DrawCategoryRow(options[i].name.c_str(), a_ticked[i]);
-				}
-			}
-			ImGui::PopStyleVar();
-		}
-		Theme::EndCombo(open, ticked.empty() ? "None" : ticked.c_str(), style);
 	}
 
 	bool DrawRowsDropdown(const State& a_state, const char* a_label, bool* a_ticked)
@@ -701,8 +645,8 @@ namespace CaptureWindow::Internal
 		return helpHovered;
 	}
 
-	// Right column: the selected outfit's name, gender and categories as edited, then its
-	// pieces as edited under a count line ending in Edit. Returns true when Edit is clicked.
+	// Right column: the selected outfit's name and gender as edited, then its pieces as
+	// edited under a count line ending in Edit. Returns true when Edit is clicked.
 	bool DrawManageForm(State& a_state)
 	{
 		auto& form = a_state.manage;
@@ -712,7 +656,6 @@ namespace CaptureWindow::Internal
 		}
 		DrawNameField(a_state, form.name);
 		DrawGenderField(form.gender);
-		DrawCategoryDropdown(a_state, form.classTicked.get());
 		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str());
 		const bool edit = Theme::LabelLink("Edit");
@@ -872,25 +815,13 @@ namespace CaptureWindow::Internal
 	void OpenEditPage(State& a_state);
 
 	// What the library edits change, one line each, as the Save page's Update tab lists it:
-	// the pieces, the categories, a rename, the gender, the unloaded pieces kept.
+	// the pieces, a rename, the gender, the unloaded pieces kept.
 	void DrawLibraryChangeLines(const State& a_state)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		if (form.pieces != outfit.pieces) {
 			ImGui::TextUnformatted(std::format("Its {} piece(s) become the {} edited piece(s).", outfit.pieces.size(), form.pieces.size()).c_str());
-		}
-		const auto& options = a_state.request.categories;
-		bool        classesChanged = false;
-		for (std::size_t i = 0; i < options.size(); ++i) {
-			classesChanged = classesChanged || (IsClass(options[i]) && form.classTicked[i] != IsInClass(outfit, options[i]));
-		}
-		if (classesChanged) {
-			if (const auto classes = TickedCategories(a_state, form.classTicked.get()); classes.empty()) {
-				ImGui::TextUnformatted("It will have no Category.");
-			} else {
-				ImGui::TextUnformatted(std::format("Its Category becomes: {}.", JoinNames(classes)).c_str());
-			}
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
@@ -1093,8 +1024,7 @@ namespace CaptureWindow::Internal
 		CaptureWindow::SaveRequest edit{ .outfit = ManagedOutfitId(a_state),
 			.name = Trimmed(form.name.data()),
 			.gender = form.gender,
-			.pieces = form.pieces,
-			.categories = TickedCategories(a_state, form.classTicked.get()) };
+			.pieces = form.pieces };
 		if (a_applyRow) {
 			edit.assign.push_back(*a_applyRow);
 		}

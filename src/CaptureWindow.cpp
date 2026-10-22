@@ -23,7 +23,7 @@
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
-//                  name, categories, gender and "SITUATIONS (#{Name})" rows (Default, the
+//                  name, gender and "SITUATIONS (#{Name})" rows (Default, the
 //                  situations); a popup (Confirm / Cancel) before replacing the outfit a row
 //                  wears, the Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
 //                  fills the Update tab from the Select page's choice
@@ -34,7 +34,6 @@
 
 #include "CaptureWindow.h"
 
-#include "ArmorInfo.h"  // ClassName only, which reads no form
 #include "CaptureWindowInternal.h"
 #include "Hooks.h"
 #include "OutfitBrowser.h"
@@ -294,24 +293,6 @@ namespace CaptureWindow::Internal
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, a_id, &CaptureWindow::ExistingOutfit::id);
 		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
-	}
-
-	// Ticks of the categories `a_old` moved onto `a_new`, matched by group and name: a
-	// category that is gone takes its tick with it, a new one starts unticked.
-	std::unique_ptr<bool[]> RemapTicks(const std::vector<CaptureWindow::CategoryOption>& a_old, const bool* a_ticks,
-		const std::vector<CaptureWindow::CategoryOption>& a_new)
-	{
-		auto ticks = std::make_unique<bool[]>(a_new.size());  // all false
-		if (!a_ticks) {
-			return ticks;
-		}
-		for (std::size_t i = 0; i < a_new.size(); ++i) {
-			const auto found = std::ranges::find_if(a_old, [&](const CaptureWindow::CategoryOption& a_option) {
-				return a_option.group == a_new[i].group && a_option.name == a_new[i].name;
-			});
-			ticks[i] = found != a_old.end() && a_ticks[found - a_old.begin()];
-		}
-		return ticks;
 	}
 
 	// Ticks of the rows `a_old` moved onto `a_new`, matched by situation: a row that is gone
@@ -1386,49 +1367,25 @@ namespace CaptureWindow::Internal
 		return restore;
 	}
 
-	bool IsClass(const CaptureWindow::CategoryOption& a_option)
+	// The ticked piece with the lowest Piece::suggestRank (the earlier one on a tie) decides
+	// the Create tab's gender: Female when it is femaleOnly, else Unisex. A gender still as
+	// last suggested follows; one the user changed stays.
+	void SuggestGender(State& a_state)
 	{
-		return a_option.group == CaptureWindow::kClassGroup;
-	}
-
-	// The ticked piece with the lowest Piece::suggestRank (the earlier one on a tie) decides:
-	// its category, skipping a piece whose class is none of kClassGroup's (Jewelry, Other),
-	// Clothing with none left; Female when it is femaleOnly, else Unisex. A category or gender
-	// still as last suggested follows; one the user changed stays.
-	void SuggestCategoryAndGender(State& a_state)
-	{
-		const auto& pieces = a_state.request.pieces;
-		const auto& categories = a_state.request.categories;
-		const auto  isCategory = [&](const std::string& a_class) {
-			return std::ranges::any_of(categories, [&](const auto& a_option) { return IsClass(a_option) && a_option.name == a_class; });
-		};
-		const CaptureWindow::Piece* forGender = nullptr;
-		const CaptureWindow::Piece* forCategory = nullptr;
+		const auto&                 pieces = a_state.request.pieces;
+		const CaptureWindow::Piece* deciding = nullptr;
 		for (const auto index : TickedPieces(a_state)) {
 			const auto& piece = pieces[index];
-			if (piece.suggestRank < 0) {
-				continue;
-			}
-			if (!forGender || piece.suggestRank < forGender->suggestRank) {
-				forGender = &piece;
-			}
-			if (isCategory(piece.armorClass) && (!forCategory || piece.suggestRank < forCategory->suggestRank)) {
-				forCategory = &piece;
+			if (piece.suggestRank >= 0 && (!deciding || piece.suggestRank < deciding->suggestRank)) {
+				deciding = &piece;
 			}
 		}
-		const std::vector<std::string> suggested{ forCategory ? forCategory->armorClass : ArmorInfo::ClassName(ArmorInfo::ArmorClass::kClothing) };
-		const int                      gender = forGender && forGender->femaleOnly ? 1 : -1;
+		const int gender = deciding && deciding->femaleOnly ? 1 : -1;
 
 		auto& form = a_state.createForm;
-		if (TickedCategories(a_state, form.classTicked.get()) == a_state.suggestedCategories) {
-			for (std::size_t i = 0; i < categories.size(); ++i) {
-				form.classTicked[i] = IsClass(categories[i]) && categories[i].name == suggested.front();
-			}
-		}
 		if (form.gender == a_state.suggestedGender) {
 			form.gender = gender;
 		}
-		a_state.suggestedCategories = suggested;
 		a_state.suggestedGender = gender;
 	}
 
@@ -1471,7 +1428,7 @@ namespace CaptureWindow::Internal
 			break;
 		case CaptureAction::kSavePage:
 			QueueMenuSound(kOkSound);
-			SuggestCategoryAndGender(a_state);
+			SuggestGender(a_state);
 			GoToPage(a_state, Page::kSave);
 			break;
 		case CaptureAction::kApply:
@@ -1492,16 +1449,6 @@ namespace CaptureWindow::Internal
 	}
 
 	// --- Save page ------------------------------------------------------------
-
-	std::string JoinNames(const std::vector<std::string>& a_names)
-	{
-		std::string joined;
-		for (const auto& name : a_names) {
-			joined += joined.empty() ? "" : ", ";
-			joined += name;
-		}
-		return joined;
-	}
 
 	// One full-width option row of a dropdown (Theme::DropdownRow): with `a_showMark` a row of
 	// a multi-choice dropdown, with its checkbox. It does not close the combo popup, so the
@@ -1645,20 +1592,6 @@ namespace CaptureWindow::Internal
 	{
 		const auto outfit = a_state.request.assigned[a_row].row.chosen;
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("pieces that are not a saved outfit");
-	}
-
-	// Contract: kClassGroup's categories only. Library::Update replaces only those and keeps
-	// the stored categories the window does not offer, and the situations are never stored
-	// in the library.
-	std::vector<std::string> TickedCategories(const State& a_state, const bool* a_ticked)
-	{
-		std::vector<std::string> ticked;
-		for (std::size_t i = 0; i < a_state.request.categories.size(); ++i) {
-			if (IsClass(a_state.request.categories[i]) && a_ticked[i]) {
-				ticked.push_back(a_state.request.categories[i].name);
-			}
-		}
-		return ticked;
 	}
 
 	const char* GenderName(int a_gender)
@@ -1822,8 +1755,8 @@ namespace CaptureWindow::Internal
 		return confirm;
 	}
 
-	// Update tab: returns true when the user confirmed replacing the outfit's pieces and
-	// classes with the ticked ones, and its name, gender and rows as the tab has them.
+	// Update tab: returns true when the user confirmed replacing the outfit's pieces with
+	// the ticked ones, and its name, gender and rows as the tab has them.
 	bool DrawConfirmPopup(const State& a_state)
 	{
 		if (!BeginModal(kConfirmPopup)) {
@@ -1840,11 +1773,6 @@ namespace CaptureWindow::Internal
 		ImGui::TextUnformatted(std::format("with the {} ticked piece(s)?", CountTickedPieces(a_state)).c_str());
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
-		}
-		if (const auto classes = TickedCategories(a_state, form.classTicked.get()); classes.empty()) {
-			ImGui::TextUnformatted("It will have no Category.");
-		} else {
-			ImGui::TextUnformatted(std::format("Its Category becomes: {}.", JoinNames(classes)).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
@@ -1878,7 +1806,6 @@ namespace CaptureWindow::Internal
 			.name = Trimmed(form.name.data()),
 			.gender = form.gender,
 			.pieces = TickedPieces(a_state),
-			.categories = TickedCategories(a_state, form.classTicked.get()),
 			.assign = AssignedRows(a_state),
 			.remove = a_state.updateTab ? RemovedRows(a_state) : std::vector<std::size_t>{} };
 		if (!a_state.updateTab && a_state.applyOnCreate) {
@@ -1934,7 +1861,6 @@ namespace CaptureWindow::Internal
 		ImGui::PushID(a_state.updateTab ? "update" : "create");
 		const bool enter = DrawNameField(a_state, form.name);
 		DrawGenderField(form.gender);
-		DrawCategoryDropdown(a_state, form.classTicked.get());
 		DrawWearsForField(a_state, form);
 		ImGui::PopID();
 		if (!a_state.error.empty()) {
@@ -1968,8 +1894,8 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// Fills the Update tab from outfit `a_index`: its name, classes and gender, and the rows
-	// the actor has it for. Choosing the outfit already chosen keeps the user's edits.
+	// Fills the Update tab from outfit `a_index`: its name and gender, and the rows the actor
+	// has it for. Choosing the outfit already chosen keeps the user's edits.
 	void ChooseOutfit(State& a_state, int a_index)
 	{
 		a_state.updateTab = true;
@@ -1979,13 +1905,9 @@ namespace CaptureWindow::Internal
 		}
 		a_state.chosenOutfit = a_index;
 		const auto& outfit = OutfitAt(a_state, a_index);
-		const auto& options = a_state.request.categories;
 		auto&       form = a_state.updateForm;
 		form.name.fill('\0');
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
-		for (std::size_t i = 0; i < options.size(); ++i) {
-			form.classTicked[i] = IsClass(options[i]) && std::ranges::find(outfit.categories, options[i].name) != outfit.categories.end();
-		}
 		form.gender = outfit.gender;
 		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
 			form.wearsFor[row] = HoldsOutfit(a_state, row, outfit.id);
@@ -2009,15 +1931,13 @@ namespace CaptureWindow
 			for (std::size_t i = 0; i < state.request.pieces.size(); ++i) {
 				state.pieceTicked[i] = state.request.pieces[i].selected;
 			}
-			const auto categories = state.request.categories.size();
 			const auto rows = state.request.assigned.size();
-			// Create starts from the suggestions and no row ticked (CLAUDE.md §2.1); the
+			// Create starts from the suggested gender and no row ticked (CLAUDE.md §2.1); the
 			// Update tab is filled when an outfit is chosen (ChooseOutfit).
-			state.createForm = { .classTicked = std::make_unique<bool[]>(categories), .wearsFor = std::make_unique<bool[]>(rows) };
+			state.createForm = { .wearsFor = std::make_unique<bool[]>(rows) };
 			std::strncpy(state.createForm.name.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
-			state.suggestedCategories.clear();  // as the empty form has, so the first suggestion fills it
-			state.suggestedGender = state.createForm.gender;
-			state.updateForm = { .classTicked = std::make_unique<bool[]>(categories), .wearsFor = std::make_unique<bool[]>(rows) };
+			state.suggestedGender = state.createForm.gender;  // as the empty form has, so the first suggestion fills it
+			state.updateForm = { .wearsFor = std::make_unique<bool[]>(rows) };
 			state.updateTab = false;
 			state.chosenOutfit = -1;
 			state.selectingOutfit = -1;
@@ -2042,7 +1962,7 @@ namespace CaptureWindow
 			for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser, &state.situationBrowser }) {
 				OutfitBrowser::Reset(*browser, state.request);
 			}
-			state.manage = { .classTicked = std::make_unique<bool[]>(categories) };
+			state.manage = {};
 			state.discardFor = -1;
 			state.leave.reset();
 			state.leaveAfterSave = false;
@@ -2065,7 +1985,7 @@ namespace CaptureWindow
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.previewOn;
-			SuggestCategoryAndGender(state);  // from the pieces that start ticked, once the ticks are set
+			SuggestGender(state);  // from the pieces that start ticked, once the ticks are set
 		}
 		g_open = true;
 		if (state.frozeGame) {
@@ -2136,9 +2056,6 @@ namespace CaptureWindow
 		const auto managed = idOf(state.manage.outfit);
 
 		auto& request = state.request;
-		for (auto* ticks : { &state.createForm.classTicked, &state.updateForm.classTicked, &state.manage.classTicked }) {
-			*ticks = RemapTicks(request.categories, ticks->get(), a_list.categories);
-		}
 		for (auto* ticks : { &state.createForm.wearsFor, &state.updateForm.wearsFor }) {
 			*ticks = RemapRows(request.situations, ticks->get(), a_list.situations);
 		}

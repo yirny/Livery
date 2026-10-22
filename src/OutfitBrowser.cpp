@@ -51,8 +51,6 @@ namespace
 	std::string_view GroupOf(OutfitBrowser::SortKey a_key)
 	{
 		switch (a_key) {
-		case OutfitBrowser::SortKey::kClass:
-			return CaptureWindow::kClassGroup;
 		case OutfitBrowser::SortKey::kSituation:
 			return CaptureWindow::kSituationGroup;
 		case OutfitBrowser::SortKey::kName:
@@ -70,19 +68,14 @@ namespace
 		return a_row < assigned.size() && OutfitRows::Holds(assigned[a_row].row, a_outfit);
 	}
 
-	// Indices into Request::categories the outfit is in, ascending: the stored categories by
-	// name, the situations by the actor's rows. A stored category the window does not offer
-	// (an older file's situation category) matches no row, even one sharing its name.
+	// Indices into Request::categories the outfit is in, ascending: the actor's rows holding it.
 	std::vector<int> CategoriesOf(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
 	{
 		const auto&      options = a_request.categories;
 		std::vector<int> in;
 		std::size_t      row = 0;
 		for (std::size_t i = 0; i < options.size(); ++i) {
-			const bool holds = options[i].group == CaptureWindow::kSituationGroup ?
-			                       HoldsRow(a_request, row++, a_outfit.id) :
-			                       std::ranges::find(a_outfit.categories, options[i].name) != a_outfit.categories.end();
-			if (holds) {
+			if (options[i].group == CaptureWindow::kSituationGroup && HoldsRow(a_request, row++, a_outfit.id)) {
 				in.push_back(static_cast<int>(i));
 			}
 		}
@@ -114,8 +107,8 @@ namespace
 		return key;
 	}
 
-	// In Request::categories' order, so Light before Clothing, and Light + Heavy before
-	// Light + Clothing; an outfit in none of the group's categories goes last.
+	// In Request::categories' order, so Default before Town, and Default + Town before
+	// Default + Sleep; an outfit in none of the group's categories goes last.
 	std::weak_ordering CompareGroupKeys(const std::vector<int>& a_left, const std::vector<int>& a_right)
 	{
 		if (a_left.empty() != a_right.empty()) {
