@@ -26,6 +26,10 @@ namespace Settings
 	// Safe from any thread.
 	Theme::Skin Skin();
 
+	// The Modern skin's palette that [UI] Palette or SKSE Menu Framework chose, from the files in
+	// Data/SKSE/Plugins/Livery/palettes, which Load reads once. Safe from any thread.
+	const Theme::Palette& Palette();
+
 	// Whether the capture window plays the game's menu sounds. Safe from any thread.
 	bool MenuSounds();
 

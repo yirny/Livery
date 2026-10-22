@@ -16,8 +16,10 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <SKSEMenuFramework.h>
 
@@ -28,6 +30,7 @@ namespace
 	constexpr auto kLivePreviewKey = L"LivePreview";
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kSkinKey = L"Skin";
+	constexpr auto kPaletteKey = L"Palette";
 	constexpr auto kMenuSoundsKey = L"MenuSounds";
 	constexpr auto kHotkeySection = L"Hotkey";
 	constexpr auto kHotkeyKeyKey = L"Key";
@@ -45,6 +48,10 @@ namespace
 	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
 	constexpr auto kSituationsSection = L"Situations";
 	constexpr auto kNotifyChangesKey = L"NotifyChanges";
+
+	constexpr auto kPaletteDir = L"Data/SKSE/Plugins/Livery/palettes";
+	constexpr auto kPaletteSection = L"Palette";  // the section of a palette file that holds its colours
+	constexpr auto kDefaultPalette = L"Edge";     // keep in step with kIniKeys
 
 	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
 	constexpr float kMinSpeedPercent = 10.0f;
@@ -65,7 +72,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 14> kIniKeys{ {
+	constexpr std::array<IniKey, 15> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -77,6 +84,9 @@ namespace
 		{ kUiSection, kSkinKey, L"Modern",
 			L"Skin of the capture window: Modern, Vanilla or Nordic. Tailor, from earlier versions, reads as Modern.\n"
 			L"Read once when the game starts." },
+		{ kUiSection, kPaletteKey, L"Edge",
+			L"Colours of the Modern skin: a file in Data/SKSE/Plugins/Livery/palettes, named without .ini (Edge, Norden, or your own copy of one).\n"
+			L"Easiest to change in game through SKSE Menu Framework. The palette files are read once when the game starts." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = the capture window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
 			L"0 = it stays silent.\n"
@@ -162,6 +172,19 @@ namespace
 	std::atomic<bool>          g_moveFromPlayer{ true };
 	std::atomic<bool>          g_notifySituationChanges{ false };
 	std::filesystem::path      g_iniPath;  // set once by Load, read-only afterwards
+
+	// A palette file of the Modern skin.
+	struct PaletteOption
+	{
+		std::wstring   stem;  // the file name without .ini, as [UI] Palette holds it
+		std::string    name;  // the same in UTF-8, for SKSE Menu Framework and the log
+		Theme::Palette palette;
+	};
+
+	// Contract: filled once by Load, before the render thread or SKSE Menu Framework reads
+	// it, and never changed afterwards, so any thread may read it; the choice is atomic.
+	std::vector<PaletteOption> g_palettes;           // sorted by name
+	std::atomic<std::size_t>   g_paletteIndex{ 0 };  // into g_palettes
 
 	const SkinOption& OptionOf(Theme::Skin a_skin)
 	{
@@ -322,6 +345,13 @@ namespace
 		}
 	}
 
+	void SavePalette(const std::wstring& a_stem)
+	{
+		if (!::WritePrivateProfileStringW(kUiSection, kPaletteKey, a_stem.c_str(), g_iniPath.c_str())) {
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
+		}
+	}
+
 	void SaveHotkey(std::uint32_t a_key, std::uint32_t a_modifier)
 	{
 		const auto key = std::to_wstring(a_key);
@@ -330,6 +360,123 @@ namespace
 			!::WritePrivateProfileStringW(kHotkeySection, kHotkeyModifierKey, modifier.c_str(), g_iniPath.c_str())) {
 			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
 		}
+	}
+
+	// --- Palettes -------------------------------------------------------------
+
+	// A palette file's keys, each a colour of Theme::Palette.
+	struct PaletteKey
+	{
+		const wchar_t* key;
+		std::uint32_t Theme::Palette::* color;
+	};
+	constexpr std::array<PaletteKey, 11> kPaletteKeys{ {
+		{ L"Window", &Theme::Palette::window },
+		{ L"Surface", &Theme::Palette::surface },
+		{ L"TitleBar", &Theme::Palette::titleBar },
+		{ L"Text", &Theme::Palette::text },
+		{ L"Label", &Theme::Palette::label },
+		{ L"Accent", &Theme::Palette::accent },
+		{ L"AccentLight", &Theme::Palette::accentLight },
+		{ L"Rule", &Theme::Palette::rule },
+		{ L"Hover", &Theme::Palette::hover },
+		{ L"Selected", &Theme::Palette::selected },
+		{ L"Error", &Theme::Palette::error },
+	} };
+
+	// "#RRGGBB" or "#RRGGBBAA" as 0xRRGGBBAA, opaque when AA is left out; nullopt for anything else.
+	std::optional<std::uint32_t> ParseColor(std::wstring_view a_text)
+	{
+		constexpr std::size_t kRgbLength = 7;   // "#RRGGBB"
+		constexpr std::size_t kRgbaLength = 9;  // "#RRGGBBAA"
+
+		if (a_text.empty() || a_text.front() != L'#' || (a_text.size() != kRgbLength && a_text.size() != kRgbaLength)) {
+			return std::nullopt;
+		}
+		std::uint32_t value = 0;
+		for (const wchar_t c : a_text.substr(1)) {
+			std::uint32_t digit = 0;
+			if (c >= L'0' && c <= L'9') {
+				digit = c - L'0';
+			} else if (c >= L'a' && c <= L'f') {
+				digit = c - L'a' + 10;
+			} else if (c >= L'A' && c <= L'F') {
+				digit = c - L'A' + 10;
+			} else {
+				return std::nullopt;
+			}
+			value = (value << 4) | digit;
+		}
+		return a_text.size() == kRgbLength ? (value << 8) | 0xFF : value;
+	}
+
+	// A palette file's colours; a key left out, or one that is not a colour (logged), keeps
+	// the Edge palette's colour (Theme::Palette's defaults).
+	Theme::Palette ReadPalette(const std::filesystem::path& a_path, std::string_view a_name)
+	{
+		Theme::Palette palette;
+		wchar_t        value[32]{};
+		for (const auto& entry : kPaletteKeys) {
+			const auto length = ::GetPrivateProfileStringW(kPaletteSection, entry.key, L"", value, static_cast<DWORD>(std::size(value)), a_path.c_str());
+			if (length == 0) {
+				continue;
+			}
+			if (const auto color = ParseColor(std::wstring_view{ value, length })) {
+				palette.*entry.color = *color;
+			} else {
+				logger::warn("Palette {}: {} = {} is not #RRGGBB or #RRGGBBAA; it keeps Edge's colour", a_name,
+					SKSE::stl::utf16_to_utf8(entry.key).value_or(""), SKSE::stl::utf16_to_utf8(value).value_or(""));
+			}
+		}
+		return palette;
+	}
+
+	// The palette whose file is named `a_stem` (ASCII case ignored), if any.
+	std::optional<std::size_t> FindPalette(std::wstring_view a_stem)
+	{
+		for (std::size_t i = 0; i < g_palettes.size(); ++i) {
+			if (::_wcsicmp(g_palettes[i].stem.c_str(), std::wstring{ a_stem }.c_str()) == 0) {
+				return i;
+			}
+		}
+		return std::nullopt;
+	}
+
+	// Reads every .ini in the palettes folder, then picks the one [UI] Palette names, else
+	// Edge, else the first. With no palette file, Settings::Palette is Edge's built-in colours.
+	// Contract: called once by Settings::Load (see g_palettes).
+	void LoadPalettes()
+	{
+		const auto      folder = std::filesystem::current_path() / kPaletteDir;
+		std::error_code ec;
+		for (std::filesystem::directory_iterator it{ folder, ec }, end; !ec && it != end; it.increment(ec)) {
+			const auto& path = it->path();
+			if (!it->is_regular_file(ec) || ::_wcsicmp(path.extension().c_str(), L".ini") != 0) {
+				continue;
+			}
+			auto stem = path.stem().wstring();
+			auto name = SKSE::stl::utf16_to_utf8(stem).value_or("?");
+			auto palette = ReadPalette(path, name);
+			g_palettes.push_back({ std::move(stem), std::move(name), palette });
+		}
+		std::ranges::sort(g_palettes, [](const PaletteOption& a_left, const PaletteOption& a_right) {
+			return ::_wcsicmp(a_left.stem.c_str(), a_right.stem.c_str()) < 0;
+		});
+		logger::info("Loaded {} palette(s) from {}", g_palettes.size(), folder.string());
+		if (g_palettes.empty()) {
+			logger::info("Palette = Edge (built in)");
+			return;
+		}
+
+		wchar_t chosen[MAX_PATH]{};
+		::GetPrivateProfileStringW(kUiSection, kPaletteKey, kDefaultPalette, chosen, static_cast<DWORD>(std::size(chosen)), g_iniPath.c_str());
+		auto index = FindPalette(chosen);
+		if (!index) {
+			index = FindPalette(kDefaultPalette);
+			logger::warn("No palette file named {}; using {}", SKSE::stl::utf16_to_utf8(chosen).value_or("?"), g_palettes[index.value_or(0)].name);
+		}
+		g_paletteIndex = index.value_or(0);
+		logger::info("Palette = {}", g_palettes[g_paletteIndex.load()].name);
 	}
 
 	// --- SKSE Menu Framework page ---------------------------------------------
@@ -409,6 +556,26 @@ namespace
 				g_skin = option.skin;
 				SaveSkin(option.skin);
 				logger::info("Skin = {} (SKSE Menu Framework)", option.label);
+			}
+		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		// Takes effect the next time the capture window opens, in the Modern skin.
+		if (!g_palettes.empty()) {
+			const auto current = g_paletteIndex.load();
+			if (ImGuiMCP::BeginCombo("Modern skin palette", g_palettes[current].name.c_str())) {
+				for (std::size_t i = 0; i < g_palettes.size(); ++i) {
+					ImGuiMCP::PushID(static_cast<int>(i));
+					if (ImGuiMCP::Selectable(g_palettes[i].name.c_str(), i == current) && i != current) {
+						g_paletteIndex = i;
+						SavePalette(g_palettes[i].stem);
+						logger::info("Palette = {} (SKSE Menu Framework)", g_palettes[i].name);
+					}
+					ImGuiMCP::PopID();
+				}
+				ImGuiMCP::EndCombo();
 			}
 		}
 
@@ -555,6 +722,7 @@ namespace Settings
 			}
 		}
 		logger::info("Skin = {}", OptionOf(g_skin.load()).label);
+		LoadPalettes();
 
 		// A missing key keeps the default (on).
 		::GetPrivateProfileStringW(kUiSection, kMenuSoundsKey, L"1", value, static_cast<DWORD>(std::size(value)),
@@ -656,6 +824,13 @@ namespace Settings
 	Theme::Skin Skin()
 	{
 		return g_skin.load();
+	}
+
+	const Theme::Palette& Palette()
+	{
+		static const Theme::Palette builtIn;  // Edge's colours, when no palette file was found
+		const auto                  index = g_paletteIndex.load();
+		return index < g_palettes.size() ? g_palettes[index].palette : builtIn;
 	}
 
 	bool MenuSounds()
