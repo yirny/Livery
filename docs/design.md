@@ -132,7 +132,7 @@ copies are hidden: player-given instances stay visible and takeable even while t
 of the outfit (taking back one's own item is not a dupe). Not filtered: the player's own list
 (a copy added to the player is the player's item), an NPC without a default outfit, and
 corpses (Livery forgets an actor at death, and vanilla shows a corpse's outfit items too).
-The capture window's `#{Name}'s Inventory` follows the engine's rule: an NPC's own outfit
+The capture window's `Inventory` heading follows the engine's rule: an NPC's own outfit
 copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list shows what the
 trade menu shows.
 
