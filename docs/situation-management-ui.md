@@ -75,6 +75,12 @@ Changes:
   Default wearing nothing (random off: `chosen` was it; random on: it was the only one on
   the list), the outfit's pieces become the Default's `pieces`, read before
   `Library::Remove`. Those wearing it are redressed as today (outfit-management-ui.md §5).
+- Another save's rows still naming a removed outfit keep its id in the co-save, so restoring
+  outfits.json brings it back. Until then the id counts as not on the row
+  (`OutfitRows::WithoutGone`): the window never shows it or names it, Remove Situation's
+  popup does not count it, a random row never picks it, and a situation row with only such
+  ids is passed over as one without an outfit. Save Changes keeps it (`OutfitRows::KeepGone`);
+  an outfit given in its `chosen` place leaves it on the list.
 - Update of an outfit: whoever wears it, for any row, wears the new pieces at their next
   redress; the captured actor at once by docs/outfit-management-ui.md §6.
 - A redress forced by a change (`Assignments::Change`, `Refresh`) keeps a random row's pick
@@ -177,15 +183,13 @@ outfit for Town any more`.
   the dots. Random on: every outfit on the list. Random off: `chosen`
   only. A row that wears nothing shows nothing under its heading; the Default wearing its
   `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id the library no longer
-  has (another save's) shows a grey `Outfit no longer in the wardrobe` row with a grip, which
-  drags as an outfit does.
+  has (another save's) shows nothing (§1).
 - A click on an outfit row, here or in the right pane's outfit list, shows the outfit's
   details in the right pane (§5) and puts it on the preview; a click on the outfit whose
   details show goes back, as Back does. Its rows in both panes show as selected meanwhile
   (docs/outfit-management-ui.md §1): in Vanilla and Nordic the equipped mark sits left of the
   dots here, and in the right pane takes the dots' place, shrunk to leave 2px on either side.
-  A click on the pieces line or
-  a row no longer in the wardrobe does nothing. A drag never counts as a click.
+  A click on the pieces line does nothing. A drag never counts as a click.
 
 Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 

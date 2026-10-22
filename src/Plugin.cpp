@@ -642,22 +642,16 @@ namespace
 		});
 	}
 
-	// Names a library outfit for the summary line, or says it is gone.
-	std::string QuotedOutfitName(std::uint32_t id)
-	{
-		const auto* stored = Library::Find(id);
-		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the wardrobe";
-	}
-
 	// The line under the actor's name: what Livery has on them now, ending in the description
-	// of the situation it is for: `Dressed by Livery in "X", in Town.`
+	// of the situation it is for: `Dressed by Livery in "X", in Town.` An outfit gone from the
+	// library (another save's) goes unnamed, as the window shows no row of it.
 	std::string DescribeAssignment(const Assignments::Choices& choices)
 	{
 		if (!choices.dressed) {
 			return "Not dressed by Livery right now.";
 		}
-		const auto outfit = choices.wornOutfit;
-		const auto text = outfit ? std::format("Dressed by Livery in {}", QuotedOutfitName(outfit)) : std::string("Dressed by Livery");
+		const auto* stored = choices.wornOutfit ? Library::Find(choices.wornOutfit) : nullptr;
+		const auto  text = stored ? std::format("Dressed by Livery in \"{}\"", stored->name) : std::string("Dressed by Livery");
 		return text + SituationStore::Suffix(choices.worn) + ".";
 	}
 
@@ -764,15 +758,22 @@ namespace
 		return row == 0 ? Situations::Situation::kDefault : SituationStore::Offered()[row - 1];
 	}
 
-	// The actor's rows as they have them now, in RowSituation's order.
+	bool InLibrary(std::uint32_t id)
+	{
+		return Library::Find(id) != nullptr;
+	}
+
+	// The actor's rows as they have them now, in RowSituation's order, without the outfits
+	// gone from the library (OutfitRows::WithoutGone), which RowsWith keeps.
 	std::vector<CaptureWindow::RowAssignment> AssignedRows(const std::optional<Assignments::Choices>& choices)
 	{
 		const auto                                offered = SituationStore::Offered();
 		std::vector<CaptureWindow::RowAssignment> rows(offered.size() + 1);
 		if (choices) {
-			rows[0] = { .row = choices->rows[OutfitRows::RowOf(Situations::Situation::kDefault)], .pieces = choices->defaultPieces };
+			const auto shown = [&choices](Situations::Situation situation) { return OutfitRows::WithoutGone(choices->rows[OutfitRows::RowOf(situation)], InLibrary); };
+			rows[0] = { .row = shown(Situations::Situation::kDefault), .pieces = choices->defaultPieces };
 			for (std::size_t i = 0; i < offered.size(); ++i) {
-				rows[i + 1] = { .row = choices->rows[OutfitRows::RowOf(offered[i])] };
+				rows[i + 1] = { .row = shown(offered[i]) };
 			}
 		}
 		return rows;
@@ -1089,14 +1090,16 @@ namespace
 		};
 	}
 
-	// The actor's rows with Manage Situations' rows put in, by situation.
+	// The actor's rows with Manage Situations' rows put in, by situation, each keeping the
+	// outfits gone from the library that the window did not show (OutfitRows::KeepGone).
 	// Contract: game thread.
 	OutfitRows::Rows RowsWith(RE::FormID actorID, const std::vector<CaptureWindow::RowEdit>& edits)
 	{
 		const auto       choices = Assignments::ChoicesOf(actorID);
 		OutfitRows::Rows rows = choices ? choices->rows : OutfitRows::Rows{};
 		for (const auto& [situation, row] : edits) {
-			rows[OutfitRows::RowOf(situation)] = row;
+			auto& stored = rows[OutfitRows::RowOf(situation)];
+			stored = OutfitRows::KeepGone(row, stored, InLibrary);
 		}
 		return rows;
 	}

@@ -59,9 +59,8 @@ namespace CaptureWindow::Internal
 		// The name a situation gets when neither the one typed nor the one before can be used.
 		constexpr const char* kUnnamed = "Unnamed Situation";
 		constexpr const char* kDiscardNote = "Your unsaved changes are discarded.";
-		// Lines in an outfit row's place under a heading.
+		// A line in an outfit row's place under a heading.
 		constexpr const char* kPiecesLine = "Pieces not in the wardrobe";
-		constexpr const char* kGoneLine = "Outfit no longer in the wardrobe";
 
 		// --- Edits ------------------------------------------------------------
 
@@ -248,7 +247,7 @@ namespace CaptureWindow::Internal
 			return !ShownOutfits(a_form.entries[a_entry].row).empty() || ShowsPieces(a_form, a_entry);
 		}
 
-		// A grey line in an outfit row's place (kPiecesLine, kGoneLine).
+		// A grey line in an outfit row's place (kPiecesLine).
 		void DrawLineRow(const char* a_text, float a_tagsWidth, Theme::Grip a_grip)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -311,20 +310,21 @@ namespace CaptureWindow::Internal
 			}
 			const bool random = form.entries[a_entry].row.random;
 			for (std::size_t k = 0; k < shown.size(); ++k) {
+				// Contract: every outfit on the rows is on the window's list: AssignedRows (Plugin.cpp)
+				// leaves out those gone from the library, and SetOutfits refills the rows with the list.
+				const int index = IndexOfOutfit(a_state, shown[k]);
+				if (index < 0) {
+					continue;
+				}
 				ImGui::PushID(static_cast<int>(k));
 				const float top = ImGui::GetCursorScreenPos().y;
-				const int   index = IndexOfOutfit(a_state, shown[k]);
-				if (index >= 0) {
-					// No star: every row here is one chosen for a situation.
-					if (DrawOutfitRow(a_state, a_state.situationBrowser, index, a_tagsWidth, form.viewedOutfit == shown[k], k % 2 == 1, Theme::Grip::kName, false)) {
-						QueueMenuSound(kFocusSound);
-						ViewOutfit(a_state, index);
-					}
-				} else {
-					DrawLineRow(kGoneLine, a_tagsWidth, Theme::Grip::kName);
+				// No star: every row here is one chosen for a situation.
+				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, a_tagsWidth, form.viewedOutfit == shown[k], k % 2 == 1, Theme::Grip::kName, false)) {
+					QueueMenuSound(kFocusSound);
+					ViewOutfit(a_state, index);
 				}
 				const float bottom = ImGui::GetItemRectMax().y;
-				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, index >= 0 ? OutfitAt(a_state, index).name.c_str() : kGoneLine);
+				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, OutfitAt(a_state, index).name.c_str());
 				if (ImGui::BeginDragDropTarget()) {
 					const bool after = random && ImGui::GetMousePos().y >= (top + bottom) * 0.5f;
 					if (const auto dropped = AcceptOnSituation(after ? bottom : top)) {
