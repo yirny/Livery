@@ -204,7 +204,7 @@ else()
     # No INI is deployed: the plugin creates Livery.ini with defaults on
     # first start and adds missing keys afterwards, so the player's settings survive updates.
 
-    # Fonts of the Vanilla and Nordic skins, with their OFL licences (src/Theme.cpp).
+    # The skins' fonts (with their OFL licences), textures and palettes (src/Theme.cpp, src/Settings.cpp).
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/Livery"
             DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
 
