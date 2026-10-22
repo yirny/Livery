@@ -170,8 +170,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     (docs/situation-management-ui.md §1); the buttons are `Confirm` / `Cancel`. The window
     hands the edits and rows to `Request::onManageUpdate`. CLAUDE.md §2.1 applies: a name
     another outfit has (ASCII case ignored) is refused, and a refused or failed write changes
-    nothing, assigns nothing and shows the error. On success the rows are changed in one
-    `Assignments::Change` (§6), the window stays open: the list is rebuilt
+    nothing, assigns nothing and shows the error. On success the rows are changed (§6),
+    the window stays open: the list is rebuilt
     (`CaptureWindow::SetOutfits`), the edits start again from the library, the outfit stays
     selected (found by id), the Save page's Update tab ticks follow the rows changed for its
     outfit, and the captured actor is redressed when they wear it (§6).
@@ -263,10 +263,11 @@ adds them (an NPC gets a copy of a piece they lack); nothing moves from the play
 inventory. Not worn now: nothing, since every row reads its outfit from the library each
 time it goes on. Remove: §5.
 
-Rows Update changed (`SaveRequest::assign` / `remove`) are made and dressed for in one
-`Assignments::Change`, through the same path (`PendingRedress::change`: at once with Live
-Preview on, in `onClose` with it off). Apply to #{Name} closes the window first, so it
-assigns with the preview ended.
+Rows Update changed (`SaveRequest::assign` / `remove`) are made at once, so the window
+shows them (`Assignments::ChangeRows`), and dressed for in one `Assignments::Refresh`
+through the same path (`PendingRedress::refresh`: at once with Live Preview on, in
+`onClose` with it off); a random row worn now wears the outfit it gained. Apply to
+#{Name} closes the window first, so it assigns with the preview ended.
 
 ## 7. Code
 

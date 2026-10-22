@@ -253,7 +253,8 @@ off it becomes `chosen` in the place of the outfit it replaces, which leaves the
 the list keeps its length. The Save page's `Situations for
 #{Name}` rows give and take the outfit for the captured actor in one `Assignments::Change`, after
 the library write, with one forced redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
-included) with it; Update saves them the same way, and its `Apply to #{Name}` dresses the
+included) with it; Update makes them at once (`Assignments::ChangeRows`) and dresses them
+once as Manage Situations does, and its `Apply to #{Name}` dresses the
 actor for the ticked rows, or makes the outfit the default with none, as Apply does.
 Manage Situations (docs/situation-management-ui.md §3-§6) edits every row of the captured
 actor by drag and drop, the random flags included, and the situations' names and
@@ -262,8 +263,7 @@ descriptions; its Save Changes writes `situations.json` first, then replaces the
 at once with Live Preview on, else at the window's close; a random row worn now wears the
 outfit it gained first). Removing a situation writes `situations.json`, then clears the
 situation's rows in this save (`Assignments::ForgetSituation`) and takes those wearing it
-out of it as Remove takes them out of a removed outfit; Restore Presets changes no row. A
-change the window runs at its close leaves a situation removed since then empty. An actor can have situation outfits without a default and then wears their
+out of it as Remove takes them out of a removed outfit; Restore Presets changes no row. An actor can have situation outfits without a default and then wears their
 own clothes outside them. Restore Outfit forgets the choices with the rest. The
 player has the same rows.
 

@@ -936,36 +936,31 @@ namespace Assignments
 		if (!CanBeDressed(a_actor)) {
 			return;
 		}
-		// The capture window may run a change at its close, after Manage Situations removed a
-		// situation it names.
-		auto changes = a_changes;
-		std::erase_if(changes.assign, SituationStore::IsRemoved);
-		std::erase_if(changes.remove, SituationStore::IsRemoved);
 		const auto id = a_actor.GetFormID();
 		auto&      assignment = FindOrAddAssignment(id);
-		ApplyChanges(assignment, changes);
+		ApplyChanges(assignment, a_changes);
 		// A removed row that still holds an outfit is a random one with others on its list.
 		std::vector<Situation> emptied;
 		std::vector<Situation> kept;
-		for (const auto row : changes.remove) {
+		for (const auto row : a_changes.remove) {
 			(OutfitRows::HoldsAny(assignment.rows[RowOf(row)]) ? kept : emptied).push_back(row);
 		}
 		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor),
-			{ .force = true, .given = changes.outfit, .givenRows = changes.assign });
+			{ .force = true, .given = a_changes.outfit, .givenRows = a_changes.assign });
 		const auto worn = assignment.worn;  // read before DropIfEmpty, which may end the record
 		const auto pieces = assignment.pieces.size();
 		DropIfEmpty(id);
 		SyncManaged();
 
 		std::vector<std::string> parts;
-		if (!changes.assign.empty()) {
-			parts.push_back(std::format("{} for {}", QuotedOutfitName(changes.outfit), JoinSituations(changes.assign)));
+		if (!a_changes.assign.empty()) {
+			parts.push_back(std::format("{} for {}", QuotedOutfitName(a_changes.outfit), JoinSituations(a_changes.assign)));
 		}
 		if (!emptied.empty()) {
 			parts.push_back(std::format("no outfit for {} any more", JoinSituations(emptied)));
 		}
 		if (!kept.empty()) {
-			parts.push_back(std::format("{} no longer for {}", QuotedOutfitName(changes.outfit), JoinSituations(kept)));
+			parts.push_back(std::format("{} no longer for {}", QuotedOutfitName(a_changes.outfit), JoinSituations(kept)));
 		}
 		auto text = std::format("Livery: {}:", NameOf(a_actor));
 		for (std::size_t i = 0; i < parts.size(); ++i) {
@@ -996,6 +991,15 @@ namespace Assignments
 		// end before the Refresh that dresses them; that dressing ends it if nothing goes on.
 		SyncManaged();
 		return pick;
+	}
+
+	std::optional<std::uint32_t> ChangeRows(RE::Actor& a_actor, const Changes& a_changes)
+	{
+		const auto* found = FindAssignment(a_actor.GetFormID());
+		auto        changed = found ? *found : Assignment{ .actor = a_actor.GetFormID() };
+		ApplyChanges(changed, a_changes);
+		// Dropped only when the change took them (GiveRow), so an empty list is no change.
+		return SetRows(a_actor, changed.rows, changed.defaultPieces.empty());
 	}
 
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, std::uint32_t a_pick)
