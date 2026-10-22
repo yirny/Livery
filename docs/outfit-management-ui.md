@@ -10,8 +10,8 @@ CLAUDE.md §2.1 (step 2 adds the Manage Wardrobe Update path, step 3 the window'
 The Inventory page is today's Capture page (`Page::kCapture`), titled `#{Name}'s Inventory`.
 Docs call it the Inventory page; code identifiers stay.
 
-Window-wide look: field labels, list headings (folding ones included), column labels and
-outfit tags are drawn in ASCII capitals (`Theme`'s `Caps`), the strings in code staying as
+Window-wide look: field labels, list headings (folding ones included) and column labels
+are drawn in ASCII capitals (`Theme`'s `Caps`), the strings in code staying as
 written; count lines (`Theme::CountText`), notes, buttons and links keep their case. In
 Vanilla and Nordic a page's two columns have a faint 1px rule between them, 4px short of
 the columns' top and bottom. Tooltips sit (32, 20)px from the mouse at 1080p
@@ -25,8 +25,8 @@ at any resolution, the thumb's rim and its fill while held in the track's light 
 (#cccccc) (Tailor keeps a 1px rule and ImGui's bar). Fonts at 1080p: Vanilla's body 22px
 and headings 28px (Oswald), Nordic's 20px and 26px (Sovngarde). Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
-in Nordic the tags' size (0.7, 14px). Count lines, the links (`Add pieces from Wardrobe...`,
-`Edit`, `Show Tags`, `Restore Outfit`, `Remove`, `Restore Presets`) and `Sort by` take the
+in Nordic 0.7 of the body (14px). Count lines, the links (`Add pieces from Wardrobe...`,
+`Edit`, `Restore Outfit`, `Remove`, `Restore Presets`) and `Sort by` take the
 small font in every skin.
 
 ## 1. Outfit list (step 1)
@@ -47,11 +47,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   - Category: the categories above, which the Save page and Manage Wardrobe edit.
   - Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that hold the outfit
     (Default and the situations), from `Request::assigned`. Never stored in the library.
-- Each row: the name, then under it, in grey, its tags (Tailor: in the small font; Vanilla
-  and Nordic: 0.7 of the body font, 15.4px and 14px) in this order:
-  Female or Male (Unisex has none), Category, Situation, wrapping onto more lines when they
-  do not fit. Tailor draws each tag as a framed chip, as Tailor 3.0's outfit list does;
-  Vanilla and Nordic as plain text, comma separated.
+- Each row: the outfit's name alone, one line high.
 - Hover, in every list and in the dropdowns' rows: Tailor fills a hovered row in its muted
   brown; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
@@ -76,17 +72,12 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
   it), `Default Outfit` on the bare form, `For Town, Warm` (`OutfitBrowser::State::situations`,
-  computed at Rebuild). The form and the star side by side when both apply; drawn with or
-  without the tags.
+  computed at Rebuild). The form and the star side by side when both apply.
 - `Sort by`'s text is right-aligned, ending 6px short of its arrow.
 - Rows meet with no gap (the list lays them out with no item spacing; each row and heading
   holds the former gap, half above and half below), and every second row under a heading
   has a faint white (16/255) under its fills, in every skin, as Tailor 3.0's outfit list
-  alternates its rows. Names and tags start 22px in from the row's left edge.
-- Under the list, `Hide Tags` while the tags show and `Show Tags` while they do not, a link in
-  the count line's font and colour, lit while hovered (`Theme::ListFooterLink`), as far below
-  the list's bottom rule as the count line sits above its top rule. A click shows or hides the
-  tags; they show each time the window opens; hidden, rows show the name only.
+  alternates its rows. Names start 22px in from the row's left edge.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
 - `Sort by`: Name, Gender, Category, Situation. Every key but Name puts headings in the
   list: the outfit's categories in that group joined with `, ` (`Town, Swimming`), in the
@@ -99,7 +90,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   Situations), the grip's dots start where the heading's text does. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
   by heading text). Every heading is open when the window opens and when the sort changes;
   the list keeps the height of the whole library.
-- Headings and tag text are computed when the list is refreshed, never per frame.
+- Headings and situation mark text are computed when the list is refreshed, never per frame.
 
 ## 2. Inventory page (step 1)
 
@@ -140,8 +131,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   8px in Vanilla and Nordic (`Theme::SectionGap`); a label sits 3px (Vanilla and Nordic: 5px)
   closer to its control than the item spacing; a count line under a list keeps 6px above it.
 - A *button* sits in a page's or popup's button row (`Theme::Button`); a *link* is a clickable
-  label in the label font beside a field or a line (`Restore Presets`, `Remove`, `Edit`,
-  `Show Tags`). Vanilla draws its buttons as text alone, 2px larger than the body font, grey
+  label in the label font beside a field or a line (`Restore Presets`, `Remove`, `Edit`).
+  Vanilla draws its buttons as text alone, 2px larger than the body font, grey
   and white while hovered, with no fill, 2px clear on either side.
 
 ## 3. Tab column (step 2)
@@ -309,14 +300,14 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
   (`Request::wornFor` tells the row of the outfit worn); the Save page's row helpers
   (`TakenRows`, `AssignedRows`, `RemovedRows`, `DrawRowChangeLines`).
 - `OutfitBrowser`: sort keys Name, Gender, Category, Situation (`SetSort`); per outfit its
-  heading, tag text and situation mark text; the folded headings. Unit tests cover the
+  heading, categories and situation mark text; the folded headings. Unit tests cover the
   keys, the headings, the stored categories the window does not offer, the folding and the
   marks.
 - `Library`: Jewelry out of `Categories()` and dropped at Load; `Remove` (step 3), written
   through the temporary file as Create and Update are.
 - `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it.
 - `Theme`: the tab column, its icons and rule (Nordic's rope texture), the outfit row with
-  tags (Tailor's chips) and marks (`OutfitMarks`), the folding headings of a sorted outfit
+  its marks (`OutfitMarks`), the folding headings of a sorted outfit
   list (`FoldHeading`), the rows' fills and NORDIC UI's line, the dropdown rows
   (`DropdownRow`), a label's `(?)` (`LabelHelpMark`), a list heading's (`ListHeadingHelp`),
   a link with its `(?)` (`LabelHelpLink`), a button with one (`HelpButton`), the underlined
@@ -326,7 +317,7 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
 
 ## 8. Checks
 
-- Step 1: each sort's headings, folded and unfolded; tags hidden; an old file's
+- Step 1: each sort's headings, folded and unfolded; an old file's
   situation categories stay unshown; Load from its button; an old outfit with Jewelry loads
   without it; the three skins.
 - Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and

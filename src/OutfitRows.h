@@ -140,7 +140,7 @@ namespace OutfitRows
 	}
 
 	// Whether the row holds `a_outfit`: it is `chosen` with random off, on `outfits` with
-	// random on. What the window's ticks, tags, headings and marks show. Never id 0.
+	// random on. What the window's ticks, headings and marks show. Never id 0.
 	inline bool Holds(const Row& a_row, std::uint32_t a_outfit)
 	{
 		if (a_outfit == 0) {
