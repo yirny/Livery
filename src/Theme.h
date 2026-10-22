@@ -42,7 +42,7 @@ namespace Theme
 	bool HasPopupTitleBar();
 
 	// Call right after ImGui::Begin, or BeginPopupModal with `popup`: corner ornaments (Nordic);
-	// on the main window, Vanilla's frame, a 4px band of the rule colour inside its edge and a
+	// on the main window, Vanilla's frame, a 3px band of the rule colour inside its edge and a
 	// 4px band of the window's glass outside it, in place of ImGui's border.
 	void DecorateWindow(bool popup = false);
 
@@ -67,12 +67,14 @@ namespace Theme
 
 	// A field is a label (or none) and the control or list it names; a list's count line
 	// under it belongs to the list's field. LabelText is a field label in the small font
-	// (PushSmallFont): grey in Vanilla and Nordic, plain text in Tailor. It opens its field
-	// with SectionGap and sits a little closer to the control below it than the item spacing
-	// would. `opensField` false, a count line under a list: a smaller gap above it, 6px.
-	// Contract: every field label goes through here, a list's count line
-	// ("2 of 5 piece(s) selected", "12 outfit(s) in the wardrobe") included.
+	// (PushSmallFont), in ASCII capitals: grey in Vanilla and Nordic, plain text in Tailor. It
+	// opens its field with SectionGap and sits a little closer to the control below it than the
+	// item spacing would. `opensField` false, a count line under a list: a smaller gap above
+	// it, 6px. CountText is LabelText with the text kept as written, for count lines.
+	// Contract: every field label goes through LabelText, and every count line
+	// ("2 of 5 piece(s) selected", "12 outfit(s) in the wardrobe") through CountText.
 	void LabelText(const char* text, bool opensField = true);
+	void CountText(const char* text, bool opensField = true);
 
 	// A clickable label at the right end of the line just laid out (call it
 	// right after LabelText): a filled rounded square with a plus cut out of
@@ -171,7 +173,7 @@ namespace Theme
 	// Pixels on the back buffer between the end of one column's text and the next column.
 	float ColumnGap();
 
-	// The column labels over a list, in LabelText's font and colour, each lit
+	// The column labels over a list, in LabelText's font, colour and capitals, each lit
 	// while hovered (white in Vanilla and Nordic, amber in Tailor); the label of
 	// column `sorted` has a small arrow after it, pointing up unless
 	// `descending`. Opens a field as LabelText does. Returns the index of the
@@ -219,13 +221,13 @@ namespace Theme
 	// Contract: inside BeginList.
 	void TextRow(const char* label);
 
-	// A heading inside a list: a TextRow in the small font, greyed (the piece list's
+	// A heading inside a list: a TextRow in the small font, greyed, in capitals (the piece list's
 	// groups, a sorted outfit list's headings). ListHeadingHeight is its height.
 	// Contract: ListHeading inside BeginList.
 	void  ListHeading(const char* text);
 	float ListHeadingHeight();
 
-	// ListHeading with a greyed "(?)" after the text; returns true while the mouse is over
+	// ListHeading (in capitals) with a greyed "(?)" after the text; returns true while the mouse is over
 	// that mark alone, for the caller's tooltip. `situationIndent`: the text starts where a
 	// SituationHeading's name does, as over Manage Situations' headings.
 	// Contract: inside BeginList.
@@ -245,8 +247,8 @@ namespace Theme
 	};
 
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
-	// away: a chevron pointing down while `open` and right while folded, then the text, both in
-	// ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
+	// away: a chevron pointing down while `open` and right while folded, then the text in
+	// capitals, both in ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
 	// then, 12px on, a rule in the list's rule colour to the list's right end. The whole row is
 	// the click target; returns true when clicked, and the caller folds or unfolds.
 	// Its chevron starts at the list's left edge, the text after it; with `grip` (the rows'
@@ -310,7 +312,7 @@ namespace Theme
 
 	// A SelectRow with the outfit's tags under its name (in the small font in Tailor, 16px in
 	// Vanilla and Nordic), wrapping onto
-	// more lines within `tagsWidth` (OutfitTagsWidth): its gender first unless unisex (-1
+	// more lines within `tagsWidth` (OutfitTagsWidth), in capitals: its gender first unless unisex (-1
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and
 	// Nordic as grey text, comma separated. The name ends in an ellipsis short of `marks`.
@@ -451,6 +453,11 @@ namespace Theme
 	// ends): Tailor's 1px border colour, Vanilla's 2px rule, NORDIC UI's level-up rope (1px of
 	// its rule colour without the texture).
 	void TabRule(float left, float top, float bottom);
+
+	// A faint 1px vertical rule centred on `x` between two columns, 4px short of `top` and
+	// `bottom` (screen pixels): the rule colour at half its alpha in Vanilla and Nordic; nothing
+	// in Tailor.
+	void ColumnRule(float x, float top, float bottom);
 
 	// The body font at a smaller size, for controls that sit beside others
 	// (the outfit browser's). Pair them in the same window: ImGui checks that a
