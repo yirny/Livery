@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -18,13 +17,6 @@
 // calls here. Load runs once at kDataLoaded, before any other function.
 namespace Library
 {
-	// An Armor Class an outfit can be in, as the capture window offers it.
-	struct Category
-	{
-		const char* group;  // CaptureWindow::kClassGroup
-		const char* name;   // as the file stores it
-	};
-
 	// One armor piece as the file stores it.
 	struct PieceRef
 	{
@@ -35,23 +27,17 @@ namespace Library
 
 	struct Outfit
 	{
-		std::uint32_t            id = 0;       // unique and never reused
-		std::string              name;         // unique, ASCII case ignored
-		int                      gender = -1;  // -1 unisex, 0 male, 1 female
-		std::vector<std::string> categories;   // names; ones this version does not offer are kept
-		std::vector<PieceRef>    pieces;       // never empty
+		std::uint32_t         id = 0;       // unique and never reused
+		std::string           name;         // unique, ASCII case ignored
+		int                   gender = -1;  // -1 unisex, 0 male, 1 female
+		std::vector<PieceRef> pieces;       // never empty
 	};
 
 	// Reads the file. A missing or empty file (nothing but whitespace) is an empty library. A
 	// file that cannot be read, or that a newer version wrote, leaves the library empty and
-	// refuses every change, so the file is never overwritten. The class names of older files ("Light Armor", "Heavy
-	// Armor") are read as today's, and Jewelry, no longer a category, is dropped; the file is
-	// not written here.
+	// refuses every change, so the file is never overwritten. An older file's outfit
+	// categories are read past; the file is not written here.
 	void Load();
-
-	// The Armor Classes the window offers, in display order: SkyUI's classes but Jewelry.
-	// Update replaces only these; an outfit's other categories stay.
-	std::span<const Category> Categories();
 
 	// Contract: pointers and references into the library go stale at the next Create, Update
 	// or Remove.
@@ -65,15 +51,12 @@ namespace Library
 
 	// Adds an outfit and writes the file. Returns why it refused, having changed nothing:
 	// an empty or taken name, no armor, armor created in game, or a file it cannot write.
-	std::optional<std::string> Create(std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor,
-		const std::vector<std::string>& a_categories);
+	std::optional<std::string> Create(std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor);
 
 	// Replaces the outfit's loaded pieces with `a_armor` (pieces whose plugin or form is not
-	// loaded stay), the categories the window offers with `a_categories`, and its name and
-	// gender, then writes the file. Refuses as Create does, having changed nothing; a name is
-	// taken when another outfit has it.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor,
-		const std::vector<std::string>& a_categories);
+	// loaded stay) and its name and gender, then writes the file. Refuses as Create does,
+	// having changed nothing; a name is taken when another outfit has it.
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor);
 
 	// Takes the outfit out and writes the file; its id is never given again. Returns why it
 	// refused, having changed nothing: the outfit is gone already, or a file it cannot write.

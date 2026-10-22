@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants - file location and version, the Armor Classes the window offers, old class names
+//   Constants - file location and version
 //   State     - the outfits as read, the next id, whether the file may be written
 //   Helpers   - armor to piece and back
 //   File      - parse (all or nothing), serialise, write through a temporary file
-//   API       - Load / Categories / Outfits / Find / FindByName / LoadedPieces / Create / Update / Remove
+//   API       - Load / Outfits / Find / FindByName / LoadedPieces / Create / Update / Remove
 //
 // outfits.json, version 1:
 //   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard", "gender": -1,
-//     "categories": [ "Light" ], "pieces": [ { "plugin": "Skyrim.esm",
-//     "formId": "0x013921", "name": "Imperial Light Armor" } ] } ] }
+//     "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
+//     "name": "Imperial Light Armor" } ] } ] }
+// An outfit's "categories" in a file older versions wrote is read past and gone at the next write.
 #include "PCH.h"
 
 #include "Library.h"
 
-#include "ArmorInfo.h"
-#include "CaptureWindow.h"
 #include "Utils.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <array>
 #include <charconv>
 #include <filesystem>
 #include <format>
@@ -43,28 +41,6 @@ namespace
 	constexpr RE::FormID    kMaxLightLocalID = 0xFFF;  // the same for a light plugin
 	constexpr const char*   kUnreadable = "Livery could not read outfits.json, so it changes nothing (see Livery.log).";
 
-	// The Armor Classes: SkyUI's armor classes (ArmorInfo) but Jewelry, which only the piece
-	// list shows. Other stored categories (older files' Adventuring, Town, ...) are custom
-	// categories, which the window shows but does not edit; they stay as they are.
-	using ArmorInfo::ArmorClass;
-	constexpr std::array<Library::Category, 3> kCategories{ {
-		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kLight) },
-		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kHeavy) },
-		{ CaptureWindow::kClassGroup, ArmorInfo::ClassName(ArmorClass::kClothing) },
-	} };
-
-	// Class names files written before the SkyUI classes hold, and what Load reads them as.
-	// "Clothing" kept its name.
-	struct RenamedCategory
-	{
-		std::string_view stored;
-		const char*      current;
-	};
-	constexpr std::array<RenamedCategory, 2> kRenamedCategories{ {
-		{ "Light Armor", ArmorInfo::ClassName(ArmorClass::kLight) },
-		{ "Heavy Armor", ArmorInfo::ClassName(ArmorClass::kHeavy) },
-	} };
-
 	// --- State ----------------------------------------------------------------
 
 	// Contract: game thread only. g_writable stays false until Load, and for good when
@@ -78,11 +54,6 @@ namespace
 	std::filesystem::path LibraryPath()
 	{
 		return std::filesystem::current_path() / kLibraryFile;
-	}
-
-	bool IsOffered(std::string_view a_category)
-	{
-		return std::ranges::any_of(kCategories, [a_category](const Library::Category& category) { return category.name == a_category; });
 	}
 
 	std::string DisplayName(const RE::TESObjectARMO& a_armor)
@@ -172,20 +143,6 @@ namespace
 		return error == std::errc{} && end == last && a_id <= kMaxLocalID;
 	}
 
-	// An old class name as its current one, listed once.
-	void RenameOldCategories(std::vector<std::string>& a_categories)
-	{
-		std::vector<std::string> renamed;
-		for (auto& category : a_categories) {
-			const auto  old = std::ranges::find(kRenamedCategories, std::string_view{ category }, &RenamedCategory::stored);
-			std::string name = old != kRenamedCategories.end() ? old->current : std::move(category);
-			if (std::ranges::find(renamed, name) == renamed.end()) {
-				renamed.push_back(std::move(name));
-			}
-		}
-		a_categories = std::move(renamed);
-	}
-
 	std::optional<std::string> ParsePiece(const nlohmann::json& a_json, Library::PieceRef& a_piece)
 	{
 		if (!a_json.is_object() || !ReadString(Field(a_json, "plugin"), a_piece.plugin)) {
@@ -216,19 +173,6 @@ namespace
 			return "no gender of -1, 0 or 1";
 		}
 		a_outfit.gender = gender->get<int>();
-		const auto* categories = Field(a_json, "categories");
-		if (!categories || !categories->is_array()) {
-			return "no category list";
-		}
-		for (const auto& category : *categories) {
-			if (!ReadString(&category, a_outfit.categories.emplace_back())) {
-				return "a category that is not a name";
-			}
-		}
-		// In memory only: the file keeps the old names, and Jewelry, which is no longer a
-		// category, until the next Create or Update writes it.
-		RenameOldCategories(a_outfit.categories);
-		std::erase(a_outfit.categories, ArmorInfo::ClassName(ArmorClass::kJewelry));
 		const auto* pieces = Field(a_json, "pieces");
 		if (!pieces || !pieces->is_array() || pieces->empty()) {
 			return "no pieces";
@@ -279,8 +223,7 @@ namespace
 			for (const auto& piece : outfit.pieces) {
 				pieces.push_back({ { "plugin", piece.plugin }, { "formId", std::format("0x{:06X}", piece.localID) }, { "name", piece.name } });
 			}
-			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "gender", outfit.gender }, { "categories", outfit.categories },
-				{ "pieces", std::move(pieces) } });
+			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "gender", outfit.gender }, { "pieces", std::move(pieces) } });
 		}
 		return { { "version", kLibraryVersion }, { "nextId", a_nextId }, { "outfits", std::move(list) } };
 	}
@@ -358,11 +301,6 @@ namespace Library
 		logger::info("Loaded {} outfit(s) from outfits.json", g_outfits.size());
 	}
 
-	std::span<const Category> Categories()
-	{
-		return kCategories;
-	}
-
 	const std::vector<Outfit>& Outfits()
 	{
 		return g_outfits;
@@ -400,8 +338,7 @@ namespace Library
 
 	// Contract: every refusal is checked before anything changes, so no outfit is ever
 	// left without pieces.
-	std::optional<std::string> Create(std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor,
-		const std::vector<std::string>& a_categories)
+	std::optional<std::string> Create(std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -412,7 +349,7 @@ namespace Library
 		if (FindByName(a_name)) {
 			return std::format("An outfit named \"{}\" already exists.", a_name);
 		}
-		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .gender = a_gender, .categories = a_categories };
+		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .gender = a_gender };
 		if (auto problem = ToPieces(a_armor, outfit.pieces)) {
 			return problem;
 		}
@@ -427,8 +364,7 @@ namespace Library
 	}
 
 	// Contract: as Create; the new pieces and the name are checked before anything changes.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor,
-		const std::vector<std::string>& a_categories)
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -454,8 +390,6 @@ namespace Library
 		// This load order cannot tell what a piece of a missing plugin was, so it stays.
 		std::erase_if(updated.pieces, [](const PieceRef& piece) { return ArmorOf(piece) != nullptr; });
 		updated.pieces.insert(updated.pieces.begin(), pieces.begin(), pieces.end());
-		std::erase_if(updated.categories, IsOffered);
-		updated.categories.insert(updated.categories.begin(), a_categories.begin(), a_categories.end());
 
 		auto outfits = g_outfits;
 		outfits[static_cast<std::size_t>(found - g_outfits.begin())] = std::move(updated);

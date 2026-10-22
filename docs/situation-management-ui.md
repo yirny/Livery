@@ -260,7 +260,7 @@ The situation's details, its fields evenly spaced with no headings:
   The edits are dropped, nothing is selected and the right pane shows the outfit list.
 
 An outfit's details, read only, in Manage Wardrobe's order (`DrawOutfitSummary`): its name
-and gender with no label, `Category`, `Situations for #{Name}` with the rows the page's edits
+and gender with no label, `Situations for #{Name}` with the rows the page's edits
 give it (`Default, Town`, or `None`), then its pieces under their count line. 12px of extra
 room, then `Edit` and `Back` centred. The details grow with the pieces, moving the page's
 buttons down when taller than the Situation List, as Manage Wardrobe's selection does; the
@@ -359,5 +359,5 @@ refused or failed one changes none; the same load and write rules as the library
 
 ## 9. Later
 
-- Editing conditions; user-defined situations (design.md §8 item 9). The Default's
+- Editing conditions; user-defined situations (design.md §8 item 8). The Default's
   conditions stay read only then, saying so on hover as its name does (§5).

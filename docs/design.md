@@ -153,14 +153,11 @@ would have to be kept in step).
 - Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
-- Categories (the window's Category; the window calls the library the wardrobe): Light,
-  Heavy and Clothing, SkyUI's armor classes in `ArmorInfo.h` but Jewelry, which
-  `Library::Load` drops in memory. Other stored categories (older files' situation
-  categories: Adventuring, Town, ...) stay in the file and are not shown (§8 item 8).
-  Situations are per actor (§7), not in the library.
-- `Library::Update` replaces pieces, the categories the window offers, name and gender, and
-  keeps the other stored categories; a name is taken when another outfit has it (ASCII case
-  ignored).
+- An outfit has no categories (the window calls the library the wardrobe). An older file's
+  `categories` is read past and gone at the next write. Situations are per actor (§7), not
+  in the library.
+- `Library::Update` replaces pieces, name and gender; a name is taken when another outfit
+  has it (ASCII case ignored).
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
   then takes it off every row in this save (a `chosen` that was it becomes 0), and a Default
   this leaves wearing nothing gets the outfit's pieces, read before the remove, as its
@@ -341,17 +338,14 @@ Each stage ends with an in-game check before the next starts.
    Manage Wardrobe page with Update, the captured actor redressed while the window is open
    (§6 there): done. Step 3, Remove, which deals with the assignments and situation
    choices that name the outfit: done.
-8. Adding categories beyond Light, Heavy and Clothing (a separate task), which the outfit
-   list would show and sort by as it does those three; the stored categories the window does
-   not offer stay unshown until then.
-9. Situation management (docs/situation-management-ui.md): step A, the rows with their
+8. Situation management (docs/situation-management-ui.md): step A, the rows with their
    random picks, and step B, `situations.json`: done. Step C, the Manage Situations page:
    done. Later, user-defined conditions in the way of Skyrim Outfit Equipment System NG,
    extending `Situations::Applicable` (§7).
-10. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
-    the window open, then New Game; the player's left-hand weapon back after a shield
-    preview; tempered player gear after Exit; a follower's given armor gone after Load
-    Outfit + Exit (seen while Tailor managed her).
+9. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
+   the window open, then New Game; the player's left-hand weapon back after a shield
+   preview; tempered player gear after Exit; a follower's given armor gone after Load
+   Outfit + Exit (seen while Tailor managed her).
 
 ## 9. Piece icons
 

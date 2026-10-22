@@ -63,10 +63,9 @@ namespace CaptureWindow::Internal
 		const char*            label;
 		OutfitBrowser::SortKey key;
 	};
-	constexpr std::array<SortOption, 4> kSortOptions{ {
+	constexpr std::array<SortOption, 3> kSortOptions{ {
 		{ "Name", OutfitBrowser::SortKey::kName },
 		{ "Gender", OutfitBrowser::SortKey::kGender },
-		{ CaptureWindow::kClassGroup, OutfitBrowser::SortKey::kClass },
 		{ CaptureWindow::kSituationGroup, OutfitBrowser::SortKey::kSituation },
 	} };
 
@@ -146,7 +145,6 @@ namespace CaptureWindow::Internal
 	struct SaveForm
 	{
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only the Armor Classes' are used
 		int                             gender = -1;  // -1 unisex, 0 male, 1 female
 		std::unique_ptr<bool[]>         wearsFor;     // one per row of "SITUATIONS (#{Name})" (request.assigned)
 	};
@@ -157,7 +155,6 @@ namespace CaptureWindow::Internal
 	{
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
 		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only kClassGroup's are used
 		int                             gender = -1;  // -1 unisex, 0 male, 1 female
 		std::vector<std::size_t>        pieces;       // its loaded pieces as edited: indices into request.pieces, ascending
 	};
@@ -206,8 +203,7 @@ namespace CaptureWindow::Internal
 		CaptureWindow::Request   request;
 		std::unique_ptr<bool[]>  pieceTicked;  // one per request.pieces; bool[] because Theme::TickRow needs bool*
 		SaveForm                 createForm;
-		std::vector<std::string> suggestedCategories;  // the Create tab's last suggestion (SuggestCategoryAndGender)
-		int                      suggestedGender = -1;
+		int                      suggestedGender = -1;  // the Create tab's last suggestion (SuggestGender)
 		SaveForm                 updateForm;
 		bool                     updateTab = false;      // the Save page shows the Update tab
 		int                      chosenOutfit = -1;      // the Update tab's outfit: index into request.existingOutfits, -1 for none yet
@@ -285,7 +281,6 @@ namespace CaptureWindow::Internal
 	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name);
 	void                     DrawGenderField(int& a_gender);
 	bool                     BeginModal(const char* a_id);
-	std::vector<std::string> TickedCategories(const State& a_state, const bool* a_ticked);
 	const char*              GenderName(int a_gender);
 	void                     SetGroupHeadings(State& a_state);
 
@@ -308,9 +303,7 @@ namespace CaptureWindow::Internal
 	bool                                 BeginColumns(const char* a_id);
 	void                                 EndColumns();
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
-	std::string                          JoinNames(const std::vector<std::string>& a_names);
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
-	bool                                 IsClass(const CaptureWindow::CategoryOption& a_option);
 	void                                 ChooseOutfit(State& a_state, int a_index);
 	void                                 DrawHelpTooltip(const std::string& a_text);
 	std::size_t                          RowCount(const State& a_state);
@@ -389,18 +382,15 @@ namespace CaptureWindow::Internal
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
 	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:
-	// its name, gender, Category, `a_situations` under the "SITUATIONS (#{Name})" label,
-	// then its pieces under their count line, their list ending by screen Y `a_bottom` and
-	// scrolling when they need more (one row shows at least).
+	// its name, gender, `a_situations` under the "SITUATIONS (#{Name})" label, then its
+	// pieces under their count line, their list ending by screen Y `a_bottom` and scrolling
+	// when they need more (one row shows at least).
 	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom);
 
-	// The form fields Manage Wardrobe and the Save page share: a multi-choice dropdown over
-	// `a_ticked` (one per request.categories, kClassGroup's used) under the Category label,
-	// and one over the actor's rows (`a_ticked`, one per request.assigned: Default, then the
-	// situations) under `a_label` with its "(?)", which returns true while that mark is
-	// hovered, for the caller's help tooltip. Each frame names the ticked ones, or `None`
-	// greyed.
-	void DrawCategoryDropdown(const State& a_state, bool* a_ticked);
+	// The form field Manage Wardrobe and the Save page share: a multi-choice dropdown over
+	// the actor's rows (`a_ticked`, one per request.assigned: Default, then the situations)
+	// under `a_label` with its "(?)", which returns true while that mark is hovered, for the
+	// caller's help tooltip. Its frame names the ticked ones, or `None` greyed.
 	bool DrawRowsDropdown(const State& a_state, const char* a_label, bool* a_ticked);
 
 	// --- Manage Situations (SituationPage.cpp) --------------------------------
