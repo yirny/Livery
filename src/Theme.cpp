@@ -113,9 +113,12 @@ namespace
 	constexpr float kOutfitMarkGap = 6.0f;
 	// The dice mark's left and right corners, in from its square's sides (of the side).
 	constexpr float kDiceInset = 0.14f;
-	// From an outfit list row's left edge to its name, tags and heading text, in every skin, as
-	// Tailor 3.0's outfit list indents them (pixels at 1080p).
-	constexpr float kOutfitRowPadX = 14.0f;
+	// From an outfit list row's left edge to its name and tags, without a grip, in every skin
+	// (pixels at 1080p).
+	constexpr float kOutfitRowPadX = 22.0f;
+	// From a situation heading's left edge to its name, and from a Situation List row's left
+	// edge to its grip's dots, level with that name (pixels at 1080p).
+	constexpr float kSituationNamePadX = 14.0f;
 	// A draggable outfit row's grip (DrawGrip): the step between its dots' centres, then the
 	// room from its dots to the row's name and tags (pixels at 1080p).
 	constexpr float kGripDotStep = 4.0f;
@@ -1650,14 +1653,12 @@ namespace
 		return (std::max)(1.0f, kRadius * g_scale);
 	}
 
-	// From an outfit row's left edge to its grip's dots, or where a row without a grip starts
-	// its name (pixels at 1080p). A draggable list's folding headings start their chevrons where
-	// the dots start.
+	// From an outfit row's left edge to its grip's dots (pixels at 1080p).
 	float GripPadX(Theme::Grip a_grip)
 	{
 		constexpr float kEdgePad = 4.0f;  // pixels at 1080p, Theme::Grip::kEdge's
 
-		return a_grip == Theme::Grip::kEdge ? kEdgePad : kOutfitRowPadX;
+		return a_grip == Theme::Grip::kEdge ? kEdgePad : kSituationNamePadX;
 	}
 
 	// A drag grip placed by `a_grip` from a row's left edge `a_left`, its middle dots at `a_midY`
@@ -1694,12 +1695,11 @@ namespace
 		return (GripPadX(a_grip) + kGripDotStep + kGripTextGap) * g_scale + GripDotRadius() * 2.0f;
 	}
 
-	// From a situation heading's left edge to its name (pixels on the back buffer): where an
-	// outfit row without a grip starts its name, so the select mark has that row's room and the
-	// grip dots under it (Theme::Grip::kName) line up with it.
+	// From a situation heading's left edge to its name (pixels on the back buffer), which leaves
+	// the select mark its room; the grip dots under it (Theme::Grip::kName) line up with it.
 	float SituationNameInset()
 	{
-		return kOutfitRowPadX * g_scale;
+		return kSituationNamePadX * g_scale;
 	}
 
 	// Whether an outfit row has its form mark: the dressed one of the current outfit, or the
@@ -2620,9 +2620,9 @@ namespace Theme
 		PopSmallFont();
 	}
 
-	// The chevron sits where ListHeading's text would start, the text after it; with `a_grip`
-	// the chevron sits where the rows' grip dots start and the text where their names do. The
-	// rule ends 4px short of where the rows' fills end.
+	// The chevron's box starts at the list's left edge, where the rows' fills do, the text
+	// after it; with `a_grip` the text starts where the rows' names do. The rule ends 4px short
+	// of where the rows' fills end.
 	bool FoldHeading(const char* a_text, bool a_open, Grip a_grip)
 	{
 		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the font size
@@ -2633,10 +2633,12 @@ namespace Theme
 		const ListRow row = LayOutListRow(a_text, SelectRowHeight() + gap);
 		const float   side = ImGui::GetFontSize() * kChevronRatio;
 		const float   midY = (row.min.y + row.max.y) * 0.5f;
-		const float   left = row.fillMin.x + GripPadX(a_grip) * g_scale;
 		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float   thick = (std::max)(1.0f, 1.5f * g_scale);
-		auto*         draw = ImGui::GetWindowDrawList();
+		// Half the stroke in, so its outer edge sits on the list's edge; in Tailor that edge is
+		// the list's clip, which would cut the stroke.
+		const float left = row.fillMin.x + thick * 0.5f;
+		auto*       draw = ImGui::GetWindowDrawList();
 		if (a_open) {
 			const ImVec2 points[] = { { left, midY - side * 0.25f }, { left + side * 0.5f, midY + side * 0.25f }, { left + side, midY - side * 0.25f } };
 			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
@@ -2879,6 +2881,7 @@ namespace Theme
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
 		constexpr int   kStripeAlpha = 16;      // of the white over a striped row, out of 255
 		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of an equipped mark in an edge grip's room
+		constexpr float kMarkShift = 2.0f;      // pixels at 1080p, an equipped mark right of its room's centre on a row without a grip
 
 		const float   gap = ListPaddingY();
 		const ListRow row = LayOutListRow(a_name, OutfitRowHeight(a_gender, a_tags, a_tagsWidth));
@@ -2890,9 +2893,9 @@ namespace Theme
 		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		// Selected: Tailor's rule on the row's edge (DrawSelectMark), which leaves the grip room;
-		// Vanilla's and Nordic's equipped mark, as on a ticked piece, centred in the room left of
-		// the name, or left of the dots at the name's place; at the edge it takes the dots' place,
-		// shrunk to fit.
+		// Vanilla's and Nordic's equipped mark, as on a ticked piece, 2px right of the centre of
+		// the room left of the name, or centred left of the dots at the name's place; at the edge
+		// it takes the dots' place, shrunk to fit.
 		const float nameMidY = textY + ImGui::GetTextLineHeight() * 0.5f;
 		const bool  tailor = g_skin == Theme::Skin::kTailor;
 		const bool  markOnGrip = a_selected && !tailor && a_grip == Grip::kEdge;
@@ -2905,7 +2908,8 @@ namespace Theme
 			if (markOnGrip) {
 				side = (std::max)(1.0f, (std::min)(side, right - left - kEdgeMarkPad * 2.0f * g_scale));
 			}
-			DrawEquippedMark(draw, ImVec2((left + right) * 0.5f, nameMidY), side);
+			const float shift = a_grip == Grip::kNone ? kMarkShift * g_scale : 0.0f;
+			DrawEquippedMark(draw, ImVec2((left + right) * 0.5f + shift, nameMidY), side);
 		}
 		if (a_grip != Grip::kNone && !markOnGrip) {
 			DrawGrip(draw, row.fillMin.x, nameMidY, a_grip);

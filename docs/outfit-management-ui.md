@@ -44,7 +44,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   Nordic shows no fill. The mark: NORDIC UI's MCM page arrow on single-choice and dropdown
   rows in Vanilla and Nordic (Nordic's 4px larger, its window padding 32px); the equipped
   mark on piece rows, and on a selected outfit row (the outfit the preview shows), centred
-  where the arrow would be; Nordic puts the arrow on a ticked dropdown row too, at its start.
+  where the arrow would be (on an outfit row without a drag grip, 2px right of that); Nordic puts the arrow on a ticked dropdown row too, at its start.
 - A multi-choice dropdown row: Vanilla and Nordic draw the game's checkbox at the row's start
   (after Nordic's arrow), then the label; Tailor a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
@@ -60,7 +60,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - Rows meet with no gap (the list lays them out with no item spacing; each row and heading
   holds the former gap, half above and half below), and every second row under a heading
   has a faint white (16/255) under its fills, in every skin, as Tailor 3.0's outfit list
-  alternates its rows. Names, tags and headings start 14px in from the row's left edge.
+  alternates its rows. Names and tags start 22px in from the row's left edge.
 - Under the list, `Hide Tags` while the tags show and `Show Tags` while they do not, a link in
   the count line's font and colour, lit while hovered (`Theme::ListFooterLink`), as far below
   the list's bottom rule as the count line sits above its top rule. A click shows or hides the
@@ -71,10 +71,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   group's order (Light, Heavy, Clothing; Default, then `Situations::kChoosable`). Gender's
   headings are Female, Male, Unisex, in that order. Outfits with none of the group's
   categories come last under `No Category` or `No Situation`. Within a heading, by name.
-- A heading has a chevron on its left, pointing down while open and right while folded, and
-  a rule in the list's rule colour from 12px after its text to 4px short of the list's right
-  end. In a list whose rows have a drag grip (Manage Situations), the chevron starts where
-  the grip's dots do and the text where the rows' names do. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
+- A heading has a chevron at the list's left edge, pointing down while open and right while
+  folded, its text after it, and a rule in the list's rule colour from 12px after its text to
+  4px short of the list's right end. In a list whose rows have a drag grip (Manage
+  Situations), the text starts where the rows' names do. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
   by heading text). Every heading is open when the window opens and when the sort changes;
   the list keeps the height of the whole library.
 - Headings and tag text are computed when the list is refreshed, never per frame.
