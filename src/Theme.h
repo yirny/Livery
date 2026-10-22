@@ -237,14 +237,16 @@ namespace Theme
 	};
 
 	// A heading inside a list: a TextRow in LabelText's font, greyed, in capitals (the piece
-	// list's groups), with `icon` before the text. ListHeadingHeight is its height.
+	// list's groups), with `icon` before the text and, 12px on, a list heading rule to 4px short
+	// of the list's right end. ListHeadingHeight is its height.
 	// Contract: ListHeading inside BeginList.
 	void  ListHeading(const char* text, HeadingIcon icon = HeadingIcon::kNone);
 	float ListHeadingHeight();
 
-	// ListHeading (in capitals) with a greyed "(?)" after the text; returns true while the mouse is over
-	// that mark alone, for the caller's tooltip. `situationIndent`: the text starts where a
-	// SituationHeading's name does, as over Manage Situations' headings.
+	// ListHeading (in capitals) with a greyed "(?)" after the text, the rule after the mark; returns
+	// true while the mouse is over that mark alone, for the caller's tooltip. `situationIndent`: the
+	// text starts where a SituationHeading's name does, as over Manage Situations' headings, with
+	// no rule.
 	// Contract: inside BeginList.
 	bool ListHeadingHelp(const char* text, bool situationIndent = false, HeadingIcon icon = HeadingIcon::kNone);
 
