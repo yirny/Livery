@@ -52,10 +52,15 @@ namespace Assignments
 
 	// Makes every change, then dresses them once, anew, for their situations now, so an
 	// outfit whose pieces changed goes on even for the situation they already wear; a random
-	// row in `assign` worn now wears `outfit` as its pick. A row of a situation removed in
-	// situations.json since the change was queued stays empty. Shows one HUD message.
+	// row in `assign` worn now wears `outfit` as its pick. Shows one HUD message.
 	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
 	void Change(RE::Actor& a_actor, const Changes& a_changes);
+
+	// Manage Wardrobe's Update, whose window stays open: makes every change of Change and
+	// dresses nobody, as SetRows does, which it returns. Refresh with the returned pick
+	// dresses them for the new rows.
+	// Contract: game thread; no row is in both lists.
+	std::optional<std::uint32_t> ChangeRows(RE::Actor& a_actor, const Changes& a_changes);
 
 	// Manage Situations' Save Changes: their rows become `a_rows` (the rows of situations
 	// removed in situations.json stay empty), and with `a_dropDefaultPieces` the Default's
