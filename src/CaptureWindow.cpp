@@ -34,6 +34,7 @@
 
 #include "CaptureWindow.h"
 
+#include "ArmorInfo.h"  // ClassName only, which reads no form
 #include "CaptureWindowInternal.h"
 #include "Hooks.h"
 #include "OutfitBrowser.h"
@@ -1342,6 +1343,52 @@ namespace CaptureWindow::Internal
 		return restore;
 	}
 
+	bool IsClass(const CaptureWindow::CategoryOption& a_option)
+	{
+		return a_option.group == CaptureWindow::kClassGroup;
+	}
+
+	// The ticked piece with the lowest Piece::suggestRank (the earlier one on a tie) decides:
+	// its category, skipping a piece whose class is none of kClassGroup's (Jewelry, Other),
+	// Clothing with none left; Female when it is femaleOnly, else Unisex. A category or gender
+	// still as last suggested follows; one the user changed stays.
+	void SuggestCategoryAndGender(State& a_state)
+	{
+		const auto& pieces = a_state.request.pieces;
+		const auto& categories = a_state.request.categories;
+		const auto  isCategory = [&](const std::string& a_class) {
+			return std::ranges::any_of(categories, [&](const auto& a_option) { return IsClass(a_option) && a_option.name == a_class; });
+		};
+		const CaptureWindow::Piece* forGender = nullptr;
+		const CaptureWindow::Piece* forCategory = nullptr;
+		for (const auto index : TickedPieces(a_state)) {
+			const auto& piece = pieces[index];
+			if (piece.suggestRank < 0) {
+				continue;
+			}
+			if (!forGender || piece.suggestRank < forGender->suggestRank) {
+				forGender = &piece;
+			}
+			if (isCategory(piece.armorClass) && (!forCategory || piece.suggestRank < forCategory->suggestRank)) {
+				forCategory = &piece;
+			}
+		}
+		const std::vector<std::string> suggested{ forCategory ? forCategory->armorClass : ArmorInfo::ClassName(ArmorInfo::ArmorClass::kClothing) };
+		const int                      gender = forGender && forGender->femaleOnly ? 1 : -1;
+
+		auto& form = a_state.createForm;
+		if (TickedCategories(a_state, form.classTicked.get()) == a_state.suggestedCategories) {
+			for (std::size_t i = 0; i < categories.size(); ++i) {
+				form.classTicked[i] = IsClass(categories[i]) && categories[i].name == suggested.front();
+			}
+		}
+		if (form.gender == a_state.suggestedGender) {
+			form.gender = gender;
+		}
+		a_state.suggestedCategories = suggested;
+		a_state.suggestedGender = gender;
+	}
+
 	void DrawCapturePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -1381,6 +1428,7 @@ namespace CaptureWindow::Internal
 			break;
 		case CaptureAction::kSavePage:
 			QueueMenuSound(kOkSound);
+			SuggestCategoryAndGender(a_state);
 			GoToPage(a_state, Page::kSave);
 			break;
 		case CaptureAction::kApply:
@@ -1565,11 +1613,6 @@ namespace CaptureWindow::Internal
 	{
 		const auto outfit = a_state.request.assigned[a_row].row.chosen;
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("pieces that are not a saved outfit");
-	}
-
-	bool IsClass(const CaptureWindow::CategoryOption& a_option)
-	{
-		return a_option.group == CaptureWindow::kClassGroup;
 	}
 
 	// Contract: kClassGroup's categories only. Library::Update replaces only those and keeps
@@ -1916,13 +1959,10 @@ namespace CaptureWindow
 			const auto rows = state.request.assigned.size();
 			// Create starts from the suggestions and no row ticked (CLAUDE.md §2.1); the
 			// Update tab is filled when an outfit is chosen (ChooseOutfit).
-			state.createForm = { .classTicked = std::make_unique<bool[]>(categories),
-				.gender = state.request.suggestedGender,
-				.wearsFor = std::make_unique<bool[]>(rows) };
+			state.createForm = { .classTicked = std::make_unique<bool[]>(categories), .wearsFor = std::make_unique<bool[]>(rows) };
 			std::strncpy(state.createForm.name.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
-			for (std::size_t i = 0; i < categories; ++i) {
-				state.createForm.classTicked[i] = IsClass(state.request.categories[i]) && state.request.categories[i].selected;
-			}
+			state.suggestedCategories.clear();  // as the empty form has, so the first suggestion fills it
+			state.suggestedGender = state.createForm.gender;
 			state.updateForm = { .classTicked = std::make_unique<bool[]>(categories), .wearsFor = std::make_unique<bool[]>(rows) };
 			state.updateTab = false;
 			state.chosenOutfit = -1;
@@ -1970,6 +2010,7 @@ namespace CaptureWindow
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.previewOn;
+			SuggestCategoryAndGender(state);  // from the pieces that start ticked, once the ticks are set
 		}
 		g_open = true;
 		if (state.frozeGame) {
