@@ -41,9 +41,8 @@ namespace CaptureWindow
 
 	struct CategoryOption
 	{
-		std::string group;             // kClassGroup or kSituationGroup
-		std::string name;              // the category's name as the library stores it; a row's name for kSituationGroup
-		bool        selected = false;  // kClassGroup: initial state of its tick on the Create tab
+		std::string group;  // kClassGroup or kSituationGroup
+		std::string name;   // the category's name as the library stores it; a row's name for kSituationGroup
 	};
 
 	// Where a piece comes from: the Capture page lists the pieces under one heading per
@@ -68,6 +67,10 @@ namespace CaptureWindow
 		int           typeOrder = 0;   // what the Type column sorts by
 		std::string   armorClass;      // the Class column (ArmorInfo::ClassOf)
 		int           classOrder = 0;  // what the Class column sorts by
+		// The ticked piece with the lowest rank decides the Create tab's suggested category and
+		// gender: the index of its first slot of Body, Head, Hands, Feet, Circlet; -1 for none.
+		int  suggestRank = -1;
+		bool femaleOnly = false;  // none of its armor addons has a male model, one has a female model
 	};
 
 	// One frame of mouse and key input over the game rather than the window,
@@ -176,11 +179,10 @@ namespace CaptureWindow
 		// with one entry per row of `assigned`, in its order. The outfit lists tag and sort by
 		// them; the Save page ticks only kClassGroup's.
 		std::vector<CategoryOption> categories;
-		std::vector<ExistingOutfit> existingOutfits;       // listed on the Load page and the Update tab's selection, in display order
-		int                         suggestedGender = -1;  // initial gender choice: -1 unisex, 0 male, 1 female
-		std::vector<SituationInfo>  situations;            // one per row of `assigned`: the Default, then the situations not removed
-		std::vector<RowAssignment>  assigned;              // one per row, in `situations`' order
-		std::vector<std::string>    restoreChanges;        // what Restore Presets would change, one line each; empty while every preset is as installed
+		std::vector<ExistingOutfit> existingOutfits;  // listed on the Load page and the Update tab's selection, in display order
+		std::vector<SituationInfo>  situations;       // one per row of `assigned`: the Default, then the situations not removed
+		std::vector<RowAssignment>  assigned;         // one per row, in `situations`' order
+		std::vector<std::string>    restoreChanges;   // what Restore Presets would change, one line each; empty while every preset is as installed
 		// Apply moves PieceGroup::kPlayer pieces to the NPC; off, the NPC gets copies.
 		bool movesFromPlayer = true;
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).

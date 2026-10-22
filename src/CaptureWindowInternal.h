@@ -207,6 +207,8 @@ namespace CaptureWindow::Internal
 		CaptureWindow::Request   request;
 		std::unique_ptr<bool[]>  pieceTicked;  // one per request.pieces; bool[] because Theme::TickRow needs bool*
 		SaveForm                 createForm;
+		std::vector<std::string> suggestedCategories;  // the Create tab's last suggestion (SuggestCategoryAndGender)
+		int                      suggestedGender = -1;
 		SaveForm                 updateForm;
 		bool                     updateTab = false;     // the Save page shows the Update tab
 		int                      chosenOutfit = -1;     // the Update tab's outfit: index into request.existingOutfits, -1 for none yet

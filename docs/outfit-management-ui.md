@@ -21,7 +21,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - Categories: Light, Heavy, Clothing. Jewelry leaves the categories; the piece list's
   Category column keeps it. `Library::Load` drops a stored `Jewelry` in memory; the file
   loses it at the next write. The suggested category skips Jewelry pieces as it skips Other;
-  with none left, Clothing. Other stored categories (older files' Adventuring, Town, ...)
+  with none left, Clothing. The Create tab's category and gender are suggested from the
+  ticked pieces at Open and at each Save on the Capture page; one the user changed stays. Other stored categories (older files' Adventuring, Town, ...)
   stay in the file, unshown, until categories can be added (design.md §8).
 - Two category groups, in this order:
   - Category: the categories above, which the Save page and Manage Wardrobe edit.
