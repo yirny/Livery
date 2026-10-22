@@ -234,9 +234,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   Inventory page's ticks, or, when the captured actor was redressed with Live Preview on,
   what they wear now, the Inventory page following them (§6). The Inventory page's loaded
   outfit and the Save page's chosen outfit are cleared when they were it.
-- Other saves change nothing at load: a situational outfit the library no longer has puts
-  nothing on and falls back to the default (design.md §7), and restoring outfits.json
-  brings it back.
+- Other saves change nothing at load: their rows keep the removed outfit's id, which counts
+  as not on the row and never shows (docs/situation-management-ui.md §1), and restoring
+  outfits.json brings it back.
 
 ## 6. Redressing while the window is open (steps 2 and 3)
 

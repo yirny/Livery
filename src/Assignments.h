@@ -77,9 +77,10 @@ namespace Assignments
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
 	// first situation whose row holds an outfit, else the Default (OutfitRows::Resolve). A
 	// random row picks as it goes on and keeps the pick while it stays worn and on the list.
-	// A situation outfit that puts nothing on falls back to the Default. An assignment left
-	// with nothing on them and no situation row holding an outfit ends. Returns whether they
-	// were redressed.
+	// A situation outfit that puts nothing on falls back to the Default. An outfit that left
+	// the library (another save's row) counts as not on its row (OutfitRows::WithoutGone). An
+	// assignment left with nothing on them and no situation row holding an outfit ends.
+	// Returns whether they were redressed.
 	// Contract: game thread; no preview is on (the poll checks).
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now);
 
@@ -98,8 +99,8 @@ namespace Assignments
 	};
 	std::vector<Use> UsesOf(std::uint32_t a_outfit);
 
-	// Who has outfits on situation `a_situation`'s list, for the capture window's Remove
-	// Situation: each actor with how many. Contract: game thread.
+	// Who has library outfits on situation `a_situation`'s list, for the capture window's
+	// Remove Situation: each actor with how many. Contract: game thread.
 	struct Holder
 	{
 		RE::FormID  actor = 0;
@@ -136,7 +137,7 @@ namespace Assignments
 	{
 		bool                    dressed = false;                         // Livery has pieces on them now
 		std::vector<RE::FormID> wornArmor;                               // the armor of those pieces
-		OutfitRows::Rows        rows;                                    // the Default, then the situations
+		OutfitRows::Rows        rows;                                    // the Default, then the situations; gone outfits included (OutfitRows::WithoutGone)
 		bool                    defaultPieces = false;                   // the Default has armor not in the wardrobe
 		Situations::Situation   worn = Situations::Situation::kDefault;  // the row the pieces they wear are for
 		std::uint32_t           wornOutfit = 0;                          // the library outfit they are from; 0 for none or the Default's pieces
