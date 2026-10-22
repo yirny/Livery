@@ -241,7 +241,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// Something shows under situation `a_entry`'s heading: an outfit, or the Default's
-		// pieces. One with nothing wears nothing: its heading has no chevron and a greyed name.
+		// pieces. One with nothing wears nothing: its heading has a greyed name.
 		bool ShowsAnything(const SituationForm& a_form, std::size_t a_entry)
 		{
 			return OutfitRows::HoldsAny(a_form.entries[a_entry].row) || ShowsPieces(a_form, a_entry);
@@ -337,9 +337,10 @@ namespace CaptureWindow::Internal
 
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
 		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
-		// details show; Edit always selects it and shows them; the chevron folds it. Its count shows
-		// with random on alone; with nothing to show it has no chevron, is never folded (a drop
-		// shows what it got) and its name is greyed. A drop on the heading, its rule included,
+		// details show; Edit always selects it and shows them; the chevron folds it. Its die and
+		// count show with random on alone. Only random on with something to show has the
+		// chevron; else it is never folded (random off shows its one outfit, a drop shows what it
+		// got). With nothing to show its name is greyed. A drop on the heading, its rule included,
 		// adds at the front. `a_dragHovered` becomes the entry while a drag hovers its folded
 		// heading, which opens once DrawSituationList has seen that for kDragExpandDelay.
 		void DrawSituationEntry(State& a_state, std::size_t a_entry, float a_tagsWidth, int& a_dragHovered)
@@ -348,14 +349,16 @@ namespace CaptureWindow::Internal
 			auto&      entry = form.entries[a_entry];
 			const int  index = static_cast<int>(a_entry);
 			const bool shows = ShowsAnything(form, a_entry);
-			if (!shows) {
+			const bool foldable = shows && entry.row.random;
+			if (!foldable) {
 				entry.folded = false;
 			}
 			const float top = ImGui::GetCursorScreenPos().y;
 			const auto  click = Theme::SituationHeading(entry.name.data(),
 				{ .count = entry.row.random ? static_cast<int>(entry.row.outfits.size()) : -1,
+					.random = entry.row.random,
 					.open = !entry.folded,
-					.foldable = shows,
+					.foldable = foldable,
 					.selected = form.selected == index,
 					.dim = !shows });
 			const float bottom = top + Theme::SituationHeadingHeight();
