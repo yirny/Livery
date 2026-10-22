@@ -18,7 +18,7 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   4. `Inventory`: carried, not worn. The actor's own outfit copies
      (`ExtraOutfitItem` naming their base's `defaultOutfit`) are left out while unworn, as the
      trade menu leaves them out (design.md §3).
-  5. `Player's Inventory` (NPC target only): the player's armor, per the settings (§2);
+  5. `#{Player}'s Inventory`, the player's name (`Player` when it has none; NPC target only): the player's armor, per the settings (§2);
      a form the NPC also carries is listed once, under 1–4.
   6. `"#{Outfit}"`: pieces of the loaded outfit nobody carries, listed while
      it is loaded (today's `owned == false` rows).
