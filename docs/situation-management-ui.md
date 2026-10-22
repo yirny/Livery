@@ -154,10 +154,13 @@ outfit for Town any more`.
 ## 4. Situation List (left pane)
 
 - Heading `Situation List (?)` (`Theme::ListHeadingHelp`), its text starting where the
-  situations' names do: `Each situation lists the outfits #{Name} can wear there; the first
-  one that applies is worn, else the Default. Drag an outfit from the outfit list onto a
-  situation to add it, between two of its outfits to place it, onto another situation to move
-  it, or back to the outfit list to take it off.`
+  situations' names do: `Each situation lists the outfits #{Name} can wear there. When several
+  apply, the first with an outfit in the order Swimming, Sleep, Warm, Home, Town is worn;
+  otherwise, and in combat, the Default. Drag an outfit onto a situation to add it, between its
+  outfits to place it, onto another situation to move it, or back to the outfit list to take it
+  off.` The order is `Situations::Evaluate`'s, named as the page shows the situations now,
+  removed ones left out; with fewer than two situations its sentence reads `Where none with an
+  outfit applies, and in combat, the Default is worn.`
 - The list has no rules above and below it.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
   order. Each: the name in the outfit list's row style, 14px in from the row's left edge,

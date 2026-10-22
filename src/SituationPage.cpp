@@ -398,6 +398,34 @@ namespace CaptureWindow::Internal
 			}
 		}
 
+		// Situation List's help: which situation's outfit is worn when several apply, named as the
+		// page shows them now, and how to drag outfits.
+		std::string SituationListHelp(const State& a_state)
+		{
+			// Situations::Evaluate's order, the most specific first.
+			constexpr std::array kPriority{ Situations::Situation::kSwimming, Situations::Situation::kSleep, Situations::Situation::kWarm,
+				Situations::Situation::kHome, Situations::Situation::kTown };
+
+			const auto& situations = a_state.request.situations;
+			std::string order;
+			int         count = 0;
+			for (const auto situation : kPriority) {
+				for (std::size_t i = 0; i < situations.size(); ++i) {
+					if (situations[i].situation != situation) {
+						continue;
+					}
+					const auto name = Trimmed(a_state.situationForm.entries[i].name.data());
+					order += (count++ > 0 ? ", " : "") + (name.empty() ? situations[i].name : name);
+				}
+			}
+			const std::string worn = count > 1 ? std::format("When several apply, the first with an outfit in the order {} is worn; otherwise, and in combat, the Default. ", order) :
+			                                     "Where none with an outfit applies, and in combat, the Default is worn. ";
+			return std::format(
+				"Each situation lists the outfits {} can wear there. {}Drag an outfit onto a situation to add it, between its outfits "
+				"to place it, onto another situation to move it, or back to the outfit list to take it off.",
+				a_state.request.actorName, worn);
+		}
+
 		// The left pane: Situation List (?) over a heading per situation, the Default first.
 		void DrawSituationList(State& a_state)
 		{
@@ -410,11 +438,7 @@ namespace CaptureWindow::Internal
 			if (Theme::BeginList("situations", SituationListHeight(a_state, tagsWidth), false)) {
 				// Its text starts where the situations' names do, clear of a selected one's mark.
 				if (Theme::ListHeadingHelp("Situation List", true)) {
-					DrawHelpTooltip(std::format(
-						"Each situation lists the outfits {} can wear there; the first one that applies is worn, else the "
-						"Default. Drag an outfit from the outfit list onto a situation to add it, between two of its outfits "
-						"to place it, onto another situation to move it, or back to the outfit list to take it off.",
-						a_state.request.actorName));
+					DrawHelpTooltip(SituationListHelp(a_state));
 				}
 				for (std::size_t i = 0; i < form.entries.size(); ++i) {
 					ImGui::PushID(static_cast<int>(i));
