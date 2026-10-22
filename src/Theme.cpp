@@ -85,7 +85,8 @@ namespace
 	constexpr float kSquareSectionGap = 8.0f;
 	// Extra room above a list's count line under it, part of the list's field (pixels at 1080p).
 	constexpr float kCountLineGap = 6.0f;
-	// The small font's size, of the body font's (Theme::PushSmallFont); Tailor's tags use it too.
+	// The small font's size, of the body font's (Theme::PushSmallFont); Tailor's tags, the count
+	// lines and the links use it too.
 	constexpr float kSmallFontRatio = 0.85f;
 	// The tags' size in Vanilla and Nordic, of the body font's (PushTagFont), which Nordic's
 	// labels and list headings take too (PushLabelFont): 14px at 1080p in Nordic.
@@ -400,8 +401,8 @@ namespace
 		return g_skin == Theme::Skin::kNordic ? kSquareTagRatio : kSmallFontRatio;
 	}
 
-	// The font of field labels, the links and column labels laid out as they are, and list
-	// headings (LabelFontRatio). Pop with ImGui::PopFont.
+	// The font of field labels, their help marks, column labels and list headings
+	// (LabelFontRatio); count lines and the links take the small font. Pop with ImGui::PopFont.
 	void PushLabelFont()
 	{
 		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * LabelFontRatio());
@@ -2489,12 +2490,8 @@ namespace Theme
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + SectionGapAt1080() * g_scale);
 	}
 
-	void LabelText(const char* a_text, bool a_opensField)
-	{
-		CountText(Caps(a_text).c_str(), a_opensField);
-	}
-
-	void CountText(const char* a_text, bool a_opensField)
+	// LabelText's and CountText's line: the label font, or with `a_small` the small font.
+	void FieldLineText(const char* a_text, bool a_opensField, bool a_small)
 	{
 		if (a_opensField) {
 			SectionGap();
@@ -2507,7 +2504,11 @@ namespace Theme
 		if (grey) {
 			ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);  // NORDIC UI's label grey, in Vanilla too
 		}
-		PushLabelFont();
+		if (a_small) {
+			PushSmallFont();
+		} else {
+			PushLabelFont();
+		}
 		ImGui::TextUnformatted(a_text);
 		ImGui::PopFont();
 		if (grey) {
@@ -2516,9 +2517,19 @@ namespace Theme
 		ImGui::PopStyleVar();
 	}
 
+	void LabelText(const char* a_text, bool a_opensField)
+	{
+		FieldLineText(Caps(a_text).c_str(), a_opensField, false);
+	}
+
+	void CountText(const char* a_text, bool a_opensField)
+	{
+		FieldLineText(a_text, a_opensField, true);
+	}
+
 	bool LabelLink(const char* a_label)
 	{
-		PushLabelFont();
+		PushSmallFont();
 		const auto&  style = ImGui::GetStyle();
 		const float  side = ImGui::GetFontSize();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -2557,7 +2568,7 @@ namespace Theme
 	// or with `a_x` at that cursor X. With `a_hovered` null, no help mark.
 	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine, std::optional<float> a_x = std::nullopt)
 	{
-		PushLabelFont();
+		PushSmallFont();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 		const bool   help = a_hovered != nullptr;
 		const float  markX = text.x + ImGui::CalcTextSize(" ").x;
@@ -2610,7 +2621,7 @@ namespace Theme
 	bool ListFooterLink(const char* a_label)
 	{
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() - LabelGapTrim());
-		PushLabelFont();
+		PushSmallFont();
 		const bool clicked = LinkButton(a_label, ImGui::CalcTextSize(a_label));
 		ImGui::PopFont();
 		return clicked;
