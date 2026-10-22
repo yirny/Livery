@@ -154,11 +154,6 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   page: the outfit list (§1) on the left; on the right the selected outfit, editable:
   - name and gender, as the Save page's fields; then Category as a multi-choice dropdown of
     the window's categories, its frame naming the ticked ones or `None`.
-  - `SITUATIONS (#{Name})` with a `(?)` (the choices are this actor's own, saved with
-    Update or Apply; other characters keep theirs), over a multi-choice dropdown of the
-    rows, Default first, the captured actor wears the outfit for, its frame naming them
-    (`Default, Town`) or `None`. The ticks are part of the edits (`ManageForm::wearsFor`),
-    started from the actor's rows.
   - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
     stay in the outfit. The Load and Select pages' details keep the same room before their
@@ -170,38 +165,43 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   ticks.
 - Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Exit`.
   - Update: greyed until the outfit differs from the library (trimmed name, Category,
-    gender, pieces) or its rows differ from the actor's, and with an empty name
-    (`kNeedName`). A popup (`Save changes?`) lists what changes (pieces, Category, rename,
-    gender, then `Town: added` / `Town: removed`), as the Save page's Update tab does; a
-    ticked row that wears another outfit with random off reads `Town: "B" replaces "A"`
-    (the replaced one leaves the row's list), a random row `Town: added`
-    (docs/situation-management-ui.md §1); the buttons are `Confirm` / `Cancel`. The window
-    hands the edits and rows to `Request::onManageUpdate`. CLAUDE.md §2.1 applies: a name
-    another outfit has (ASCII case ignored) is refused, and a refused or failed write changes
-    nothing, assigns nothing and shows the error. On success the rows are changed (§6),
-    the window stays open: the list is rebuilt
+    gender, pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
+    what changes (pieces, Category, rename, gender), as the Save page's Update tab does; the
+    buttons are `Confirm` / `Cancel`. The window hands the edits to
+    `Request::onManageUpdate`; no row changes. CLAUDE.md §2.1 applies: a name another outfit
+    has (ASCII case ignored) is refused, and a refused or failed write changes nothing and
+    shows the error. On success the window stays open: the list is rebuilt
     (`CaptureWindow::SetOutfits`), the edits start again from the library, the outfit stays
-    selected (found by id), the Save page's Update tab ticks follow the rows changed for its
-    outfit, and the captured actor is redressed when they wear it (§6).
-  - Apply to #{Name}: dresses the actor in the outfit for the ticked rows and takes it off
-    the unticked rows that hold it, as the Save page gives and takes it, in one
-    `Assignments::Change`; with none ticked it also makes it their Default, unless the user
-    unticked the Default for it. Then the window closes, as the Inventory page's Apply does;
-    nothing moves from the player's inventory. Its tooltip says which: `Dress #{Name} in this
-    outfit for Town, Warm.` / `... as their Default.` / `Take this outfit off #{Name}'s
-    unticked situations.` (the Default unticked, none ticked), which the popup asks as
-    `Take "#{Outfit}" off #{Name}'s unticked situations?`. It asks first
-    (`Apply outfit?`) when there is anything to say: library edits (`Save your changes to
-    "#{Outfit}", then apply it to #{Name} for Town?` and their lines, the button `Update and
-    Apply`), row changes (`Town: added`, `Town: "B" replaces "A"`) or, with no row ticked,
-    a Default whose worn outfit it replaces, random off (`The current Default, "A", will be
-    replaced.`); else `Apply "#{Outfit}" to #{Name} for Town?` (`... as #{Name}'s Default?` with
-    no row ticked) with `Apply` /
-    `Cancel`; with nothing to say it dresses at once. With library edits it goes through
-    `onManageUpdate` with `apply`: the library write first (CLAUDE.md §2.1), a refused or
-    failed one assigns nothing and shows the error; else through `Request::onManageApply`
-    with the rows. Greyed with no outfit selected, with no edited piece (`kNoLoadedPiece`),
-    and with library edits and an empty name (`kNeedName`).
+    selected (found by id), and the captured actor is redressed when they wear it (§6).
+  - Apply to #{Name}: changes what the actor wears now. The outfit goes to one row in one
+    `Assignments::Change`, then the window closes, as the Inventory page's Apply does;
+    nothing moves from the player's inventory. The row, from `Request::wornFor` (what
+    `Request::wornOutfit` is worn for):
+    - They wear another library outfit for a situation now: a popup (`Apply outfit?`) says
+      so, `#{Name} is wearing their Town outfit, "B".` (random on: `one of their Town
+      outfits`), and asks: random off `Make "A" their new Town outfit?` ("B" leaves the
+      row's list), random on `Add "A" to them and wear it now?`, or with "A" on that list
+      already `Wear "A" from them now?`; with library edits `Save your changes to "A", then
+      make it ...?` and their lines. Buttons `Yes` (that row; random on, worn as the pick),
+      `Apply as Default (?)` and `Cancel`. Apply as Default gives the Default the outfit,
+      the situation's outfit staying; its help: `"A" becomes #{Name}'s Default instead, and
+      their Town outfit stays. The new Default shows only when Town ends and no other
+      situational outfit applies.`, then `It replaces the current Default, "C".` when it
+      does, and `Your changes are saved first.` with library edits.
+    - They wear it for a situation now: that row, dressed again.
+    - Else (the Default, nothing of Livery's, or a situation removed since): the Default.
+    - In the last two cases it asks first (`Apply outfit?`) only with library edits or a
+    Default whose worn outfit it replaces, random off: `Apply "#{Outfit}" as #{Name}'s
+    Default?` (`... to #{Name} for Town?`), with library edits `Save your changes to
+    "#{Outfit}", then apply it ...?` and their lines, then `The current Default, "C", will be
+    replaced.` when it is; buttons `Apply` (`Update and Apply` with library edits) /
+    `Cancel`. With nothing to say it dresses at once. Its tooltip says which: `Dress #{Name}
+    in this outfit as their Town outfit, or make it their Default.` / `... for Town.` /
+    `... as their Default.` With library edits it goes through `onManageUpdate` with
+    `apply` and the row: the library write first (CLAUDE.md §2.1), a refused or failed one
+    assigns nothing and shows the error; else through `Request::onManageApply` with the
+    row. Greyed with no outfit selected, with no edited piece (`kNoLoadedPiece`), and with
+    library edits and an empty name (`kNeedName`).
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
 - Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
@@ -275,11 +275,7 @@ adds them (an NPC gets a copy of a piece they lack); nothing moves from the play
 inventory. Not worn now: nothing, since every row reads its outfit from the library each
 time it goes on. Remove: §5.
 
-Rows Update changed (`SaveRequest::assign` / `remove`) are made at once, so the window
-shows them (`Assignments::ChangeRows`), and dressed for in one `Assignments::Refresh`
-through the same path (`PendingRedress::refresh`: at once with Live Preview on, in
-`onClose` with it off); a random row worn now wears the outfit it gained. Apply to
-#{Name} closes the window first, so it assigns with the preview ended.
+Apply to #{Name} closes the window first, so it assigns with the preview ended.
 
 ## 7. Code
 
@@ -289,10 +285,10 @@ through the same path (`PendingRedress::refresh`: at once with Live Preview on, 
   the two files. `CMakeLists.txt` gains the file (CLAUDE.md §1, build system).
 - `CaptureWindow`: pages for Manage Wardrobe and Edit; `SetOutfits` (the rebuilt outfits,
   categories and rows, the window's indices into them found again by id); a call that greys
-  Live Preview with a reason; `Request::onManageUpdate` (with the rows) and, in step 3,
-  `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with the rows;
-  the Save page's and Manage Wardrobe's row helpers shared (`TakenRows`, `AssignedRows`,
-  `RemovedRows`, `DrawRowChangeLines`).
+  Live Preview with a reason; `Request::onManageUpdate` and, in step 3,
+  `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with one row
+  (`Request::wornFor` tells the row of the outfit worn); the Save page's row helpers
+  (`TakenRows`, `AssignedRows`, `RemovedRows`, `DrawRowChangeLines`).
 - `OutfitBrowser`: sort keys Name, Gender, Category, Situation (`SetSort`); per outfit its
   heading, tag text and situation mark text; the folded headings. Unit tests cover the
   keys, the headings, the stored categories the window does not offer, the folding and the
