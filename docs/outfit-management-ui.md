@@ -34,19 +34,13 @@ small font in every skin.
 The outfit list shared by the Load page, the Save page's outfit selection (the Select page)
 and the Manage Wardrobe page. Each page keeps its own search and sort.
 
-- Wording: `Category` everywhere (the Save page's field, the details column, the sort
-  option, the filter group); the window calls the library
-  the wardrobe (`12 outfit(s) in the wardrobe`, `Not in Wardrobe`).
-- Categories: Light, Heavy, Clothing. Jewelry leaves the categories. `Library::Load` drops
-  a stored `Jewelry` in memory; the file
-  loses it at the next write. The suggested category skips Jewelry pieces as it skips Other;
-  with none left, Clothing. The Create tab's category and gender are suggested from the
-  ticked pieces at Open and at each Save on the Capture page; one the user changed stays. Other stored categories (older files' Adventuring, Town, ...)
-  stay in the file, unshown, until categories can be added (design.md §8).
-- Two category groups, in this order:
-  - Category: the categories above, which the Save page and Manage Wardrobe edit.
-  - Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that hold the outfit
-    (Default and the situations), from `Request::assigned`. Never stored in the library.
+- Wording: the window calls the library the wardrobe (`12 outfit(s) in the wardrobe`,
+  `Not in Wardrobe`).
+- The Create tab's gender is suggested from the ticked pieces at Open and at each Save on
+  the Capture page; one the user changed stays.
+- One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
+  hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
+  the library. An older file's outfit categories are read past and gone at the next write.
 - Each row: the outfit's name alone, one line high.
 - Hover, in every list and in the dropdowns' rows: Tailor fills a hovered row in its muted
   brown; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
@@ -80,11 +74,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   has a faint white (16/255) under its fills, in every skin, as Tailor 3.0's outfit list
   alternates its rows. Names start 22px in from the row's left edge.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
-- `Sort by`: Name, Gender, Category, Situation. Every key but Name puts headings in the
-  list: the outfit's categories in that group joined with `, ` (`Town, Swimming`), in the
-  group's order (Light, Heavy, Clothing; Default, then `Situations::kChoosable`). Gender's
-  headings are Female, Male, Unisex, in that order. Outfits with none of the group's
-  categories come last under `No Category` or `No Situation`. Within a heading, by name.
+- `Sort by`: Name, Gender, Situation. Every key but Name puts headings in the list: the
+  rows holding the outfit joined with `, ` (`Town, Swimming`), in their order (Default, then
+  `Situations::kChoosable`). Gender's headings are Female, Male, Unisex, in that order.
+  Outfits on none of the rows come last under `No Situation`. Within a heading, by name.
 - A heading has a chevron at the list's left edge, pointing down while open and right while
   folded, its text after it, and a rule in the list's rule colour from 12px after its text to
   4px short of the list's right end. In a list whose rows have a drag grip (Manage
@@ -163,8 +156,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 - Title `Manage Wardrobe` (the tab's name too), no summary line. Two columns as on the Load
   page: the outfit list (§1) on the left; on the right the selected outfit, editable:
-  - name and gender, as the Save page's fields; then Category as a multi-choice dropdown of
-    the window's categories, its frame naming the ticked ones or `None`.
+  - name and gender, as the Save page's fields.
   - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
     stay in the outfit. The Load and Select pages' details keep the same room before their
@@ -175,9 +167,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - The preview shows the selected outfit as edited; with none selected, the Inventory page's
   ticks.
 - Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Exit`.
-  - Update: greyed until the outfit differs from the library (trimmed name, Category,
-    gender, pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
-    what changes (pieces, Category, rename, gender), as the Save page's Update tab does; the
+  - Update: greyed until the outfit differs from the library (trimmed name, gender,
+    pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
+    what changes (pieces, rename, gender), as the Save page's Update tab does; the
     buttons are `Confirm` / `Cancel`. The window hands the edits to
     `Request::onManageUpdate`; no row changes. CLAUDE.md §2.1 applies: a name another outfit
     has (ASCII case ignored) is refused, and a refused or failed write changes nothing and
@@ -294,18 +286,16 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
   commit: the outfit browser, the outfit lists and the Load, Select, Manage Wardrobe and Edit
   pages go to `src/OutfitPages.cpp`; the state and shared helpers to a header private to
   the two files. `CMakeLists.txt` gains the file (CLAUDE.md §1, build system).
-- `CaptureWindow`: pages for Manage Wardrobe and Edit; `SetOutfits` (the rebuilt outfits,
-  categories and rows, the window's indices into them found again by id); a call that greys
+- `CaptureWindow`: pages for Manage Wardrobe and Edit; `SetOutfits` (the rebuilt outfits
+  and rows, the window's indices into them found again by id); a call that greys
   Live Preview with a reason; `Request::onManageUpdate` and, in step 3,
   `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with one row
   (`Request::wornFor` tells the row of the outfit worn); the Save page's row helpers
   (`TakenRows`, `AssignedRows`, `RemovedRows`, `DrawRowChangeLines`).
-- `OutfitBrowser`: sort keys Name, Gender, Category, Situation (`SetSort`); per outfit its
-  heading, categories and situation mark text; the folded headings. Unit tests cover the
-  keys, the headings, the stored categories the window does not offer, the folding and the
-  marks.
-- `Library`: Jewelry out of `Categories()` and dropped at Load; `Remove` (step 3), written
-  through the temporary file as Create and Update are.
+- `OutfitBrowser`: sort keys Name, Gender, Situation (`SetSort`); per outfit its heading,
+  rows and situation mark text; the folded headings. Unit tests cover the keys, the
+  headings, the folding and the marks.
+- `Library`: `Remove` (step 3), written through the temporary file as Create and Update are.
 - `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it.
 - `Theme`: the tab column, its icons and rule (Nordic's rope texture), the outfit row with
   its marks (`OutfitMarks`), the folding headings of a sorted outfit
@@ -313,14 +303,12 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
   (`DropdownRow`), a label's `(?)` (`LabelHelpMark`), a list heading's (`ListHeadingHelp`),
   a link with its `(?)` (`LabelHelpLink`), a button with one (`HelpButton`), the underlined
   fields with the pen, the icons (bare and dressed form, star), `AfterFieldGap`.
-- `Plugin.cpp`: the two category groups for `Request::categories` and each outfit, the
+- `Plugin.cpp`: the Situation group for `Request::categories` and each outfit's rows, the
   Manage Wardrobe handlers, the redress queue (§6).
 
 ## 8. Checks
 
-- Step 1: each sort's headings, folded and unfolded; an old file's
-  situation categories stay unshown; Load from its button; an old outfit with Jewelry loads
-  without it; the three skins.
+- Step 1: each sort's headings, folded and unfolded; Load from its button; the three skins.
 - Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
   rebuilt list; a taken name refused; Edit, Use Ticked Pieces and Back; the three warnings;
   Update of the outfit the captured actor wears, with Live Preview on (at once) and off (at
@@ -334,7 +322,3 @@ Apply to #{Name} closes the window first, so it assigns with the preview ended.
   name refused, nothing assigned), for ticked rows and as a replaced Default; the row marks
   and their tooltips; Restore's popup; the heading's `(?)`; Exit with and without edits;
   leaving for another tab with edits, Save Changes, Discard Changes and Back.
-
-## 9. Later
-
-- Adding categories beyond Light, Heavy and Clothing (design.md §8).

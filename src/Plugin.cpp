@@ -96,16 +96,11 @@ namespace
 		return {};
 	}
 
-	// Request::categories' two groups: the categories the window offers (Library::Categories),
-	// then Default and the situations not removed (SituationStore::Offered) by their names,
-	// one per row of Request::assigned (AttachSave). Other categories an outfit stores (an
-	// older file's situation categories) stay in the file, unshown.
-	std::vector<CaptureWindow::CategoryOption> CategoryGroups()
+	// Request::categories: Default and the situations not removed (SituationStore::Offered)
+	// by their names, one per row of Request::assigned (AttachSave).
+	std::vector<CaptureWindow::CategoryOption> CategoryOptions()
 	{
 		std::vector<CaptureWindow::CategoryOption> categories;
-		for (const auto& [group, name] : Library::Categories()) {
-			categories.push_back({ group, name });
-		}
 		categories.push_back({ CaptureWindow::kSituationGroup, SituationStore::Name(Situations::Situation::kDefault) });
 		for (const auto situation : SituationStore::Offered()) {
 			categories.push_back({ CaptureWindow::kSituationGroup, SituationStore::Name(situation) });
@@ -116,10 +111,9 @@ namespace
 	// Contract: game thread. Library::Create checks every refusal before it changes
 	// anything, so a refusal never leaves an empty outfit. gender: -1 unisex, 0 male, 1 female.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::vector<std::string>& categories, int gender)
+	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors, int gender)
 	{
-		if (auto error = Library::Create(name, gender, armors, categories)) {
+		if (auto error = Library::Create(name, gender, armors)) {
 			return error;
 		}
 		Notify(std::format("Livery: saved {} ({} pieces).", name, armors.size()));
@@ -140,8 +134,7 @@ namespace
 	// Its pieces whose plugin is not loaded stay in it; the HUD message says how many, and its
 	// old name when it is renamed.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, int gender, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::vector<std::string>& categories)
+	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, int gender, const std::vector<RE::TESObjectARMO*>& armors)
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
@@ -150,7 +143,7 @@ namespace
 		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
 		Library::LoadedPieces(*outfit, &unloaded);
-		if (auto error = Library::Update(id, name, gender, armors, categories)) {
+		if (auto error = Library::Update(id, name, gender, armors)) {
 			return error;
 		}
 		auto text = name == oldName ? std::format("Livery: updated {} ({} pieces)", name, armors.size()) :
@@ -163,7 +156,7 @@ namespace
 	}
 
 	// Contract: game thread; the user chose Yes in the Apply popup for the library outfit
-	// Livery has on the actor. Only its pieces change; its name, gender and classes stay.
+	// Livery has on the actor. Only its pieces change; its name and gender stay.
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> UpdateWornPieces(std::uint32_t id, const std::vector<RE::TESObjectARMO*>& armors)
 	{
@@ -172,15 +165,9 @@ namespace
 			return "The outfit no longer exists.";
 		}
 		// Copied: the update leaves `outfit` stale.
-		const std::string        name = outfit->name;
-		const int                gender = outfit->gender;
-		std::vector<std::string> classes;
-		for (const auto& category : outfit->categories) {
-			if (std::ranges::any_of(Library::Categories(), [&category](const Library::Category& offered) { return category == offered.name; })) {
-				classes.push_back(category);
-			}
-		}
-		return UpdateOutfit(id, name, gender, armors, classes);
+		const std::string name = outfit->name;
+		const int         gender = outfit->gender;
+		return UpdateOutfit(id, name, gender, armors);
 	}
 
 	// --- Preview --------------------------------------------------------------
@@ -460,26 +447,6 @@ namespace
 		});
 	}
 
-	// Armor Class of an outfit: the SkyUI class (ArmorInfo) of the first piece found on a
-	// kSlotPriority slot that has one of the library's three (Jewelry and Other skipped);
-	// Clothing when none has.
-	const char* DetectArmorClass(const std::vector<RE::TESObjectARMO*>& armors)
-	{
-		using ArmorInfo::ArmorClass;
-
-		for (const auto slot : kSlotPriority) {
-			for (const auto* armor : armors) {
-				if (!armor->HasPartOf(slot)) {
-					continue;
-				}
-				if (const auto armorClass = ArmorInfo::ClassOf(*armor); armorClass != ArmorClass::kOther && armorClass != ArmorClass::kJewelry) {
-					return ArmorInfo::ClassName(armorClass);
-				}
-			}
-		}
-		return ArmorInfo::ClassName(ArmorClass::kClothing);
-	}
-
 	// A piece is for women when none of its armor addons has a male model and
 	// one has a female model.
 	bool IsFemaleOnly(const RE::TESObjectARMO& armor)
@@ -536,12 +503,11 @@ namespace
 	}
 
 	// A row of the window's piece list, with SkyUI's Type (ArmorInfo), its body slots, its icon
-	// and what the window's suggested class and gender need. An I4 rule's Type text replaces
-	// SkyUI's, as SkyUI with I4 shows it; the sort order stays the slot's.
+	// and what the window's suggested gender needs. An I4 rule's Type text replaces SkyUI's,
+	// as SkyUI with I4 shows it; the sort order stays the slot's.
 	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected)
 	{
 		const auto type = ArmorInfo::TypeOf(armor);
-		const auto armorClass = ArmorInfo::ClassOf(armor);
 		const auto slots = static_cast<std::uint32_t>(armor.GetSlotMask().underlying());
 		auto       icon = PieceIcons::Resolve(armor);
 		return { .name = DisplayName(armor),
@@ -550,7 +516,6 @@ namespace
 			.group = group,
 			.type = icon.typeName.empty() ? std::string(type.name) : std::move(icon.typeName),
 			.typeOrder = type.order,
-			.armorClass = ArmorInfo::ClassName(armorClass),
 			.slotText = SlotText(slots),
 			.slotOrder = std::countr_zero(slots),
 			.suggestRank = SuggestRank(armor),
@@ -645,9 +610,8 @@ namespace
 		return infos;
 	}
 
-	// The library's outfits in case-insensitive name order, each with its stored
-	// categories (the window shows only those it offers), who has it, and its loaded pieces as indices from
-	// `indexOf`, which leaves out armor it returns nullopt for.
+	// The library's outfits in case-insensitive name order, each with who has it and its
+	// loaded pieces as indices from `indexOf`, which leaves out armor it returns nullopt for.
 	// Contract: game thread (resolves the library's pieces to armor forms).
 	std::vector<CaptureWindow::ExistingOutfit> ListOutfits(const std::function<std::optional<std::size_t>(RE::TESObjectARMO*)>& indexOf)
 	{
@@ -662,7 +626,6 @@ namespace
 		for (const auto* stored : library) {
 			CaptureWindow::ExistingOutfit outfit{
 				.name = stored->name,
-				.categories = stored->categories,
 				.id = stored->id,
 				.gender = stored->gender,
 				.users = UserLines(stored->id)
@@ -854,8 +817,7 @@ namespace
 		request.assigned = AssignedRows(choices);
 		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
 			const auto picked = PickPieces(armors, save.pieces);
-			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, save.gender, picked, save.categories) :
-			                                 SaveOutfit(save.name, picked, save.categories, save.gender);
+			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, save.gender, picked) : SaveOutfit(save.name, picked, save.gender);
 			if (error) {
 				CaptureWindow::SetError(*error);
 				return;
@@ -1041,7 +1003,7 @@ namespace
 	{
 		const auto                choices = Assignments::ChoicesOf(actorID);
 		CaptureWindow::OutfitList list{ .existingOutfits = RebuiltOutfits(armors),
-			.categories = CategoryGroups(),
+			.categories = CategoryOptions(),
 			.assigned = AssignedRows(choices),
 			.situations = SituationInfos(),
 			.restoreChanges = SituationStore::RestoreChanges() };
@@ -1066,7 +1028,7 @@ namespace
 		// Apply instead closes the window, ending the preview, and dresses them as Apply does.
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
-			if (const auto error = UpdateOutfit(edit.outfit, edit.name, edit.gender, picked, edit.categories)) {
+			if (const auto error = UpdateOutfit(edit.outfit, edit.name, edit.gender, picked)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
@@ -1261,7 +1223,7 @@ namespace
 			request.playerName = player->GetName();
 		}
 		request.suggestedName = NextAutomaticName();
-		request.categories = CategoryGroups();
+		request.categories = CategoryOptions();
 		const auto  choices = Assignments::ChoicesOf(actor.GetFormID());
 		const auto* livery = WornLibraryOutfit(choices);
 		if (livery) {
@@ -1350,14 +1312,13 @@ namespace
 		}
 
 		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name and the
-		// detected armor class and gender. Never a situation pool: the user chose none here.
+		// detected gender. Never a situation pool: the user chose none here.
 		const auto name = NextAutomaticName();
 		if (name.empty()) {
 			Notify("Livery: no free outfit name.");
 			return;
 		}
-		const std::vector<std::string> categories{ DetectArmorClass(armors) };
-		if (const auto error = SaveOutfit(name, armors, categories, DetectGender(armors))) {
+		if (const auto error = SaveOutfit(name, armors, DetectGender(armors))) {
 			Notify("Livery: " + *error);
 		}
 	}
