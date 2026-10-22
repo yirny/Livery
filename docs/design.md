@@ -335,8 +335,7 @@ Each stage ends with an in-game check before the next starts.
    skipping beast form, the mount rule for water. Done.
 6. Rework the capture window's existing pages (docs/ui-redesign.md). Step 1, the Capture
    page: done. Step 2, the Save page: done. Step 3, Apply (its popup and the transfer from
-   the player): done; that quest items stay out of the player's list is not yet checked in
-   game.
+   the player): done.
 7. Outfit management in the capture window (docs/outfit-management-ui.md): step 1, the
    outfit list and the Inventory page's buttons: done. Step 2, the tab column and the
    Manage Wardrobe page with Update, the captured actor redressed while the window is open
