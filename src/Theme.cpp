@@ -7,7 +7,7 @@
 //   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow and SkyUI's
 //                MCM header rule (white alpha masks), the game's and NORDIC UI's
 //                equipped-item marks, the game's checkbox, dropdown arrow and scroll
-//                bar; the row hover glow, made in code; the piece icons (PieceIcons),
+//                arrow; the row hover glow, made in code; the piece icons (PieceIcons),
 //                each with its halvings
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame; Vanilla's
 //                text buttons and window frame; the list headings' rule and the game's
@@ -33,8 +33,8 @@
 // NORDIC UI with fonts this plugin ships (OFL): Oswald and Sovngarde.
 // Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
 // author's open permission, see textures/NORDIC-UI-CREDITS.txt); Vanilla's
-// equipped mark and both skins' checkbox and scroll bar are the game's own
-// (textures/BETHESDA-CREDITS.txt); both skins' list heading rule is SkyUI's
+// equipped mark and both skins' checkbox and scroll arrows are the game's own
+// (textures/BETHESDA-CREDITS.txt), the track between them drawn in code after the game's; both skins' list heading rule is SkyUI's
 // (textures/SKYUI-CREDITS.txt). A skin whose font files are missing draws
 // with ImGui's default font; missing textures fall back to plain lines and
 // triangles, the checkbox and the scroll bar to ImGui's own.
@@ -199,6 +199,10 @@ namespace
 	constexpr ImU32 kNordicRule = IM_COL32(200, 200, 200, 90);
 	constexpr ImU32 kNordicOrnament = IM_COL32(222, 222, 222, 255);  // NORDIC UI's #dedede
 
+	// The light grey of the game's scroll bar (#cccccc): its track's inner lines, and in Vanilla and
+	// Nordic the thumb's rim and its fill while held (DrawSkinScrollbar).
+	constexpr ImU32 kScrollLight = IM_COL32(204, 204, 204, 255);
+
 	// A texture and the size it is drawn at, in pixels at 1080p before scaling
 	// (the PNGs are rendered at six to eight times that from the UIs' vector art).
 	struct Ornament
@@ -253,7 +257,6 @@ namespace
 	Ornament    g_dropdownArrow{ nullptr, ImVec2(13.0f, 16.0f) };    // the game's option stepper arrow, turned to point down
 	Ornament    g_selectArrow{ nullptr, ImVec2(15.0f, 16.0f) };      // NORDIC UI's MCM page arrow, a white mask tinted on draw
 	Ornament    g_headingKnot{ nullptr, ImVec2(339.0f, 22.0f) };     // SkyUI's MCM header rule, a white mask tinted on draw; sized by DrawTextRule
-	Ornament    g_scrollTrack{ nullptr, ImVec2(18.0f, 6.0f) };       // the game's scroll bar track, in its own colours, stretched down the bar
 	Ornament    g_scrollArrow{ nullptr, ImVec2(18.0f, 25.5f) };      // the game's scroll arrow, pointing up, in its own colours; as wide as the bar
 	Ornament    g_hoverGlow{ nullptr, ImVec2(0.0f, 0.0f) };          // a white ellipse fading out to its edges (MakeHoverGlow), stretched over a hovered row
 
@@ -842,10 +845,29 @@ namespace
 		a_draw->AddImage(g_headingKnot.Id(), ImVec2(a_right - capWidth, top), ImVec2(a_right, bottom), ImVec2(kCapStart, 0.0f), ImVec2(1.0f, 1.0f), color);
 	}
 
-	// Vanilla and Nordic draw the game's scroll bar when both of its textures loaded.
+	// Vanilla and Nordic draw the game's scroll bar when its arrow's texture loaded.
 	bool HasSkinScrollbar()
 	{
-		return g_skin != Theme::Skin::kTailor && g_scrollTrack.view && g_scrollArrow.view;
+		return g_skin != Theme::Skin::kTailor && g_scrollArrow.view;
+	}
+
+	// The game's scroll bar track from `a_min` to `a_max` (whole pixels), laid out as its art but
+	// with every line 1px at any resolution: down each side a dark line, then a light one, and a
+	// faint white between them.
+	void DrawScrollTrack(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
+	{
+		constexpr ImU32 kDark = IM_COL32(51, 51, 51, 255);    // #333333
+		constexpr ImU32 kFill = IM_COL32(255, 255, 255, 51);  // white at 0.2
+
+		const ImU32 dark = ImGui::GetColorU32(kDark);
+		const ImU32 light = ImGui::GetColorU32(kScrollLight);
+		const float top = a_min.y;
+		const float bottom = a_max.y;
+		a_draw->AddRectFilled(ImVec2(a_min.x, top), ImVec2(a_min.x + 1.0f, bottom), dark);
+		a_draw->AddRectFilled(ImVec2(a_min.x + 1.0f, top), ImVec2(a_min.x + 2.0f, bottom), light);
+		a_draw->AddRectFilled(ImVec2(a_min.x + 2.0f, top), ImVec2(a_max.x - 2.0f, bottom), ImGui::GetColorU32(kFill));
+		a_draw->AddRectFilled(ImVec2(a_max.x - 2.0f, top), ImVec2(a_max.x - 1.0f, bottom), light);
+		a_draw->AddRectFilled(ImVec2(a_max.x - 1.0f, top), ImVec2(a_max.x, bottom), dark);
 	}
 
 	// Makes ImGui's scroll bar grab clear for the window the next Begin opens, when the skin draws
@@ -863,9 +885,10 @@ namespace
 		return 3;
 	}
 
-	// The game's scroll bar over the current window's vertical one, a margin in from its sides:
-	// an up arrow at its top, a down arrow (the same art flipped) at its bottom, the track
-	// between them, and a thumb in the style's scroll bar grab colours, its rim opaque.
+	// The game's scroll bar over the current window's vertical one, a margin in from its sides,
+	// on whole pixels: an up arrow at its top, a down arrow (the same art flipped) at its bottom,
+	// the track between them (DrawScrollTrack), and a thumb with a 1px rim in the track's light
+	// grey, filled in the style's scroll bar grab colours, in that grey while held.
 	// Contract: inside the window, before its End (EndChild, ImGui::EndCombo); render thread. It
 	// mirrors ImGui 1.92.7's internals: GetWindowScrollbarRect for the bar, and ScrollbarEx's
 	// grab arithmetic for the thumb, laid between the arrows, so near the ends the thumb drawn
@@ -879,19 +902,19 @@ namespace
 		if (!HasSkinScrollbar() || !window || !window->ScrollbarY) {
 			return;
 		}
-		ImRect bar = ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y);
-		bar.Min.x += kSideMargin * g_scale;
-		bar.Max.x -= kSideMargin * g_scale;
-		const float width = bar.GetWidth();
+		const ImRect imguiBar = ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y);
+		const ImRect bar(std::round(imguiBar.Min.x + kSideMargin * g_scale), std::round(imguiBar.Min.y), std::round(imguiBar.Max.x - kSideMargin * g_scale),
+			std::round(imguiBar.Max.y));
+		const float  width = bar.GetWidth();
 		if (width <= 0.0f || bar.GetHeight() <= 0.0f) {
 			return;
 		}
-		const float arrowHeight = (std::min)(width * g_scrollArrow.size.y / g_scrollArrow.size.x, bar.GetHeight() * 0.25f);
+		const float arrowHeight = std::round((std::min)(width * g_scrollArrow.size.y / g_scrollArrow.size.x, bar.GetHeight() * 0.25f));
 		const float trackTop = bar.Min.y + arrowHeight;
 		const float trackBottom = bar.Max.y - arrowHeight;
 		auto*       draw = window->DrawList;
 		draw->PushClipRect(window->OuterRectClipped.Min, window->OuterRectClipped.Max, false);  // the bar lies outside the content's clip
-		draw->AddImage(g_scrollTrack.Id(), ImVec2(bar.Min.x, trackTop), ImVec2(bar.Max.x, trackBottom));
+		DrawScrollTrack(draw, ImVec2(bar.Min.x, trackTop), ImVec2(bar.Max.x, trackBottom));
 		draw->AddImage(g_scrollArrow.Id(), bar.Min, ImVec2(bar.Max.x, trackTop));
 		draw->AddImage(g_scrollArrow.Id(), ImVec2(bar.Min.x, trackBottom), bar.Max, ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
 
@@ -906,17 +929,17 @@ namespace
 			const float   thumbWidth = std::round(width * kThumbWidthRatio);
 			const float   left = std::floor(bar.Min.x + (width - thumbWidth) * 0.5f);
 			const ImGuiID id = ImGui::GetWindowScrollbarID(window, ImGuiAxis_Y);
-			ImGuiCol      state = ImGuiCol_ScrollbarGrab;
+			const ImU32   light = ImGui::GetColorU32(kScrollLight);
+			ImU32         fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrab);
 			if (g.ActiveId == id) {
-				state = ImGuiCol_ScrollbarGrabActive;
+				fill = light;
 			} else if (g.HoveredId == id) {
-				state = ImGuiCol_ScrollbarGrabHovered;
+				fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrabHovered);
 			}
-			const ImU32  color = ImGui::GetColorU32(state);
 			const ImVec2 thumbMin(left, top);
 			const ImVec2 thumbMax(left + thumbWidth, top + thumbHeight);
-			draw->AddRectFilled(thumbMin, thumbMax, color);
-			draw->AddRect(thumbMin, thumbMax, color | IM_COL32_A_MASK, 0.0f, ImDrawFlags_None, (std::max)(1.0f, std::floor(g_scale)));
+			draw->AddRectFilled(thumbMin, thumbMax, fill);
+			draw->AddRect(thumbMin, thumbMax, light, 0.0f, ImDrawFlags_None, 1.0f);
 		}
 		draw->PopClipRect();
 	}
@@ -2213,7 +2236,6 @@ namespace Theme
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-dropdown.png", g_dropdownArrow);
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-select-arrow.png", g_selectArrow);
 			LoadOrnament(a_device, wic.Get(), folder, L"skyui-heading-rule.png", g_headingKnot);
-			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-scroll-track.png", g_scrollTrack);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-scroll-arrow.png", g_scrollArrow);
 			LoadRowIcons(a_device, wic.Get());
 		}
