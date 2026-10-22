@@ -1030,7 +1030,9 @@ namespace CaptureWindow::Internal
 
 	// Hands the edits and the rows to onManageUpdate, which writes the library, changes the
 	// rows and ends with SetOutfits, or with `a_apply` dresses the actor and closes the
-	// window, or ends with SetError; until then the page is greyed.
+	// window, or ends with SetError; until then the page is greyed. Update gives the outfit
+	// only to the rows that do not hold it yet, so a row's list and pick stay as they are;
+	// Update and Apply gives it to every ticked row, as Apply does.
 	// Contract: the handler writes nothing for a refused name or a failed write, and then
 	// assigns nothing (CLAUDE.md §2.1).
 	void RequestManageUpdate(State& a_state, bool a_apply)
@@ -1044,7 +1046,7 @@ namespace CaptureWindow::Internal
 			.gender = form.gender,
 			.pieces = form.pieces,
 			.categories = TickedCategories(a_state, form.classTicked.get()),
-			.assign = AssignedRows(a_state, form.wearsFor.get()),
+			.assign = a_apply ? AssignedRows(a_state, form.wearsFor.get()) : AddedRows(a_state, form.wearsFor.get(), id),
 			.remove = RemovedRows(a_state, form.wearsFor.get(), id) };
 		auto                       onUpdate = a_state.request.onManageUpdate;
 		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit), a_apply] { onUpdate(edit, a_apply); });
