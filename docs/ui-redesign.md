@@ -15,7 +15,9 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   2. `From #{Name}'s Outfit (Not in Wardrobe)`: worn pieces Livery put on that are not a saved
      outfit (outfit id 0, or the outfit has left the library).
   3. `From #{Name}'s Outfit (Unmanaged)`: worn pieces Livery did not put on.
-  4. `From #{Name}'s Inventory`: carried, not worn.
+  4. `From #{Name}'s Inventory`: carried, not worn. The actor's own outfit copies
+     (`ExtraOutfitItem` naming their base's `defaultOutfit`) are left out while unworn, as the
+     trade menu leaves them out (design.md §3).
   5. `From Player's Inventory` (NPC target only): the player's armor, per the settings (§2);
      a form the NPC also carries is listed once, under 1–4.
   6. `From "#{Outfit}" (Not Carried)`: pieces of the loaded outfit nobody carries, listed while

@@ -132,6 +132,9 @@ copies are hidden: player-given instances stay visible and takeable even while t
 of the outfit (taking back one's own item is not a dupe). Not filtered: the player's own list
 (a copy added to the player is the player's item), an NPC without a default outfit, and
 corpses (Livery forgets an actor at death, and vanilla shows a corpse's outfit items too).
+The capture window's `From #{Name}'s Inventory` follows the engine's rule: an NPC's own outfit
+copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list shows what the
+trade menu shows.
 
 Call sites, Address Library IDs (they exist in the 1.6.1170 and 1.6.1179 databases): AE
 1.6.1130+ `51145+0xEB`, `51146+0x15B`, `51144+0x10F` (an AE function inlines the caller of

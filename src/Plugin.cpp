@@ -295,6 +295,24 @@ namespace
 		return base && !base->IsDynamicForm() ? base : nullptr;
 	}
 
+	// How many of the entry's copies are the actor's own outfit items: those whose
+	// ExtraOutfitItem names `outfit`, their base's defaultOutfit. The trade menu leaves exactly
+	// these out (docs/design.md §3); 0 for an actor without a default outfit.
+	std::int32_t OwnOutfitCopies(const RE::InventoryEntryData& entry, RE::FormID outfit)
+	{
+		std::int32_t copies = 0;
+		if (outfit == 0 || !entry.extraLists) {
+			return copies;
+		}
+		for (auto* extra : *entry.extraLists) {
+			const auto* mark = extra ? extra->GetByType<RE::ExtraOutfitItem>() : nullptr;
+			if (mark && mark->id == outfit) {
+				copies += extra->GetCount();
+			}
+		}
+		return copies;
+	}
+
 	// Inventory armor as plugin-defined forms (PluginArmor), worn pieces first, each group in
 	// name order; runtime-created armor without a plugin armor is left out. Only
 	// worn pieces count in substituted and skipped. A form both worn and carried
@@ -302,9 +320,14 @@ namespace
 	// Non-playable armor is left out uncounted: body-mod parts such as the BHUNP /
 	// 3BA SMP objects (slot 48/50/51/60 per their MCM) are not clothing, and Dressing
 	// leaves non-playable armor on.
+	// The actor's own outfit copies (OwnOutfitCopies) are left out while unworn, as the trade
+	// menu leaves them out, so the list shows what the trade menu shows; a worn one is listed
+	// as worn, and a plain copy of the same armor beside them is listed.
 	std::vector<InventoryArmor> CollectArmor(RE::Actor& actor, std::size_t& skipped, std::size_t& substituted)
 	{
-		const auto inventory = actor.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
+		const auto  inventory = actor.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
+		const auto* base = actor.GetActorBase();
+		const auto  outfit = base && base->defaultOutfit ? base->defaultOutfit->GetFormID() : 0;
 
 		std::vector<InventoryArmor> armors;
 		armors.reserve(inventory.size());
@@ -321,7 +344,10 @@ namespace
 				continue;
 			}
 			const bool worn = entry && entry->IsWorn();
-			auto*      plugin = PluginArmor(*armor);
+			if (!worn && entry && count <= OwnOutfitCopies(*entry, outfit)) {
+				continue;
+			}
+			auto* plugin = PluginArmor(*armor);
 			if (!plugin) {
 				if (worn) {
 					++skipped;
