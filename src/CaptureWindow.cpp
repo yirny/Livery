@@ -23,7 +23,7 @@
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
-//                  name, categories, gender and "Situations for #{Name}" rows (Default, the
+//                  name, categories, gender and "SITUATIONS (#{Name})" rows (Default, the
 //                  situations); a popup (Confirm / Cancel) before replacing the outfit a row
 //                  wears, the Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
 //                  fills the Update tab from the Select page's choice
@@ -485,7 +485,7 @@ namespace CaptureWindow::Internal
 
 	// The Load and Update pages' two equal columns; every table of them on a
 	// page lines up, each with its own `a_id`. When it returns true, fill the
-	// cells and call EndColumns.
+	// cells and call EndColumns, which draws the rule between them (Theme::ColumnRule).
 	bool BeginColumns(const char* a_id)
 	{
 		constexpr float kColumnGap = 36.0f;  // pixels at 1080p, between the columns
@@ -505,6 +505,10 @@ namespace CaptureWindow::Internal
 	{
 		ImGui::EndTable();
 		ImGui::PopStyleVar();
+		// The table is the last item: its rect spans both columns, which are equally wide.
+		const ImVec2 min = ImGui::GetItemRectMin();
+		const ImVec2 max = ImGui::GetItemRectMax();
+		Theme::ColumnRule((min.x + max.x) * 0.5f, min.y, max.y);
 	}
 
 	void RequestCancel()
@@ -783,13 +787,13 @@ namespace CaptureWindow::Internal
 	{
 		using Group = CaptureWindow::PieceGroup;
 		const auto& request = a_state.request;
-		const auto& name = request.actorName;
 		auto&       headings = a_state.headings;
-		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("From {}'s Outfit (\"{}\")", name, request.outfitName);
-		headings[GroupIndex(Group::kNotInLibrary)] = std::format("From {}'s Outfit (Not in Wardrobe)", name);
-		headings[GroupIndex(Group::kUnmanaged)] = std::format("From {}'s Outfit (Unmanaged)", name);
-		headings[GroupIndex(Group::kCarried)] = std::format("From {}'s Inventory", name);
-		headings[GroupIndex(Group::kPlayer)] = "From Player's Inventory";  // Theme::ListHeadingHelp adds its "(?)"
+		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("Outfit (\"{}\")", request.outfitName);
+		headings[GroupIndex(Group::kNotInLibrary)] = "Outfit (Not in Wardrobe)";
+		headings[GroupIndex(Group::kUnmanaged)] = "Outfit (Unmanaged)";
+		headings[GroupIndex(Group::kCarried)] = "Inventory";
+		// Theme::ListHeadingHelp adds its "(?)".
+		headings[GroupIndex(Group::kPlayer)] = std::format("{}'s Inventory", request.playerName.empty() ? "Player" : request.playerName);
 		headings[GroupIndex(Group::kNotCarried)].clear();
 	}
 
@@ -1008,7 +1012,7 @@ namespace CaptureWindow::Internal
 	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
-		Theme::LabelText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
+		Theme::CountText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		bool add = false;
 		if (a_withWardrobeLink) {
 			const bool empty = a_state.request.existingOutfits.empty();
@@ -1216,16 +1220,23 @@ namespace CaptureWindow::Internal
 		return cancel ? CaptureAction::kCancel : CaptureAction::kNone;
 	}
 
+	// The ticked pieces under Player's Inventory, as the list shows them now: those Apply moves.
+	std::vector<std::size_t> TickedFromPlayer(const State& a_state)
+	{
+		auto pieces = TickedPieces(a_state);
+		std::erase_if(pieces, [&a_state](std::size_t a_piece) { return a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kPlayer; });
+		return pieces;
+	}
+
 	// `a_updateWorn`: Yes in the Apply popup, so `a_outfit` is the worn library outfit, which
 	// the handler updates with the ticks before it dresses the actor. The ticked pieces under
-	// From Player's Inventory, as the list shows them now, are those that move.
+	// Player's Inventory, as the list shows them now, are those that move.
 	void RequestApply(State& a_state, std::uint32_t a_outfit, bool a_updateWorn)
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		auto pieces = TickedPieces(a_state);
-		auto fromPlayer = pieces;
-		std::erase_if(fromPlayer, [&a_state](std::size_t a_piece) { return a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kPlayer; });
+		auto fromPlayer = TickedFromPlayer(a_state);
 		auto onApply = a_state.request.onApply;
 		SKSE::GetTaskInterface()->AddTask([onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn] {
 			onApply(pieces, fromPlayer, a_outfit, a_updateWorn);
@@ -1703,7 +1714,7 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// "Situations for #{Name}" with its "(?)" over the rows' multi-choice dropdown, as on
+	// "SITUATIONS (#{Name})" with its "(?)" over the rows' multi-choice dropdown, as on
 	// Manage Wardrobe.
 	void DrawWearsForField(const State& a_state, SaveForm& a_form)
 	{
@@ -1719,23 +1730,40 @@ namespace CaptureWindow::Internal
 	{
 		kNone,
 		kSave,
+		kSaveAndApply,
 		kBack
 	};
 
-	// Create, or Update #{Outfit} on the Update tab, and Back, centred below a gap; `a_enter`
-	// is the name field's Enter. Escape is Back unless a popup is open, which has its own.
+	// Create and Create and Apply, or Update #{Outfit} on the Update tab, and Back, centred
+	// below a gap; `a_enter` is the name field's Enter, which is Create. Escape is Back unless a
+	// popup is open, which has its own.
 	SaveAction DrawSaveButtons(const State& a_state, bool a_enter)
 	{
+		constexpr const char* kCreateAndApply = "Create and Apply";
+
 		const std::string save = a_state.updateTab ? std::format("Update {}", OutfitAt(a_state, a_state.chosenOutfit).name) : std::string("Create");
-		BeginButtonRow({ save.c_str(), "Back" });
-		const bool valid = !Trimmed(ActiveForm(a_state).name.data()).empty();
-		const bool pressed = ReasonButton(save.c_str(), valid ? nullptr : kNeedName) || a_enter;
+		if (a_state.updateTab) {
+			BeginButtonRow({ save.c_str(), "Back" });
+		} else {
+			BeginButtonRow({ save.c_str(), kCreateAndApply, "Back" });
+		}
+		const bool  valid = !Trimmed(ActiveForm(a_state).name.data()).empty();
+		const char* reason = valid ? nullptr : kNeedName;
+		const bool  pressed = ReasonButton(save.c_str(), reason) || a_enter;
+		bool        apply = false;
+		if (!a_state.updateTab) {
+			ImGui::SameLine();
+			apply = ReasonButton(kCreateAndApply, reason);
+		}
 		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Saving...");
 			return SaveAction::kNone;
+		}
+		if (apply) {
+			return SaveAction::kSaveAndApply;
 		}
 		if (pressed && valid) {
 			return SaveAction::kSave;
@@ -1834,7 +1862,11 @@ namespace CaptureWindow::Internal
 			.categories = TickedCategories(a_state, form.classTicked.get()),
 			.assign = AssignedRows(a_state),
 			.remove = a_state.updateTab ? RemovedRows(a_state) : std::vector<std::size_t>{} };
-		auto                       onSave = a_state.request.onSave;
+		if (!a_state.updateTab && a_state.applyOnCreate) {
+			save.apply = true;
+			save.fromPlayer = TickedFromPlayer(a_state);
+		}
+		auto onSave = a_state.request.onSave;
 		SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
 	}
 
@@ -1907,8 +1939,9 @@ namespace CaptureWindow::Internal
 		} else if (tab == 1) {
 			QueueMenuSound(kOkSound);
 			OpenOutfitSelection(a_state);
-		} else if (action == SaveAction::kSave) {
+		} else if (action == SaveAction::kSave || action == SaveAction::kSaveAndApply) {
 			QueueMenuSound(kOkSound);
+			a_state.applyOnCreate = action == SaveAction::kSaveAndApply;
 			BeginSave(a_state);
 		} else if (action == SaveAction::kBack) {
 			QueueMenuSound(kCancelSound);
@@ -1970,7 +2003,8 @@ namespace CaptureWindow
 			state.chosenOutfit = -1;
 			state.selectingOutfit = -1;
 			state.openConfirm = false;
-			state.situationsLabel = std::format("Situations for {}", state.request.actorName);
+			state.applyOnCreate = false;
+			state.situationsLabel = std::format("SITUATIONS ({})", state.request.actorName);
 			state.error.clear();
 			state.pending.clear();
 			state.focusNameField = false;
@@ -2107,7 +2141,7 @@ namespace CaptureWindow
 		if (chosen != 0 && state.chosenOutfit < 0) {
 			state.updateTab = false;  // the Save page's Update tab has no outfit left to update
 		}
-		// The Update tab's "Situations for #{Name}" ticks follow the rows Manage Wardrobe or Manage
+		// The Update tab's "SITUATIONS (#{Name})" ticks follow the rows Manage Wardrobe or Manage
 		// Situations changed for its outfit, so its Update cannot undo them unseen; the user's
 		// other ticks stay. Rows are matched by situation, as one may have been removed.
 		for (std::size_t row = 0; state.chosenOutfit >= 0 && row < RowCount(state); ++row) {
@@ -2126,7 +2160,7 @@ namespace CaptureWindow
 		FollowWornOutfit(state);
 		SetGroupHeadings(state);
 		if (state.loadedOutfit >= 0) {
-			state.headings[GroupIndex(PieceGroup::kNotCarried)] = std::format("From \"{}\" (Not Carried)", OutfitAt(state, state.loadedOutfit).name);
+			state.headings[GroupIndex(PieceGroup::kNotCarried)] = std::format("\"{}\"", OutfitAt(state, state.loadedOutfit).name);
 		}
 		// DrawPieceRows' contract: a piece the Inventory page does not list is never ticked.
 		const auto inventory = InventoryPieces(state);

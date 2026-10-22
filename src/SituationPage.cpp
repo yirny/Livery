@@ -32,6 +32,7 @@
 #include <imgui_internal.h>  // BeginDragDropTargetCustom, ImRect, GetActiveID
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <format>
 #include <optional>
@@ -359,7 +360,7 @@ namespace CaptureWindow::Internal
 					.random = entry.row.random,
 					.open = !entry.folded,
 					.foldable = foldable,
-					.selected = form.selected == index,
+					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
 					.dim = !shows });
 			const float bottom = top + Theme::SituationHeadingHeight();
 			if (form.scrollToSelected && form.selected == index) {
@@ -457,22 +458,28 @@ namespace CaptureWindow::Internal
 
 		// The outfit list with its own search, sort and Show Tags, its rows dragged as copies and
 		// a click on one showing its details (`a_viewed`'s row selected), then what a drag does,
-		// in the small font. A drag from the Situation List dropped anywhere on it takes that
+		// in the small font, below a gap. A drag from the Situation List dropped anywhere on it takes that
 		// outfit, or the Default's pieces, off its row. Returns whether Escape cleared the search.
 		bool DrawOutfitPane(State& a_state, int a_viewed)
 		{
-			constexpr float       kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
-			constexpr const char* kDragNote = "Drag an outfit onto a situation to add it.";
+			constexpr float                      kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
+			constexpr float                      kNoteGap = 8.0f;     // pixels at 1080p, above the note
+			constexpr std::array<const char*, 2> kDragNote{ "Drag an outfit onto a situation to add it.",
+				"Drop an outfit here from a situation to take it off." };
 
 			const ImVec2 top = ImGui::GetCursorScreenPos();
 			const float  width = ImGui::GetContentRegionAvail().x;
 			const auto   controls = DrawBrowserControls(a_state, a_state.situationBrowser);
 			Theme::PushSmallFont();
-			const float noteHeight = ImGui::GetTextLineHeightWithSpacing();
+			const float noteGap = kNoteGap * Theme::Scale();
+			const float noteHeight = noteGap + ImGui::GetTextLineHeightWithSpacing() * static_cast<float>(kDragNote.size());
 			Theme::PopSmallFont();
 			const int clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, controls.height + noteHeight, true);
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + noteGap);
 			Theme::PushSmallFont();
-			ImGui::TextWrapped("%s", kDragNote);
+			for (const auto* line : kDragNote) {
+				ImGui::TextUnformatted(line);
+			}
 			Theme::PopSmallFont();
 			const float bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 			a_state.situationForm.outfitPaneHeight = bottom - top.y;

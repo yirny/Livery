@@ -10,17 +10,17 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
 
 - Title: `#{Name}'s Inventory`, `#{Name}` the actor's name. The summary line under it stays.
 - The piece list is grouped under headings, in this fixed order, a heading with no piece hidden:
-  1. `From #{Name}'s Outfit ("#{Outfit}")`: worn pieces Livery put on from a library outfit,
+  1. `Outfit ("#{Outfit}")`: worn pieces Livery put on from a library outfit,
      named by the outfit worn now (the default's or the worn situation's).
-  2. `From #{Name}'s Outfit (Not in Wardrobe)`: worn pieces Livery put on that are not a saved
+  2. `Outfit (Not in Wardrobe)`: worn pieces Livery put on that are not a saved
      outfit (outfit id 0, or the outfit has left the library).
-  3. `From #{Name}'s Outfit (Unmanaged)`: worn pieces Livery did not put on.
-  4. `From #{Name}'s Inventory`: carried, not worn. The actor's own outfit copies
+  3. `Outfit (Unmanaged)`: worn pieces Livery did not put on.
+  4. `Inventory`: carried, not worn. The actor's own outfit copies
      (`ExtraOutfitItem` naming their base's `defaultOutfit`) are left out while unworn, as the
      trade menu leaves them out (design.md §3).
-  5. `From Player's Inventory` (NPC target only): the player's armor, per the settings (§2);
+  5. `#{Player}'s Inventory`, the player's name (`Player` when it has none; NPC target only): the player's armor, per the settings (§2);
      a form the NPC also carries is listed once, under 1–4.
-  6. `From "#{Outfit}" (Not Carried)`: pieces of the loaded outfit nobody carries, listed while
+  6. `"#{Outfit}"`: pieces of the loaded outfit nobody carries, listed while
      it is loaded (today's `owned == false` rows).
 - Three columns: Name, Type, Class. Strings and rules are SkyUI's: Type from the biped slots,
   Class Light / Heavy / Clothing / Jewelry, taken from the SkyUI source (schlangster/skyui on
@@ -86,16 +86,19 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   to Update`, no summary line, `No outfit selected` on the right while none is); Cancel
   returns to the former tab with nothing changed. Clicking it again reopens the selection
   with the chosen outfit selected and previewed. Once chosen: name, Class and gender fill
-  from the outfit, the `Situations for #{Name}` ticks (below) from this actor's assignments
+  from the outfit, the `SITUATIONS (#{Name})` ticks (below) from this actor's assignments
   of it, and the button reads
   `Update #{Outfit}`. Name and gender may be changed: CLAUDE.md §2.1 is rewritten (change
   name and gender only through the confirmed Update path; a name must be unused, ASCII case
   ignored, by any other outfit) and `Library::Update` takes name and gender.
-- `Create New Outfit`: as today; button `Create`.
+- `Create New Outfit`: as today; buttons `Create` and `Create and Apply`. Create and Apply
+  saves as Create does (the replace popup first), then dresses the actor as the Inventory
+  page's Apply does with the new outfit: the Player's Inventory pieces move first, then the
+  rows change, then the ticks become the Default (`SaveRequest::apply`).
 - Fields, as Manage Wardrobe's: the name, with no label (`Outfit Name` on hover while not
   being typed in; a failed save's error instead), the gender, with no label, Category (a
-  multi-choice dropdown), then `Situations for #{Name}`.
-- Field `Situations for #{Name}`, replacing the library's situation categories, which leave
+  multi-choice dropdown), then `SITUATIONS (#{Name})`.
+- Field `SITUATIONS (#{Name})`, replacing the library's situation categories, which leave
   the library (no situation filter or sort in the outfit browser): a multi-choice dropdown of
   `Default` and the situations, as on Manage Wardrobe. A tick gives
   the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's

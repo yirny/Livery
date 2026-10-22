@@ -54,6 +54,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -949,7 +950,7 @@ namespace
 	// from it, its rule stops short of it, and the lists stop at it on the right.
 	float VanillaBandWidth()
 	{
-		constexpr float kWidth = 4.0f;  // pixels at 1080p
+		constexpr float kWidth = 3.0f;  // pixels at 1080p
 
 		return (std::max)(1.0f, std::round(kWidth * g_scale));
 	}
@@ -1604,6 +1605,34 @@ namespace
 		DrawSelectArrow(a_draw, ImVec2((a_row.min.x + a_textX) * 0.5f, (a_row.min.y + a_row.max.y) * 0.5f));
 	}
 
+	// A label's text in ASCII capitals, as the field labels, list headings, column labels and
+	// outfit tags are drawn, held on the stack: no allocation on the per-frame path. A text
+	// longer than the buffer is cut at the last whole UTF-8 character that fits.
+	class Caps
+	{
+	public:
+		explicit Caps(const char* a_text)
+		{
+			const std::size_t full = std::strlen(a_text);
+			std::size_t       length = (std::min)(full, _buffer.size() - 1);
+			if (length < full) {
+				while (length > 0 && (static_cast<unsigned char>(a_text[length]) & 0xC0) == 0x80) {
+					--length;  // a continuation byte: cut before its character
+				}
+			}
+			for (std::size_t i = 0; i < length; ++i) {
+				const char c = a_text[i];
+				_buffer[i] = c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c;
+			}
+			_buffer[length] = '\0';
+		}
+
+		const char* c_str() const { return _buffer.data(); }
+
+	private:
+		std::array<char, 256> _buffer{};
+	};
+
 	constexpr ImU32 WithAlpha(ImU32 a_color, unsigned a_alpha)
 	{
 		return (a_color & ~IM_COL32_A_MASK) | (a_alpha << IM_COL32_A_SHIFT);
@@ -1642,14 +1671,14 @@ namespace
 	// Vanilla and Nordic. Pop with ImGui::PopFont.
 	void PushTagFont()
 	{
-		constexpr float kSquareTagRatio = 0.8f;  // of the body font's size, in Vanilla and Nordic: 16px at 1080p
+		constexpr float kSquareTagRatio = 0.7f;  // of the body font's size, in Vanilla and Nordic: 14px at 1080p
 
 		const float ratio = g_skin == Theme::Skin::kTailor ? kSmallFontRatio : kSquareTagRatio;
 		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * ratio);
 	}
 
-	// An outfit row's tags left to right from `a_topLeft`, wrapping onto a new line where the
-	// next one would pass `a_width`: its gender unless unisex, then `a_tags`. Tailor draws
+	// An outfit row's tags left to right from `a_topLeft`, in capitals (Caps), wrapping onto a new
+	// line where the next one would pass `a_width`: its gender unless unisex, then `a_tags`. Tailor draws
 	// them as framed tags (TailorTag), Vanilla and Nordic as grey text, comma separated.
 	// Draws them when `a_draw` is set. Returns their height; 0 for no tag.
 	// Contract: in the tags' font (PushTagFont).
@@ -1671,7 +1700,8 @@ namespace
 		float       lineHeight = 0.0f;
 		for (std::size_t i = 0; i < count; ++i) {
 			const bool  isGender = gender && i == 0;
-			const char* text = isGender ? gender : a_tags[i - (gender ? 1 : 0)].c_str();
+			const Caps  caps(isGender ? gender : a_tags[i - (gender ? 1 : 0)].c_str());
+			const char* text = caps.c_str();
 			const bool  last = i + 1 == count;
 			ImVec2      size = ImGui::CalcTextSize(text);
 			if (tailor) {
@@ -2067,6 +2097,11 @@ namespace Theme
 		style.FontSizeBase = FontFilesOf(a_skin).body.size;  // also sizes the default font when the skin's is missing
 		style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
 		style.ScaleAllSizes(scale);
+		// ImGui places a tooltip at the mouse plus (16, 10) times this scale; the software cursor it
+		// would also scale is off (the game draws its own). Twice that keeps the tooltip clear of the
+		// game's cursor, which is about 32px wide at 1080p.
+		constexpr float kTooltipOffsetScale = 2.0f;
+		style.MouseCursorScale = kTooltipOffsetScale * scale;
 		style.FontScaleMain = scale;
 		g_itemSpacingY = style.ItemSpacing.y;
 		ImGui::GetStyle() = style;
@@ -2217,6 +2252,11 @@ namespace Theme
 	}
 
 	void LabelText(const char* a_text, bool a_opensField)
+	{
+		CountText(Caps(a_text).c_str(), a_opensField);
+	}
+
+	void CountText(const char* a_text, bool a_opensField)
 	{
 		if (a_opensField) {
 			SectionGap();
@@ -2418,7 +2458,8 @@ namespace Theme
 		int          clicked = -1;
 		for (std::size_t i = 0; i < a_labels.size(); ++i) {
 			const bool   sorted = static_cast<int>(i) == a_sorted;
-			const ImVec2 text = ImGui::CalcTextSize(a_labels[i]);
+			const Caps   label(a_labels[i]);  // shown; the ImGui ID stays a_labels[i]
+			const ImVec2 text = ImGui::CalcTextSize(label.c_str());
 			const float  width = text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f);
 			if (i > 0) {
 				ImGui::SameLine();
@@ -2429,7 +2470,7 @@ namespace Theme
 			}
 			const ImU32  color = LinkColor(ImGui::IsItemHovered());
 			const ImVec2 pos = ImGui::GetItemRectMin();
-			draw->AddText(pos, color, a_labels[i]);
+			draw->AddText(pos, color, label.c_str());
 			if (sorted) {
 				const float left = pos.x + text.x + style.ItemInnerSpacing.x;
 				const float midY = pos.y + text.y * 0.5f;
@@ -2554,6 +2595,22 @@ namespace Theme
 			draw->AddRectFilled(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_Border));
 		}
 		draw->PopClipRect();
+	}
+
+	void ColumnRule(float a_x, float a_top, float a_bottom)
+	{
+		constexpr float kInset = 4.0f;  // pixels at 1080p, off each end
+		constexpr float kAlpha = 0.5f;  // of the rule colour's own
+
+		if (g_skin == Skin::kTailor) {
+			return;
+		}
+		const float inset = kInset * g_scale;
+		const float x = std::floor(a_x);
+		if (a_bottom - a_top <= 2.0f * inset) {
+			return;
+		}
+		ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(x, a_top + inset), ImVec2(x + 1.0f, a_bottom - inset), ImGui::GetColorU32(ImGuiCol_Border, kAlpha));
 	}
 
 	bool Checkbox(const char* a_label, bool* a_value)
@@ -2769,7 +2826,7 @@ namespace Theme
 	{
 		PushSmallFont();
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-		TextRow(a_text);
+		TextRow(Caps(a_text).c_str());
 		ImGui::PopStyleColor();
 		PopSmallFont();
 	}
@@ -2801,8 +2858,9 @@ namespace Theme
 			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
 		}
 		const float textX = a_grip != Grip::kNone ? row.fillMin.x + RowTextInset(a_grip) : left + side + ImGui::GetStyle().ItemInnerSpacing.x;
-		draw->AddText(ImVec2(textX, row.min.y + gap * 0.5f + kSelectRowPadY * g_scale), color, a_text);
-		const float ruleLeft = textX + ImGui::CalcTextSize(a_text).x + kTextRuleGap * g_scale;
+		const Caps  text(a_text);  // shown; the ImGui ID stays a_text
+		draw->AddText(ImVec2(textX, row.min.y + gap * 0.5f + kSelectRowPadY * g_scale), color, text.c_str());
+		const float ruleLeft = textX + ImGui::CalcTextSize(text.c_str()).x + kTextRuleGap * g_scale;
 		const float ruleRight = row.fillMax.x - kRuleEndPad * g_scale;
 		if (ruleRight > ruleLeft) {
 			const float y = std::floor(midY) + 0.5f;  // on a pixel's centre, so a 1px line stays sharp
@@ -2981,10 +3039,11 @@ namespace Theme
 		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
 		const ImU32  grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const ImVec2 text(cursor.x + (a_situationIndent ? SituationNameInset() : RowTextShift()), cursor.y + kSelectRowPadY * g_scale);
-		const float  markX = text.x + ImGui::CalcTextSize(a_text).x + ImGui::CalcTextSize(" ").x;
+		const Caps   caps(a_text);
+		const float  markX = text.x + ImGui::CalcTextSize(caps.c_str()).x + ImGui::CalcTextSize(" ").x;
 		const ImVec2 markSize = ImGui::CalcTextSize(kHelpMark);
 		auto*        draw = ImGui::GetWindowDrawList();
-		draw->AddText(text, grey, a_text);
+		draw->AddText(text, grey, caps.c_str());
 		draw->AddText(ImVec2(markX, text.y), grey, kHelpMark);
 		PopSmallFont();
 		return ImGui::IsMouseHoveringRect(ImVec2(markX, text.y), ImVec2(markX + markSize.x, text.y + markSize.y));
