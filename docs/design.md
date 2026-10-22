@@ -49,7 +49,7 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
 put on armor they own there (a helmet, a shield). Accepted for now.
 
-Pieces from the player's inventory (the window's `From Player's Inventory`) move to an NPC
+Pieces from the player's inventory (the window's `Player's Inventory`) move to an NPC
 at Apply, before the dressing, when `[Transfer] MoveFromPlayer` is on
 (`Dressing::MoveFromPlayer`): `TESObjectREFR::RemoveItem(armor, 1, kStoreInContainer,
 extraList, npc)`, the container menu's path, so the instance keeps its extra data. The copy
@@ -132,7 +132,7 @@ copies are hidden: player-given instances stay visible and takeable even while t
 of the outfit (taking back one's own item is not a dupe). Not filtered: the player's own list
 (a copy added to the player is the player's item), an NPC without a default outfit, and
 corpses (Livery forgets an actor at death, and vanilla shows a corpse's outfit items too).
-The capture window's `From #{Name}'s Inventory` follows the engine's rule: an NPC's own outfit
+The capture window's `#{Name}'s Inventory` follows the engine's rule: an NPC's own outfit
 copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list shows what the
 trade menu shows.
 
@@ -255,7 +255,7 @@ outfit (`OutfitRows::Give`) with random on puts it at the front of the list; wit
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
 the list keeps its length. The Save page's `Situations for
 #{Name}` rows give and take the outfit for the captured actor in one `Assignments::Change`, after
-the library write, with one forced redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
+the library write, with one forced redress. Manage Wardrobe's `SITUATIONS (#{Name})` edits the selected outfit's rows (Default
 included) with it; Update makes them at once (`Assignments::ChangeRows`) and dresses them
 once as Manage Situations does, and its `Apply to #{Name}` dresses the
 actor for the ticked rows and takes it off the unticked ones; with none ticked it also

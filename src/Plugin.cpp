@@ -377,7 +377,7 @@ namespace
 		return armors;
 	}
 
-	// The player's armor an NPC's window lists under From Player's Inventory, as plugin armor
+	// The player's armor an NPC's window lists under Player's Inventory, as plugin armor
 	// (PluginArmor), each form once, per the settings: none with ShowPlayerInventory off, never a
 	// quest item, a favorite only with ProtectFavorites off, and a form the player wears only with
 	// ShowPlayerWornPieces on or when they carry another copy of it.
@@ -708,7 +708,16 @@ namespace
 		return choices->wornOutfit ? Library::Find(choices->wornOutfit) : nullptr;
 	}
 
-	// Moves `moving`, the pieces ticked under From Player's Inventory, to the NPC, when
+	// The Inventory page's Apply after the move: `picked` as the actor's Default, `outfit` its
+	// library outfit (0 for none), without the pieces that did not move (MovePlayerPieces).
+	// Contract: game thread; the preview has ended (the window closed).
+	void AssignMoved(RE::Actor& target, std::vector<RE::TESObjectARMO*> picked, const std::vector<RE::TESObjectARMO*>& notMoved, std::uint32_t outfit)
+	{
+		std::erase_if(picked, [&notMoved](const RE::TESObjectARMO* armor) { return std::ranges::find(notMoved, armor) != notMoved.end(); });
+		Assignments::Assign(target, picked, outfit);
+	}
+
+	// Moves `moving`, the pieces ticked under Player's Inventory, to the NPC, when
 	// MoveFromPlayer is on, and says on the HUD how many went. Returns those that did not
 	// move, which the dressing then leaves out: never a copy in their place.
 	// Contract: game thread; the preview has ended (the window closed).
@@ -730,7 +739,7 @@ namespace
 
 	// The window's Apply and Restore Outfit, and the line under the actor's name.
 	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
-	// those the window lists under From Player's Inventory moved to an NPC first (a piece
+	// those the window lists under Player's Inventory moved to an NPC first (a piece
 	// Livery put on them while the window was open is listed as theirs); with Yes in its
 	// popup the worn library outfit takes the ticks before. Restore, offered while Livery has
 	// pieces on them, ends what Livery chose for them. Both close the window first, so the
@@ -769,9 +778,7 @@ namespace
 				Assignments::Refresh(*target, notMoved);
 				return;
 			}
-			auto dressed = picked;
-			std::erase_if(dressed, [&notMoved](const RE::TESObjectARMO* armor) { return std::ranges::find(notMoved, armor) != notMoved.end(); });
-			Assignments::Assign(*target, dressed, outfit);
+			AssignMoved(*target, picked, notMoved, outfit);
 		};
 		if (!choices) {
 			return;
@@ -817,9 +824,10 @@ namespace
 		return rows;
 	}
 
-	// The Save page: its "Situations for #{Name}" rows with what the actor has in each now, and the
+	// The Save page: its "SITUATIONS (#{Name})" rows with what the actor has in each now, and the
 	// save. The library is written first; only once it took the outfit does the window close,
-	// which ends the preview, and do the rows change, in one call that redresses once.
+	// which ends the preview, and do the rows change, in one call that redresses once; Create
+	// and Apply then dresses the actor as the Inventory page's Apply does.
 	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
 	// failed write assigns nothing (CLAUDE.md §2.1).
 	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
@@ -839,17 +847,25 @@ namespace
 			const auto  outfit = saved ? saved->id : 0;
 			CaptureWindow::Close();
 			const auto target = handle.get();
-			if (outfit == 0 || !target || (save.assign.empty() && save.remove.empty())) {
+			if (outfit == 0 || !target) {
 				return;
 			}
-			Assignments::Changes changes{ .outfit = outfit };
-			for (const auto row : save.assign) {
-				changes.assign.push_back(RowSituation(row));
+			// Create and Apply: the pieces move before the rows dress anyone, so a row's dressing
+			// finds them carried; then they go on as Apply puts them on, after a Create.
+			const auto notMoved = save.apply ? MovePlayerPieces(*target, PickPieces(armors, save.fromPlayer)) : std::vector<RE::TESObjectARMO*>{};
+			if (!save.assign.empty() || !save.remove.empty()) {
+				Assignments::Changes changes{ .outfit = outfit };
+				for (const auto row : save.assign) {
+					changes.assign.push_back(RowSituation(row));
+				}
+				for (const auto row : save.remove) {
+					changes.remove.push_back(RowSituation(row));
+				}
+				Assignments::Change(*target, changes);
 			}
-			for (const auto row : save.remove) {
-				changes.remove.push_back(RowSituation(row));
+			if (save.apply) {
+				AssignMoved(*target, picked, notMoved, outfit);
 			}
-			Assignments::Change(*target, changes);
 		};
 	}
 
@@ -1216,7 +1232,7 @@ namespace
 		};
 	}
 
-	// The player's armor under From Player's Inventory, for an NPC: the forms the NPC does
+	// The player's armor under Player's Inventory, for an NPC: the forms the NPC does
 	// not carry; the others are listed once, under the NPC's own headings. Returns the armor
 	// it added.
 	// Contract: game thread; `armors` matches `pieces` index for index.

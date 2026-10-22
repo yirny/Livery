@@ -10,6 +10,13 @@ CLAUDE.md §2.1 (step 2 adds the Manage Wardrobe Update path, step 3 the window'
 The Inventory page is today's Capture page (`Page::kCapture`), titled `#{Name}'s Inventory`.
 Docs call it the Inventory page; code identifiers stay.
 
+Window-wide look: field labels, list headings (folding ones included), column labels and
+outfit tags are drawn in ASCII capitals (`Theme`'s `Caps`), the strings in code staying as
+written; count lines (`Theme::CountText`), notes, buttons and links keep their case. In
+Vanilla and Nordic a page's two columns have a faint 1px rule between them, 4px short of
+the columns' top and bottom. Tooltips sit (32, 20)px from the mouse at 1080p
+(`style.MouseCursorScale`), clear of the game's cursor.
+
 ## 1. Outfit list (step 1)
 
 The outfit list shared by the Load page, the Save page's outfit selection (the Select page)
@@ -26,7 +33,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   stay in the file, unshown, until categories can be added (design.md §8).
 - Two category groups, in this order:
   - Category: the categories above, which the Save page and Manage Wardrobe edit.
-  - Situation: the captured actor's rows (`Situations for #{Name}`) that hold the outfit
+  - Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that hold the outfit
     (Default and the situations), from `Request::assigned`. Never stored in the library.
 - Each row: the name, then under it, in grey, its tags (Tailor: in the small font; Vanilla
   and Nordic: 16px) in this order:
@@ -95,7 +102,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   shows the help. A click asks `Restore #{Name}'s original outfit?` / `This takes Livery's
   outfit off #{Name} and forgets every situational outfit chosen for them.` with `Restore` /
   `Cancel`.
-- The `From Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
+- The `Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
   is over that mark alone: `"Apply" moves the ticked pieces from your inventory to #{Name}.`
   (or `"Apply" gives #{Name} a new copy of each ticked piece; yours stay with you.`), then
   `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
@@ -147,7 +154,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   page: the outfit list (§1) on the left; on the right the selected outfit, editable:
   - name and gender, as the Save page's fields; then Category as a multi-choice dropdown of
     the window's categories, its frame naming the ticked ones or `None`.
-  - `Situations for #{Name}` with a `(?)` (the choices are this actor's own, saved with
+  - `SITUATIONS (#{Name})` with a `(?)` (the choices are this actor's own, saved with
     Update or Apply; other characters keep theirs), over a multi-choice dropdown of the
     rows, Default first, the captured actor wears the outfit for, its frame naming them
     (`Default, Town`) or `None`. The ticks are part of the edits (`ManageForm::wearsFor`),
@@ -214,7 +221,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   Load page opens, and Load adds the selected outfit's pieces to this page's ticks instead
   of replacing them: a ticked piece sharing a body slot with one of them is unticked, as a
   tick would untick it. Its pieces nobody carries stay listed, and their heading names every
-  outfit they come from (`From "A", "B" (Not Carried)`). While the Load page is open the
+  outfit they come from (`"A", "B"`). While the Load page is open the
   preview shows this page's ticks with the selected outfit added; Load and Back return to
   this page, nothing written.
 - `Use Ticked Pieces` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
