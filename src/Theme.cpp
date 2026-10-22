@@ -28,7 +28,7 @@
 // TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
 // and the resolution curve. Tailor ships its fonts; this plugin reads them from
 // Tailor's folder. The Vanilla and Nordic skins approximate the game's menus and
-// NORDIC UI with fonts this plugin ships (OFL): Barlow Condensed and Sovngarde.
+// NORDIC UI with fonts this plugin ships (OFL): Oswald and Sovngarde.
 // Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
 // author's open permission, see textures/NORDIC-UI-CREDITS.txt); Vanilla's
 // equipped mark and both skins' checkbox are the game's own
@@ -165,8 +165,8 @@ namespace
 		{ L"Poppins-Regular.ttf", 14.0f * kFontMetricScale, L"segoeui.ttf" },
 		{ L"Montserrat-Black.ttf", 18.0f * kFontMetricScale, L"seguibl.ttf" } };
 	constexpr SkinFonts kVanillaFonts{ "Vanilla", kOwnFontDir,
-		{ L"BarlowCondensed-Regular.ttf", 20.0f, L"segoeui.ttf" },
-		{ L"BarlowCondensed-SemiBold.ttf", 26.0f, L"seguisb.ttf" } };
+		{ L"Oswald-Regular.ttf", 20.0f, L"segoeui.ttf" },
+		{ L"Oswald-SemiBold.ttf", 26.0f, L"seguisb.ttf" } };
 	constexpr SkinFonts kNordicFonts{ "Nordic", kOwnFontDir,
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
 		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" } };
