@@ -337,4 +337,4 @@ python3 scripts/generate-nexus-page.py --copy
 
 ## License
 
-Copyright (c) 2026 Livery Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later. The SKSE Menu Framework header in `lib/extern/` is LGPL-2.1; the Barlow Condensed and Sovngarde fonts are under the SIL Open Font License; the Nordic skin's ornaments are NORDIC UI art by Dopesan, used under the permissions on its mod page; the placeholder piece icons are from game-icons.net under CC BY 3.0 (see `Data/SKSE/Plugins/Livery/icons/GAME-ICONS-CREDITS.txt`).
+Copyright (c) 2026 Livery Contributors. Licensed under the GNU GPL v3.0 or later; see [LICENSE](LICENSE). CommonLibSSE-NG is also GPL-3.0-or-later. The SKSE Menu Framework header in `lib/extern/` is LGPL-2.1; the Oswald and Sovngarde fonts are under the SIL Open Font License; the Nordic skin's ornaments are NORDIC UI art by Dopesan, used under the permissions on its mod page; the placeholder piece icons are from game-icons.net under CC BY 3.0 (see `Data/SKSE/Plugins/Livery/icons/GAME-ICONS-CREDITS.txt`).
