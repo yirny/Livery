@@ -253,13 +253,14 @@ The situation's details, its fields evenly spaced with no headings:
 An outfit's details, read only, in Manage Wardrobe's order (`DrawOutfitSummary`): its name
 and gender with no label, `Category`, `Situations for #{Name}` with the rows the page's edits
 give it (`Default, Town`, or `None`), then its pieces under their count line. 12px of extra
-room, then `Edit` and `Back` centred. The pieces' list ends where Edit and Back still end by
-the Situation List's bottom, so the details do not move the page's buttons; it scrolls when
-the pieces need more room, one row showing at least. Back, and Escape, show what the right
-pane showed before and the Inventory page's ticks on the preview. Edit goes to Manage
-Wardrobe with the outfit selected and on the preview, through the unsaved-changes alert when
-the page has edits (§6). A click on a situation's heading closes the details and shows the
-situation's.
+room, then `Edit` and `Back` centred. The details grow with the pieces, moving the page's
+buttons down when taller than the Situation List, as Manage Wardrobe's selection does; the
+pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every
+list keeps to, `kMaxListHeightRatio`), so the window stays on screen. Back, and Escape, show
+what the right pane showed before and the Inventory page's ticks on the preview. Edit goes to
+Manage Wardrobe with the outfit selected and on the preview, through the unsaved-changes
+alert when the page has edits (§6). A click on a situation's heading closes the details and
+shows the situation's.
 
 ## 6. Buttons and leaving
 
