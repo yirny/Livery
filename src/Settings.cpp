@@ -74,8 +74,8 @@ namespace
 			L"1 = the capture window opens with Live Preview on: the game keeps running and the character wears the ticked pieces.\n"
 			L"0 = it opens with Live Preview off and the game paused; tick Live Preview in the window to turn it on.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
-		{ kUiSection, kSkinKey, L"Tailor",
-			L"Skin of the capture window: Tailor, Vanilla or Nordic.\n"
+		{ kUiSection, kSkinKey, L"Modern",
+			L"Skin of the capture window: Modern, Vanilla or Nordic. Tailor, from earlier versions, reads as Modern.\n"
 			L"Read once when the game starts." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = the capture window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
@@ -141,7 +141,7 @@ namespace
 
 	// In SKSE Menu Framework order; the first is the default.
 	constexpr std::array<SkinOption, 3> kSkinOptions{ {
-		{ Theme::Skin::kTailor, "Tailor", L"Tailor" },
+		{ Theme::Skin::kModern, "Modern", L"Modern" },
 		{ Theme::Skin::kVanilla, "Vanilla", L"Vanilla" },
 		{ Theme::Skin::kNordic, "Nordic", L"Nordic" },
 	} };
@@ -546,7 +546,7 @@ namespace Settings
 		g_livePreview = std::wstring_view{ value } != L"0";
 		logger::info("LivePreview = {}", g_livePreview.load());
 
-		// A missing or unknown value keeps the default (Tailor).
+		// A missing or unknown value keeps the default (Modern), as Tailor does: the skin Modern replaced.
 		wchar_t skin[16]{};
 		::GetPrivateProfileStringW(kUiSection, kSkinKey, L"", skin, static_cast<DWORD>(std::size(skin)), g_iniPath.c_str());
 		for (const auto& option : kSkinOptions) {

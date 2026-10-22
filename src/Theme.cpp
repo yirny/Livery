@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants  - font files per skin, Tailor's and Nordic's palettes
+//   Constants  - font files per skin, Nordic's palette
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
-//   Styles     - one ImGuiStyle per skin and its resolution scale
+//   Styles     - one ImGuiStyle per skin (Modern's from its palette) and its resolution scale
 //   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow and SkyUI's
 //                MCM header rule (white alpha masks), the game's and NORDIC UI's
 //                equipped-item marks, the game's checkbox, dropdown arrow and scroll
@@ -12,7 +12,7 @@
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame; Vanilla's
 //                text buttons and window frame; the list headings' rule and the game's
 //                scroll bar (Vanilla and Nordic);
-//                list rows (Tailor's tick row, the SkyUI-style tick row of the
+//                list rows (Modern's tick row, the SkyUI-style tick row of the
 //                Vanilla and Nordic skins) and their hover fill (Vanilla's and
 //                Nordic's soft ellipse); the dropdown arrows; the game's
 //                checkbox of the Vanilla and Nordic skins; the fainter field
@@ -25,11 +25,12 @@
 //                outfit lists' folding ones, Manage Situations' situation headings)
 //                and outfit rows with a drag grip
 //
-// The Tailor skin copies Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
-// TailorScreen.cpp: palette, radii, spacing, font faces, Windows font fallback
-// and the resolution curve. Tailor ships its fonts; this plugin reads them from
-// Tailor's folder. The Vanilla and Nordic skins approximate the game's menus and
-// NORDIC UI with fonts this plugin ships (OFL): Oswald and Sovngarde.
+// The Modern skin began as a copy of Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
+// TailorScreen.cpp; its spacing, Windows font fallback and resolution curve are still
+// Tailor's. Its colours come from a palette (Theme::Palette; the Edge one, after Edge UI,
+// by default) and its font is Jost, standing in for Edge UI's Futura. The Vanilla and
+// Nordic skins approximate the game's menus and NORDIC UI. Every skin's fonts ship with
+// this plugin (OFL): Jost, Oswald and Sovngarde.
 // Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
 // author's open permission, see textures/NORDIC-UI-CREDITS.txt); Vanilla's
 // equipped mark and both skins' checkbox and scroll arrows are the game's own
@@ -69,18 +70,14 @@
 
 namespace
 {
-	constexpr auto kTailorFontDir = L"Data/SKSE/Plugins/Tailor/fonts";
-	constexpr auto kOwnFontDir = L"Data/SKSE/Plugins/Livery/fonts";
+	constexpr auto kFontDir = L"Data/SKSE/Plugins/Livery/fonts";
 	constexpr auto kTextureDir = L"Data/SKSE/Plugins/Livery/textures";
-
-	// Tailor's measured size adjustment for Poppins and Montserrat (its FontMetricScale).
-	constexpr float kFontMetricScale = 4.0f / 3.0f;
 
 	// Extra room under the heading (under its rule in Nordic) beyond the item spacing (pixels at 1080p).
 	constexpr float kHeadingGapExtra = 16.0f;
 	// Extra room above each field (its label and control, or a control with no label) beyond
-	// the item spacing: Tailor's, then Vanilla's and Nordic's (pixels at 1080p).
-	constexpr float kTailorSectionGap = 6.0f;
+	// the item spacing: Modern's, then Vanilla's and Nordic's (pixels at 1080p).
+	constexpr float kModernSectionGap = 6.0f;
 	constexpr float kSquareSectionGap = 8.0f;
 	// Extra room above a list's count line under it, part of the list's field (pixels at 1080p).
 	constexpr float kCountLineGap = 6.0f;
@@ -94,17 +91,17 @@ namespace
 	constexpr float kFoldChevronRatio = 0.5f;
 	constexpr float kFoldChevronStroke = 1.5f;
 
-	// Tailor 3.0's tight lists: the gap between rows, and the dropdown popup's
+	// Modern's tight lists, as Tailor 3.0's: the gap between rows, and the dropdown popup's
 	// padding (pixels at 1080p).
-	constexpr float  kTailorListRowGap = 2.0f;
-	constexpr ImVec2 kTailorDropdownPadding{ 14.0f, 10.0f };
+	constexpr float  kModernListRowGap = 2.0f;
+	constexpr ImVec2 kModernDropdownPadding{ 14.0f, 10.0f };
 	// The dropdown popup's padding in Vanilla and Nordic, which would otherwise
 	// take the window's (Nordic's is wider for its corner ornaments; pixels at 1080p).
 	constexpr ImVec2 kSquareDropdownPadding{ 20.0f, 12.0f };
-	// Width of Tailor's amber rule on a selected row's left edge (pixels at 1080p).
-	constexpr float kTailorRuleWidth = 2.0f;
+	// Width of Modern's accent rule on a selected row's left edge (pixels at 1080p).
+	constexpr float kAccentRuleWidth = 2.0f;
 	// Clear room between that rule and the row's text (pixels at 1080p).
-	constexpr float kTailorRuleGap = 8.0f;
+	constexpr float kAccentRuleGap = 8.0f;
 	// Room above and below the text of a single-choice list row; its fill covers it (pixels at 1080p).
 	constexpr float kSelectRowPadY = 4.0f;
 	// A tab of the tab column, a square with its fill, and the room between the tabs and the
@@ -144,7 +141,7 @@ namespace
 	// Room between a right-aligned preview's text and the dropdown arrow (pixels at 1080p).
 	constexpr float kAlignedArrowGap = 6.0f;
 	// How far right of the list's indent a list row's text sits in Vanilla and
-	// Nordic (pixels at 1080p); Tailor clears its rule instead (RowTextShift).
+	// Nordic (pixels at 1080p); Modern clears its rule instead (RowTextShift).
 	constexpr float kRowTextShift = 4.0f;
 	// Room above and below an underlined field's text, between it and its rule (pixels at 1080p).
 	constexpr float kUnderlinedPadY = 4.0f;
@@ -164,37 +161,22 @@ namespace
 
 	struct SkinFonts
 	{
-		const char*    skin;  // for the log
-		const wchar_t* folder;
-		FontFile       body;
-		FontFile       heading;
+		const char* skin;  // for the log
+		FontFile    body;
+		FontFile    heading;
 	};
 
-	constexpr SkinFonts kTailorFonts{ "Tailor", kTailorFontDir,
-		{ L"Poppins-Regular.ttf", 14.0f * kFontMetricScale, L"segoeui.ttf" },
-		{ L"Montserrat-Black.ttf", 18.0f * kFontMetricScale, L"seguibl.ttf" } };
-	constexpr SkinFonts kVanillaFonts{ "Vanilla", kOwnFontDir,
+	constexpr SkinFonts kModernFonts{ "Modern",
+		{ L"Jost-400-Book.ttf", 20.0f, L"segoeui.ttf" },
+		{ L"Jost-500-Medium.ttf", 26.0f, L"seguisb.ttf" } };
+	constexpr SkinFonts kVanillaFonts{ "Vanilla",
 		{ L"Oswald-Regular.ttf", 22.0f, L"segoeui.ttf" },
 		{ L"Oswald-SemiBold.ttf", 28.0f, L"seguisb.ttf" } };
-	constexpr SkinFonts kNordicFonts{ "Nordic", kOwnFontDir,
+	constexpr SkinFonts kNordicFonts{ "Nordic",
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
 		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" } };
 
-	// Tailor's Forge palette (only the tokens this window uses).
-	constexpr ImU32 kFloor = IM_COL32(26, 19, 12, 255);
-	constexpr ImU32 kSurface = IM_COL32(28, 24, 19, 255);
-	constexpr ImU32 kRaised = IM_COL32(42, 33, 24, 255);
-	constexpr ImU32 kAmber = IM_COL32(245, 158, 11, 255);
-	constexpr ImU32 kAmberLight = IM_COL32(251, 191, 36, 255);
-	constexpr ImU32 kCopper = IM_COL32(184, 115, 51, 255);
-	constexpr ImU32 kText = IM_COL32(244, 235, 216, 255);
-	constexpr ImU32 kGhost = IM_COL32(244, 235, 216, 102);
-	constexpr ImU32 kBorder = IM_COL32(244, 235, 216, 20);
-	constexpr ImU32 kFill1 = IM_COL32(244, 235, 216, 8);
-	constexpr ImU32 kFill2 = IM_COL32(244, 235, 216, 15);
-	constexpr ImU32 kFill3 = IM_COL32(244, 235, 216, 26);
-
-	constexpr ImU32 kErrorText = IM_COL32(255, 102, 102, 255);  // every skin's error red
+	constexpr ImU32 kErrorText = IM_COL32(255, 102, 102, 255);  // the error red of Vanilla and Nordic (Modern's is its palette's)
 
 	// NORDIC UI's palette: white on smoked black, grey labels, rules and highlights.
 	constexpr ImU32 kNordicText = IM_COL32(240, 240, 240, 255);
@@ -245,10 +227,10 @@ namespace
 
 	// Render thread only.
 	ImFont*     g_defaultFont = nullptr;
-	LoadedFonts g_tailorFonts;
+	LoadedFonts g_modernFonts;
 	LoadedFonts g_vanillaFonts;
 	LoadedFonts g_nordicFonts;
-	Theme::Skin g_skin = Theme::Skin::kTailor;  // skin of the frame being built
+	Theme::Skin g_skin = Theme::Skin::kModern;  // skin of the frame being built
 	float       g_scale = 1.0f;                 // its resolution scale, for hand-drawn ornaments
 	float       g_itemSpacingY = 0.0f;          // its item spacing on the back buffer, before any push
 	ImVec2      g_listReach{};                  // how far the open BeginList list runs past the content, left and right
@@ -266,6 +248,9 @@ namespace
 	Ornament    g_scrollArrow{ nullptr, ImVec2(18.0f, 25.5f) };      // the game's scroll arrow, pointing up, in its own colours; as wide as the bar
 	Ornament    g_hoverGlow{ nullptr, ImVec2(0.0f, 0.0f) };          // a white ellipse fading out to its edges (MakeHoverGlow), stretched over a hovered row
 
+	// Modern's colours in the frame being built. Render thread only.
+	Theme::Palette g_palette;
+
 	// The piece icons by PieceIcons' key, loaded once. Render thread only.
 	std::map<std::string, IconTexture, std::less<>> g_rowIcons;
 
@@ -277,7 +262,7 @@ namespace
 		case Theme::Skin::kNordic:
 			return kNordicFonts;
 		default:
-			return kTailorFonts;
+			return kModernFonts;
 		}
 	}
 
@@ -289,7 +274,7 @@ namespace
 		case Theme::Skin::kNordic:
 			return g_nordicFonts;
 		default:
-			return g_tailorFonts;
+			return g_modernFonts;
 		}
 	}
 
@@ -379,7 +364,7 @@ namespace
 	{
 		const auto& files = FontFilesOf(a_skin);
 		auto&       loaded = LoadedFontsOf(a_skin);
-		const auto  folder = std::filesystem::current_path() / files.folder;
+		const auto  folder = std::filesystem::current_path() / kFontDir;
 		loaded.body = LoadFont(folder, files.body);
 		loaded.heading = LoadFont(folder, files.heading);
 		if (loaded.body && loaded.heading) {
@@ -596,7 +581,7 @@ namespace
 
 	// --- Styles ---------------------------------------------------------------
 
-	// Tailor's own curve, shared by every skin: 1 up to 1080p, growing to 1.75
+	// Tailor 3.0's curve, shared by every skin: 1 up to 1080p, growing to 1.75
 	// at 2160p.
 	float ResolutionScale(float a_height)
 	{
@@ -609,22 +594,58 @@ namespace
 		return (std::min)(1.75f, 4.0f / 3.0f + (a_height - 1440.0f) * (1.75f - 4.0f / 3.0f) / 720.0f);
 	}
 
-	// Tailor's ApplyTheme values. Tailor draws no title bar, so its colours
-	// here are the nearest surfaces of the same palette.
-	void SetTailorStyle(ImGuiStyle& a_style)
+	constexpr ImU32 WithAlpha(ImU32 a_color, unsigned a_alpha)
 	{
+		return (a_color & ~IM_COL32_A_MASK) | (a_alpha << IM_COL32_A_SHIFT);
+	}
+
+	// A palette colour, 0xRRGGBBAA, as ImGui packs one.
+	constexpr ImU32 PaletteColor(std::uint32_t a_rgba)
+	{
+		return IM_COL32((a_rgba >> 24) & 0xFF, (a_rgba >> 16) & 0xFF, (a_rgba >> 8) & 0xFF, a_rgba & 0xFF);
+	}
+
+	// Field labels' grey: the palette's label colour in Modern, NORDIC UI's in Vanilla and Nordic.
+	ImU32 LabelGrey()
+	{
+		return g_skin == Theme::Skin::kModern ? PaletteColor(g_palette.label) : kNordicLabel;
+	}
+
+	// The red of error text and fields: the palette's in Modern.
+	ImU32 ErrorRed()
+	{
+		return g_skin == Theme::Skin::kModern ? PaletteColor(g_palette.error) : kErrorText;
+	}
+
+	// Modern: Tailor 3.0's spacing with Edge UI's nearly square frames, in the palette's colours.
+	// The fills of fields, buttons and the scroll bar are the text colour, faint.
+	void SetModernStyle(ImGuiStyle& a_style, const Theme::Palette& a_palette)
+	{
+		constexpr float kRounding = 2.0f;        // every frame's corners (pixels at 1080p)
+		constexpr float kControlHeight = 36.0f;  // a field's or button's height (pixels at 1080p)
+		// Alphas out of 255: of the text colour for the faint fills, of black for a list's
+		// backdrop and the dimming behind a popup, of the accent for selected text.
+		constexpr unsigned kFill1 = 8;
+		constexpr unsigned kFill2 = 15;
+		constexpr unsigned kFill3 = 26;
+		constexpr unsigned kFrameFill = 10;
+		constexpr unsigned kScrollGrab = 56;
+		constexpr unsigned kListBackdrop = 64;
+		constexpr unsigned kModalDim = 150;
+		constexpr unsigned kTextSelection = 64;
+
 		a_style.WindowRounding = 0.0f;
-		a_style.ChildRounding = 10.0f;
-		a_style.FrameRounding = 8.0f;
-		a_style.PopupRounding = 10.0f;
-		a_style.GrabRounding = 6.0f;
-		a_style.ScrollbarRounding = 8.0f;
-		a_style.WindowBorderSize = 0.0f;
+		a_style.ChildRounding = kRounding;
+		a_style.FrameRounding = kRounding;
+		a_style.PopupRounding = kRounding;
+		a_style.GrabRounding = kRounding;
+		a_style.ScrollbarRounding = kRounding;
+		a_style.WindowBorderSize = 1.0f;
 		a_style.ChildBorderSize = 1.0f;
 		a_style.FrameBorderSize = 1.0f;
 		a_style.PopupBorderSize = 1.0f;
 		a_style.WindowPadding = ImVec2(24.0f, 20.0f);
-		a_style.FramePadding = ImVec2(14.0f, (40.0f - 14.0f * kFontMetricScale) / 2.0f);  // 40px controls
+		a_style.FramePadding = ImVec2(14.0f, (kControlHeight - kModernFonts.body.size) / 2.0f);
 		a_style.ItemSpacing = ImVec2(10.0f, 10.0f);
 		a_style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
 		a_style.ScrollbarSize = 12.0f;
@@ -633,38 +654,43 @@ namespace
 		a_style.DisabledAlpha = 0.45f;
 		a_style.SelectableTextAlign = ImVec2(0.0f, 0.5f);
 
-		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
-		set(ImGuiCol_Text, kText);
-		set(ImGuiCol_TextDisabled, kGhost);
-		set(ImGuiCol_WindowBg, kFloor);
-		set(ImGuiCol_ChildBg, IM_COL32(10, 8, 7, 90));
-		set(ImGuiCol_PopupBg, kSurface);
-		set(ImGuiCol_TitleBg, kSurface);
-		set(ImGuiCol_TitleBgActive, kRaised);
-		set(ImGuiCol_TitleBgCollapsed, kSurface);
-		set(ImGuiCol_ModalWindowDimBg, IM_COL32(5, 4, 2, 179));
-		set(ImGuiCol_Border, kFill3);
-		set(ImGuiCol_FrameBg, IM_COL32(244, 235, 216, 10));
-		set(ImGuiCol_FrameBgHovered, kFill2);
-		set(ImGuiCol_FrameBgActive, kFill2);
-		set(ImGuiCol_Button, kFill1);
-		set(ImGuiCol_ButtonHovered, kFill2);
-		set(ImGuiCol_ButtonActive, kFill3);
-		set(ImGuiCol_Header, IM_COL32(245, 158, 11, 31));
-		set(ImGuiCol_HeaderHovered, kRaised);  // Tailor's muted brown row hover
-		set(ImGuiCol_HeaderActive, kFill3);
-		set(ImGuiCol_CheckMark, kAmber);
-		set(ImGuiCol_SliderGrab, kCopper);
-		set(ImGuiCol_SliderGrabActive, kAmber);
-		set(ImGuiCol_Separator, kBorder);
-		set(ImGuiCol_SeparatorHovered, kAmber);
-		set(ImGuiCol_NavCursor, kAmber);
-		set(ImGuiCol_InputTextCursor, kAmberLight);
-		set(ImGuiCol_ScrollbarBg, kFill1);
-		set(ImGuiCol_ScrollbarGrab, IM_COL32(244, 235, 216, 56));
-		set(ImGuiCol_ScrollbarGrabHovered, kCopper);
-		set(ImGuiCol_ScrollbarGrabActive, kAmber);
-		set(ImGuiCol_TextSelectedBg, IM_COL32(245, 158, 11, 64));
+		const ImU32 text = PaletteColor(a_palette.text);
+		const ImU32 titleBar = PaletteColor(a_palette.titleBar);
+		const ImU32 accent = PaletteColor(a_palette.accent);
+		const ImU32 accentLight = PaletteColor(a_palette.accentLight);
+		const ImU32 rule = PaletteColor(a_palette.rule);
+		auto        set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
+		set(ImGuiCol_Text, text);
+		set(ImGuiCol_TextDisabled, PaletteColor(a_palette.label));
+		set(ImGuiCol_WindowBg, PaletteColor(a_palette.window));
+		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, kListBackdrop));
+		set(ImGuiCol_PopupBg, PaletteColor(a_palette.surface));
+		set(ImGuiCol_TitleBg, titleBar);
+		set(ImGuiCol_TitleBgActive, titleBar);
+		set(ImGuiCol_TitleBgCollapsed, titleBar);
+		set(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, kModalDim));
+		set(ImGuiCol_Border, rule);
+		set(ImGuiCol_FrameBg, WithAlpha(text, kFrameFill));
+		set(ImGuiCol_FrameBgHovered, WithAlpha(text, kFill2));
+		set(ImGuiCol_FrameBgActive, WithAlpha(text, kFill2));
+		set(ImGuiCol_Button, WithAlpha(text, kFill1));
+		set(ImGuiCol_ButtonHovered, WithAlpha(text, kFill2));
+		set(ImGuiCol_ButtonActive, WithAlpha(text, kFill3));
+		set(ImGuiCol_Header, PaletteColor(a_palette.selected));
+		set(ImGuiCol_HeaderHovered, PaletteColor(a_palette.hover));
+		set(ImGuiCol_HeaderActive, WithAlpha(text, kFill3));
+		set(ImGuiCol_CheckMark, accent);
+		set(ImGuiCol_SliderGrab, accent);
+		set(ImGuiCol_SliderGrabActive, accentLight);
+		set(ImGuiCol_Separator, rule);
+		set(ImGuiCol_SeparatorHovered, accent);
+		set(ImGuiCol_NavCursor, accent);
+		set(ImGuiCol_InputTextCursor, accentLight);
+		set(ImGuiCol_ScrollbarBg, WithAlpha(text, kFill1));
+		set(ImGuiCol_ScrollbarGrab, WithAlpha(text, kScrollGrab));
+		set(ImGuiCol_ScrollbarGrabHovered, accent);
+		set(ImGuiCol_ScrollbarGrabActive, accentLight);
+		set(ImGuiCol_TextSelectedBg, WithAlpha(accent, kTextSelection));
 	}
 
 	// Shared shape of the Vanilla and Nordic skins: no rounding, one-pixel rules.
@@ -852,7 +878,7 @@ namespace
 		const float aspect = g_headingKnot.size.x / g_headingKnot.size.y;
 		const float knotWidth = height * aspect * kKnotEnd;
 		const float capWidth = height * aspect * (1.0f - kCapStart);
-		if (g_skin == Theme::Skin::kTailor || !g_headingKnot.view || a_right - a_left < knotWidth + capWidth) {
+		if (g_skin == Theme::Skin::kModern || !g_headingKnot.view || a_right - a_left < knotWidth + capWidth) {
 			const float y = std::floor(a_midY) + 0.5f;  // on a pixel's centre, so a 1px line stays sharp
 			a_draw->AddLine(ImVec2(a_left, y), ImVec2(a_right, y), ImGui::GetColorU32(ImGuiCol_Border));
 			return;
@@ -868,7 +894,7 @@ namespace
 	// Vanilla and Nordic draw the game's scroll bar when its arrow's texture loaded.
 	bool HasSkinScrollbar()
 	{
-		return g_skin != Theme::Skin::kTailor && g_scrollArrow.view;
+		return g_skin != Theme::Skin::kModern && g_scrollArrow.view;
 	}
 
 	// The game's scroll bar track from `a_min` to `a_max` (whole pixels), laid out as its art but
@@ -964,7 +990,7 @@ namespace
 	// The skin's extra room above a field (pixels at 1080p).
 	float SectionGapAt1080()
 	{
-		return g_skin == Theme::Skin::kTailor ? kTailorSectionGap : kSquareSectionGap;
+		return g_skin == Theme::Skin::kModern ? kModernSectionGap : kSquareSectionGap;
 	}
 
 	// The item spacing to lay out a page heading's last element with, so the gap below the
@@ -1132,18 +1158,18 @@ namespace
 		draw->PopClipRect();
 	}
 
-	// How far right of the list's indent a list row's text sits: in Tailor, clear
-	// of the amber rule a selected row draws on its left edge.
+	// How far right of the list's indent a list row's text sits: in Modern, clear
+	// of the accent rule a selected row draws on its left edge.
 	float RowTextShift()
 	{
-		return (g_skin == Theme::Skin::kTailor ? kTailorRuleWidth + kTailorRuleGap : kRowTextShift) * g_scale;
+		return (g_skin == Theme::Skin::kModern ? kAccentRuleWidth + kAccentRuleGap : kRowTextShift) * g_scale;
 	}
 
-	// How far right of a list's indent a tick row's text starts: in Tailor clear of
-	// the amber rule, in Vanilla and Nordic past the equipped mark's column.
+	// How far right of a list's indent a tick row's text starts: in Modern clear of
+	// the accent rule, in Vanilla and Nordic past the equipped mark's column.
 	float TickTextShift()
 	{
-		if (g_skin == Theme::Skin::kTailor) {
+		if (g_skin == Theme::Skin::kModern) {
 			return RowTextShift();
 		}
 		const Ornament& mark = g_skin == Theme::Skin::kNordic ? g_nordicEquipped : g_vanillaEquipped;
@@ -1175,7 +1201,7 @@ namespace
 		constexpr float kScrollbarGap = 6.0f;  // between the fills and a scroll bar (pixels at 1080p)
 
 		const float fillRight = (std::min)(a_right, a_left + ImGui::GetWindowWidth() - g_listReach.y);
-		if (g_skin == Theme::Skin::kTailor || !ImGui::GetCurrentWindow()->ScrollbarY) {
+		if (g_skin == Theme::Skin::kModern || !ImGui::GetCurrentWindow()->ScrollbarY) {
 			return fillRight;
 		}
 		return fillRight - kScrollbarGap * g_scale;
@@ -1237,8 +1263,8 @@ namespace
 		}
 	}
 
-	// The fill of a hovered row from `a_min` to `a_max` (screen pixels): Tailor's muted
-	// brown; Vanilla's hover glow stretched over it, a soft white ellipse brightest at the
+	// The fill of a hovered row from `a_min` to `a_max` (screen pixels): Modern's hover
+	// colour; Vanilla's hover glow stretched over it, a soft white ellipse brightest at the
 	// row's centre (a flat tint without the texture); Nordic's selection line under it.
 	void DrawRowHover(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_rounding)
 	{
@@ -1248,7 +1274,7 @@ namespace
 			DrawNordicLine(a_draw, a_min, a_max);
 			return;
 		}
-		if (g_skin == Theme::Skin::kTailor || !g_hoverGlow.view) {
+		if (g_skin == Theme::Skin::kModern || !g_hoverGlow.view) {
 			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_HeaderHovered), a_rounding);
 			return;
 		}
@@ -1280,12 +1306,12 @@ namespace
 		}
 	}
 
-	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Tailor's faint amber,
+	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Modern's selected colour,
 	// Vanilla's selection bar, none in Nordic, whose arrow alone tells it. Hovered: the hover
 	// fill over an unselected row, and Nordic's line under any row.
 	void DrawRowFills(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, bool a_selected, bool a_hovered, float a_rounding)
 	{
-		if (a_selected && g_skin == Theme::Skin::kTailor) {
+		if (a_selected && g_skin == Theme::Skin::kModern) {
 			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_Header), a_rounding);
 		} else if (a_selected && g_skin == Theme::Skin::kVanilla) {
 			DrawSelectBar(a_draw, a_min, a_max);
@@ -1360,10 +1386,10 @@ namespace
 		a_draw->AddImage(found->second.Id(side), topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
 	}
 
-	// Tailor 3.0's selected list row: while ticked, the row's fill in the faint
-	// amber selection colour with an amber rule down its left edge; the muted
-	// brown hover fill while hovered. The text sits clear of the rule.
-	bool TailorRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
+	// Modern's tick row, marked as Tailor 3.0 marks a selected row: while ticked, the row's
+	// fill in the selected colour with an accent rule down its left edge; the hover colour
+	// while hovered. The text sits clear of the rule.
+	bool ModernRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
 	{
 		const float   height = ImGui::GetFrameHeight();
 		const ListRow row = LayOutListRow(a_cells[0], height);
@@ -1379,7 +1405,7 @@ namespace
 			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
 		}
 		if (*a_ticked) {
-			draw->AddRectFilled(row.fillMin, ImVec2(row.fillMin.x + kTailorRuleWidth * g_scale, row.fillMax.y), ImGui::GetColorU32(kAmber));
+			draw->AddRectFilled(row.fillMin, ImVec2(row.fillMin.x + kAccentRuleWidth * g_scale, row.fillMax.y), ImGui::GetColorU32(ImGuiCol_CheckMark));
 		}
 		const float right = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
 		const float textX = row.min.x + row.inset + TickTextShift();
@@ -1449,10 +1475,10 @@ namespace
 		return row.pressed;
 	}
 
-	// Tailor draws a dropdown's arrow itself too: a small amber chevron.
+	// Modern draws a dropdown's arrow itself too: a small chevron in the accent.
 	bool HasOwnDropdownArrow()
 	{
-		return g_skin == Theme::Skin::kTailor;
+		return g_skin == Theme::Skin::kModern;
 	}
 
 	// Width and height the dropdown arrow is drawn at.
@@ -1465,7 +1491,7 @@ namespace
 		return ImVec2(g_dropdownArrow.size.x * g_scale, g_dropdownArrow.size.y * g_scale);
 	}
 
-	// Tailor's chevron, or the game's texture tinted grey, white while `a_lit` (the dropdown
+	// Modern's chevron, or the game's texture tinted grey, white while `a_lit` (the dropdown
 	// hovered or open), through the style alpha.
 	void DrawDropdownArrow(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_size, bool a_lit)
 	{
@@ -1508,12 +1534,12 @@ namespace
 		case Theme::FieldLook::kHighlighted:
 			return ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
 		case Theme::FieldLook::kError:
-			return ImGui::ColorConvertU32ToFloat4(kErrorText);
+			return ImGui::ColorConvertU32ToFloat4(ErrorRed());
 		default:
 			break;
 		}
 		ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Border);
-		if (g_skin != Theme::Skin::kTailor) {
+		if (g_skin != Theme::Skin::kModern) {
 			color.w *= kFieldBorderAlpha;
 		}
 		return color;
@@ -1572,7 +1598,7 @@ namespace
 			pushed.colors += 3;
 		}
 		if (a_style.look == Theme::FieldLook::kError) {
-			ImGui::PushStyleColor(ImGuiCol_Text, kErrorText);
+			ImGui::PushStyleColor(ImGuiCol_Text, ErrorRed());
 			++pushed.colors;
 		}
 		return pushed;
@@ -1629,7 +1655,7 @@ namespace
 	Theme::FieldStyle SkinnedStyle(const Theme::FieldStyle& a_style)
 	{
 		auto style = a_style;
-		if (g_skin != Theme::Skin::kTailor && style.shape == Theme::FieldShape::kBoxed) {
+		if (g_skin != Theme::Skin::kModern && style.shape == Theme::FieldShape::kBoxed) {
 			style.shape = Theme::FieldShape::kUnderlined;
 		}
 		return style;
@@ -1781,11 +1807,11 @@ namespace
 
 	// The mark left of a selected single-choice row's text: NORDIC UI's MCM
 	// page arrow in Vanilla and Nordic (a small triangle without the texture),
-	// Tailor's amber rule on the fill's left edge.
+	// Modern's accent rule on the fill's left edge.
 	void DrawSelectMark(ImDrawList* a_draw, const ListRow& a_row, float a_textX)
 	{
-		if (g_skin == Theme::Skin::kTailor) {
-			a_draw->AddRectFilled(a_row.fillMin, ImVec2(a_row.fillMin.x + kTailorRuleWidth * g_scale, a_row.fillMax.y), ImGui::GetColorU32(kAmber));
+		if (g_skin == Theme::Skin::kModern) {
+			a_draw->AddRectFilled(a_row.fillMin, ImVec2(a_row.fillMin.x + kAccentRuleWidth * g_scale, a_row.fillMax.y), ImGui::GetColorU32(ImGuiCol_CheckMark));
 			return;
 		}
 		// Centred in the indent between the list's left edge and the text.
@@ -1819,11 +1845,6 @@ namespace
 	private:
 		std::array<char, 256> _buffer{};
 	};
-
-	constexpr ImU32 WithAlpha(ImU32 a_color, unsigned a_alpha)
-	{
-		return (a_color & ~IM_COL32_A_MASK) | (a_alpha << IM_COL32_A_SHIFT);
-	}
 
 	// The square a tab column icon is drawn in; its points are given as fractions of the side.
 	struct IconFrame
@@ -1955,19 +1976,12 @@ namespace
 	}
 
 	// A drag grip placed by `a_grip` from a row's left edge `a_left`, its middle dots at `a_midY`
-	// (screen pixels): two columns of three dots, in LabelText's grey at low alpha (Vanilla,
-	// Nordic), or Tailor's text colour mixed with black.
+	// (screen pixels): two columns of three dots, in LabelText's grey at low alpha.
 	void DrawGrip(ImDrawList* a_draw, float a_left, float a_midY, Theme::Grip a_grip)
 	{
-		constexpr unsigned kGreyAlpha = 110;     // of LabelText's grey, out of 255
-		constexpr float    kTailorShade = 0.5f;  // of Tailor's text colour kept, the rest black
+		constexpr unsigned kGreyAlpha = 110;  // of LabelText's grey, out of 255
 
-		ImU32 color = WithAlpha(kNordicLabel, kGreyAlpha);
-		if (g_skin == Theme::Skin::kTailor) {
-			const ImVec4 text = ImGui::ColorConvertU32ToFloat4(kText);
-			color = ImGui::ColorConvertFloat4ToU32(ImVec4(text.x * kTailorShade, text.y * kTailorShade, text.z * kTailorShade, text.w));
-		}
-		color = ImGui::GetColorU32(color);  // faded inside BeginDisabled
+		const ImU32 color = ImGui::GetColorU32(WithAlpha(LabelGrey(), kGreyAlpha));  // faded inside BeginDisabled
 		const float radius = GripDotRadius();
 		const float firstX = a_left + GripPadX(a_grip) + radius;  // the left column's centres
 		const float step = kGripDotStep * g_scale;
@@ -2074,7 +2088,7 @@ namespace
 		return side + ImGui::GetStyle().ItemInnerSpacing.x;
 	}
 
-	// The rule beside the tab column: Tailor's 1px border (its sidebar divider), Vanilla's
+	// The rule beside the tab column: Modern's 1px rule (Tailor 3.0's sidebar divider), Vanilla's
 	// 2px rule, Nordic's rope, or 1px without its texture (pixels on the back buffer).
 	float TabRuleWidth()
 	{
@@ -2091,10 +2105,10 @@ namespace
 	// put it (pixels on the back buffer).
 	float LabelGapTrim()
 	{
-		constexpr float kTailorTrim = 3.0f;  // pixels at 1080p
+		constexpr float kModernTrim = 3.0f;  // pixels at 1080p
 		constexpr float kSquareTrim = 5.0f;  // Vanilla and Nordic, pixels at 1080p
 
-		return (g_skin == Theme::Skin::kTailor ? kTailorTrim : kSquareTrim) * g_scale;
+		return (g_skin == Theme::Skin::kModern ? kModernTrim : kSquareTrim) * g_scale;
 	}
 
 	// Item spacing for a field label's line: a little tighter than the style's,
@@ -2105,14 +2119,14 @@ namespace
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - LabelGapTrim())));
 	}
 
-	// LabelText's colour, or the lit one while hovered: amber in Tailor, whose label
-	// is already the text colour.
+	// LabelText's grey, or the lit colour while hovered: the accent in Modern, the text
+	// colour in Vanilla and Nordic.
 	ImU32 LinkColor(bool a_hovered)
 	{
-		if (g_skin == Theme::Skin::kTailor) {
-			return a_hovered ? ImGui::GetColorU32(kAmber) : ImGui::GetColorU32(ImGuiCol_Text);
+		if (!a_hovered) {
+			return ImGui::GetColorU32(LabelGrey());
 		}
-		return a_hovered ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(kNordicLabel);
+		return ImGui::GetColorU32(g_skin == Theme::Skin::kModern ? ImGuiCol_CheckMark : ImGuiCol_Text);
 	}
 
 	// A link's click area at the cursor, `a_size` (screen pixels, at least 1 each way), with
@@ -2189,7 +2203,7 @@ namespace Theme
 		g_defaultFont = ImGui::GetIO().Fonts->AddFontDefaultVector();
 		MergeWindowsFonts(L"segoeui.ttf");
 
-		LoadSkinFonts(Skin::kTailor);
+		LoadSkinFonts(Skin::kModern);
 		LoadSkinFonts(Skin::kVanilla);
 		LoadSkinFonts(Skin::kNordic);
 	}
@@ -2224,9 +2238,10 @@ namespace Theme
 		}
 	}
 
-	void Apply(Skin a_skin, float a_displayHeight)
+	void Apply(Skin a_skin, const Palette& a_palette, float a_displayHeight)
 	{
 		g_skin = a_skin;
+		g_palette = a_palette;
 		ImGuiStyle style;
 		switch (a_skin) {
 		case Skin::kVanilla:
@@ -2236,7 +2251,7 @@ namespace Theme
 			SetNordicStyle(style);
 			break;
 		default:
-			SetTailorStyle(style);
+			SetModernStyle(style, a_palette);
 			break;
 		}
 
@@ -2259,7 +2274,7 @@ namespace Theme
 
 	bool HasTitleBar()
 	{
-		return g_skin == Skin::kTailor;
+		return g_skin == Skin::kModern;
 	}
 
 	bool HasPopupTitleBar()
@@ -2409,11 +2424,8 @@ namespace Theme
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kCountLineGap * g_scale);
 		}
 		// The gap below an item comes from the item spacing in force while it is laid out.
-		const bool grey = g_skin != Skin::kTailor;
 		PushLabelSpacing();
-		if (grey) {
-			ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);  // NORDIC UI's label grey, in Vanilla too
-		}
+		ImGui::PushStyleColor(ImGuiCol_Text, LabelGrey());
 		if (a_small) {
 			PushSmallFont();
 		} else {
@@ -2421,9 +2433,7 @@ namespace Theme
 		}
 		ImGui::TextUnformatted(a_text);
 		ImGui::PopFont();
-		if (grey) {
-			ImGui::PopStyleColor();
-		}
+		ImGui::PopStyleColor();
 		ImGui::PopStyleVar();
 	}
 
@@ -2538,7 +2548,7 @@ namespace Theme
 		}
 	}
 
-	// Tailor: ImGui's button with nothing in its label, sized for the text, which
+	// Modern: ImGui's button with nothing in its label, sized for the text, which
 	// DrawButtonText draws in two colours.
 	bool HelpButton(const char* a_label, bool* a_hovered)
 	{
@@ -2634,7 +2644,7 @@ namespace Theme
 
 	bool TickRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const RowIcon& a_icon)
 	{
-		return g_skin == Skin::kTailor ? TailorRow(a_cells, a_columnX, a_ticked, a_icon) : InventoryRow(a_cells, a_columnX, a_ticked, a_icon);
+		return g_skin == Skin::kModern ? ModernRow(a_cells, a_columnX, a_ticked, a_icon) : InventoryRow(a_cells, a_columnX, a_ticked, a_icon);
 	}
 
 	float RowIconRoom()
@@ -2654,8 +2664,6 @@ namespace Theme
 		return clicked;
 	}
 
-	// Unselected, Tailor's icon is ghosted: its LabelText is the text colour, which the
-	// selected tab has.
 	bool Tab(TabIcon a_icon, const char* a_name, bool a_selected)
 	{
 		constexpr float kIconInset = 0.12f;      // of the side, between the fill's edge and the icon
@@ -2669,11 +2677,9 @@ namespace Theme
 		auto*        draw = ImGui::GetWindowDrawList();
 		ImU32        color = LinkColor(hovered);
 		if (a_selected) {
-			const float rounding = g_skin == Skin::kTailor ? ImGui::GetStyle().FrameRounding : kSquareRounding * g_scale;
+			const float rounding = g_skin == Skin::kModern ? ImGui::GetStyle().FrameRounding : kSquareRounding * g_scale;
 			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImGui::GetColorU32(ImGuiCol_Header), rounding);
 			color = ImGui::GetColorU32(ImGuiCol_Text);
-		} else if (!hovered && g_skin == Skin::kTailor) {
-			color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		}
 		const IconFrame frame{ ImVec2(topLeft.x + side * kIconInset, topLeft.y + side * kIconInset), side * (1.0f - kIconInset * 2.0f) };
 		const float     thick = (std::max)(1.0f, kLineWidth * g_scale);
@@ -2750,7 +2756,7 @@ namespace Theme
 		constexpr float kInset = 4.0f;  // pixels at 1080p, off each end
 		constexpr float kAlpha = 0.5f;  // of the rule colour's own
 
-		if (g_skin == Skin::kTailor) {
+		if (g_skin == Skin::kModern) {
 			return;
 		}
 		const float inset = kInset * g_scale;
@@ -2770,18 +2776,16 @@ namespace Theme
 			}
 			return pressed;
 		}
-		if (g_skin != Skin::kTailor) {
+		if (g_skin != Skin::kModern) {
 			return ImGui::Checkbox(a_label, a_value);
 		}
-		// Tailor: ImGui's checkbox with a smaller, rounder box than its 40px
-		// controls would give (the box is the frame height).
+		// Modern: ImGui's checkbox with a smaller box than its controls would give (the box
+		// is the frame height).
 		constexpr float kBoxPaddingY = 2.0f;  // pixels at 1080p, above and below the tick
-		constexpr float kBoxRounding = 5.0f;  // pixels at 1080p
 
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, kBoxPaddingY * g_scale));
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, kBoxRounding * g_scale);
 		const bool toggled = ImGui::Checkbox(a_label, a_value);
-		ImGui::PopStyleVar(2);
+		ImGui::PopStyleVar();
 		return toggled;
 	}
 
@@ -2820,13 +2824,13 @@ namespace Theme
 
 	unsigned ErrorColor()
 	{
-		return kErrorText;
+		return ErrorRed();
 	}
 
 	bool BeginCombo(const char* a_id, int a_flags, const FieldStyle& a_style)
 	{
 		// The popup takes the window padding and border colour in force as BeginCombo opens it.
-		const ImVec2 padding = g_skin == Skin::kTailor ? kTailorDropdownPadding : kSquareDropdownPadding;
+		const ImVec2 padding = g_skin == Skin::kModern ? kModernDropdownPadding : kSquareDropdownPadding;
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding.x * g_scale, padding.y * g_scale));
 		const auto pushed = PushFieldStyle(SkinnedStyle(a_style));
 		// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
@@ -2895,7 +2899,7 @@ namespace Theme
 
 	float ListRowGap(float a_fallback)
 	{
-		return g_skin == Skin::kTailor ? kTailorListRowGap * g_scale : a_fallback;
+		return g_skin == Skin::kModern ? kModernListRowGap * g_scale : a_fallback;
 	}
 
 	bool BeginList(const char* a_id, float a_height, bool a_rules)
@@ -2904,8 +2908,8 @@ namespace Theme
 		// Vanilla and Nordic: past the content across the window's padding to its
 		// edges, Vanilla's right one only to its frame's band (DrawVanillaFrame), which a
 		// scrollbar drawn after it would cover; in a table, only on the table's outer sides,
-		// so the gap between columns stays clear. Tailor: within the content, as its fields are.
-		const float padding = g_skin == Skin::kTailor ? 0.0f : ImGui::GetStyle().WindowPadding.x;
+		// so the gap between columns stays clear. Modern: within the content, as its fields are.
+		const float padding = g_skin == Skin::kModern ? 0.0f : ImGui::GetStyle().WindowPadding.x;
 		const float band = g_skin == Skin::kVanilla ? VanillaBandWidth() : 0.0f;
 		float       left = padding;
 		float       right = padding - band;
@@ -3015,7 +3019,7 @@ namespace Theme
 		const float   midY = (row.min.y + row.max.y) * 0.5f;
 		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float   thick = FoldChevronThickness();
-		// Half the stroke in, so its outer edge sits on the list's edge; in Tailor that edge is
+		// Half the stroke in, so its outer edge sits on the list's edge; in Modern that edge is
 		// the list's clip, which would cut the stroke.
 		const float left = row.fillMin.x + thick * 0.5f;
 		auto*       draw = ImGui::GetWindowDrawList();
@@ -3131,7 +3135,7 @@ namespace Theme
 	}
 
 	// Nordic's arrow column, then the checkbox at the row's start (Vanilla and Nordic, the
-	// game's box) or the check mark at its right end (Tailor, or a missing texture), then
+	// game's box) or the check mark at its right end (Modern, or a missing texture), then
 	// the label.
 	bool DropdownRow(const char* a_label, bool* a_ticked, bool a_checkbox)
 	{
@@ -3261,15 +3265,15 @@ namespace Theme
 			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(IM_COL32(255, 255, 255, kStripeAlpha)));
 		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
-		// Selected: Tailor's rule on the row's edge (DrawSelectMark), which leaves the grip room;
+		// Selected: Modern's rule on the row's edge (DrawSelectMark), which leaves the grip room;
 		// Vanilla's equipped mark, as on a ticked piece, or Nordic's select arrow (its equipped
 		// mark stays the inventory's), 2px right of the centre of the room left of the name, or
 		// centred left of the dots at the name's place; at the edge it takes the dots' place,
 		// shrunk to fit.
 		const float nameMidY = textY + ImGui::GetTextLineHeight() * 0.5f;
-		const bool  tailor = g_skin == Theme::Skin::kTailor;
-		const bool  markOnGrip = a_selected && !tailor && a_grip == Grip::kEdge;
-		if (a_selected && tailor) {
+		const bool  modern = g_skin == Theme::Skin::kModern;
+		const bool  markOnGrip = a_selected && !modern && a_grip == Grip::kEdge;
+		if (a_selected && modern) {
 			DrawSelectMark(draw, row, textX);
 		} else if (a_selected) {
 			const float  left = markOnGrip ? row.fillMin.x : row.min.x;
