@@ -101,6 +101,7 @@ else()
         src/OutfitBrowser.cpp
         src/OutfitPages.cpp
         src/OutfitPreview.cpp
+        src/PieceIcons.cpp
         src/Plugin.cpp
         src/PreviewCamera.cpp
         src/Settings.cpp

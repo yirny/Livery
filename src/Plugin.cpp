@@ -11,8 +11,8 @@
 //                    stand (MovementHold) while the window is open, and every close of the window,
 //                    a save included, ends them all
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
-//                    armor (and for an NPC the player's, per the settings), each piece with its group and
-//                    SkyUI's Type and Class (ArmorInfo), detect the class, list the library's outfits (adding
+//                    armor (and for an NPC the player's, per the settings), each piece with its group,
+//                    SkyUI's Type and Class (ArmorInfo) and its icon (PieceIcons), detect the class, list the library's outfits (adding
 //                    their pieces nobody carries), then open the window with the worn pieces ticked (or save
 //                    those under an automatic name where the overlay is unavailable); the window's Save
 //                    writes the library, then changes the actor's rows (Assignments::Change); Apply moves
@@ -32,7 +32,7 @@
 //                    (Assignments::ForgetSituation) and takes those wearing it out of it as
 //                    Remove does; Restore Presets writes situations.json
 //   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
-//   Messaging      - situation data and outfit library, settings page, sink and menu registration,
+//   Messaging      - situation data, outfit library and piece icon rules, settings page, sink and menu registration,
 //                    ready state, the situation poll (Situations) around loads
 //   Entry          - log, settings, co-save, trampoline, hooks (overlay, trade-menu filter)
 #include "PCH.h"
@@ -45,6 +45,7 @@
 #include "Library.h"
 #include "MovementHold.h"
 #include "OutfitPreview.h"
+#include "PieceIcons.h"
 #include "PreviewCamera.h"
 #include "Settings.h"
 #include "SituationStore.h"
@@ -519,12 +520,13 @@ namespace
 		return found != kSlotPriority.end() ? static_cast<int>(found - kSlotPriority.begin()) : -1;
 	}
 
-	// A row of the window's piece list, with SkyUI's Type and Class (ArmorInfo) and what the
-	// window's suggested class and gender need.
+	// A row of the window's piece list, with SkyUI's Type and Class (ArmorInfo), its icon and
+	// what the window's suggested class and gender need.
 	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected)
 	{
 		const auto type = ArmorInfo::TypeOf(armor);
 		const auto armorClass = ArmorInfo::ClassOf(armor);
+		auto       icon = PieceIcons::Resolve(armor);
 		return { .name = DisplayName(armor),
 			.selected = selected,
 			.slots = armor.GetSlotMask().underlying(),
@@ -534,7 +536,9 @@ namespace
 			.armorClass = ArmorInfo::ClassName(armorClass),
 			.classOrder = static_cast<int>(armorClass),
 			.suggestRank = SuggestRank(armor),
-			.femaleOnly = IsFemaleOnly(armor) };
+			.femaleOnly = IsFemaleOnly(armor),
+			.icon = std::move(icon.key),
+			.iconColor = icon.color };
 	}
 
 	// The group of a piece the actor carries: worn and put on by Livery from the library
@@ -1412,6 +1416,7 @@ namespace
 		case SKSE::MessagingInterface::kDataLoaded:
 			SituationStore::Load();  // before any co-save load, which drops the rows of removed situations
 			Library::Load();         // pieces resolve against the loaded plugins, so not before this
+			PieceIcons::Load();      // its rule files go by the loaded plugins' names
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
 			Assignments::RegisterSinks();
 			Hooks::RegisterMenu();

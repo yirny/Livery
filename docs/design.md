@@ -353,3 +353,27 @@ Each stage ends with an in-game check before the next starts.
     the window open, then New Game; the player's left-hand weapon back after a shield
     preview; tempered player gear after Cancel; a follower's given armor gone after Load
     Outfit + Cancel (seen while Tailor managed her).
+
+## 9. Piece icons
+
+- The piece list draws an icon left of each piece's name (`src/PieceIcons.cpp` picks it,
+  `Theme::TickRow` draws it). An icon is a white PNG, square, any size, tinted on draw, at
+  `Data/SKSE/Plugins/Livery/icons/<iconSource without .swf>/<iconLabel>.png`, matched ASCII
+  case-insensitively. Every PNG there is loaded at the overlay's start with its halvings
+  down to 1 pixel, and a row draws the smallest one still as wide as the icon on screen:
+  ImGui's DX11 sampler reads only a view's top level, so each halving has its own view.
+- A piece starts with the icon SkyUI 5 gives its armor (`processArmorIcon`): the label by
+  weight class and main slot (`lightarmor_*`, `armor_*`, `clothing_*`; `armor_amulet`,
+  `armor_ring`, `armor_circlet`; else `default_armor`) under `skyui/icons_item_psychosteve`,
+  tinted `#756000` for Light, `#6B7585` for Heavy and `#EDDA87` otherwise.
+- Then the rules of Inventory Interface Information Injector (I4), read at `kDataLoaded`
+  as I4 reads them: `SKSE/Plugins/InventoryInjector/<plugin>.json` for each active plugin,
+  in load order. Each rule a piece matches sets the icon and the colour it assigns, so a
+  later rule wins field by field. Livery reads only the rules for `formType: "Armor"` whose
+  match uses `keywords`, `formId` and `parts` alone; an array there is conditions that must
+  all hold, `{"anyOf": [...]}` one met by any of its values. A rule's icon whose PNG is
+  missing is ignored and the earlier icon stays; a rule without `iconSource` names
+  SkyUI's swf.
+- Keywords are tested by editor ID when the window lists the pieces, so those KID adds count.
+- The PNGs under SkyUI's labels are game-icons.net placeholders (CC BY 3.0,
+  `icons/GAME-ICONS-CREDITS.txt`) until permitted art replaces them.

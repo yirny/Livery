@@ -2,8 +2,10 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 #include <string>
+#include <string_view>
 
 struct ID3D11Device;
 
@@ -23,7 +25,8 @@ namespace Theme
 	void LoadFonts();
 
 	// Contract: render thread, once, on the game's D3D11 device. Loads the
-	// Vanilla and Nordic skins' textures; they live as long as the process.
+	// Vanilla and Nordic skins' textures and the piece icons (PieceIcons::FindFiles);
+	// they live as long as the process.
 	void LoadTextures(ID3D11Device* device);
 
 	// Contract: render thread, before ImGui::NewFrame. Rebuilds the whole style
@@ -156,7 +159,8 @@ namespace Theme
 	float ListRowGap(float fallback);
 
 	// Columns of a header row and the tick rows under it: each column's left edge
-	// in pixels from where a tick row's text starts, the first at 0, ascending. A
+	// in pixels from where a tick row's text starts, the first at 0 (RowIconRoom when the
+	// rows have icons), ascending. A
 	// cell's text ends, with an ellipsis, ColumnGap() short of the next column, and
 	// the last column's at the row's right end.
 	//
@@ -182,10 +186,21 @@ namespace Theme
 	// like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a white
 	// bar fading in from the left. Hovered: Tailor's brown, Vanilla's soft white
 	// ellipse, NORDIC UI's selection line under the row.
+	// With `icon`, the icon's texture is drawn where the row's text starts, centred on the row,
+	// tinted; a key with no texture draws nothing.
 	// Contract: inside BeginList, one cell per column; the cells are shown as is
 	// and the first is the row's ImGui ID, so PushID around rows whose first cells
-	// may repeat.
-	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked);
+	// may repeat. Rows with icons start their first column at RowIconRoom.
+	struct RowIcon
+	{
+		std::string_view key;      // PieceIcons' key; "" for none
+		std::uint32_t    rgb = 0;  // the white icon's tint, 0xRRGGBB
+	};
+	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked, const RowIcon& icon = {});
+
+	// Pixels on the back buffer a tick row's icon takes left of its first column: the icon,
+	// 0.8 of the row's height square, and a 6px gap; 0 when no icon texture loaded.
+	float RowIconRoom();
 
 	// A row of a single-choice list, SelectRowHeight tall, its text a little right of the
 	// list's indent; returns true when clicked. A selected row is marked left of its text:
