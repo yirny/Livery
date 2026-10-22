@@ -19,7 +19,9 @@ the columns' top and bottom. Tooltips sit (32, 20)px from the mouse at 1080p
 a list heading's text (folding outfit list headings, Manage Situations' situation headings)
 is SkyUI's MCM header rule, knot at its left end, in the headings' grey; lists and dropdown
 popups scroll with the game's journal scroll bar, 16px wide at 1080p with 2px clear on
-either side (Tailor keeps a 1px rule and ImGui's bar).
+either side: its arrows are the game's art, its track and thumb drawn in code with 1px lines
+at any resolution, the thumb's rim and its fill while held in the track's light grey
+(#cccccc) (Tailor keeps a 1px rule and ImGui's bar).
 
 ## 1. Outfit list (step 1)
 
