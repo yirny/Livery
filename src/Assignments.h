@@ -60,7 +60,8 @@ namespace Assignments
 	// Manage Situations' Save Changes: their rows become `a_rows` (the rows of situations
 	// removed in situations.json stay empty), and with `a_dropDefaultPieces` the Default's
 	// pieces go. Nobody is dressed here: Refresh with the returned pick dresses them for the new
-	// rows. Returns the outfit a random row they wear now gained first, which that dressing
+	// rows, and ends the record when that leaves nothing on them and no situation row holding
+	// an outfit. Returns the outfit a random row they wear now gained first, which that dressing
 	// wears as the row's pick, 0 for none; nullopt when they cannot be dressed (a HUD message
 	// says why), with nothing changed.
 	// Contract: game thread.

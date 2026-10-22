@@ -992,7 +992,8 @@ namespace Assignments
 		if (a_dropDefaultPieces) {
 			assignment.defaultPieces.clear();
 		}
-		DropIfEmpty(id);
+		// Contract: no DropIfEmpty here. The record of someone Livery has nothing on yet would
+		// end before the Refresh that dresses them; that dressing ends it if nothing goes on.
 		SyncManaged();
 		return pick;
 	}
