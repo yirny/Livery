@@ -512,7 +512,15 @@ namespace
 		return -1;
 	}
 
-	// A row of the window's piece list, with SkyUI's Type and Class (ArmorInfo).
+	// Index of the first kSlotPriority slot the armor covers; -1 for none.
+	int SuggestRank(const RE::TESObjectARMO& armor)
+	{
+		const auto found = std::ranges::find_if(kSlotPriority, [&](const auto slot) { return armor.HasPartOf(slot); });
+		return found != kSlotPriority.end() ? static_cast<int>(found - kSlotPriority.begin()) : -1;
+	}
+
+	// A row of the window's piece list, with SkyUI's Type and Class (ArmorInfo) and what the
+	// window's suggested class and gender need.
 	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected)
 	{
 		const auto type = ArmorInfo::TypeOf(armor);
@@ -524,7 +532,9 @@ namespace
 			.type = type.name,
 			.typeOrder = type.order,
 			.armorClass = ArmorInfo::ClassName(armorClass),
-			.classOrder = static_cast<int>(armorClass) };
+			.classOrder = static_cast<int>(armorClass),
+			.suggestRank = SuggestRank(armor),
+			.femaleOnly = IsFemaleOnly(armor) };
 	}
 
 	// The group of a piece the actor carries: worn and put on by Livery from the library
@@ -1226,20 +1236,15 @@ namespace
 	// the window itself never calls the library).
 	// Every inventory piece is listed, the worn ones under the library outfit Livery put on
 	// them, Livery's pieces that are not one, or those Livery did not put on; worn ones start
-	// ticked and decide the suggested class and gender. For an NPC the player's armor follows
-	// (AddPlayerPieces), then the library outfits' other pieces, for Load Outfit.
+	// ticked. For an NPC the player's armor follows (AddPlayerPieces), then the library
+	// outfits' other pieces, for Load Outfit. The window suggests the class and gender from
+	// the ticked pieces (Piece::suggestRank, Piece::femaleOnly).
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
 		request.suggestedName = NextAutomaticName();
 		request.categories = CategoryGroups();
-		const auto  worn = WornArmors(inventory);
-		const auto* armorClass = DetectArmorClass(worn);
-		for (auto& category : request.categories) {
-			category.selected = category.group == CaptureWindow::kClassGroup && category.name == armorClass;
-		}
-		request.suggestedGender = DetectGender(worn);
 		const auto  choices = Assignments::ChoicesOf(actor.GetFormID());
 		const auto* livery = WornLibraryOutfit(choices);
 		if (livery) {
