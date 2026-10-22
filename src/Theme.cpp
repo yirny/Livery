@@ -1217,16 +1217,27 @@ namespace
 
 	// Vanilla's selection bar: white fading in from the left edge to the right, as SkyUI's
 	// inventory marks a row, its right end a point as NORDIC UI's inventory bar's.
+	// One shape, so no seam shows where the point meets the bar: its vertices' alpha is then set by
+	// their x, keeping the anti-aliased fringe's fade (as ImGui::ShadeVertsLinearColorGradientKeepAlpha
+	// sets colours).
 	void DrawSelectBar(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
 	{
 		constexpr float kPointRatio = 0.4f;  // the point's length, of the bar's height
 
-		const ImU32 clear = ImGui::GetColorU32(IM_COL32(255, 255, 255, 0));
-		const ImU32 white = ImGui::GetColorU32(IM_COL32(255, 255, 255, kSelectBarAlpha));
-		const float point = (std::min)((a_max.y - a_min.y) * kPointRatio, a_max.x - a_min.x);
-		const float base = a_max.x - point;
-		a_draw->AddRectFilledMultiColor(a_min, ImVec2(base, a_max.y), clear, white, white, clear);
-		a_draw->AddTriangleFilled(ImVec2(base, a_min.y), ImVec2(a_max.x, (a_min.y + a_max.y) * 0.5f), ImVec2(base, a_max.y), white);
+		const float  point = (std::min)((a_max.y - a_min.y) * kPointRatio, a_max.x - a_min.x);
+		const float  base = a_max.x - point;
+		const ImVec2 outline[] = { a_min, ImVec2(base, a_min.y), ImVec2(a_max.x, (a_min.y + a_max.y) * 0.5f), ImVec2(base, a_max.y),
+			ImVec2(a_min.x, a_max.y) };  // clockwise on screen, as ImGui's anti-aliased fill needs
+		const int    first = a_draw->VtxBuffer.Size;
+		a_draw->AddConvexPolyFilled(outline, static_cast<int>(std::size(outline)), IM_COL32_WHITE);  // opaque, so its alpha is the fringe's alone
+		const float span = (std::max)(1.0f, base - a_min.x);
+		const float alpha = ImGui::GetStyle().Alpha * static_cast<float>(kSelectBarAlpha);  // the bar's right end, as GetColorU32 would fade it
+		for (int i = first; i < a_draw->VtxBuffer.Size; ++i) {
+			auto&       vertex = a_draw->VtxBuffer[i];
+			const float fringe = static_cast<float>((vertex.col >> IM_COL32_A_SHIFT) & 0xFF) / 255.0f;  // 0 on the fringe's outer edge
+			const float fade = std::clamp((vertex.pos.x - a_min.x) / span, 0.0f, 1.0f);
+			vertex.col = (vertex.col & ~IM_COL32_A_MASK) | (static_cast<ImU32>(std::lround(alpha * fade * fringe)) << IM_COL32_A_SHIFT);
+		}
 	}
 
 	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Tailor's faint amber,
