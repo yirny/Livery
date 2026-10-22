@@ -17,7 +17,8 @@
 //                    those under an automatic name where the overlay is unavailable); the window's Save
 //                    writes the library, then changes the actor's rows (Assignments::Change); Apply moves
 //                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
-//                    and dresses them (Assignments); Restore Outfit goes to Assignments;
+//                    and dresses them (Assignments) with the window open (DressCaptured), as
+//                    Manage Wardrobe's Apply does; Restore Outfit goes to Assignments;
 //                    Manage Wardrobe' Update writes the library and redresses the actor when they
 //                    wear the outfit; its Remove writes the library, clears the outfit from the
 //                    assignments (Assignments::ForgetOutfit) and takes those wearing it for a
@@ -690,7 +691,7 @@ namespace
 
 	// The Inventory page's Apply after the move: `picked` as the actor's Default, `outfit` its
 	// library outfit (0 for none), without the pieces that did not move (MovePlayerPieces).
-	// Contract: game thread; the preview has ended (the window closed).
+	// Contract: game thread; no preview is on (DressCaptured, or the window closed).
 	void AssignMoved(RE::Actor& target, std::vector<RE::TESObjectARMO*> picked, const std::vector<RE::TESObjectARMO*>& notMoved, std::uint32_t outfit)
 	{
 		std::erase_if(picked, [&notMoved](const RE::TESObjectARMO* armor) { return std::ranges::find(notMoved, armor) != notMoved.end(); });
@@ -700,7 +701,7 @@ namespace
 	// Moves `moving`, the pieces ticked under Player's Inventory, to the NPC, when
 	// MoveFromPlayer is on, and says on the HUD how many went. Returns those that did not
 	// move, which the dressing then leaves out: never a copy in their place.
-	// Contract: game thread; the preview has ended (the window closed).
+	// Contract: game thread; no preview is on (DressCaptured, or the window closed).
 	std::vector<RE::TESObjectARMO*> MovePlayerPieces(RE::Actor& npc, const std::vector<RE::TESObjectARMO*>& moving)
 	{
 		auto* player = RE::PlayerCharacter::GetSingleton();
@@ -715,64 +716,6 @@ namespace
 		}
 		Notify(text + ".");
 		return notMoved;
-	}
-
-	// The window's Apply and Restore Outfit, and the line under the actor's name.
-	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
-	// those the window lists under Player's Inventory moved to an NPC first (a piece
-	// Livery put on them while the window was open is listed as theirs); with Yes in its
-	// popup the worn library outfit takes the ticks before. Restore, offered while Livery has
-	// pieces on them, ends what Livery chose for them. Both close the window first, so the
-	// preview has put back what they wore before anything moves or Livery dresses them.
-	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
-	// failed library write moves and assigns nothing (CLAUDE.md §2.1).
-	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::optional<Assignments::Choices>& choices)
-	{
-		const auto handle = actor.GetHandle();
-		const auto actorID = actor.GetFormID();
-		request.movesFromPlayer = Settings::MoveFromPlayer();
-		request.protectsFavorites = Settings::ProtectFavorites();
-		request.onApply = [handle, actorID, armors](const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit,
-							  bool updateWorn) {
-			// Read before the close, which runs the redresses left for it: the row they wear
-			// as the window shows it, which follows a redress made while it is open.
-			const auto current = Assignments::ChoicesOf(actorID);
-			const bool forSituation = current && current->worn != Situations::Situation::kDefault;
-			const auto picked = PickPieces(armors, pieces);
-			if (updateWorn) {
-				if (const auto error = UpdateWornPieces(outfit, picked)) {
-					CaptureWindow::SetError(*error);
-					return;
-				}
-			}
-			CaptureWindow::Close();
-			const auto target = handle.get();
-			if (!target) {
-				return;
-			}
-			const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
-			// A situation outfit is read from the library, so the update is what goes on;
-			// the default is not touched.
-			if (updateWorn && forSituation) {
-				Assignments::Refresh(*target, notMoved);
-				return;
-			}
-			AssignMoved(*target, picked, notMoved, outfit);
-		};
-		if (!choices) {
-			return;
-		}
-		request.actorSummary = DescribeAssignment(*choices);
-		if (!choices->dressed) {
-			return;  // Restore stays hidden
-		}
-		request.onRestore = [handle] {
-			CaptureWindow::Close();
-			if (const auto target = handle.get()) {
-				Assignments::Unassign(*target);
-			}
-		};
 	}
 
 	// A row of the window (Request::assigned) as Assignments names it: Default, then the
@@ -866,18 +809,9 @@ namespace
 		}
 	};
 
-	// Manage Wardrobe's Apply: the outfit goes to window row `row` (RowSituation), the one the
-	// window chose: the situation they wear another outfit for now, after the user agreed in
-	// its popup, the one they wear it for, or the Default; then they are dressed for their
-	// situations now.
-	// Contract: game thread; no preview is on (the window closed first).
-	void ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row)
-	{
-		Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) } });
-	}
-
 	// Contract: game thread; emptied by the close that runs them, and at kPreLoadGame
-	// before that load closes the window.
+	// before that load closes the window; an Apply runs and takes out its actor's first
+	// (RunQueuedRedress).
 	std::vector<PendingRedress> g_redressAtClose;
 
 	// A later save's pick wins over an earlier one queued for the same refresh.
@@ -956,14 +890,38 @@ namespace
 		return pieces;
 	}
 
-	// Redresses the captured actor. Assignments run only with no preview on, as the preview
-	// puts back what it found at Begin: with it on, it ends, they are redressed and it begins
-	// again on `shown`, or with none on what they wear now, the camera and the movement hold
-	// staying; a refusal turns Live Preview off with the reason. Then returns their pieces for
-	// the window (SetOutfits). With it off, the redress waits for the window's close and
-	// nullopt is returned.
+	// Runs `dress` on the captured actor with the window open. Assignments run only with no
+	// preview on, as the preview puts back what it found at Begin: with it on, it ends, `dress`
+	// runs and it begins again on `shown`, or with none on what they wear now, the camera and
+	// the movement hold staying; a refusal turns Live Preview off with the reason. With it off
+	// `dress` runs in the game the window froze. Then returns their pieces for the window
+	// (SetOutfits).
 	// Contract: game thread; `actor` is the captured actor; `armors` matches the window's
 	// Request::pieces index for index, `offered` are the player's armor among them.
+	CaptureWindow::ActorPieces DressCaptured(RE::Actor& actor, const std::function<void()>& dress, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>* shown)
+	{
+		const bool previewing = OutfitPreview::IsActive();
+		if (previewing) {
+			OutfitPreview::End();
+		}
+		dress();
+		std::size_t skipped = 0;
+		std::size_t substituted = 0;
+		const auto  inventory = CollectArmor(actor, skipped, substituted);
+		if (previewing) {
+			if (const auto reason = OutfitPreview::Begin(actor, shown ? *shown : WornArmors(inventory)); !reason.empty()) {
+				PreviewCamera::End();
+				CaptureWindow::RefusePreview(reason);
+			}
+		}
+		return CurrentActorPieces(actor, inventory, armors, offered);
+	}
+
+	// Redresses the captured actor: with Live Preview on at once (DressCaptured), returning
+	// their pieces for the window (SetOutfits); with it off the redress waits for the window's
+	// close and nullopt is returned.
+	// Contract: as DressCaptured's.
 	std::optional<CaptureWindow::ActorPieces> RedressCaptured(RE::Actor& actor, const PendingRedress& redress, const std::vector<RE::TESObjectARMO*>& armors,
 		const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>* shown)
 	{
@@ -971,30 +929,56 @@ namespace
 			QueueRedress(redress);
 			return std::nullopt;
 		}
-		OutfitPreview::End();
-		RunRedress(actor, redress);
-		std::size_t skipped = 0;
-		std::size_t substituted = 0;
-		const auto  inventory = CollectArmor(actor, skipped, substituted);
-		if (const auto reason = OutfitPreview::Begin(actor, shown ? *shown : WornArmors(inventory)); !reason.empty()) {
-			PreviewCamera::End();
-			CaptureWindow::RefusePreview(reason);
-		}
-		return CurrentActorPieces(actor, inventory, armors, offered);
+		return DressCaptured(actor, [&actor, &redress] { RunRedress(actor, redress); }, armors, offered, shown);
 	}
 
 	// An actor taken out of a removed situation outfit only while loaded and alive, as the
 	// poll does; the others are dressed when they load (Assignments::ActorsWithSituations).
-	// Contract: game thread, in the window's onClose after OutfitPreview::End.
-	void RedressAtClose()
+	// Contract: game thread; no preview is on.
+	void RunQueued(const std::vector<PendingRedress>& queued)
 	{
-		for (const auto& redress : std::exchange(g_redressAtClose, {})) {
+		for (const auto& redress : queued) {
 			auto* actor = RE::TESForm::LookupByID<RE::Actor>(redress.actor);
 			if (!actor || (redress.updated == 0 && !redress.refresh && (!actor->Is3DLoaded() || actor->IsDead()))) {
 				continue;
 			}
 			RunRedress(*actor, redress);
 		}
+	}
+
+	// Contract: game thread, in the window's onClose after OutfitPreview::End.
+	void RedressAtClose()
+	{
+		RunQueued(std::exchange(g_redressAtClose, {}));
+	}
+
+	// The redresses queued for `actor`, run now in their order and taken off the queue, so an
+	// Apply made at once after them goes on over what they asked for, a random row's pick
+	// included, and the close cannot undo it.
+	// Contract: game thread; no preview is on.
+	void RunQueuedRedress(RE::FormID actor)
+	{
+		const auto                        theirs = std::ranges::stable_partition(g_redressAtClose, [actor](const PendingRedress& redress) { return redress.actor != actor; });
+		const std::vector<PendingRedress> queued(theirs.begin(), theirs.end());
+		g_redressAtClose.erase(theirs.begin(), theirs.end());
+		RunQueued(queued);
+	}
+
+	// Manage Wardrobe's Apply: the outfit goes to window row `row` (RowSituation), the one the
+	// window chose: the situation they wear another outfit for now, after the user agreed in
+	// its popup, the one they wear it for, or the Default; then they are dressed for their
+	// situations now, after the redresses queued for them (RunQueuedRedress), with the window
+	// open (DressCaptured): the preview begins again on `shown`, the outfit as Manage Wardrobe
+	// shows it. Returns their pieces for the window (SetOutfits).
+	// Contract: as DressCaptured's.
+	CaptureWindow::ActorPieces ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>& shown)
+	{
+		const auto dress = [&actor, outfit, row] {
+			RunQueuedRedress(actor.GetFormID());
+			Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) } });
+		};
+		return DressCaptured(actor, dress, armors, offered, &shown);
 	}
 
 	// What the open window shows of the library and of the actor's rows now (SetOutfits).
@@ -1009,14 +993,78 @@ namespace
 			.restoreChanges = SituationStore::RestoreChanges() };
 		if (choices) {
 			list.actorSummary = DescribeAssignment(*choices);
+			list.dressed = choices->dressed;
 		}
 		return list;
 	}
 
+	// The window's Apply and Restore Outfit, and the line under the actor's name.
+	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
+	// those the window lists under Player's Inventory moved to an NPC first (a piece
+	// Livery put on them while the window was open is listed as theirs); with Yes in its
+	// popup the worn library outfit takes the ticks before. The window stays open: they are
+	// dressed after the redresses queued for them (RunQueuedRedress) with no preview on
+	// (DressCaptured), and the Inventory page follows what they wear. Restore, shown while
+	// Livery has pieces on them, ends what Livery chose for them; it closes the window first,
+	// so the preview has put back what they wore before.
+	// Contract: game thread; `armors` matches request.pieces index for index, `offered` are the
+	// player's armor among them. A refused or failed library write moves and assigns nothing
+	// (CLAUDE.md §2.1).
+	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<RE::TESObjectARMO*>& offered, const std::optional<Assignments::Choices>& choices)
+	{
+		const auto handle = actor.GetHandle();
+		const auto actorID = actor.GetFormID();
+		request.movesFromPlayer = Settings::MoveFromPlayer();
+		request.protectsFavorites = Settings::ProtectFavorites();
+		request.onApply = [handle, actorID, armors, offered](const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer,
+							  std::uint32_t outfit, bool updateWorn) {
+			// Read before the queued redresses run: the row they wear as the window shows it,
+			// which follows a redress made while it is open.
+			const auto current = Assignments::ChoicesOf(actorID);
+			const bool forSituation = current && current->worn != Situations::Situation::kDefault;
+			const auto picked = PickPieces(armors, pieces);
+			if (updateWorn) {
+				if (const auto error = UpdateWornPieces(outfit, picked)) {
+					CaptureWindow::SetError(*error);
+					return;
+				}
+			}
+			std::optional<CaptureWindow::ActorPieces> dressed;
+			if (const auto target = handle.get()) {
+				const auto dress = [&] {
+					RunQueuedRedress(actorID);
+					const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
+					// A situation outfit is read from the library, so the update is what goes on;
+					// the default is not touched.
+					if (updateWorn && forSituation) {
+						Assignments::Refresh(*target, notMoved);
+						return;
+					}
+					AssignMoved(*target, picked, notMoved, outfit);
+				};
+				dressed = DressCaptured(*target, dress, armors, offered, nullptr);
+			}
+			auto list = CurrentOutfitList(actorID, armors);  // after the dressing
+			list.actorPieces = std::move(dressed);
+			CaptureWindow::SetOutfits(std::move(list));
+		};
+		request.onRestore = [handle] {
+			CaptureWindow::Close();
+			if (const auto target = handle.get()) {
+				Assignments::Unassign(*target);
+			}
+		};
+		if (choices) {
+			request.actorSummary = DescribeAssignment(*choices);
+			request.dressed = choices->dressed;
+		}
+	}
+
 	// Manage Wardrobe' Update, Remove and Apply. Update and Remove write the library first; a
 	// refused or failed write changes nothing, assigns nothing and redresses no one (CLAUDE.md
-	// §2.1). Then the actors are redressed (RedressCaptured, QueueRedress), and the window,
-	// still open, shows the library as written. Apply writes nothing to the library.
+	// §2.1). Then the actors are redressed (RedressCaptured, QueueRedress, ApplyOutfit), and
+	// the window, still open, shows the library as written. Apply writes nothing to the library.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachManage(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors, const std::vector<RE::TESObjectARMO*>& offered)
 	{
@@ -1025,23 +1073,18 @@ namespace
 		// When they wear the outfit, it is dressed again as RedressFor does: at once with Live
 		// Preview on (RedressCaptured keeps the preview in step, on the outfit as edited, and
 		// the Inventory page follows what they wear), else at the window's close. Update and
-		// Apply instead closes the window, ending the preview, and dresses them as Apply does.
+		// Apply instead dresses them at once as Apply does (ApplyOutfit), Live Preview on or off.
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
 			if (const auto error = UpdateOutfit(edit.outfit, edit.name, edit.gender, picked)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			const auto target = handle.get();
-			if (apply) {
-				CaptureWindow::Close();
-				if (target && !edit.assign.empty()) {
-					ApplyOutfit(*target, edit.outfit, edit.assign.front());
-				}
-				return;
-			}
+			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
-			if (target && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
+			if (target && apply && !edit.assign.empty()) {
+				redressed = ApplyOutfit(*target, edit.outfit, edit.assign.front(), armors, offered, picked);
+			} else if (target && !apply && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
 				redressed = RedressCaptured(*target, { .actor = actorID, .updated = edit.outfit }, armors, offered, &picked);
 			}
 			auto list = CurrentOutfitList(actorID, armors);
@@ -1077,22 +1120,27 @@ namespace
 			list.actorPieces = std::move(redressed);
 			CaptureWindow::SetOutfits(std::move(list));
 		};
-		// Apply to #{Name}: the window closes first, ending the preview, then the outfit as the
-		// library has it goes to the row the window chose and on (ApplyOutfit).
-		request.onManageApply = [handle](std::uint32_t outfit, std::size_t row) {
+		// Apply to #{Name}: the outfit as the library has it goes to the row the window chose
+		// and on (ApplyOutfit), the window staying open; the Inventory page follows what they
+		// wear.
+		request.onManageApply = [handle, actorID, armors, offered](std::uint32_t outfit, std::size_t row) {
 			const auto* stored = Library::Find(outfit);
 			if (!stored) {
 				CaptureWindow::SetError("The outfit no longer exists.");
 				return;
 			}
-			if (Library::LoadedPieces(*stored).empty()) {
+			const auto pieces = Library::LoadedPieces(*stored);
+			if (pieces.empty()) {
 				CaptureWindow::SetError("None of its pieces is loaded.");
 				return;
 			}
-			CaptureWindow::Close();
+			std::optional<CaptureWindow::ActorPieces> dressed;
 			if (const auto target = handle.get()) {
-				ApplyOutfit(*target, outfit, row);
+				dressed = ApplyOutfit(*target, outfit, row, armors, offered, pieces);
 			}
+			auto list = CurrentOutfitList(actorID, armors);  // after the dressing
+			list.actorPieces = std::move(dressed);
+			CaptureWindow::SetOutfits(std::move(list));
 		};
 	}
 
@@ -1242,7 +1290,7 @@ namespace
 		}
 		const auto offered = AddPlayerPieces(actor, armors, request.pieces);
 		request.existingOutfits = ExistingOutfits(armors, request.pieces);
-		AttachAssignment(request, actor, armors, choices);
+		AttachAssignment(request, actor, armors, offered, choices);
 		AttachSave(request, actor, armors, choices);
 		AttachPreview(request, actor, armors);
 		AttachManage(request, actor, armors, offered);

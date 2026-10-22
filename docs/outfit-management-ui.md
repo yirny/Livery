@@ -180,7 +180,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     (`CaptureWindow::SetOutfits`), the edits start again from the library, the outfit stays
     selected (found by id), and the captured actor is redressed when they wear it (§6).
   - Apply to #{Name}: changes what the actor wears now. The outfit goes to one row in one
-    `Assignments::Change`, then the window closes, as the Inventory page's Apply does;
+    `Assignments::Change`, the window staying open as after the Inventory page's Apply (§6);
     nothing moves from the player's inventory. The row, from `Request::wornFor` (what
     `Request::wornOutfit` is worn for):
     - They wear another library outfit for a situation now: a popup (`Apply outfit?`) says
@@ -281,7 +281,16 @@ adds them (an NPC gets a copy of a piece they lack); nothing moves from the play
 inventory. Not worn now: nothing, since every row reads its outfit from the library each
 time it goes on. Remove: §5.
 
-Apply to #{Name} closes the window first, so it assigns with the preview ended.
+An Apply (the Inventory page's, Apply to #{Name}, Update and Apply) dresses the captured
+actor at once, Live Preview on or off, and the window stays on its page. The redresses
+queued for them run first, in their order, and leave the queue, so the close cannot undo
+the Apply. With Live Preview on, `OutfitPreview::End`, the assignment, then
+`OutfitPreview::Begin` with what they wear now (the Inventory page) or the outfit Manage
+Wardrobe has selected, as above; with it off, the assignment runs in the game the window
+froze, which shows it once the window closes. The Inventory page follows what they wear
+(`actorPieces`), and `Restore Outfit` shows while Livery dresses them
+(`OutfitList::dressed`). The Save page's Create and Apply and Restore Outfit close the window
+first.
 
 ## 7. Code
 

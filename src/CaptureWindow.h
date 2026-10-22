@@ -172,6 +172,7 @@ namespace CaptureWindow
 		std::string        actorName;          // the title line names them
 		std::string        playerName;         // PieceGroup::kPlayer's heading names them; "" for "Player"
 		std::string        actorSummary;       // shown greyed under the title line; "" for none
+		bool               dressed = false;    // Livery has pieces on the character, which shows Restore Outfit
 		std::string        outfitName;         // the library outfit of PieceGroup::kLiveryOutfit's heading
 		std::uint32_t      wornOutfit = 0;     // that outfit's library id, which the Apply popup offers to update; 0 for none
 		std::string        wornSituation;      // what it is worn for: a situation's name, "" for the default
@@ -204,22 +205,22 @@ namespace CaptureWindow
 		// Player's Inventory now (PieceGroup::kPlayer) in `fromPlayer`, and `outfit`: with
 		// `updateWorn` (Yes in the Apply popup) `wornOutfit`, which the ticks are to replace the
 		// pieces of first; else the outfit last loaded, or `wornOutfit`, when the ticks are
-		// exactly its pieces, or 0. It must end by calling Close() or SetError().
+		// exactly its pieces, or 0. The window stays open: it must end by calling SetOutfits(),
+		// with the actor's pieces as they are dressed now, or SetError().
 		std::function<void(const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn)>
 			onApply;
 
-		// Runs on the game thread when the user presses Restore Outfit. Empty
-		// when Livery has no pieces on the character, which hides the button. It must end
-		// by calling Close() or SetError().
+		// Runs on the game thread when the user presses Restore Outfit, shown while
+		// `dressed`. Empty hides it. It must end by calling Close() or SetError().
 		std::function<void()> onRestore;
 
 		// Runs on the game thread when the user confirms Manage Wardrobe's Update: `edit` holds
 		// the outfit, its new name, gender and pieces; no row changes. The library
 		// write comes first; a refused or failed write assigns nothing. The window stays open: it
 		// must end by calling SetOutfits() with the library as written, or SetError(). With
-		// `apply` (Update and Apply, from Apply to #{Name} with unsaved edits) it ends by
-		// calling Close() and dresses the actor as onManageApply does, for the one row in
-		// `edit.assign`. Empty greys Update.
+		// `apply` (Update and Apply, from Apply to #{Name} with unsaved edits) it then dresses
+		// the actor as onManageApply does, for the one row in `edit.assign`, and hands
+		// SetOutfits() their pieces as they are dressed now. Empty greys Update.
 		std::function<void(const SaveRequest& edit, bool apply)> onManageUpdate;
 
 		// Runs on the game thread when the user confirms Manage Wardrobe' Remove of library
@@ -231,8 +232,9 @@ namespace CaptureWindow
 		// with no unsaved edits: library outfit `outfit`, as the library has it, goes to the
 		// actor for row `row` of `assigned` (the situation they wear another outfit for now,
 		// when the user agreed in Apply's popup, the one they wear it for, or the Default), and
-		// they are dressed for their situations now. It must end by calling Close() or
-		// SetError(). Empty greys the button.
+		// they are dressed for their situations now. The window stays open: it must end by
+		// calling SetOutfits(), with the actor's pieces as they are dressed now, or SetError().
+		// Empty greys the button.
 		std::function<void(std::uint32_t outfit, std::size_t row)> onManageApply;
 
 		// Run on the game thread from Manage Situations (docs/situation-management-ui.md §5, §6):
@@ -274,13 +276,13 @@ namespace CaptureWindow
 		std::function<void(const ViewInput& input)> onViewInput;
 
 		// Runs on the game thread once the window has closed, whatever closed it:
-		// Cancel, the game hiding the menu, a load, or onSave / onUpdate calling
+		// Exit, the game hiding the menu, a load, or onSave / onRestore calling
 		// Close(). Empty for nothing to do.
 		std::function<void()> onClose;
 	};
 
-	// The captured actor's pieces after they were redressed while the window is open with
-	// Live Preview on: what the Inventory page lists, as Open would list it now.
+	// The captured actor's pieces after they were redressed while the window is open (with
+	// Live Preview on, or by an Apply): what the Inventory page lists, as Open would list it now.
 	struct ActorPieces
 	{
 		std::vector<PieceGroup>  groups;          // one per Request::pieces
@@ -301,8 +303,10 @@ namespace CaptureWindow
 		std::vector<SituationInfo>  situations;
 		std::vector<std::string>    restoreChanges;
 		std::string                 actorSummary;
-		// Set when the change redressed the captured actor with Live Preview on, whose preview
-		// the handler began again; the Inventory page then follows what they wear.
+		bool                        dressed = false;  // as Request::dressed
+		// Set when the change redressed the captured actor at once: with Live Preview on, whose
+		// preview the handler began again, or by an Apply; the Inventory page then follows what
+		// they wear.
 		std::optional<ActorPieces> actorPieces;
 	};
 
@@ -311,8 +315,9 @@ namespace CaptureWindow
 	void SetError(const std::string& message);
 	bool IsOpen();
 
-	// Ends a Manage Wardrobe or Manage Situations change the library, situations.json or the
-	// actor's rows took: the window shows `list` and lets the user edit again. The pages'
+	// Ends an Apply, or a Manage Wardrobe or Manage Situations change the library,
+	// situations.json or the actor's rows took: the window shows `list` and lets the user
+	// edit again, Restore Outfit shown while `list.dressed`. The pages'
 	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
 	// when gone, the Update tab then left), the rows' ticks of the Save page and Manage
 	// Wardrobe follow their situations (a removed one's go, a restored one's start unticked),
