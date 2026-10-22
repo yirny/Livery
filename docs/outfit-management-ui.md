@@ -186,8 +186,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     (`Apply outfit?`) when there is anything to say: library edits (`Save your changes to
     "#{Outfit}", then apply it to #{Name} for Town?` and their lines, the button `Update and
     Apply`), row changes (`Town: added`, `Town: "B" replaces "A"`) or, with no row ticked,
-    a Default whose worn outfit it replaces, random off (`#{Name} already has a Default
-    outfit, "A". It will be replaced.`); else `Apply "#{Outfit}" to #{Name} for Town?` with `Apply` /
+    a Default whose worn outfit it replaces, random off (`The current Default, "A", will be
+    replaced.`); else `Apply "#{Outfit}" to #{Name} for Town?` (`... as #{Name}'s Default?` with
+    no row ticked) with `Apply` /
     `Cancel`; with nothing to say it dresses at once. With library edits it goes through
     `onManageUpdate` with `apply`: the library write first (CLAUDE.md §2.1), a refused or
     failed one assigns nothing and shows the error; else through `Request::onManageApply`
