@@ -192,11 +192,13 @@ namespace CaptureWindow
 		std::function<void(const SaveRequest& save)> onSave;
 
 		// Runs on the game thread when the user applies the ticked pieces, with their indices
-		// into `pieces` (ascending, never empty) and `outfit`: with `updateWorn` (Yes in the
-		// Apply popup) `wornOutfit`, which the ticks are to replace the pieces of first; else
-		// the outfit last loaded, or `wornOutfit`, when the ticks are exactly its pieces, or 0.
-		// It must end by calling Close() or SetError().
-		std::function<void(const std::vector<std::size_t>& pieces, std::uint32_t outfit, bool updateWorn)> onApply;
+		// into `pieces` (ascending, never empty), those of them the window lists under From
+		// Player's Inventory now (PieceGroup::kPlayer) in `fromPlayer`, and `outfit`: with
+		// `updateWorn` (Yes in the Apply popup) `wornOutfit`, which the ticks are to replace the
+		// pieces of first; else the outfit last loaded, or `wornOutfit`, when the ticks are
+		// exactly its pieces, or 0. It must end by calling Close() or SetError().
+		std::function<void(const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn)>
+			onApply;
 
 		// Runs on the game thread when the user presses Restore Outfit. Empty
 		// when Livery has no pieces on the character, which hides the button. It must end
