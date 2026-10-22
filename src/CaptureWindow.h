@@ -69,8 +69,10 @@ namespace CaptureWindow
 		int           classOrder = 0;  // what the Class column sorts by
 		// The ticked piece with the lowest rank decides the Create tab's suggested category and
 		// gender: the index of its first slot of Body, Head, Hands, Feet, Circlet; -1 for none.
-		int  suggestRank = -1;
-		bool femaleOnly = false;  // none of its armor addons has a male model, one has a female model
+		int           suggestRank = -1;
+		bool          femaleOnly = false;  // none of its armor addons has a male model, one has a female model
+		std::string   icon;                // PieceIcons' key of the icon left of its name; "" for none
+		std::uint32_t iconColor = 0;       // the icon's tint, 0xRRGGBB
 	};
 
 	// One frame of mouse and key input over the game rather than the window,

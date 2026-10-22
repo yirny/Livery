@@ -880,7 +880,8 @@ namespace CaptureWindow::Internal
 	}
 
 	// Name takes what Type and Class leave at the list's right end, each of them as wide
-	// as its widest text, or its label with room for the sort arrow.
+	// as its widest text, or its label with room for the sort arrow; it starts past the
+	// pieces' icons.
 	std::array<float, 3> ColumnPositions(const State& a_state)
 	{
 		const float labelRoom = ImGui::GetFontSize();  // the small-font label's arrow and its gap fit in a body-font em
@@ -891,8 +892,9 @@ namespace CaptureWindow::Internal
 			classWidth = (std::max)(classWidth, ImGui::CalcTextSize(piece.armorClass.c_str()).x);
 		}
 		const float classX = (std::max)(0.0f, Theme::ColumnsWidth() - classWidth);
-		const float typeX = (std::max)(0.0f, classX - Theme::ColumnGap() - typeWidth);
-		return { 0.0f, typeX, classX };
+		const float nameX = Theme::RowIconRoom();
+		const float typeX = (std::max)(nameX, classX - Theme::ColumnGap() - typeWidth);
+		return { nameX, typeX, classX };
 	}
 
 	// Ticking a piece unticks the ticked ones sharing a body slot with it, as
@@ -984,7 +986,7 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::PushID(static_cast<int>(i));
 				const std::array<const char*, 3> cells{ pieces[i].name.c_str(), pieces[i].type.c_str(), pieces[i].armorClass.c_str() };
-				if (Theme::TickRow(cells, columnX, &a_list.ticked[i])) {
+				if (Theme::TickRow(cells, columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor })) {
 					QueueMenuSound(kFocusSound);
 					if (a_list.ticked[i]) {
 						UntickSharingSlots(a_state, a_list, i);
