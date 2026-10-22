@@ -255,7 +255,8 @@ the list keeps its length. The Save page's `Situations for
 the library write, with one forced redress. Manage Wardrobe's `Situations for #{Name}` edits the selected outfit's rows (Default
 included) with it; Update makes them at once (`Assignments::ChangeRows`) and dresses them
 once as Manage Situations does, and its `Apply to #{Name}` dresses the
-actor for the ticked rows, or makes the outfit the default with none, as Apply does.
+actor for the ticked rows and takes it off the unticked ones; with none ticked it also
+makes the outfit the default, unless the user unticked the Default for it.
 Manage Situations (docs/situation-management-ui.md §3-§6) edits every row of the captured
 actor by drag and drop, the random flags included, and the situations' names and
 descriptions; its Save Changes writes `situations.json` first, then replaces the rows

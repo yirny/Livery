@@ -175,11 +175,14 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     (`CaptureWindow::SetOutfits`), the edits start again from the library, the outfit stays
     selected (found by id), the Save page's Update tab ticks follow the rows changed for its
     outfit, and the captured actor is redressed when they wear it (§6).
-  - Apply to #{Name}: dresses the actor in the outfit for the ticked rows, as the Save page
-    gives it (`Assignments::Change`), or makes it their Default with none ticked
-    (`Assignments::Assign(pieces, id)`), then the window closes, as the Inventory page's
-    Apply does; nothing moves from the player's inventory. Its tooltip says which: `Dress
-    #{Name} in this outfit for Town, Warm.` / `... as their Default.` It asks first
+  - Apply to #{Name}: dresses the actor in the outfit for the ticked rows and takes it off
+    the unticked rows that hold it, as the Save page gives and takes it, in one
+    `Assignments::Change`; with none ticked it also makes it their Default, unless the user
+    unticked the Default for it. Then the window closes, as the Inventory page's Apply does;
+    nothing moves from the player's inventory. Its tooltip says which: `Dress #{Name} in this
+    outfit for Town, Warm.` / `... as their Default.` / `Take this outfit off #{Name}'s
+    unticked situations.` (the Default unticked, none ticked), which the popup asks as
+    `Take "#{Outfit}" off #{Name}'s unticked situations?`. It asks first
     (`Apply outfit?`) when there is anything to say: library edits (`Save your changes to
     "#{Outfit}", then apply it to #{Name} for Town?` and their lines, the button `Update and
     Apply`), row changes (`Town: added`, `Town: "B" replaces "A"`) or, with no row ticked,
