@@ -667,23 +667,14 @@ namespace
 		return choices->wornOutfit ? Library::Find(choices->wornOutfit) : nullptr;
 	}
 
-	// Moves the ticked pieces that came from the player's inventory (`offered`) to the NPC,
-	// when MoveFromPlayer is on, and says on the HUD how many went. Returns those that did
-	// not move, which the dressing then leaves out: never a copy in their place.
+	// Moves `moving`, the pieces ticked under From Player's Inventory, to the NPC, when
+	// MoveFromPlayer is on, and says on the HUD how many went. Returns those that did not
+	// move, which the dressing then leaves out: never a copy in their place.
 	// Contract: game thread; the preview has ended (the window closed).
-	std::vector<RE::TESObjectARMO*> MovePlayerPieces(RE::Actor& npc, const std::vector<RE::TESObjectARMO*>& ticked, const std::vector<RE::TESObjectARMO*>& offered)
+	std::vector<RE::TESObjectARMO*> MovePlayerPieces(RE::Actor& npc, const std::vector<RE::TESObjectARMO*>& moving)
 	{
 		auto* player = RE::PlayerCharacter::GetSingleton();
-		if (!player || npc.IsPlayerRef() || !Settings::MoveFromPlayer()) {
-			return {};
-		}
-		std::vector<RE::TESObjectARMO*> moving;
-		for (auto* armor : ticked) {
-			if (std::ranges::find(offered, armor) != offered.end()) {
-				moving.push_back(armor);
-			}
-		}
-		if (moving.empty()) {
+		if (!player || npc.IsPlayerRef() || !Settings::MoveFromPlayer() || moving.empty()) {
 			return {};
 		}
 		auto        notMoved = Dressing::MoveFromPlayer(*player, npc, moving, Settings::ShowPlayerWornPieces());
@@ -698,20 +689,22 @@ namespace
 
 	// The window's Apply and Restore Outfit, and the line under the actor's name.
 	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
-	// those from the player's inventory (`offered`) moved to an NPC first; with Yes in its
+	// those the window lists under From Player's Inventory moved to an NPC first (a piece
+	// Livery put on them while the window was open is listed as theirs); with Yes in its
 	// popup the worn library outfit takes the ticks before. Restore, offered while Livery has
 	// pieces on them, ends what Livery chose for them. Both close the window first, so the
 	// preview has put back what they wore before anything moves or Livery dresses them.
 	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
 	// failed library write moves and assigns nothing (CLAUDE.md §2.1).
 	void AttachAssignment(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::vector<RE::TESObjectARMO*>& offered, const std::optional<Assignments::Choices>& choices)
+		const std::optional<Assignments::Choices>& choices)
 	{
 		const auto handle = actor.GetHandle();
 		const auto actorID = actor.GetFormID();
 		request.movesFromPlayer = Settings::MoveFromPlayer();
 		request.protectsFavorites = Settings::ProtectFavorites();
-		request.onApply = [handle, actorID, armors, offered](const std::vector<std::size_t>& pieces, std::uint32_t outfit, bool updateWorn) {
+		request.onApply = [handle, actorID, armors](const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit,
+							  bool updateWorn) {
 			// Read before the close, which runs the redresses left for it: the row they wear
 			// as the window shows it, which follows a redress made while it is open.
 			const auto current = Assignments::ChoicesOf(actorID);
@@ -728,7 +721,7 @@ namespace
 			if (!target) {
 				return;
 			}
-			const auto notMoved = MovePlayerPieces(*target, picked, offered);
+			const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
 			// A situation outfit is read from the library, so the update is what goes on;
 			// the default is not touched.
 			if (updateWorn && forSituation) {
@@ -1238,7 +1231,7 @@ namespace
 		}
 		const auto offered = AddPlayerPieces(actor, armors, request.pieces);
 		request.existingOutfits = ExistingOutfits(armors, request.pieces);
-		AttachAssignment(request, actor, armors, offered, choices);
+		AttachAssignment(request, actor, armors, choices);
 		AttachSave(request, actor, armors, choices);
 		AttachPreview(request, actor, armors);
 		AttachManage(request, actor, armors, offered);
