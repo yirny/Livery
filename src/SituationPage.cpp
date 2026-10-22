@@ -398,34 +398,6 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// Situation List's help: which situation's outfit is worn when several apply, named as the
-		// page shows them now, and how to drag outfits.
-		std::string SituationListHelp(const State& a_state)
-		{
-			// Situations::Evaluate's order, the most specific first.
-			constexpr std::array kPriority{ Situations::Situation::kSwimming, Situations::Situation::kSleep, Situations::Situation::kWarm,
-				Situations::Situation::kHome, Situations::Situation::kTown };
-
-			const auto& situations = a_state.request.situations;
-			std::string order;
-			int         count = 0;
-			for (const auto situation : kPriority) {
-				for (std::size_t i = 0; i < situations.size(); ++i) {
-					if (situations[i].situation != situation) {
-						continue;
-					}
-					const auto name = Trimmed(a_state.situationForm.entries[i].name.data());
-					order += (count++ > 0 ? ", " : "") + (name.empty() ? situations[i].name : name);
-				}
-			}
-			const std::string worn = count > 1 ? std::format("When several apply, the first with an outfit in the order {} is worn; otherwise, and in combat, the Default. ", order) :
-			                                     "Where none with an outfit applies, and in combat, the Default is worn. ";
-			return std::format(
-				"Each situation lists the outfits {} can wear there. {}Drag an outfit onto a situation to add it, between its outfits "
-				"to place it, onto another situation to move it, or back to the outfit list to take it off.",
-				a_state.request.actorName, worn);
-		}
-
 		// The left pane: Situation List (?) over a heading per situation, the Default first.
 		void DrawSituationList(State& a_state)
 		{
@@ -438,7 +410,11 @@ namespace CaptureWindow::Internal
 			if (Theme::BeginList("situations", SituationListHeight(a_state, tagsWidth), false)) {
 				// Its text starts where the situations' names do, clear of a selected one's mark.
 				if (Theme::ListHeadingHelp("Situation List", true)) {
-					DrawHelpTooltip(SituationListHelp(a_state));
+					DrawHelpTooltip(std::format(
+						"Each situation lists the outfits {} can wear there. When several apply, the most specific one with an "
+						"outfit is worn; otherwise, and in combat, the Default. Drag an outfit onto a situation to add it, between "
+						"its outfits to place it, onto another situation to move it, or back to the outfit list to take it off.",
+						a_state.request.actorName));
 				}
 				for (std::size_t i = 0; i < form.entries.size(); ++i) {
 					ImGui::PushID(static_cast<int>(i));
@@ -481,31 +457,18 @@ namespace CaptureWindow::Internal
 		}
 
 		// The outfit list with its own search, sort and Show Tags, its rows dragged as copies and
-		// a click on one showing its details (`a_viewed`'s row selected), then what a drag does,
-		// in the small font, below a gap. A drag from the Situation List dropped anywhere on it takes that
-		// outfit, or the Default's pieces, off its row. Returns whether Escape cleared the search.
+		// a click on one showing its details (`a_viewed`'s row selected). A drag from the Situation
+		// List dropped anywhere on it takes that outfit, or the Default's pieces, off its row.
+		// Returns whether Escape cleared the search.
 		bool DrawOutfitPane(State& a_state, int a_viewed)
 		{
-			constexpr float                      kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
-			constexpr float                      kNoteGap = 8.0f;     // pixels at 1080p, above the note
-			constexpr std::array<const char*, 2> kDragNote{ "Drag an outfit onto a situation to add it.",
-				"Drop an outfit here from a situation to take it off." };
+			constexpr float kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
 
 			const ImVec2 top = ImGui::GetCursorScreenPos();
 			const float  width = ImGui::GetContentRegionAvail().x;
 			const auto   controls = DrawBrowserControls(a_state, a_state.situationBrowser);
-			Theme::PushSmallFont();
-			const float noteGap = kNoteGap * Theme::Scale();
-			const float noteHeight = noteGap + ImGui::GetTextLineHeightWithSpacing() * static_cast<float>(kDragNote.size());
-			Theme::PopSmallFont();
-			const int clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, controls.height + noteHeight, true);
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + noteGap);
-			Theme::PushSmallFont();
-			for (const auto* line : kDragNote) {
-				ImGui::TextUnformatted(line);
-			}
-			Theme::PopSmallFont();
-			const float bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
+			const int    clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, controls.height, true);
+			const float  bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 			a_state.situationForm.outfitPaneHeight = bottom - top.y;
 			const ImRect pane(top, ImVec2(top.x + width, bottom));
 			if (ImGui::BeginDragDropTargetCustom(pane, ImGui::GetID("outfitListDrop"))) {
