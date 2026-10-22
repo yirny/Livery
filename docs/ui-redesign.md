@@ -22,7 +22,8 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
      a form the NPC also carries is listed once, under 1–4.
   6. `"#{Outfit}"`: pieces of the loaded outfit nobody carries, listed while
      it is loaded (today's `owned == false` rows).
-- Three columns: Name, Type, Slot. Type's strings and rules are SkyUI's, from the biped
+- Three columns: Name, Type, Slot; Slot only with `ShowSlotColumn` on (INI `[Window]`, SKSE
+  Menu Framework; off by default), else Type ends at the list's right end. Type's strings and rules are SkyUI's, from the biped
   slots, taken from the SkyUI source (schlangster/skyui on GitHub, the inventory data setter)
   at implementation time, never from memory. Slot lists the piece's body slots by number,
   lowest first (`32, 34`), sorts by the lowest, and is as wide as its widest text up to four

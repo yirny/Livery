@@ -225,8 +225,8 @@ namespace Theme
 	// Contract: inside BeginList.
 	void TextRow(const char* label);
 
-	// A mark left of a list heading's text, a square of its text height in its grey, which moves
-	// the text right.
+	// A mark left of a list heading's text, an 18px square in its grey centred on the text's
+	// line, which moves the text right.
 	enum class HeadingIcon
 	{
 		kNone,
