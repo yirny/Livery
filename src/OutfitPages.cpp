@@ -1010,10 +1010,9 @@ namespace CaptureWindow::Internal
 		return row;
 	}
 
-	// Hands the edits to onManageUpdate, which writes the library and ends with SetOutfits,
-	// or with `a_applyRow` (Update and Apply) dresses the actor for that row as Apply does and
-	// closes the window, or ends with SetError; until then the page is greyed. Update alone
-	// changes no row.
+	// Hands the edits to onManageUpdate, which writes the library, with `a_applyRow` (Update
+	// and Apply) dresses the actor for that row as Apply does, and ends with SetOutfits, or
+	// ends with SetError; until then the page is greyed. Update alone changes no row.
 	// Contract: the handler writes nothing for a refused name or a failed write, and then
 	// assigns nothing (CLAUDE.md §2.1).
 	void RequestManageUpdate(State& a_state, std::optional<std::size_t> a_applyRow)
@@ -1080,7 +1079,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// Apply with no library edits: hands the outfit and row `a_row` to onManageApply, which
-	// dresses the actor and closes the window, or ends with SetError; until then the page
+	// dresses the actor and ends with SetOutfits, or ends with SetError; until then the page
 	// is greyed. With library edits RequestManageUpdate saves them first.
 	void RequestManageApply(State& a_state, std::size_t a_row)
 	{
