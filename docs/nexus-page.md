@@ -106,6 +106,6 @@ Only ASCII can be typed into the name field. On Skyrim VR there is no window: th
 [*]SKSE Menu Framework, whose API header this plugin uses for its settings page
 [*][url=https://github.com/ocornut/imgui]Dear ImGui[/url] by Omar Cornut and contributors
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/49881]NORDIC UI - Interface Overhaul[/url] by Dopesan: the Nordic skin's corner knot and heading rope, used under the permissions on that page
-[*][url=https://github.com/jpt/barlow]Barlow Condensed[/url] by the Barlow Project Authors and [url=https://mjorka.net]Sovngarde[/url] by mjorka, both under the SIL Open Font License
+[*][url=https://github.com/googlefonts/OswaldFont]Oswald[/url] by the Oswald Project Authors and [url=https://mjorka.net]Sovngarde[/url] by mjorka, both under the SIL Open Font License
 [/list]
 ```
