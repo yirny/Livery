@@ -168,7 +168,7 @@ outfit for Town any more`.
   the die's outline as far from the name and from `(n)` as `(n)` is from a name without it
   (`ItemInnerSpacing.x`); with random on and anything showing under it, a chevron, pointing
   down while open and right while folded, grey, lit while hovered (white in Vanilla and
-  Nordic, amber in Tailor); then, 12px on, a rule in the list's rule colour, and 12px on
+  Nordic, the accent in Modern); then, 12px on, a rule in the list's rule colour, and 12px on
   `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
@@ -180,8 +180,7 @@ outfit for Town any more`.
   situation and shows its details.
 - Under a heading, its outfits as rows of the outfit list (name, the form marks but no
   star, since each is chosen for a situation), each with a drag grip: two columns of three
-  dots, Vanilla and Nordic in LabelText's grey at low alpha, Tailor in its text colour mixed
-  with black, here level with the headings' names (`Theme::Grip::kName`), in the right pane's
+  dots, in LabelText's grey at low alpha, here level with the headings' names (`Theme::Grip::kName`), in the right pane's
   outfit list where its fold headings' text starts, after the chevron (`kEdge`); the name
   starts 12px past the dots. Random on: every outfit on the list. Random off: `chosen`
   only. A row that wears nothing shows nothing under its heading; the Default wearing its

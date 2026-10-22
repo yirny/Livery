@@ -22,8 +22,11 @@ knot at its left end, in the headings' grey; lists and dropdown
 popups scroll with the game's journal scroll bar, 16px wide at 1080p with 2px clear on
 either side: its arrows are the game's art, its track and thumb drawn in code with 1px lines
 at any resolution, the thumb's rim and its fill while held in the track's light grey
-(#cccccc) (Tailor keeps a 1px rule and ImGui's bar). Fonts at 1080p: Vanilla's body 22px
-and headings 28px (Oswald), Nordic's 20px and 26px (Sovngarde). Field labels, their help
+(#cccccc) (Modern keeps a 1px rule and ImGui's bar). Fonts at 1080p: Modern's body 20px
+and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nordic's 20px and
+26px (Sovngarde). Modern takes its colours from the palette `[UI] Palette` names
+(`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by `Settings`); below,
+"the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add pieces from Wardrobe...`,
 `Edit`, `Restore Outfit`, `Remove`, `Restore Presets`) and `Sort by` take the
@@ -42,15 +45,15 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
   the library. An older file's outfit categories are read past and gone at the next write.
 - Each row: the outfit's name alone, one line high.
-- Hover, in every list and in the dropdowns' rows: Tailor fills a hovered row in its muted
-  brown; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
+- Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
+  colour; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
   NORDIC UI's list selection line under it (skyui/inventorylists.swf, `ItemsListEntry`'s
   `selectIndicator`, shape 1: a thin wedge pointed at its left end, #e5e5e5 fading from 0.4
   to nothing), from the shape's points in code, stretched across the row, as thick as the
   shape is in a 28-unit entry of the frame height.
-- Selected (a single-choice row, a ticked piece, a ticked dropdown row): Tailor fills it
-  faintly amber; Vanilla lays the piece list's white bar fading in from the left over it,
+- Selected (a single-choice row, a ticked piece, a ticked dropdown row): Modern fills it in
+  the selected colour with a 2px rule in the accent on its left edge; Vanilla lays the piece list's white bar fading in from the left over it,
   its right end a point 0.4 times the row's height long, as NORDIC UI's inventory bar's;
   Nordic shows no fill. In Vanilla and Nordic a list's fills (hover and selected) stop 6px
   short of its scroll bar while one shows. The mark: NORDIC UI's MCM page arrow on single-choice and dropdown
@@ -59,7 +62,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   equipped mark or Nordic's MCM page arrow, centred where the arrow would be (on an outfit
   row without a drag grip, 2px right of that); Nordic puts the arrow on a ticked dropdown row too, at its start.
 - A multi-choice dropdown row: Vanilla and Nordic draw the game's checkbox at the row's start
-  (after Nordic's arrow), then the label; Tailor a check mark at its right end.
+  (after Nordic's arrow), then the label; Modern a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
   of them: a dressed form (a gown on the stand) for the outfit the actor wears now
   (`Request::wornOutfit`), else a bare form (Manage Wardrobe's tab icon) for one their
@@ -121,7 +124,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   being typed in; a click on the pen starts typing, so the click area is the field's. A
   dropdown's arrow is grey, white while hovered or open.
 - A *field* is a label (or none) and the control or list it names; a list's count line under
-  it belongs to the list's field. Beyond the item spacing, fields are 6px apart in Tailor and
+  it belongs to the list's field. Beyond the item spacing, fields are 6px apart in Modern and
   8px in Vanilla and Nordic (`Theme::SectionGap`); a label sits 3px (Vanilla and Nordic: 5px)
   closer to its control than the item spacing; a count line under a list keeps 6px above it.
 - A *button* sits in a page's or popup's button row (`Theme::Button`); a *link* is a clickable
@@ -136,8 +139,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   each shoulder one arc) and Manage Situations (the star, point down, of the outfit rows'
   situation mark; docs/situation-management-ui.md §3).
 - Icons only, drawn as ImDrawList lines, so they scale with the resolution and take the
-  skin's colours: the selected tab in the text colour on a faint fill (its corners rounded
-  2px in Vanilla and Nordic, as Tailor's frames in Tailor), the others in
+  skin's colours: the selected tab in the text colour on the selected row's fill (its corners
+  rounded 2px), the others in
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
 - Each tab is centred between the window's left edge and the rule. Nordic's start 8px
   lower, clear of the corner knot.
@@ -146,7 +149,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - Switching tabs keeps the Inventory page's ticks until the window closes. Leaving Manage
   Wardrobe or Manage Situations with unsaved edits asks first (§4,
   docs/situation-management-ui.md §6).
-- The rule: Tailor, 1px in its border colour (Tailor's sidebar divider). Vanilla, 2px in its
+- The rule: Modern, 1px in its rule colour (Tailor 3.0's sidebar divider). Vanilla, 2px in its
   rule grey. Nordic, NORDIC UI's vertical rope, the ornament left and right of the level-up
   menu's `Select an attribute to increase`, taken from its .swf with JPEXS and credited in
   `NORDIC-UI-CREDITS.txt`; without the texture, 1px in its rule colour.
