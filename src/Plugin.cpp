@@ -708,10 +708,14 @@ namespace
 		const std::vector<RE::TESObjectARMO*>& offered, const std::optional<Assignments::Choices>& choices)
 	{
 		const auto handle = actor.GetHandle();
-		const bool forSituation = !request.wornSituation.empty();
+		const auto actorID = actor.GetFormID();
 		request.movesFromPlayer = Settings::MoveFromPlayer();
 		request.protectsFavorites = Settings::ProtectFavorites();
-		request.onApply = [handle, armors, offered, forSituation](const std::vector<std::size_t>& pieces, std::uint32_t outfit, bool updateWorn) {
+		request.onApply = [handle, actorID, armors, offered](const std::vector<std::size_t>& pieces, std::uint32_t outfit, bool updateWorn) {
+			// Read before the close, which runs the redresses left for it: the row they wear
+			// as the window shows it, which follows a redress made while it is open.
+			const auto current = Assignments::ChoicesOf(actorID);
+			const bool forSituation = current && current->worn != Situations::Situation::kDefault;
 			const auto picked = PickPieces(armors, pieces);
 			if (updateWorn) {
 				if (const auto error = UpdateWornPieces(outfit, picked)) {
