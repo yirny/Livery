@@ -661,7 +661,7 @@ namespace
 		a_style.FramePadding = ImVec2(10.0f, 6.0f);
 		a_style.ItemSpacing = ImVec2(10.0f, 8.0f);
 		a_style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
-		a_style.ScrollbarSize = 16.0f;  // the game's scroll bar art (DrawSkinScrollbar) at 1080p
+		a_style.ScrollbarSize = 20.0f;  // the game's scroll bar art (DrawSkinScrollbar), 16px at 1080p, with its side margins
 		a_style.GrabMinSize = 16.0f;
 		a_style.DisabledAlpha = 0.45f;
 	}
@@ -863,9 +863,9 @@ namespace
 		return 3;
 	}
 
-	// The game's scroll bar over the current window's vertical one: an up arrow at its top, a
-	// down arrow (the same art flipped) at its bottom, the track between them, and a thumb in
-	// the style's scroll bar grab colours, its rim opaque.
+	// The game's scroll bar over the current window's vertical one, a margin in from its sides:
+	// an up arrow at its top, a down arrow (the same art flipped) at its bottom, the track
+	// between them, and a thumb in the style's scroll bar grab colours, its rim opaque.
 	// Contract: inside the window, before its End (EndChild, ImGui::EndCombo); render thread. It
 	// mirrors ImGui 1.92.7's internals: GetWindowScrollbarRect for the bar, and ScrollbarEx's
 	// grab arithmetic for the thumb, laid between the arrows, so near the ends the thumb drawn
@@ -873,13 +873,16 @@ namespace
 	void DrawSkinScrollbar()
 	{
 		constexpr float kThumbWidthRatio = 8.9f / 11.95f;  // the thumb's width, of the bar's (the game's art)
+		constexpr float kSideMargin = 2.0f;                // left and right of the art, inside ImGui's bar (pixels at 1080p)
 
 		ImGuiWindow* window = ImGui::GetCurrentWindow();
 		if (!HasSkinScrollbar() || !window || !window->ScrollbarY) {
 			return;
 		}
-		const ImRect bar = ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y);
-		const float  width = bar.GetWidth();
+		ImRect bar = ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y);
+		bar.Min.x += kSideMargin * g_scale;
+		bar.Max.x -= kSideMargin * g_scale;
+		const float width = bar.GetWidth();
 		if (width <= 0.0f || bar.GetHeight() <= 0.0f) {
 			return;
 		}
@@ -1123,15 +1126,29 @@ namespace
 		bool   hovered;
 	};
 
+	// The right end of a list row's fills, given the list window's left edge and the row's right
+	// end: the rules' end, as EndList draws them, kept clear of a scroll bar; in Vanilla and
+	// Nordic a little short of a scroll bar that shows.
+	// Contract: the current window is a BeginList child.
+	float RowFillRight(float a_left, float a_right)
+	{
+		constexpr float kScrollbarGap = 6.0f;  // between the fills and a scroll bar (pixels at 1080p)
+
+		const float fillRight = (std::min)(a_right, a_left + ImGui::GetWindowWidth() - g_listReach.y);
+		if (g_skin == Theme::Skin::kTailor || !ImGui::GetCurrentWindow()->ScrollbarY) {
+			return fillRight;
+		}
+		return fillRight - kScrollbarGap * g_scale;
+	}
+
 	ListRow LayOutListRow(const char* a_label, float a_height)
 	{
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		const float  left = ImGui::GetWindowPos().x;
 		const float  right = cursor.x + ImGui::GetContentRegionAvail().x;
 		const float  bottom = cursor.y + a_height;
-		// The rules' ends, as EndList draws them, kept clear of a scrollbar.
-		const float fillLeft = left + g_listReach.x;
-		const float fillRight = (std::min)(right, left + ImGui::GetWindowWidth() - g_listReach.y);
+		const float  fillLeft = left + g_listReach.x;
+		const float  fillRight = RowFillRight(left, right);
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
 		ListRow row{ ImVec2(left, cursor.y), ImVec2(right, bottom), ImVec2(fillLeft, cursor.y), ImVec2(fillRight, bottom), cursor.x - left, false, false };
 		row.pressed = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, right - left), a_height));
@@ -1199,12 +1216,17 @@ namespace
 	}
 
 	// Vanilla's selection bar: white fading in from the left edge to the right, as SkyUI's
-	// inventory marks a row.
+	// inventory marks a row, its right end a point as NORDIC UI's inventory bar's.
 	void DrawSelectBar(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
 	{
+		constexpr float kPointRatio = 0.4f;  // the point's length, of the bar's height
+
 		const ImU32 clear = ImGui::GetColorU32(IM_COL32(255, 255, 255, 0));
 		const ImU32 white = ImGui::GetColorU32(IM_COL32(255, 255, 255, kSelectBarAlpha));
-		a_draw->AddRectFilledMultiColor(a_min, a_max, clear, white, white, clear);
+		const float point = (std::min)((a_max.y - a_min.y) * kPointRatio, a_max.x - a_min.x);
+		const float base = a_max.x - point;
+		a_draw->AddRectFilledMultiColor(a_min, ImVec2(base, a_max.y), clear, white, white, clear);
+		a_draw->AddTriangleFilled(ImVec2(base, a_min.y), ImVec2(a_max.x, (a_min.y + a_max.y) * 0.5f), ImVec2(base, a_max.y), white);
 	}
 
 	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Tailor's faint amber,
@@ -3005,7 +3027,7 @@ namespace Theme
 		const float  left = ImGui::GetWindowPos().x;
 		const float  right = cursor.x + ImGui::GetContentRegionAvail().x;
 		const ImVec2 fillMin(left + g_listReach.x, cursor.y);
-		const ImVec2 fillMax((std::min)(right, left + ImGui::GetWindowWidth() - g_listReach.y), cursor.y + height);
+		const ImVec2 fillMax(RowFillRight(left, right), cursor.y + height);
 		const float  textX = fillMin.x + SituationNameInset();
 		const float  textY = cursor.y + gap * 0.5f + kSelectRowPadY * g_scale;
 		const float  midY = textY + ImGui::GetTextLineHeight() * 0.5f;
