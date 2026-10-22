@@ -148,7 +148,7 @@ namespace CaptureWindow::Internal
 		std::array<char, kNameCapacity> name{};
 		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only the Armor Classes' are used
 		int                             gender = -1;  // -1 unisex, 0 male, 1 female
-		std::unique_ptr<bool[]>         wearsFor;     // one per row of "Situations for #{Name}" (request.assigned)
+		std::unique_ptr<bool[]>         wearsFor;     // one per row of "SITUATIONS (#{Name})" (request.assigned)
 	};
 
 	// Manage Wardrobe' edits of the selected outfit, kept while the window is open; selecting
@@ -160,7 +160,7 @@ namespace CaptureWindow::Internal
 		std::unique_ptr<bool[]>         classTicked;  // one per request.categories; only kClassGroup's are used
 		int                             gender = -1;  // -1 unisex, 0 male, 1 female
 		std::vector<std::size_t>        pieces;       // its loaded pieces as edited: indices into request.pieces, ascending
-		std::unique_ptr<bool[]>         wearsFor;     // one per row of "Situations for #{Name}" (request.assigned), Default first
+		std::unique_ptr<bool[]>         wearsFor;     // one per row of "SITUATIONS (#{Name})" (request.assigned), Default first
 	};
 
 	// One situation of Manage Situations as edited, in request.situations' order.
@@ -210,11 +210,12 @@ namespace CaptureWindow::Internal
 		std::vector<std::string> suggestedCategories;  // the Create tab's last suggestion (SuggestCategoryAndGender)
 		int                      suggestedGender = -1;
 		SaveForm                 updateForm;
-		bool                     updateTab = false;     // the Save page shows the Update tab
-		int                      chosenOutfit = -1;     // the Update tab's outfit: index into request.existingOutfits, -1 for none yet
-		int                      selectingOutfit = -1;  // on the Select page: index into request.existingOutfits, -1 for none
-		bool                     openConfirm = false;   // open the Update tab's confirm popup on the next frame
-		std::string              situationsLabel;       // "Situations for #{Name}", over the Save page's and Manage Wardrobe's rows
+		bool                     updateTab = false;      // the Save page shows the Update tab
+		int                      chosenOutfit = -1;      // the Update tab's outfit: index into request.existingOutfits, -1 for none yet
+		int                      selectingOutfit = -1;   // on the Select page: index into request.existingOutfits, -1 for none
+		bool                     openConfirm = false;    // open the Update tab's confirm popup on the next frame
+		bool                     applyOnCreate = false;  // the Create tab's save is Create and Apply (SaveRequest::apply)
+		std::string              situationsLabel;        // "SITUATIONS (#{Name})", over the Save page's and Manage Wardrobe's rows
 		std::string              error;
 		bool                     focusNameField = false;
 		std::vector<InputRecord> pending;
@@ -240,7 +241,7 @@ namespace CaptureWindow::Internal
 		std::vector<std::size_t> editShown;         // the edited pieces it opened with and those loaded since, so those nobody carries stay listed
 		std::string              editTitle;         // "Edit \"#{Outfit}\""
 		std::vector<std::string> editOutfitNames;   // the outfits those come from: the edited one, then those loaded that brought one
-		std::string              editShownHeading;  // over those nobody carries: "From \"#{Outfit}\", \"#{Loaded}\" (Not Carried)"
+		std::string              editShownHeading;  // over those nobody carries: "\"#{Outfit}\", \"#{Loaded}\""
 		OutfitBrowser::State     situationBrowser;  // Manage Situations' outfit list
 		SituationForm            situationForm;
 		std::string              situationsTitle;  // "#{Name}'s Situational Outfits"
@@ -321,7 +322,7 @@ namespace CaptureWindow::Internal
 	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
 	std::string HeldOutfitName(const State& a_state, std::size_t a_row);
 	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
-	// The rows a form's "Situations for #{Name}" ticks (`a_wearsFor`, one per row of request.assigned)
+	// The rows a form's "SITUATIONS (#{Name})" ticks (`a_wearsFor`, one per row of request.assigned)
 	// change for library outfit `a_outfit`: those ticked whose worn outfit the save replaces
 	// (IsTaken), which it gives the outfit only after Confirm; those the save gives it; of
 	// those, the ones that do not hold it yet; those that hold it and are unticked.
@@ -390,7 +391,7 @@ namespace CaptureWindow::Internal
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
 	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:
-	// its name, gender, Category, `a_situations` under the "Situations for #{Name}" label,
+	// its name, gender, Category, `a_situations` under the "SITUATIONS (#{Name})" label,
 	// then its pieces under their count line, their list ending by screen Y `a_bottom` and
 	// scrolling when they need more (one row shows at least).
 	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom);

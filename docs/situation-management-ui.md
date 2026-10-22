@@ -130,9 +130,9 @@ empty. Only these:
 | Inventory summary line (`DescribeAssignment`) | `Dressed by Livery in "X" for Town.` | `Dressed by Livery in "X", in Town.` |
 | Situation change HUD (`SituationChangeText`) | `Livery: Lydia now wears "X" for Town.` | `Livery: Lydia now wears "X", in Town.` |
 | Assign HUD, nothing went on | `...; dressed for Town now.` | `...; dressed now, in Town.` |
-| Assign HUD | `Livery: Lydia now wears 5 piece(s) for Town` | `Livery: Lydia now wears 5 piece(s), in Town` |
-| Change HUD, the end | `. Dressed for Town now, 5 piece(s)` | `. Dressed now, in Town, 5 piece(s)` |
-| Refresh HUD | `Livery: Lydia now wears "X" for Town, 5 piece(s)` | `Livery: Lydia now wears "X", in Town, 5 piece(s)` |
+| Assign HUD | `Livery: Lydia now wears these for Town` | `Livery: Lydia now wears these, in Town` |
+| Change HUD, the end | `. Dressed for Town now` | `. Dressed now, in Town` |
+| Refresh HUD | `Livery: Lydia now wears "X" for Town` | `Livery: Lydia now wears "X", in Town` |
 
 The names stay in: the Apply popup's `"X" is Lydia's Town outfit.`, the star's `For Town,
 Warm`, the Situation tags and headings, the rows' labels and change lines (`Town: added`),
@@ -223,8 +223,11 @@ outfit clicked last, until Back; else the selected situation's details, until Sh
 List; else the outfit list.
 
 The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
-search, sort and Show Tags, each row with the drag grip; under Show Tags, in the small font
-and the text colour, `Drag an outfit onto a situation to add it.`
+search, sort and Show Tags, each row with the drag grip; under Show Tags, 8px down, in the
+small font and the text colour, two lines: `Drag an outfit onto a situation to add it.` and
+`Drop an outfit here from a situation to take it off.` While an outfit's details show, the
+selected situation's heading is drawn unselected (no fill, no mark); closing them brings it
+back.
 
 The situation's details, its fields evenly spaced with no headings:
 

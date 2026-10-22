@@ -283,9 +283,9 @@ namespace CaptureWindow::Internal
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto& visible = a_browser.visible;
 		if (visible.size() == outfits.size()) {
-			Theme::LabelText(std::format("{} outfit(s) in the wardrobe", outfits.size()).c_str());
+			Theme::CountText(std::format("{} outfit(s) in the wardrobe", outfits.size()).c_str());
 		} else {
-			Theme::LabelText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
+			Theme::CountText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
 		}
 		DrawSortCombo(a_state, a_browser);
 		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
@@ -385,7 +385,7 @@ namespace CaptureWindow::Internal
 	// screen Y `a_bottom` (DrawPieceNames).
 	void DrawOutfitPieces(const State& a_state, const CaptureWindow::ExistingOutfit& a_outfit, float a_bottom = FLT_MAX)
 	{
-		Theme::LabelText(PieceCountText(a_outfit.pieces.size(), a_outfit.unloadedPieces).c_str());
+		Theme::CountText(PieceCountText(a_outfit.pieces.size(), a_outfit.unloadedPieces).c_str());
 		DrawPieceNames(a_state, a_outfit.pieces, a_bottom);
 	}
 
@@ -466,7 +466,7 @@ namespace CaptureWindow::Internal
 			a_state.pieceTicked[i] = HasPiece(outfit, i);
 		}
 		a_state.loadedOutfit = a_state.previewedOutfit;
-		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = std::format("From \"{}\" (Not Carried)", outfit.name);
+		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = std::format("\"{}\"", outfit.name);
 	}
 
 	// A load opened from the Edit page adds to that page's ticks (Edit page section).
@@ -732,7 +732,7 @@ namespace CaptureWindow::Internal
 		return helpHovered;
 	}
 
-	// "Situations for #{Name}": the rows the actor wears the selected outfit for, as edited.
+	// "SITUATIONS (#{Name})": the rows the actor wears the selected outfit for, as edited.
 	// The ticks are part of the edits.
 	void DrawSituationsField(State& a_state)
 	{
@@ -757,7 +757,7 @@ namespace CaptureWindow::Internal
 		DrawCategoryDropdown(a_state, form.classTicked.get());
 		DrawSituationsField(a_state);
 		Theme::AfterFieldGap();
-		Theme::LabelText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str());
+		Theme::CountText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str());
 		const bool edit = Theme::LabelLink("Edit");
 		DrawPieceNames(a_state, form.pieces);
 		return edit;
@@ -1216,7 +1216,7 @@ namespace CaptureWindow::Internal
 		return { a_state.editTicked.get(), &a_state.editShown, &a_state.editShownHeading };
 	}
 
-	// "From \"A\", \"B\" (Not Carried)": over the pieces nobody carries, the outfits they come
+	// "\"A\", \"B\"": over the pieces nobody carries, the outfits they come
 	// from (State::editOutfitNames).
 	std::string EditShownHeading(const std::vector<std::string>& a_names)
 	{
@@ -1224,7 +1224,7 @@ namespace CaptureWindow::Internal
 		for (const auto& name : a_names) {
 			names += std::format("{}\"{}\"", names.empty() ? "" : ", ", name);
 		}
-		return std::format("From {} (Not Carried)", names);
+		return names;
 	}
 
 	// The page's ticks with the Load page's selected outfit added, when one is: its pieces
