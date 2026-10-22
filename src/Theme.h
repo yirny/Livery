@@ -263,7 +263,7 @@ namespace Theme
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
 	// `name` where an outfit row without a grip starts its name, level with the rows' grip dots
 	// under it (Grip::kName), the select mark left of it; with `random` a die after it, a square
-	// of its line height, greyed, the die's outline ItemInnerSpacing.x from the name and from the
+	// 4px short of its line height, greyed, the die's outline ItemInnerSpacing.x from the name and from the
 	// count; its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
 	// lit while hovered, then, 12px on, a rule in the list's rule colour, and 12px on `Edit` at
 	// the list's right end, in the small font, greyed and lit while hovered. A hovered one left

@@ -2665,6 +2665,7 @@ namespace Theme
 		constexpr const char* kEdit = "Edit";
 		constexpr float       kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
 		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron and Edit, and from Edit to the list's right end
+		constexpr float       kDiceShrink = 4.0f;    // pixels at 1080p, the die's square short of the name's line height
 
 		const float  gap = ListPaddingY();  // the row gap the list leaves out, half above and half below
 		const float  height = SituationHeadingHeight();
@@ -2687,7 +2688,7 @@ namespace Theme
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
 		const float gapX = ImGui::GetStyle().ItemInnerSpacing.x;
 		// The die's outline, not its square, sits gapX from the name and from the count.
-		const float diceSide = ImGui::GetTextLineHeight();
+		const float diceSide = ImGui::GetTextLineHeight() - kDiceShrink * g_scale;
 		const float diceLeft = nameRight + gapX - diceSide * kDiceInset;  // its square's
 		const float afterName = a_look.random ? nameRight + gapX + diceSide * (1.0f - kDiceInset * 2.0f) : nameRight;
 		const float countX = afterName + gapX;

@@ -162,8 +162,8 @@ outfit for Town any more`.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
   order. Each: the name in the outfit list's row style, where an outfit row without a grip
   starts its name, so the select mark has the room it has on Manage Wardrobe's list; with
-  random on, a die (a hexagon split into three faces with one, three and two pips, a square of
-  the name's line height, grey) and `(n)`, the length of `outfits`, in the small heading style,
+  random on, a die (a hexagon split into three faces with one, three and two pips, a square 4px
+  short of the name's line height, grey) and `(n)`, the length of `outfits`, in the small heading style,
   the die's outline as far from the name and from `(n)` as `(n)` is from a name without it
   (`ItemInnerSpacing.x`); with random on and anything showing under it, a chevron, pointing
   down while open and right while folded, grey, lit while hovered (white in Vanilla and
