@@ -41,6 +41,10 @@ namespace Settings
 	bool ShowPlayerWornPieces();
 	bool ProtectFavorites();
 
+	// Whether the capture window's piece list has the Slot column; off, Name and Type only.
+	// Read when the window opens. Safe from any thread.
+	bool ShowSlotColumn();
+
 	// Whether Apply in an NPC's window moves the ticked pieces from the player's inventory to
 	// the NPC; off, the NPC gets new copies. Safe from any thread.
 	bool MoveFromPlayer();

@@ -220,11 +220,12 @@ namespace CaptureWindow::Internal
 		std::vector<InputRecord> pending;
 		bool                     resetImGui = false;  // set by Open, handled on the next frame
 		Page                     page = Page::kCapture;
-		std::string              captureTitle;    // the Capture page's title line
-		std::string              applyTooltip;    // "Dress #{Name} in the ticked pieces."
-		GroupHeadings            headings;        // over each group's pieces (CaptureWindow::PieceGroup)
-		std::vector<std::size_t> pieceOrder;      // indices into request.pieces as the list shows them (SortPieces)
-		int                      sortColumn = 0;  // the piece list's sorted column: Name, Type or Slot
+		std::string              captureTitle;       // the Capture page's title line
+		std::string              applyTooltip;       // "Dress #{Name} in the ticked pieces."
+		GroupHeadings            headings;           // over each group's pieces (CaptureWindow::PieceGroup)
+		std::vector<std::size_t> pieceOrder;         // indices into request.pieces as the list shows them (SortPieces)
+		int                      sortColumn = 0;     // the piece list's sorted column: Name, Type or Slot
+		bool                     showSlots = false;  // the piece list has the Slot column (Settings::ShowSlotColumn at Open)
 		bool                     sortDescending = false;
 		int                      previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
 		bool                     loadIntoEdit = false;  // the Load page was opened from the Edit page, whose ticks it adds to
