@@ -89,8 +89,8 @@ namespace CaptureWindow::Internal
 	// The piece list's columns, in their order (State::sortColumn).
 	constexpr int                        kNameColumn = 0;
 	constexpr int                        kTypeColumn = 1;
-	constexpr int                        kClassColumn = 2;
-	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Category" };
+	constexpr int                        kSlotColumn = 2;
+	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Slot" };
 
 	// What an outfit row of Manage Situations carries while it is dragged (OfferOutfitDrag).
 	constexpr const char* kOutfitPayload = "LiveryOutfit";
@@ -224,7 +224,7 @@ namespace CaptureWindow::Internal
 		std::string              applyTooltip;    // "Dress #{Name} in the ticked pieces."
 		GroupHeadings            headings;        // over each group's pieces (CaptureWindow::PieceGroup)
 		std::vector<std::size_t> pieceOrder;      // indices into request.pieces as the list shows them (SortPieces)
-		int                      sortColumn = 0;  // the piece list's sorted column: Name, Type or Class
+		int                      sortColumn = 0;  // the piece list's sorted column: Name, Type or Slot
 		bool                     sortDescending = false;
 		int                      previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
 		bool                     loadIntoEdit = false;  // the Load page was opened from the Edit page, whose ticks it adds to

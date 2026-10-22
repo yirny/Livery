@@ -66,8 +66,10 @@ namespace Theme
 	float Scale();
 
 	// A field is a label (or none) and the control or list it names; a list's count line
-	// under it belongs to the list's field. LabelText is a field label in the small font
-	// (PushSmallFont), in ASCII capitals: grey in Vanilla and Nordic, plain text in Tailor. It
+	// under it belongs to the list's field. LabelText is a field label in the label font (the
+	// small font; in Nordic the tags' size, 14px), in ASCII capitals: grey in Vanilla and
+	// Nordic, plain text in Tailor. The links, help marks and column labels on a label's line,
+	// and list headings, take the same font. It
 	// opens its field with SectionGap and sits a little closer to the control below it than the
 	// item spacing would. `opensField` false, a count line under a list: a smaller gap above
 	// it, 6px. CountText is LabelText with the text kept as written, for count lines.
@@ -223,17 +225,27 @@ namespace Theme
 	// Contract: inside BeginList.
 	void TextRow(const char* label);
 
-	// A heading inside a list: a TextRow in the small font, greyed, in capitals (the piece list's
-	// groups, a sorted outfit list's headings). ListHeadingHeight is its height.
+	// A mark left of a list heading's text, a square of its text height in its grey, which moves
+	// the text right.
+	enum class HeadingIcon
+	{
+		kNone,
+		kBackpack,     // the Inventory tab's backpack
+		kDressedForm,  // an outfit row's mark of the outfit worn now
+		kBareForm      // an outfit row's mark of the Default, the Manage Wardrobe tab's form
+	};
+
+	// A heading inside a list: a TextRow in LabelText's font, greyed, in capitals (the piece
+	// list's groups), with `icon` before the text. ListHeadingHeight is its height.
 	// Contract: ListHeading inside BeginList.
-	void  ListHeading(const char* text);
+	void  ListHeading(const char* text, HeadingIcon icon = HeadingIcon::kNone);
 	float ListHeadingHeight();
 
 	// ListHeading (in capitals) with a greyed "(?)" after the text; returns true while the mouse is over
 	// that mark alone, for the caller's tooltip. `situationIndent`: the text starts where a
 	// SituationHeading's name does, as over Manage Situations' headings.
 	// Contract: inside BeginList.
-	bool ListHeadingHelp(const char* text, bool situationIndent = false);
+	bool ListHeadingHelp(const char* text, bool situationIndent = false, HeadingIcon icon = HeadingIcon::kNone);
 
 	// Extra room under a field whose next line is a label (a dropdown, then a list's count
 	// line), on top of the label's own SectionGap.
@@ -244,13 +256,13 @@ namespace Theme
 	enum class Grip
 	{
 		kNone,
-		kEdge,  // 4px in from the row's left edge (Manage Situations' outfit list)
+		kEdge,  // where a FoldHeading's text starts, after its chevron (Manage Situations' outfit list)
 		kName   // 14px in from the row's left edge (the Situation List, level with its headings' names)
 	};
 
 	// A list heading rule (FoldHeading, SituationHeading): in Vanilla and Nordic, SkyUI's MCM
 	// header rule in ListHeading's grey, a knot at its left end and a double line on to its
-	// closed right end, 0.7 times the small font's size tall; in Tailor, or without its texture
+	// closed right end, 0.7 times LabelText's font size tall; in Tailor, or without its texture
 	// or room for its two ends, a 1px line in the list's rule colour.
 
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
@@ -258,11 +270,11 @@ namespace Theme
 	// capitals, both in ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
 	// then, 12px on, a list heading rule to 4px short of the list's right end. The whole row is
 	// the click target; returns true when clicked, and the caller folds or unfolds.
-	// Its chevron starts at the list's left edge, the text after it; with `grip` (the rows'
-	// grip), the text starts where the rows' names do.
+	// In LabelText's font. Its chevron starts at the list's left edge, the text after it, where
+	// the grip of a Grip::kEdge row starts.
 	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are; the
 	// text is shown as is and is the row's ImGui ID.
-	bool  FoldHeading(const char* text, bool open, Grip grip = Grip::kNone);
+	bool  FoldHeading(const char* text, bool open);
 	float FoldHeadingHeight();
 
 	// Which part of a SituationHeading was clicked.
@@ -317,8 +329,8 @@ namespace Theme
 		const char* situations = nullptr;
 	};
 
-	// A SelectRow with the outfit's tags under its name (in the small font in Tailor, 14px in
-	// Vanilla and Nordic), wrapping onto
+	// A SelectRow with the outfit's tags under its name (in the small font in Tailor, 0.7 of the
+	// body font in Vanilla and Nordic: 15.4px and 14px), wrapping onto
 	// more lines within `tagsWidth` (OutfitTagsWidth), in capitals: its gender first unless unisex (-1
 	// unisex, 0 male, 1 female, as the library stores it), then `tags`. Tailor draws each
 	// tag as Tailor 3.0's framed chip, the gender as its rose or steel pill; Vanilla and

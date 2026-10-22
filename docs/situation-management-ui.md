@@ -182,8 +182,8 @@ outfit for Town any more`.
   star, since each is chosen for a situation), each with a drag grip: two columns of three
   dots, Vanilla and Nordic in LabelText's grey at low alpha, Tailor in its text colour mixed
   with black, here level with the headings' names (`Theme::Grip::kName`), in the right pane's
-  outfit list 4px in from the row's left edge (`kEdge`); the name and tags start 12px past
-  the dots. Random on: every outfit on the list. Random off: `chosen`
+  outfit list where its fold headings' text starts, after the chevron (`kEdge`); the name and
+  tags start 12px past the dots. Random on: every outfit on the list. Random off: `chosen`
   only. A row that wears nothing shows nothing under its heading; the Default wearing its
   `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id the library no longer
   has (another save's) shows nothing (§1).
@@ -325,7 +325,7 @@ shows the situation's.
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
   (`SituationHeading` with its `SituationHeadingLook`, the die of random on, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
-  drag grip (`Theme::Grip` for `OutfitRow`, `OutfitTagsWidth` and `FoldHeading`), the
+  drag grip (`Theme::Grip` for `OutfitRow` and `OutfitTagsWidth`), the
   details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name, description,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,

@@ -21,7 +21,10 @@ is SkyUI's MCM header rule, knot at its left end, in the headings' grey; lists a
 popups scroll with the game's journal scroll bar, 16px wide at 1080p with 2px clear on
 either side: its arrows are the game's art, its track and thumb drawn in code with 1px lines
 at any resolution, the thumb's rim and its fill while held in the track's light grey
-(#cccccc) (Tailor keeps a 1px rule and ImGui's bar).
+(#cccccc) (Tailor keeps a 1px rule and ImGui's bar). Fonts at 1080p: Vanilla's body 22px
+and headings 28px (Oswald), Nordic's 20px and 26px (Sovngarde). Field labels, count lines,
+the links and help marks on their lines, column labels and list headings take the label font:
+the small font (0.85 of the body), in Nordic the tags' size (0.7, 14px).
 
 ## 1. Outfit list (step 1)
 
@@ -29,10 +32,10 @@ The outfit list shared by the Load page, the Save page's outfit selection (the S
 and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 - Wording: `Category` everywhere (the Save page's field, the details column, the sort
-  option, the filter group, the piece list's column header); the window calls the library
+  option, the filter group); the window calls the library
   the wardrobe (`12 outfit(s) in the wardrobe`, `Not in Wardrobe`).
-- Categories: Light, Heavy, Clothing. Jewelry leaves the categories; the piece list's
-  Category column keeps it. `Library::Load` drops a stored `Jewelry` in memory; the file
+- Categories: Light, Heavy, Clothing. Jewelry leaves the categories. `Library::Load` drops
+  a stored `Jewelry` in memory; the file
   loses it at the next write. The suggested category skips Jewelry pieces as it skips Other;
   with none left, Clothing. The Create tab's category and gender are suggested from the
   ticked pieces at Open and at each Save on the Capture page; one the user changed stays. Other stored categories (older files' Adventuring, Town, ...)
@@ -42,7 +45,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   - Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that hold the outfit
     (Default and the situations), from `Request::assigned`. Never stored in the library.
 - Each row: the name, then under it, in grey, its tags (Tailor: in the small font; Vanilla
-  and Nordic: 14px) in this order:
+  and Nordic: 0.7 of the body font, 15.4px and 14px) in this order:
   Female or Male (Unisex has none), Category, Situation, wrapping onto more lines when they
   do not fit. Tailor draws each tag as a framed chip, as Tailor 3.0's outfit list does;
   Vanilla and Nordic as plain text, comma separated.
@@ -90,20 +93,24 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - A heading has a chevron at the list's left edge, pointing down while open and right while
   folded, its text after it, and a rule in the list's rule colour from 12px after its text to
   4px short of the list's right end. In a list whose rows have a drag grip (Manage
-  Situations), the text starts where the rows' names do. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
+  Situations), the grip's dots start where the heading's text does. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
   by heading text). Every heading is open when the window opens and when the sort changes;
   the list keeps the height of the whole library.
 - Headings and tag text are computed when the list is refreshed, never per frame.
 
 ## 2. Inventory page (step 1)
 
+- Each group heading of the piece list starts with an icon (`Theme::HeadingIcon`), a square
+  of its text height in its grey: the Inventory tab's backpack over `Inventory` and
+  `#{Player}'s Inventory`, the dressed form of an outfit row's current-outfit mark over the
+  three `Outfit (...)` headings, the bare form over the loaded outfit's.
 - The count line ends in `Add pieces from Wardrobe...` (`Theme::LabelLink`, its plus mark
   first), which opens the Load page; greyed while the library is empty, showing
-  `kNoOutfits` on hover. The buttons are `Save`, `Apply`, `Cancel`.
+  `kNoOutfits` on hover. The buttons are `Save`, `Apply`, `Exit`.
 - Tooltips on hover while enabled; a greyed button shows its reason instead:
   - Save: `Save the ticked pieces as a new outfit, or into an existing one.`
   - Apply: `Dress #{Name} in the ticked pieces.`
-  - Cancel: none.
+  - Exit: none.
 - `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the Live
   Preview line (`Theme::LineHelpLink`), its text centred on the line's height, in the count
   line's font and colour, lit on hover; the `(?)` is inside its click area and hovering it
@@ -129,7 +136,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   8px in Vanilla and Nordic (`Theme::SectionGap`); a label sits 3px (Vanilla and Nordic: 5px)
   closer to its control than the item spacing; a count line under a list keeps 6px above it.
 - A *button* sits in a page's or popup's button row (`Theme::Button`); a *link* is a clickable
-  label in the small font beside a field or a line (`Restore Presets`, `Remove`, `Edit`,
+  label in the label font beside a field or a line (`Restore Presets`, `Remove`, `Edit`,
   `Show Tags`). Vanilla draws its buttons as text alone, 2px larger than the body font, grey
   and white while hovered, with no fill, 2px clear on either side.
 

@@ -54,6 +54,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <format>
@@ -520,22 +521,38 @@ namespace
 		return found != kSlotPriority.end() ? static_cast<int>(found - kSlotPriority.begin()) : -1;
 	}
 
-	// A row of the window's piece list, with SkyUI's Type and Class (ArmorInfo), its icon and
-	// what the window's suggested class and gender need. An I4 rule's Type text replaces SkyUI's,
-	// as SkyUI with I4 shows it; the sort order stays the slot's.
+	// The body slots of `mask` as the Creation Kit numbers them, lowest first: "32, 34"; "" for none.
+	std::string SlotText(std::uint32_t mask)
+	{
+		constexpr int kFirstSlot = 30;  // the number of bit 0's slot (kHead)
+
+		std::string text;
+		for (int bit = 0; bit < 32; ++bit) {
+			if ((mask >> bit) & 1u) {
+				text += std::format("{}{}", text.empty() ? "" : ", ", kFirstSlot + bit);
+			}
+		}
+		return text;
+	}
+
+	// A row of the window's piece list, with SkyUI's Type (ArmorInfo), its body slots, its icon
+	// and what the window's suggested class and gender need. An I4 rule's Type text replaces
+	// SkyUI's, as SkyUI with I4 shows it; the sort order stays the slot's.
 	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected)
 	{
 		const auto type = ArmorInfo::TypeOf(armor);
 		const auto armorClass = ArmorInfo::ClassOf(armor);
+		const auto slots = static_cast<std::uint32_t>(armor.GetSlotMask().underlying());
 		auto       icon = PieceIcons::Resolve(armor);
 		return { .name = DisplayName(armor),
 			.selected = selected,
-			.slots = armor.GetSlotMask().underlying(),
+			.slots = slots,
 			.group = group,
 			.type = icon.typeName.empty() ? std::string(type.name) : std::move(icon.typeName),
 			.typeOrder = type.order,
 			.armorClass = ArmorInfo::ClassName(armorClass),
-			.classOrder = static_cast<int>(armorClass),
+			.slotText = SlotText(slots),
+			.slotOrder = std::countr_zero(slots),
 			.suggestRank = SuggestRank(armor),
 			.femaleOnly = IsFemaleOnly(armor),
 			.icon = std::move(icon.key),
