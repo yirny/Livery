@@ -39,6 +39,7 @@ namespace
 	constexpr auto kWindowSection = L"Window";
 	constexpr auto kShowPlayerInventoryKey = L"ShowPlayerInventory";
 	constexpr auto kShowPlayerWornKey = L"ShowPlayerWornPieces";
+	constexpr auto kShowSlotColumnKey = L"ShowSlotColumn";
 	constexpr auto kTransferSection = L"Transfer";
 	constexpr auto kMoveFromPlayerKey = L"MoveFromPlayer";
 	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
@@ -64,7 +65,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 13> kIniKeys{ {
+	constexpr std::array<IniKey, 14> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -100,6 +101,10 @@ namespace
 		{ kWindowSection, kShowPlayerWornKey, L"0",
 			L"1 = that list includes the armor you wear.\n"
 			L"0 = it leaves out what you wear, unless you carry another copy.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kWindowSection, kShowSlotColumnKey, L"0",
+			L"1 = the capture window's piece list has a Slot column: each piece's body slots by number (32, 34).\n"
+			L"0 = it shows the Name and Type columns only.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kTransferSection, kMoveFromPlayerKey, L"1",
 			L"1 = Apply in an NPC's capture window moves the ticked pieces from your inventory to them, enchantments and tempering included.\n"
@@ -152,6 +157,7 @@ namespace
 	std::atomic<bool>          g_playerAddsMissing{ false };
 	std::atomic<bool>          g_showPlayerInventory{ true };
 	std::atomic<bool>          g_showPlayerWorn{ false };
+	std::atomic<bool>          g_showSlotColumn{ false };
 	std::atomic<bool>          g_protectFavorites{ true };
 	std::atomic<bool>          g_moveFromPlayer{ true };
 	std::atomic<bool>          g_notifySituationChanges{ false };
@@ -479,6 +485,17 @@ namespace
 		ImGuiMCP::Spacing();
 		ImGuiMCP::Spacing();
 
+		// Takes effect the next time the capture window opens.
+		bool showSlots = g_showSlotColumn.load();
+		if (ImGuiMCP::Checkbox("The capture window's piece list shows a Slot column", &showSlots)) {
+			g_showSlotColumn = showSlots;
+			SaveFlag(kWindowSection, kShowSlotColumnKey, showSlots);
+			logger::info("ShowSlotColumn = {} (SKSE Menu Framework)", showSlots);
+		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
 		// Takes effect at the next Apply.
 		bool moveFromPlayer = g_moveFromPlayer.load();
 		if (ImGuiMCP::Checkbox("Apply moves your pieces to the NPC (off: the NPC gets new copies)", &moveFromPlayer)) {
@@ -589,6 +606,11 @@ namespace Settings
 			g_showPlayerWorn.load(), g_protectFavorites.load(), g_moveFromPlayer.load());
 
 		// A missing key keeps the default (off).
+		::GetPrivateProfileStringW(kWindowSection, kShowSlotColumnKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		g_showSlotColumn = std::wstring_view{ value } == L"1";
+		logger::info("ShowSlotColumn = {}", g_showSlotColumn.load());
+
+		// A missing key keeps the default (off).
 		::GetPrivateProfileStringW(kSituationsSection, kNotifyChangesKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
 		g_notifySituationChanges = std::wstring_view{ value } == L"1";
 		logger::info("NotifyChanges = {}", g_notifySituationChanges.load());
@@ -664,6 +686,11 @@ namespace Settings
 	bool ProtectFavorites()
 	{
 		return g_protectFavorites.load();
+	}
+
+	bool ShowSlotColumn()
+	{
+		return g_showSlotColumn.load();
 	}
 
 	bool MoveFromPlayer()

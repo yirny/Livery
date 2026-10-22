@@ -100,8 +100,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 ## 2. Inventory page (step 1)
 
-- Each group heading of the piece list starts with an icon (`Theme::HeadingIcon`), a square
-  of its text height in its grey: the Inventory tab's backpack over `Inventory` and
+- Each group heading of the piece list starts with an icon (`Theme::HeadingIcon`), an 18px
+  square at 1080p in every skin, in its grey, centred on the text's line: the Inventory tab's
+  backpack over `Inventory` and
   `#{Player}'s Inventory`, the dressed form of an outfit row's current-outfit mark over the
   three `Outfit (...)` headings, the bare form over the loaded outfit's.
 - The count line ends in `Add pieces from Wardrobe...` (`Theme::LabelLink`, its plus mark

@@ -2131,12 +2131,13 @@ namespace
 		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
 	}
 
-	// A list heading's icon (Theme::HeadingIcon) in a square of the text height from `a_topLeft`,
-	// in `a_color`. Returns the room it takes before the text, the inner spacing included; 0
-	// for none.
+	// A list heading's icon (Theme::HeadingIcon), an 18px square in every skin, its left edge at
+	// the text's start `a_topLeft` and centred on the text's line, in `a_color`. Returns the
+	// room it takes before the text, the inner spacing included; 0 for none.
 	// Contract: in the heading's font.
 	float DrawHeadingIcon(ImDrawList* a_draw, ImVec2 a_topLeft, Theme::HeadingIcon a_icon, ImU32 a_color)
 	{
+		constexpr float kSide = 18.0f;      // pixels at 1080p
 		constexpr float kLineWidth = 1.2f;  // pixels at 1080p, as an outfit row's marks
 
 		void (*icon)(ImDrawList*, const IconFrame&, ImU32, float) = nullptr;
@@ -2156,8 +2157,9 @@ namespace
 		if (!icon) {
 			return 0.0f;
 		}
-		const float side = ImGui::GetTextLineHeight();
-		icon(a_draw, IconFrame{ a_topLeft, side }, a_color, (std::max)(1.0f, kLineWidth * g_scale));
+		const float side = kSide * g_scale;
+		const float top = a_topLeft.y + (ImGui::GetTextLineHeight() - side) * 0.5f;
+		icon(a_draw, IconFrame{ ImVec2(a_topLeft.x, top), side }, a_color, (std::max)(1.0f, kLineWidth * g_scale));
 		return side + ImGui::GetStyle().ItemInnerSpacing.x;
 	}
 

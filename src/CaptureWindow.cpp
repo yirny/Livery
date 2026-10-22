@@ -13,7 +13,7 @@
 //                  goes to onViewInput
 //   Capture page - the Inventory page: the actor's pieces under a heading per group (their
 //                  Livery outfit, other worn, carried, the player's, the loaded outfit's), in
-//                  Name / Type / Slot columns sorted by a click on a column label (the piece
+//                  Name / Type / Slot (Settings) columns sorted by a click on a column label (the piece
 //                  list the Edit page shows too, PieceList), each tick handed to
 //                  onPieceToggled; under the list the count line, ending in Add pieces from
 //                  Wardrobe... (the Load page; greyed while the library has no outfits); the
@@ -52,6 +52,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <utility>
 
 namespace CaptureWindow::Internal
@@ -887,7 +888,8 @@ namespace CaptureWindow::Internal
 
 	// Name takes what Type and Slot leave at the list's right end, each of them as wide
 	// as its widest text, or its label with room for the sort arrow; Slot no wider than four
-	// slots, a longer list ending in an ellipsis. Name starts past the pieces' icons.
+	// slots, a longer list ending in an ellipsis. Without Slot (State::showSlots), Type ends at
+	// the right end. Name starts past the pieces' icons.
 	std::array<float, 3> ColumnPositions(const State& a_state)
 	{
 		constexpr const char* kWidestSlots = "00, 00, 00, 00";  // the Slot column's widest
@@ -903,7 +905,8 @@ namespace CaptureWindow::Internal
 		slotWidth = (std::min)(slotWidth, (std::max)(slotLabel, ImGui::CalcTextSize(kWidestSlots).x));
 		const float slotX = (std::max)(0.0f, Theme::ColumnsWidth() - slotWidth);
 		const float nameX = Theme::RowIconRoom();
-		const float typeX = (std::max)(nameX, slotX - Theme::ColumnGap() - typeWidth);
+		const float typeRight = a_state.showSlots ? slotX - Theme::ColumnGap() : Theme::ColumnsWidth();
+		const float typeX = (std::max)(nameX, typeRight - typeWidth);
 		return { nameX, typeX, slotX };
 	}
 
@@ -992,10 +995,13 @@ namespace CaptureWindow::Internal
 	// lists every edited piece it opened with.
 	void DrawPieceRows(State& a_state, const PieceList& a_list)
 	{
-		const auto& pieces = a_state.request.pieces;
-		const auto& onToggled = a_state.request.onPieceToggled;
-		const auto  columnX = ColumnPositions(a_state);
-		if (const int clicked = Theme::HeaderRow(kColumnLabels, columnX, a_state.sortColumn, a_state.sortDescending); clicked >= 0) {
+		const auto&       pieces = a_state.request.pieces;
+		const auto&       onToggled = a_state.request.onPieceToggled;
+		const auto        positions = ColumnPositions(a_state);
+		const std::size_t columns = a_state.showSlots ? kColumnLabels.size() : static_cast<std::size_t>(kSlotColumn);  // Slot is the last
+		const auto        labels = std::span(kColumnLabels).first(columns);
+		const auto        columnX = std::span<const float>(positions).first(columns);
+		if (const int clicked = Theme::HeaderRow(labels, columnX, a_state.sortColumn, a_state.sortDescending); clicked >= 0) {
 			QueueMenuSound(kFocusSound);
 			a_state.sortDescending = clicked == a_state.sortColumn && !a_state.sortDescending;
 			a_state.sortColumn = clicked;
@@ -1014,7 +1020,7 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::PushID(static_cast<int>(i));
 				const std::array<const char*, 3> cells{ pieces[i].name.c_str(), pieces[i].type.c_str(), pieces[i].slotText.c_str() };
-				if (Theme::TickRow(cells, columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor })) {
+				if (Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor })) {
 					QueueMenuSound(kFocusSound);
 					if (a_list.ticked[i]) {
 						UntickSharingSlots(a_state, a_list, i);
@@ -2029,6 +2035,7 @@ namespace CaptureWindow
 			SetGroupHeadings(state);
 			state.sortColumn = kNameColumn;
 			state.sortDescending = false;
+			state.showSlots = Settings::ShowSlotColumn();
 			SortPieces(state);
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
