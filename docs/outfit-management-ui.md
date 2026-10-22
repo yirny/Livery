@@ -18,8 +18,8 @@ the columns' top and bottom. Tooltips sit (32, 20)px from the mouse at 1080p
 (`style.MouseCursorScale`), clear of the game's cursor. In Vanilla and Nordic the rule after
 a list heading's text (folding outfit list headings, Manage Situations' situation headings)
 is SkyUI's MCM header rule, knot at its left end, in the headings' grey; lists and dropdown
-popups scroll with the game's journal scroll bar, 16px wide at 1080p (Tailor keeps a 1px rule
-and ImGui's bar).
+popups scroll with the game's journal scroll bar, 16px wide at 1080p with 2px clear on
+either side (Tailor keeps a 1px rule and ImGui's bar).
 
 ## 1. Outfit list (step 1)
 
@@ -52,8 +52,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   to nothing), from the shape's points in code, stretched across the row, as thick as the
   shape is in a 28-unit entry of the frame height.
 - Selected (a single-choice row, a ticked piece, a ticked dropdown row): Tailor fills it
-  faintly amber; Vanilla lays the piece list's white bar fading in from the left over it;
-  Nordic shows no fill. The mark: NORDIC UI's MCM page arrow on single-choice and dropdown
+  faintly amber; Vanilla lays the piece list's white bar fading in from the left over it,
+  its right end a point 0.4 times the row's height long, as NORDIC UI's inventory bar's;
+  Nordic shows no fill. In Vanilla and Nordic a list's fills (hover and selected) stop 6px
+  short of its scroll bar while one shows. The mark: NORDIC UI's MCM page arrow on single-choice and dropdown
   rows in Vanilla and Nordic (Nordic's 4px larger, its window padding 32px); the equipped
   mark on piece rows, and on a selected outfit row (the outfit the preview shows), centred
   where the arrow would be (on an outfit row without a drag grip, 2px right of that); Nordic puts the arrow on a ticked dropdown row too, at its start.
