@@ -15,9 +15,26 @@ namespace Theme
 {
 	enum class Skin
 	{
-		kTailor,   // Tailor 3.0's colours, spacing and fonts
+		kModern,   // dark panels in a palette's colours, after Edge UI (it began as Tailor 3.0's look)
 		kVanilla,  // the game's own menus
 		kNordic    // NORDIC UI
+	};
+
+	// The Modern skin's colours, each 0xRRGGBBAA (AA: opacity, FF opaque). The defaults are the
+	// Edge palette, after Edge UI; Settings reads the others from palette files.
+	struct Palette
+	{
+		std::uint32_t window = 0x1E1E1CF0;       // the window
+		std::uint32_t surface = 0x262522FA;      // popups, dropdown lists and tooltips
+		std::uint32_t titleBar = 0x403C2EFF;     // the title bars of the window and its popups
+		std::uint32_t text = 0xDCD6C2FF;         // text
+		std::uint32_t label = 0x8C8A7CFF;        // field and column labels, list headings, links, greyed text
+		std::uint32_t accent = 0xD2BC72FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
+		std::uint32_t accentLight = 0xF0DBA4FF;  // the text cursor, a scroll bar or slider held
+		std::uint32_t rule = 0x4A4639FF;         // the rules and frames of the window, its fields and lists
+		std::uint32_t hover = 0x423F35FF;        // a hovered row
+		std::uint32_t selected = 0x3C3931FF;     // a selected row, the selected tab, a narrowing field's fill
+		std::uint32_t error = 0xFF6666FF;        // error text and fields
 	};
 
 	// Contract: render thread, once, after ImGui::CreateContext and before the
@@ -30,8 +47,9 @@ namespace Theme
 	void LoadTextures(ID3D11Device* device);
 
 	// Contract: render thread, before ImGui::NewFrame. Rebuilds the whole style
-	// for the skin and scales it to the back buffer height in pixels.
-	void Apply(Skin skin, float displayHeight);
+	// for the skin (Modern in `palette`'s colours) and scales it to the back buffer
+	// height in pixels.
+	void Apply(Skin skin, const Palette& palette, float displayHeight);
 
 	// The widgets below draw in the active skin, between Apply and Render; each one's comment
 	// says what a skin draws in place of ImGui's own.
@@ -67,8 +85,9 @@ namespace Theme
 
 	// A field is a label (or none) and the control or list it names; a list's count line
 	// under it belongs to the list's field. LabelText is a field label in the label font (the
-	// small font; in Nordic 0.7 of the body font, 14px), in ASCII capitals: grey in Vanilla and
-	// Nordic, plain text in Tailor. The help marks and column labels on a label's line, and
+	// small font; in Nordic 0.7 of the body font, 14px), in ASCII capitals, in a grey: the
+	// palette's label colour in Modern, NORDIC UI's in Vanilla and Nordic. The help marks and
+	// column labels on a label's line, and
 	// list headings, take the same font. It
 	// opens its field with SectionGap and sits a little closer to the control below it than the
 	// item spacing would. `opensField` false, a count line under a list: a smaller gap above
@@ -82,7 +101,7 @@ namespace Theme
 	// A clickable label at the right end of the line just laid out (call it
 	// right after CountText): a filled rounded square with a plus cut out of
 	// it, then `label`, both in CountText's font and colour, lit while hovered
-	// (white in Vanilla and Nordic, amber in Tailor). Returns true when clicked.
+	// (white in Vanilla and Nordic, the accent in Modern). Returns true when clicked.
 	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
 	bool LabelLink(const char* label);
@@ -113,7 +132,7 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineLink(const char* label);
 
-	// Extra room above a field, on top of the item spacing: 6px in Tailor, 8px in Vanilla and
+	// Extra room above a field, on top of the item spacing: 6px in Modern, 8px in Vanilla and
 	// Nordic. LabelText adds it itself, so call it only before a field that has no label.
 	void SectionGap();
 
@@ -135,7 +154,7 @@ namespace Theme
 	bool HelpButton(const char* label, bool* hovered);
 
 	// A square-cornered list of rows between a rule above and a rule below (none with
-	// `rules` false). The rules and the rows' fills span the content. In Tailor the whole list keeps
+	// `rules` false). The rules and the rows' fills span the content. In Modern the whole list keeps
 	// to the content, its backdrop ending at the window's padding as the other
 	// controls do; in Vanilla and Nordic the rows' click areas run on past the
 	// window's padding to its edges (Vanilla's right one to its frame's band, so a
@@ -153,7 +172,7 @@ namespace Theme
 
 	// Pixels on the back buffer: the padding between a list's rules and its
 	// rows, and the gap between rows. The padding is the piece list's row gap
-	// in every list; the gap is Tailor's tight one, or the given one otherwise.
+	// in every list; the gap is Modern's tight one, or the given one otherwise.
 	float ListPaddingY();
 	float ListRowGap(float fallback);
 
@@ -171,7 +190,7 @@ namespace Theme
 	float ColumnGap();
 
 	// The column labels over a list, in LabelText's font, colour and capitals, each lit
-	// while hovered (white in Vanilla and Nordic, amber in Tailor); the label of
+	// while hovered (white in Vanilla and Nordic, the accent in Modern); the label of
 	// column `sorted` has a small arrow after it, pointing up unless
 	// `descending`. Opens a field as LabelText does. Returns the index of the
 	// column clicked, or -1. Faded and inert inside BeginDisabled.
@@ -180,10 +199,10 @@ namespace Theme
 	int HeaderRow(std::span<const char* const> labels, std::span<const float> columnX, int sorted, bool descending);
 
 	// A row the user ticks on and off, one text per column; returns true when
-	// toggled. While ticked, Tailor fills it faintly amber with an amber rule on
-	// its left edge, as Tailor 3.0 marks a selected row; Vanilla and Nordic draw it
-	// like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a white
-	// bar fading in from the left. Hovered: Tailor's brown, Vanilla's soft white
+	// toggled. While ticked, Modern fills it in the palette's selected colour with an
+	// accent rule on its left edge, as Tailor 3.0 marks a selected row; Vanilla and Nordic
+	// draw it like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a white
+	// bar fading in from the left. Hovered: Modern's hover colour, Vanilla's soft white
 	// ellipse, NORDIC UI's selection line under the row.
 	// With `icon`, the icon's texture is drawn where the row's text starts, centred on the row,
 	// tinted; a key with no texture draws nothing.
@@ -203,8 +222,8 @@ namespace Theme
 
 	// A row of a single-choice list, SelectRowHeight tall, its text a little right of the
 	// list's indent; returns true when clicked. A selected row is marked left of its text:
-	// NORDIC UI's MCM page arrow in Vanilla and Nordic, Tailor's amber rule on its left edge;
-	// Tailor also fills it, Vanilla lays the tick row's white bar over it, Nordic shows the
+	// NORDIC UI's MCM page arrow in Vanilla and Nordic, Modern's accent rule on its left edge;
+	// Modern also fills it, Vanilla lays the tick row's white bar over it, Nordic shows the
 	// arrow alone. A hovered row gets the tick row's hover fill.
 	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's
@@ -257,12 +276,12 @@ namespace Theme
 
 	// A list heading rule (FoldHeading, SituationHeading): in Vanilla and Nordic, SkyUI's MCM
 	// header rule in ListHeading's grey, a knot at its left end and a double line on to its
-	// closed right end, 0.7 times LabelText's font size tall; in Tailor, or without its texture
+	// closed right end, 0.7 times LabelText's font size tall; in Modern, or without its texture
 	// or room for its two ends, a 1px line in the list's rule colour.
 
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
 	// away: a chevron pointing down while `open` and right while folded, then the text in
-	// capitals, both in ListHeading's grey and lit while hovered (white in Vanilla and Nordic, amber in Tailor),
+	// capitals, both in ListHeading's grey and lit while hovered (white in Vanilla and Nordic, the accent in Modern),
 	// then, 12px on, a list heading rule to 4px short of the list's right end. The whole row is
 	// the click target; returns true when clicked, and the caller folds or unfolds.
 	// In LabelText's font. Its chevron starts at the list's left edge, the text after it, where
@@ -305,7 +324,7 @@ namespace Theme
 
 	// One row of a dropdown's popup, filled and hovered as SelectRow is; returns true when
 	// clicked, having toggled `*ticked`. `checkbox` makes it a row of a multi-choice dropdown:
-	// Vanilla and Nordic draw the game's checkbox at the row's start (Tailor, or a missing
+	// Vanilla and Nordic draw the game's checkbox at the row's start (Modern, or a missing
 	// texture, a check mark at its right end while ticked). Nordic marks a ticked row with the
 	// select arrow left of all that. DropdownRowWidth is the width it needs for `label`.
 	// Contract: in the popup; the label is shown as is and is the row's ImGui ID.
@@ -327,7 +346,7 @@ namespace Theme
 	// A SelectRow with the outfit's name, ending in an ellipsis short of `marks`.
 	// The name starts 22px in from the row's left edge in every skin, and a `striped`
 	// row (every other one) has a faint white under its fills. With `grip`, a drag grip where
-	// it says, in LabelText's grey at low alpha (Tailor: its text colour mixed with black), and
+	// it says, in LabelText's grey at low alpha, and
 	// the name starts 12px past its dots instead. Selected, Vanilla marks it with the equipped
 	// mark of a ticked piece and Nordic with the select arrow, 2px right of the
 	// centre of the room left of the name, or centred left of the dots with Grip::kName; with Grip::kEdge in the dots' place,
@@ -340,14 +359,14 @@ namespace Theme
 	float OutfitRowHeight();
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
-	// settings checkbox (ImGui's own when its texture is missing), Tailor a
-	// smaller rounded ImGui one. Faded and inert inside BeginDisabled, like
+	// settings checkbox (ImGui's own when its texture is missing), Modern a
+	// smaller ImGui one. Faded and inert inside BeginDisabled, like
 	// ImGui::Checkbox.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Checkbox(const char* label, bool* value);
 
 	// A radio button; returns true when pressed, and the caller selects it.
-	// Vanilla and Nordic draw it as their checkbox, Tailor (or a missing
+	// Vanilla and Nordic draw it as their checkbox, Modern (or a missing
 	// texture) as ImGui's own.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool RadioButton(const char* label, bool active);
@@ -364,7 +383,7 @@ namespace Theme
 
 	enum class FieldShape
 	{
-		kBoxed,       // the skin's frame in Tailor; Vanilla and Nordic draw it kUnderlined, a text field with a pen at its right end
+		kBoxed,       // the skin's frame in Modern; Vanilla and Nordic draw it kUnderlined, a text field with a pen at its right end
 		kUnderlined,  // no frame: one rule under the text, coloured as the frame would be; filled only while highlighted
 		kBare         // no fill, frame or rule, and as tall as the text
 	};
@@ -399,8 +418,8 @@ namespace Theme
 	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
 	// fill the popup only when BeginCombo returned true, then call EndCombo
 	// with that result, the preview and the same style; EndCombo draws the
-	// preview. Every skin gives the popup its own padding. Tailor replaces
-	// ImGui's arrow with a small amber chevron; Vanilla and Nordic replace it
+	// preview. Every skin gives the popup its own padding. Modern replaces
+	// ImGui's arrow with a small chevron in the accent; Vanilla and Nordic replace it
 	// with the game's diamond stepper arrow, grey and white while hovered or open,
 	// or keep ImGui's when its texture is missing, and draw the popup's border fainter
 	// and its scroll bar as BeginList's. `flags` are ImGuiComboFlags.
@@ -433,9 +452,9 @@ namespace Theme
 	};
 
 	// One tab of the column at the window's left edge, a square: the icon in the text colour
-	// on a faint fill while selected (its corners rounded 2px in Vanilla and Nordic, as Tailor's
-	// frames in Tailor), else in LabelText's grey (Tailor's ghost) and
-	// lit while hovered, with `name` as a tooltip. Returns true when clicked. Faded and
+	// on the selected row's fill while selected (its corners rounded 2px), else in LabelText's
+	// grey and lit while hovered (white in Vanilla and Nordic, the accent in Modern), with
+	// `name` as a tooltip. Returns true when clicked. Faded and
 	// inert inside BeginDisabled.
 	// Contract: `name` is the ImGui ID.
 	bool Tab(TabIcon icon, const char* name, bool selected);
@@ -453,13 +472,13 @@ namespace Theme
 
 	// The rule between the tab column, whose tabs start at `left`, and the page, from `top`
 	// to `bottom` (screen pixels; Vanilla stops it 2px short of its frame's band at both
-	// ends): Tailor's 1px border colour, Vanilla's 2px rule, NORDIC UI's level-up rope (1px of
+	// ends): Modern's 1px rule colour, Vanilla's 2px rule, NORDIC UI's level-up rope (1px of
 	// its rule colour without the texture).
 	void TabRule(float left, float top, float bottom);
 
 	// A faint 1px vertical rule centred on `x` between two columns, 4px short of `top` and
 	// `bottom` (screen pixels): the rule colour at half its alpha in Vanilla and Nordic; nothing
-	// in Tailor.
+	// in Modern.
 	void ColumnRule(float x, float top, float bottom);
 
 	// The body font at a smaller size, for controls that sit beside others
