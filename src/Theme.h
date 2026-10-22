@@ -68,19 +68,20 @@ namespace Theme
 	// A field is a label (or none) and the control or list it names; a list's count line
 	// under it belongs to the list's field. LabelText is a field label in the label font (the
 	// small font; in Nordic the tags' size, 14px), in ASCII capitals: grey in Vanilla and
-	// Nordic, plain text in Tailor. The links, help marks and column labels on a label's line,
-	// and list headings, take the same font. It
+	// Nordic, plain text in Tailor. The help marks and column labels on a label's line, and
+	// list headings, take the same font. It
 	// opens its field with SectionGap and sits a little closer to the control below it than the
 	// item spacing would. `opensField` false, a count line under a list: a smaller gap above
-	// it, 6px. CountText is LabelText with the text kept as written, for count lines.
+	// it, 6px. CountText is LabelText with the text kept as written and in the small font in
+	// every skin, for count lines; the links take the small font too.
 	// Contract: every field label goes through LabelText, and every count line
 	// ("2 of 5 piece(s) selected", "12 outfit(s) in the wardrobe") through CountText.
 	void LabelText(const char* text, bool opensField = true);
 	void CountText(const char* text, bool opensField = true);
 
 	// A clickable label at the right end of the line just laid out (call it
-	// right after LabelText): a filled rounded square with a plus cut out of
-	// it, then `label`, both in LabelText's font and colour, lit while hovered
+	// right after CountText): a filled rounded square with a plus cut out of
+	// it, then `label`, both in CountText's font and colour, lit while hovered
 	// (white in Vanilla and Nordic, amber in Tailor). Returns true when clicked.
 	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
@@ -93,7 +94,7 @@ namespace Theme
 
 	// LabelLink without the plus mark, `label` followed inside its click area by a greyed
 	// "(?)": text only at the right end of the label line just laid out (call it right after
-	// LabelText), lit while hovered. `*hovered` tells the caller to show the help. Returns
+	// LabelText), in the small font, lit while hovered. `*hovered` tells the caller to show the help. Returns
 	// true when clicked. Faded and inert inside BeginDisabled.
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LabelHelpLink(const char* label, bool* hovered);
@@ -150,7 +151,7 @@ namespace Theme
 	bool BeginList(const char* id, float height, bool rules = true);
 	void EndList();
 
-	// `label` on the line right under a list, in LabelText's font and colour, lit while hovered
+	// `label` on the line right under a list, in CountText's font and colour, lit while hovered
 	// (white in Vanilla and Nordic, amber in Tailor): as far below the list's bottom rule as a
 	// label over a list sits above its top rule. Returns true when clicked. Faded and inert
 	// inside BeginDisabled.
