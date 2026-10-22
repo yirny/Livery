@@ -161,7 +161,8 @@ would have to be kept in step).
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
   then takes it off every row in this save (a `chosen` that was it becomes 0), and a Default
   this leaves wearing nothing gets the outfit's pieces, read before the remove, as its
-  pieces. Other saves' rows naming it put nothing on and fall back to the Default (§7).
+  pieces. Other saves' rows naming it keep the id, which counts as not on the row and never
+  shows (docs/situation-management-ui.md §1); restoring outfits.json brings it back.
 - Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
   presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
   situation key its name, description and removed flag, only for the situations that

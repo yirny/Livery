@@ -108,6 +108,37 @@ namespace OutfitRows
 		}
 	}
 
+	// The row without the outfits `a_inLibrary` rejects, which a row from another save still
+	// names after Remove took them out of the library; `chosen` becomes 0 if it was one. What
+	// the window shows and dressing sees: the co-save keeps them, so restoring outfits.json
+	// brings them back.
+	template <class Has>
+	Row WithoutGone(Row a_row, Has&& a_inLibrary)
+	{
+		std::erase_if(a_row.outfits, [&a_inLibrary](std::uint32_t a_outfit) { return !a_inLibrary(a_outfit); });
+		if (a_row.chosen != 0 && !a_inLibrary(a_row.chosen)) {
+			a_row.chosen = 0;
+		}
+		return a_row;
+	}
+
+	// `a_edited`, made from WithoutGone(a_stored), with `a_stored`'s gone outfits back at the
+	// end of its list and its gone `chosen` back while `a_edited` chose none, so an edit keeps
+	// what it could not show. An outfit given in a gone `chosen`'s place leaves it on the list.
+	template <class Has>
+	Row KeepGone(Row a_edited, const Row& a_stored, Has&& a_inLibrary)
+	{
+		for (const auto outfit : a_stored.outfits) {
+			if (!a_inLibrary(outfit) && std::ranges::find(a_edited.outfits, outfit) == a_edited.outfits.end()) {
+				a_edited.outfits.push_back(outfit);
+			}
+		}
+		if (a_edited.chosen == 0 && a_stored.chosen != 0 && !a_inLibrary(a_stored.chosen)) {
+			a_edited.chosen = a_stored.chosen;
+		}
+		return a_edited;
+	}
+
 	// Whether the row holds `a_outfit`: it is `chosen` with random off, on `outfits` with
 	// random on. What the window's ticks, tags, headings and marks show. Never id 0.
 	inline bool Holds(const Row& a_row, std::uint32_t a_outfit)

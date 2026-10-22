@@ -119,6 +119,33 @@ TEST_CASE("Take removes the outfit and clears chosen only when it was that", "[r
 	CHECK(hidden.chosen == 0);
 }
 
+TEST_CASE("WithoutGone leaves out the outfits the library lacks, KeepGone puts them back", "[rows]")
+{
+	const auto inLibrary = [](std::uint32_t a_outfit) { return a_outfit < 10; };  // 10 and up are gone
+
+	const Row stored{ .outfits = { 10, 1, 11 }, .chosen = 10 };
+	const Row shown = OutfitRows::WithoutGone(stored, inLibrary);
+	CHECK(shown.outfits == Ids{ 1 });
+	CHECK(shown.chosen == 0);
+	CHECK(OutfitRows::WithoutGone(Row{ .outfits = { 1, 2 }, .chosen = 2 }, inLibrary) == Row{ .outfits = { 1, 2 }, .chosen = 2 });
+
+	const Row kept = OutfitRows::KeepGone(shown, stored, inLibrary);  // saved as shown
+	CHECK(kept.outfits == Ids{ 1, 10, 11 });
+	CHECK(kept.chosen == 10);
+
+	Row edited = shown;
+	OutfitRows::Give(edited, 2);  // an outfit dropped where the gone one was chosen
+	const Row replaced = OutfitRows::KeepGone(edited, stored, inLibrary);
+	CHECK(replaced.outfits == Ids{ 2, 1, 10, 11 });
+	CHECK(replaced.chosen == 2);
+
+	const Row random{ .outfits = { 10, 1 }, .random = true, .chosen = 1 };
+	const Row randomShown = OutfitRows::WithoutGone(random, inLibrary);
+	CHECK(randomShown.outfits == Ids{ 1 });
+	CHECK(randomShown.chosen == 1);
+	CHECK(OutfitRows::KeepGone(randomShown, random, inLibrary) == Row{ .outfits = { 1, 10 }, .random = true, .chosen = 1 });
+}
+
 TEST_CASE("Holds is chosen with random off and the list with random on", "[rows]")
 {
 	const Row off{ .outfits = { 2, 1 }, .chosen = 2 };

@@ -230,13 +230,31 @@ namespace
 		std::vector<Situation> givenRows;
 	};
 
-	// The library outfit row `a_row` wears now, 0 for none (OutfitRows::Wears): a random row
-	// keeps the pick they wear for it while it is on the list, or wears the outfit just given.
-	std::uint32_t OutfitFor(const Assignment& a_assignment, Situation a_row, const RedressOptions& a_options)
+	bool InLibrary(std::uint32_t a_outfit)
+	{
+		return Library::Find(a_outfit) != nullptr;
+	}
+
+	// Their rows as dressing sees them (OutfitRows::WithoutGone): an outfit another save's row
+	// names after it left the library is never picked, and a situation row with only such
+	// outfits is passed over. The record keeps them.
+	OutfitRows::Rows LiveRows(const Assignment& a_assignment)
+	{
+		auto rows = a_assignment.rows;
+		for (auto& row : rows) {
+			row = OutfitRows::WithoutGone(std::move(row), InLibrary);
+		}
+		return rows;
+	}
+
+	// The library outfit row `a_row` of `a_rows` (LiveRows) wears now, 0 for none
+	// (OutfitRows::Wears): a random row keeps the pick they wear for it while it is on the
+	// list, or wears the outfit just given.
+	std::uint32_t OutfitFor(const Assignment& a_assignment, const OutfitRows::Rows& a_rows, Situation a_row, const RedressOptions& a_options)
 	{
 		const bool given = a_options.given != 0 && std::ranges::find(a_options.givenRows, a_row) != a_options.givenRows.end();
 		const auto kept = given ? a_options.given : (a_assignment.worn == a_row ? a_assignment.wornOutfit : 0);
-		return OutfitRows::Wears(a_assignment.rows[RowOf(a_row)], kept, RandomIndex);
+		return OutfitRows::Wears(a_rows[RowOf(a_row)], kept, RandomIndex);
 	}
 
 	// The armor row `a_row` wears as `a_outfit`: the library outfit's loaded pieces, or with
@@ -283,18 +301,20 @@ namespace
 	}
 
 	// Dresses them for `a_now` unless they already wear the row it resolves to and the
-	// outfit that row wears (`force` dresses them anyway). A situation outfit that puts
-	// nothing on falls back to the Default. Returns the dressing's result, or nullopt when
-	// nothing changed; the assignment's `worn` and `wornOutfit` tell what went on.
+	// outfit that row wears (`force` dresses them anyway), the rows as LiveRows sees them. A
+	// situation outfit that puts nothing on falls back to the Default. Returns the dressing's
+	// result, or nullopt when nothing changed; the assignment's `worn` and `wornOutfit` tell
+	// what went on.
 	std::optional<Dressing::Result> Redress(Assignment& a_assignment, RE::Actor& a_actor, const Situations::Applicable& a_now, const RedressOptions& a_options = {})
 	{
-		const auto row = OutfitRows::Resolve(a_assignment.rows, a_now);
-		const auto outfit = OutfitFor(a_assignment, row, a_options);
+		const auto rows = LiveRows(a_assignment);
+		const auto row = OutfitRows::Resolve(rows, a_now);
+		const auto outfit = OutfitFor(a_assignment, rows, row, a_options);
 		if (!a_options.force && row == a_assignment.worn && outfit == a_assignment.wornOutfit) {
 			return std::nullopt;
 		}
 		// Read before Wear, which changes what they wear and so a random Default's kept pick.
-		const auto fallback = row != Situation::kDefault ? OutfitFor(a_assignment, Situation::kDefault, a_options) : outfit;
+		const auto fallback = row != Situation::kDefault ? OutfitFor(a_assignment, rows, Situation::kDefault, a_options) : outfit;
 		auto       result = Wear(a_assignment, a_actor, row, outfit, a_options.leaveOut);
 		if (result.worn.empty() && row != Situation::kDefault) {
 			logger::info("No piece of the {} outfit went on {:08X}; the default outfit instead", Situations::Name(row), a_actor.GetFormID());
@@ -891,7 +911,7 @@ namespace Assignments
 		// The new Default goes on even when they already wore the Default; a situation
 		// outfit they wear stays on and the Default waits for its turn.
 		const auto now = Situations::Evaluate(a_actor);
-		options.force = OutfitRows::Resolve(assignment.rows, now) == Situation::kDefault;
+		options.force = OutfitRows::Resolve(LiveRows(assignment), now) == Situation::kDefault;
 		const auto result = Redress(assignment, a_actor, now, options);
 		const auto wornFor = assignment.worn;  // read before DropIfEmpty, which may end the record
 		DropIfEmpty(id);
@@ -1058,7 +1078,8 @@ namespace Assignments
 	{
 		std::vector<Holder> holders;
 		for (const auto& assignment : g_assignments) {
-			if (const auto count = assignment.rows[RowOf(a_situation)].outfits.size(); count > 0) {
+			const auto& outfits = assignment.rows[RowOf(a_situation)].outfits;
+			if (const auto count = static_cast<std::size_t>(std::ranges::count_if(outfits, InLibrary)); count > 0) {
 				holders.push_back({ .actor = assignment.actor, .outfits = count });
 			}
 		}
