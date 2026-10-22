@@ -213,14 +213,9 @@ namespace OutfitBrowser
 		a_state.filterTicked = std::make_unique<bool[]>(a_state.filter.size());  // all false
 
 		a_state.categories.clear();
-		a_state.tags.clear();
 		a_state.situations.clear();
 		for (const auto& outfit : a_request.existingOutfits) {
-			const auto& in = a_state.categories.emplace_back(CategoriesOf(outfit, a_request));
-			auto&       tags = a_state.tags.emplace_back();
-			for (const int index : in) {
-				tags.push_back(a_request.categories[static_cast<std::size_t>(index)].name);
-			}
+			a_state.categories.push_back(CategoriesOf(outfit, a_request));
 			a_state.situations.push_back(SituationsText(outfit, a_request));
 		}
 		Refresh(a_state, a_request);

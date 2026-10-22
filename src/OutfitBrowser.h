@@ -10,7 +10,7 @@
 #include <vector>
 
 // Search, filter and sort of the library outfits listed on the outfit pages, each outfit's
-// tags and heading, and the headings folded away (see OutfitBrowser.cpp).
+// categories and heading, and the headings folded away (see OutfitBrowser.cpp).
 // Pure logic with no ImGui or SKSE, so the unit tests build it.
 //
 // Contract: a State belongs to one Request: call Reset with it before anything
@@ -39,13 +39,12 @@ namespace OutfitBrowser
 
 	struct State
 	{
-		std::array<char, kSearchCapacity>     search{};      // matched anywhere in the name, ASCII case ignored
-		std::vector<FilterOption>             filter;        // per group of Request::categories: its categories, then its "No <group>" row
-		std::unique_ptr<bool[]>               filterTicked;  // one per filter; bool[] for the rows' bool&
-		SortKey                               sort = SortKey::kName;
-		std::vector<int>                      visible;     // indices into Request::existingOutfits that pass, in display order
-		std::vector<std::vector<int>>         categories;  // per outfit: indices into Request::categories it is in, ascending
-		std::vector<std::vector<std::string>> tags;        // per outfit: the names of those categories, in that order, for its row
+		std::array<char, kSearchCapacity> search{};      // matched anywhere in the name, ASCII case ignored
+		std::vector<FilterOption>         filter;        // per group of Request::categories: its categories, then its "No <group>" row
+		std::unique_ptr<bool[]>           filterTicked;  // one per filter; bool[] for the rows' bool&
+		SortKey                           sort = SortKey::kName;
+		std::vector<int>                  visible;     // indices into Request::existingOutfits that pass, in display order
+		std::vector<std::vector<int>>     categories;  // per outfit: indices into Request::categories it is in, ascending
 		// Per outfit: the tooltip of its row's situation mark, "For Town, Warm" from the situations
 		// (never Default) the actor wears it for; "" for none.
 		std::vector<std::string> situations;
