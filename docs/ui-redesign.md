@@ -10,12 +10,12 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
 
 - Title: `#{Name}'s Inventory`, `#{Name}` the actor's name. The summary line under it stays.
 - The piece list is grouped under headings, in this fixed order, a heading with no piece hidden:
-  1. `#{Name}'s Outfit ("#{Outfit}")`: worn pieces Livery put on from a library outfit,
+  1. `Outfit ("#{Outfit}")`: worn pieces Livery put on from a library outfit,
      named by the outfit worn now (the default's or the worn situation's).
-  2. `#{Name}'s Outfit (Not in Wardrobe)`: worn pieces Livery put on that are not a saved
+  2. `Outfit (Not in Wardrobe)`: worn pieces Livery put on that are not a saved
      outfit (outfit id 0, or the outfit has left the library).
-  3. `#{Name}'s Outfit (Unmanaged)`: worn pieces Livery did not put on.
-  4. `#{Name}'s Inventory`: carried, not worn. The actor's own outfit copies
+  3. `Outfit (Unmanaged)`: worn pieces Livery did not put on.
+  4. `Inventory`: carried, not worn. The actor's own outfit copies
      (`ExtraOutfitItem` naming their base's `defaultOutfit`) are left out while unworn, as the
      trade menu leaves them out (design.md §3).
   5. `Player's Inventory` (NPC target only): the player's armor, per the settings (§2);

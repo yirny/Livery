@@ -787,12 +787,11 @@ namespace CaptureWindow::Internal
 	{
 		using Group = CaptureWindow::PieceGroup;
 		const auto& request = a_state.request;
-		const auto& name = request.actorName;
 		auto&       headings = a_state.headings;
-		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("{}'s Outfit (\"{}\")", name, request.outfitName);
-		headings[GroupIndex(Group::kNotInLibrary)] = std::format("{}'s Outfit (Not in Wardrobe)", name);
-		headings[GroupIndex(Group::kUnmanaged)] = std::format("{}'s Outfit (Unmanaged)", name);
-		headings[GroupIndex(Group::kCarried)] = std::format("{}'s Inventory", name);
+		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("Outfit (\"{}\")", request.outfitName);
+		headings[GroupIndex(Group::kNotInLibrary)] = "Outfit (Not in Wardrobe)";
+		headings[GroupIndex(Group::kUnmanaged)] = "Outfit (Unmanaged)";
+		headings[GroupIndex(Group::kCarried)] = "Inventory";
 		headings[GroupIndex(Group::kPlayer)] = "Player's Inventory";  // Theme::ListHeadingHelp adds its "(?)"
 		headings[GroupIndex(Group::kNotCarried)].clear();
 	}

@@ -1671,7 +1671,7 @@ namespace
 	// Vanilla and Nordic. Pop with ImGui::PopFont.
 	void PushTagFont()
 	{
-		constexpr float kSquareTagRatio = 0.8f;  // of the body font's size, in Vanilla and Nordic: 16px at 1080p
+		constexpr float kSquareTagRatio = 0.7f;  // of the body font's size, in Vanilla and Nordic: 14px at 1080p
 
 		const float ratio = g_skin == Theme::Skin::kTailor ? kSmallFontRatio : kSquareTagRatio;
 		ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * ratio);
