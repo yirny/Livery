@@ -573,6 +573,10 @@ namespace CaptureWindow::Internal
 			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
 				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
+				// An outfit the Default wears with random off drops its pieces, as a drop does.
+				if (selected == 0 && !random && entry.row.chosen != 0) {
+					form.defaultPieces = false;
+				}
 			}
 			ImGui::SameLine();
 			ImGui::TextDisabled("(?)");
