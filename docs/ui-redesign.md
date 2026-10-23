@@ -87,8 +87,9 @@ Reached from `Save` with the ticked pieces, which both tabs save.
 - `Update Existing Outfit...`: greyed while the library is empty (`kNoOutfits`). Clicking it
   opens the outfit selection (the Load page's browser and preview, titled `Select an Outfit
   to Update`, no summary line, `No outfit selected` on the right while none is); Cancel
-  returns to the former tab with nothing changed. Clicking it again reopens the selection
-  with the chosen outfit selected and previewed. Once chosen: the name fills from the
+  returns to the former tab with nothing changed. The selection opens with the outfit last
+  loaded selected and previewed, or else the library outfit Livery has on the actor;
+  clicking it again reopens it with the chosen outfit selected. Once chosen: the name fills from the
   outfit, the `SITUATIONS (#{Name})` ticks (below) from this actor's assignments of it, and
   the button reads
   `Update #{Outfit}`. The name may be changed: CLAUDE.md §2.1 is rewritten (change the
