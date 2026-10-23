@@ -1805,6 +1805,46 @@ namespace
 		return pressed;
 	}
 
+	// Modern's checkbox, after the game's settings one: a square as tall as the text, a thin
+	// light frame and a thin tick in the text colour, then the label; the box and label are
+	// one click target. Returns true when pressed; the caller changes the value. Drawn as it
+	// will be after the press. No frame padding, so the item is as tall as the box.
+	bool ModernCheckbox(const char* a_label, bool a_ticked)
+	{
+		constexpr float kBorderAlpha = 0.5f;  // of the text colour, the frame while not hovered
+		// The tick's three points, as fractions of the box's side from its top-left corner.
+		constexpr ImVec2 kTick[] = { { 0.25f, 0.50f }, { 0.44f, 0.76f }, { 0.78f, 0.24f } };
+
+		const auto&  style = ImGui::GetStyle();
+		const float  side = ImGui::GetFontSize();
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+		const float  height = (std::max)(side, text.y);
+
+		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(side + style.ItemInnerSpacing.x + text.x, height));
+		const bool hovered = ImGui::IsItemHovered();
+		const bool held = ImGui::IsItemActive();
+		const bool ticked = pressed ? !a_ticked : a_ticked;
+
+		auto*          draw = ImGui::GetWindowDrawList();
+		const float    midY = topLeft.y + height * 0.5f;
+		const ImVec2   boxMin(topLeft.x, std::floor(midY - side * 0.5f));
+		const ImVec2   boxMax(boxMin.x + side, boxMin.y + side);
+		const ImGuiCol fill = held && hovered ? ImGuiCol_FrameBgActive : (hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
+		draw->AddRectFilled(boxMin, boxMax, ImGui::GetColorU32(fill), style.FrameRounding);
+		draw->AddRect(boxMin, boxMax, ImGui::GetColorU32(ImGuiCol_Text, hovered ? 1.0f : kBorderAlpha), style.FrameRounding, ImDrawFlags_None,
+			(std::max)(1.0f, g_scale));
+		if (ticked) {
+			ImVec2 points[std::size(kTick)];
+			for (std::size_t i = 0; i < std::size(kTick); ++i) {
+				points[i] = ImVec2(boxMin.x + side * kTick[i].x, boxMin.y + side * kTick[i].y);
+			}
+			draw->AddPolyline(points, static_cast<int>(std::size(points)), ImGui::GetColorU32(ImGuiCol_Text), ImDrawFlags_None, (std::max)(1.0f, 1.5f * g_scale));
+		}
+		draw->AddText(ImVec2(boxMax.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		return pressed;
+	}
+
 	// The mark left of a selected single-choice row's text: NORDIC UI's MCM
 	// page arrow in Vanilla and Nordic (a small triangle without the texture),
 	// Modern's accent rule on the fill's left edge.
@@ -2783,29 +2823,34 @@ namespace Theme
 
 	bool Checkbox(const char* a_label, bool* a_value)
 	{
+		bool pressed = false;
 		if (HasGameCheckbox()) {
-			const bool pressed = GameCheckbox(a_label, *a_value, false);
-			if (pressed) {
-				*a_value = !*a_value;
-			}
-			return pressed;
-		}
-		if (g_skin != Skin::kModern) {
+			pressed = GameCheckbox(a_label, *a_value, false);
+		} else if (g_skin == Skin::kModern) {
+			pressed = ModernCheckbox(a_label, *a_value);
+		} else {
 			return ImGui::Checkbox(a_label, a_value);
 		}
-		// Modern: ImGui's checkbox with a smaller box than its controls would give (the box
-		// is the frame height).
-		constexpr float kBoxPaddingY = 2.0f;  // pixels at 1080p, above and below the tick
-
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, kBoxPaddingY * g_scale));
-		const bool toggled = ImGui::Checkbox(a_label, a_value);
-		ImGui::PopStyleVar();
-		return toggled;
+		if (pressed) {
+			*a_value = !*a_value;
+		}
+		return pressed;
 	}
 
 	bool RadioButton(const char* a_label, bool a_active)
 	{
-		return HasGameCheckbox() ? GameCheckbox(a_label, a_active, true) : ImGui::RadioButton(a_label, a_active);
+		if (HasGameCheckbox()) {
+			return GameCheckbox(a_label, a_active, true);
+		}
+		if (g_skin != Skin::kModern) {
+			return ImGui::RadioButton(a_label, a_active);
+		}
+		// Modern: ImGui's, its circle as wide as Modern's checkbox (the circle is the frame
+		// height, so no vertical frame padding).
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, 0.0f));
+		const bool pressed = ImGui::RadioButton(a_label, a_active);
+		ImGui::PopStyleVar();
+		return pressed;
 	}
 
 	float FieldHeight(const FieldStyle& a_style)

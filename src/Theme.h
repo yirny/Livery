@@ -360,14 +360,14 @@ namespace Theme
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Modern a
-	// smaller ImGui one. Faded and inert inside BeginDisabled, like
-	// ImGui::Checkbox.
+	// square as tall as the text with a thin frame and tick. Faded and inert
+	// inside BeginDisabled, like ImGui::Checkbox.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Checkbox(const char* label, bool* value);
 
 	// A radio button; returns true when pressed, and the caller selects it.
-	// Vanilla and Nordic draw it as their checkbox, Modern (or a missing
-	// texture) as ImGui's own.
+	// Vanilla and Nordic draw it as their checkbox, Modern as ImGui's own the
+	// size of its checkbox (a missing texture: ImGui's own).
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool RadioButton(const char* label, bool active);
 
