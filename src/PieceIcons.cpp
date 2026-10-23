@@ -3,7 +3,8 @@
 // FILE MAP
 //   Constants  - the icon and rule folders, SkyUI's icon swf and armor icon colours
 //   Keys       - an icon's key from a rule's iconSource and iconLabel
-//   Rules      - an I4 Armor rule: reading its match (formType, keywords, formId, parts) and
+//   Rules      - an I4 file's text as I4 accepts it (comments, a comma before a closing bracket);
+//                an I4 Armor rule: reading its match (formType, keywords, formId, parts) and
 //                assign (iconSource, iconLabel, iconColor, subTypeDisplay), and testing an
 //                armor against it
 //   Type text  - a rule's subTypeDisplay as the game's translations show it
@@ -34,7 +35,9 @@
 #include <cstddef>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <unordered_set>
@@ -279,6 +282,57 @@ namespace
 		return rule;
 	}
 
+	// The first position at or after a_pos that is neither whitespace nor in a comment.
+	std::size_t SkipBlank(std::string_view a_text, std::size_t a_pos)
+	{
+		constexpr std::string_view kBlank = " \t\r\n";
+		while (a_pos < a_text.size()) {
+			if (kBlank.find(a_text[a_pos]) != std::string_view::npos) {
+				++a_pos;
+			} else if (a_text.substr(a_pos, 2) == "//") {
+				a_pos = (std::min)(a_text.find('\n', a_pos), a_text.size());
+			} else if (a_text.substr(a_pos, 2) == "/*") {
+				const auto end = a_text.find("*/", a_pos + 2);
+				a_pos = end == std::string_view::npos ? a_text.size() : end + 2;
+			} else {
+				break;
+			}
+		}
+		return a_pos;
+	}
+
+	// a_text without each comma that a closing bracket follows, past whitespace and comments;
+	// strings and comments are kept as they are.
+	std::string DropTrailingCommas(std::string_view a_text)
+	{
+		std::string result;
+		result.reserve(a_text.size());
+		std::size_t pos = 0;
+		while (pos < a_text.size()) {
+			if (const auto next = SkipBlank(a_text, pos); next > pos) {
+				result.append(a_text.substr(pos, next - pos));
+				pos = next;
+			} else if (a_text[pos] == '"') {
+				auto end = pos + 1;
+				while (end < a_text.size() && a_text[end] != '"') {
+					end += a_text[end] == '\\' ? 2 : 1;
+				}
+				end = (std::min)(end + 1, a_text.size());
+				result.append(a_text.substr(pos, end - pos));
+				pos = end;
+			} else if (a_text[pos] == ',') {
+				const auto after = SkipBlank(a_text, pos + 1);
+				if (after == a_text.size() || (a_text[after] != ']' && a_text[after] != '}')) {
+					result.push_back(',');
+				}
+				++pos;
+			} else {
+				result.push_back(a_text[pos++]);
+			}
+		}
+		return result;
+	}
+
 	// Adds the usable rules of a plugin's I4 file, if it has one; returns how many.
 	std::size_t ReadRuleFile(std::string_view a_plugin)
 	{
@@ -288,8 +342,10 @@ namespace
 		if (!file) {
 			return 0;
 		}
-		// I4 reads its files with jsoncpp, which allows comments.
-		const auto json = nlohmann::json::parse(file, nullptr, false, true);
+		// I4 reads files with comments and with a comma before a closing bracket (its log counts
+		// their rules), so Livery takes both too.
+		const std::string text{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+		const auto        json = nlohmann::json::parse(DropTrailingCommas(text), nullptr, false, true);
 		if (json.is_discarded()) {
 			logger::warn("The InventoryInjector file for {} is not valid JSON; Livery uses none of its icon rules", a_plugin);
 			return 0;
