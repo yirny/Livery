@@ -52,7 +52,7 @@ Apart from the preview's working outfit, [font=Courier New]Capture Preview[/font
 [*]Preview camera speed.
 [/list]
 
-Only ASCII can be typed into the name field. On Skyrim VR there is no window: the hotkey only shows a message. Live Preview cannot run on someone another mod has set an outfit override on. On yourself, unticking the last piece leaves it shown, as Tailor does not dress the player in an empty outfit; the saved outfit follows the ticks. [font=Courier New]Capture Preview[/font] stays in Tailor's library, since Tailor's mod API cannot delete an outfit.
+Only ASCII can be typed into the name field. Live Preview cannot run on someone another mod has set an outfit override on. On yourself, unticking the last piece leaves it shown, as Tailor does not dress the player in an empty outfit; the saved outfit follows the ticks. [font=Courier New]Capture Preview[/font] stays in Tailor's library, since Tailor's mod API cannot delete an outfit.
 
 [line]
 
