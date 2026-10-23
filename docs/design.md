@@ -402,7 +402,8 @@ Each stage ends with an in-game check before the next starts.
   tinted `#756000` for Light, `#6B7585` for Heavy and `#EDDA87` otherwise.
 - Then the rules of Inventory Interface Information Injector (I4), read at `kDataLoaded`
   as I4 reads them: `SKSE/Plugins/InventoryInjector/<plugin>.json` for each active plugin,
-  in load order. Each rule a piece matches sets the icon, the colour and the Type text
+  in load order, comments and a comma before a closing bracket allowed as I4 allows them.
+  Each rule a piece matches sets the icon, the colour and the Type text
   (`subTypeDisplay`) it assigns, so a later rule wins field by field. Livery reads only the rules for `formType: "Armor"` whose
   match uses `keywords`, `formId` and `parts` alone; an array there is conditions that must
   all hold, `{"anyOf": [...]}` one met by any of its values. A rule's icon whose PNG is
