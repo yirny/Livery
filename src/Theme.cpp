@@ -1958,12 +1958,19 @@ namespace
 	}
 
 	// From a fold heading's left edge to its text (pixels on the back buffer): half the
-	// chevron's stroke, its box and the inner spacing after it (FoldHeading).
+	// chevron's stroke, its box and the inner spacing after it (FoldHeading). Measured once a
+	// frame: every draggable outfit row asks for it twice (DrawGrip, RowTextInset).
+	// Contract: ImGui's thread, inside a frame.
 	float FoldTextInset()
 	{
-		PushLabelFont();
-		const float inset = FoldChevronThickness() * 0.5f + ImGui::GetFontSize() * kFoldChevronRatio + ImGui::GetStyle().ItemInnerSpacing.x;
-		ImGui::PopFont();
+		static int   measuredFrame = -1;
+		static float inset = 0.0f;
+		if (const int frame = ImGui::GetFrameCount(); frame != measuredFrame) {
+			PushLabelFont();
+			inset = FoldChevronThickness() * 0.5f + ImGui::GetFontSize() * kFoldChevronRatio + ImGui::GetStyle().ItemInnerSpacing.x;
+			ImGui::PopFont();
+			measuredFrame = frame;
+		}
 		return inset;
 	}
 

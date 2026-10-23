@@ -576,6 +576,8 @@ namespace CaptureWindow::Internal
 		return OutfitAt(a_state, a_state.manage.outfit).id;
 	}
 
+	std::string ApplyTooltip(const State& a_state);
+
 	void FillManageForm(State& a_state, int a_index)
 	{
 		auto& form = a_state.manage;
@@ -583,6 +585,7 @@ namespace CaptureWindow::Internal
 		a_state.error.clear();
 		if (a_index < 0) {
 			form.pieces.clear();
+			a_state.manageApplyTip.clear();
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_index);
@@ -590,6 +593,7 @@ namespace CaptureWindow::Internal
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
 		form.gender = outfit.gender;
 		form.pieces = outfit.pieces;
+		a_state.manageApplyTip = ApplyTooltip(a_state);
 	}
 
 	// Starts the edits of outfit `a_index` (-1 for none) and shows it on the preview, or
@@ -751,7 +755,6 @@ namespace CaptureWindow::Internal
 	{
 		const char* noUpdate = UpdateReason(a_state);
 		const char* apply = a_state.manageApplyLabel.c_str();
-		const auto  applyTooltip = a_state.manage.outfit >= 0 ? ApplyTooltip(a_state) : std::string{};
 		BeginButtonRow({ "Update", "Remove", apply, "Exit" });
 		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
 		const bool update = ReasonButton("Update", noUpdate);
@@ -762,7 +765,7 @@ namespace CaptureWindow::Internal
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		ImGui::BeginDisabled(!a_state.request.onManageApply);
-		const bool applied = ReasonButton(apply, ApplyReason(a_state), applyTooltip.c_str());
+		const bool applied = ReasonButton(apply, ApplyReason(a_state), a_state.manageApplyTip.c_str());
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
