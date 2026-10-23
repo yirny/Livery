@@ -1,6 +1,6 @@
 # Livery — Claude Code Rules
 
-SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v9.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Livery dresses NPCs and the player in outfits of its own (`docs/design.md`): the capture hotkey (INI, default F10) on a crosshair NPC, or on the player when nothing is aimed at, opens an ImGui window that saves the worn armor into Livery's library (`Data/SKSE/Plugins/Livery/outfits.json`, `src/Library.cpp`) and assigns or releases an outfit by direct equip + PreventRemoval, kept in the SKSE co-save (`src/Assignments.cpp`, `src/Dressing.cpp`). F8 releases everyone.
+SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v9.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Livery dresses NPCs and the player in outfits of its own (`docs/design.md`): the capture hotkey (INI, default F10) on a crosshair NPC, or on the player when nothing is aimed at, opens an ImGui window that saves the worn armor into Livery's library (`Data/SKSE/Plugins/Livery/outfits.json`, `src/Library.cpp`) and assigns or releases an outfit by direct equip + PreventRemoval, kept in the SKSE co-save (`src/Assignments.cpp`, `src/Dressing.cpp`). Release everyone (the uninstall step) is a button on the SKSE Menu Framework settings page; no key does it.
 
 Build (Windows): run inside the VS developer environment (`.vscode/tasks.json` does this; default build task = `Ctrl+Shift+B`):
 `cmake --preset release-windows` then `cmake --build --preset release-windows` → `build/msvc/livery.dll`.

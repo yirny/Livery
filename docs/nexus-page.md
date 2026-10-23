@@ -27,7 +27,7 @@ Aim at a follower, press a key, and the armor they wear becomes a Tailor outfit.
 
 [size=4][b][color=#B8953E]Overview[/color][/b][/size]
 
-Tailor builds outfits from pieces you pick one by one. This plugin skips that: aim the crosshair at a follower or your spouse (or at nothing, for yourself), press [b]F8[/b], and a window lists every piece they wear or carry. From there:
+Tailor builds outfits from pieces you pick one by one. This plugin skips that: aim the crosshair at a follower or your spouse (or at nothing, for yourself), press the capture hotkey ([b]F10[/b] by default), and a window lists every piece they wear or carry. From there:
 
 [list]
 [*][b]Create New[/b] saves the ticked pieces as a new outfit. The name is pre-filled ([font=Courier New]Captured Outfit 001[/font] and so on), the armor class (Clothing, Light Armor, Heavy Armor) is detected and ticked, the gender is suggested from the pieces, and Tailor's situations and your own custom categories are one click away.
@@ -52,7 +52,7 @@ Apart from the preview's working outfit, [font=Courier New]Capture Preview[/font
 [*]Preview camera speed.
 [/list]
 
-Only ASCII can be typed into the name field. On Skyrim VR there is no window: the outfit is saved at once under the automatic name. Live Preview cannot run on someone another mod has set an outfit override on. On yourself, unticking the last piece leaves it shown, as Tailor does not dress the player in an empty outfit; the saved outfit follows the ticks. [font=Courier New]Capture Preview[/font] stays in Tailor's library, since Tailor's mod API cannot delete an outfit.
+Only ASCII can be typed into the name field. On Skyrim VR there is no window: the hotkey only shows a message. Live Preview cannot run on someone another mod has set an outfit override on. On yourself, unticking the last piece leaves it shown, as Tailor does not dress the player in an empty outfit; the saved outfit follows the ticks. [font=Courier New]Capture Preview[/font] stays in Tailor's library, since Tailor's mod API cannot delete an outfit.
 
 [line]
 
