@@ -288,9 +288,9 @@ shows the situation's.
   refused or failed write changes no row and shows the error. Then, when a row changed, it
   replaces the captured actor's rows at once (`Assignments::SetRows`, so the page shows them
   even before the redress) and dresses them once (`Assignments::Refresh`), by
-  docs/outfit-management-ui.md §6 (at once with Live Preview on, the preview begun again on
-  the outfit whose details show (§5), else on what they wear; at close with it off); a
-  random row they wear wears the outfit it gained first. The page stays, an outfit's details
+  docs/outfit-management-ui.md §6 (at once, Live Preview on or off; with it on the preview
+  begins again on the outfit whose details show (§5), else on what they wear); a random
+  row they wear wears the outfit it gained first. The page stays, an outfit's details
   too, and the edits start again from what was saved.
 - Exit closes the window; Escape does what Exit does, first clearing a search. While a write
   runs (Save Changes, Remove, Restore Presets) the page is greyed and Escape does nothing,

@@ -285,8 +285,8 @@ namespace CaptureWindow
 		std::function<void()> onClose;
 	};
 
-	// The captured actor's pieces after they were redressed while the window is open (with
-	// Live Preview on, or by an Apply): what the Inventory page lists, as Open would list it now.
+	// The captured actor's pieces after they were redressed while the window is open: what the
+	// Inventory page lists, as Open would list it now.
 	struct ActorPieces
 	{
 		std::vector<PieceGroup>  groups;          // one per Request::pieces
@@ -308,9 +308,8 @@ namespace CaptureWindow
 		std::vector<std::string>    restoreChanges;
 		std::string                 actorSummary;
 		bool                        dressed = false;  // as Request::dressed
-		// Set when the change redressed the captured actor at once: with Live Preview on, whose
-		// preview the handler began again, or by an Apply; the Inventory page then follows what
-		// they wear.
+		// Set when the change redressed the captured actor (with Live Preview on, the handler
+		// began the preview again); the Inventory page then follows what they wear.
 		std::optional<ActorPieces> actorPieces;
 	};
 

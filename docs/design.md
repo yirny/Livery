@@ -231,6 +231,9 @@ can come later if sharing across characters is wanted.
 - Situation outfits on the player (§7): Town in Whiterun, Warm by weather, and Swimming
   when wading on foot; no redress while a werewolf, and the right outfit on after turning
   back; wading on horseback is not Swimming; the choices survive save and load.
+- Dressing while the capture window froze the game (Live Preview off, 2026-10-23):
+  `EquipObject` and the assignment change the equipment data at once, so the window's list
+  follows at once; the NPC's 3D changes once the window closes.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
@@ -261,10 +264,9 @@ Manage Situations (docs/situation-management-ui.md §3-§6) edits every row of t
 actor by drag and drop, the random flags included, and the situations' names and
 descriptions; its Save Changes writes `situations.json` first, then replaces the rows
 (`Assignments::SetRows`, the record only) and dresses them once (`Assignments::Refresh`,
-at once with Live Preview on, else at the window's close; a random row worn now wears the
-outfit it gained first). Removing a situation writes `situations.json`, then clears the
-situation's rows in this save (`Assignments::ForgetSituation`) and takes those wearing it
-out of it as Remove takes them out of a removed outfit; Restore Presets changes no row. An actor can have situation outfits without a default and then wears their
+at once, Live Preview on or off; a random row worn now wears the outfit it gained
+first). Removing a situation writes `situations.json`, then clears the situation's rows
+in this save (`Assignments::ForgetSituation`) and takes those wearing it out of it as Remove takes them out of a removed outfit; Restore Presets changes no row. An actor can have situation outfits without a default and then wears their
 own clothes outside them. Restore Outfit forgets the choices with the rest. The
 player has the same rows.
 

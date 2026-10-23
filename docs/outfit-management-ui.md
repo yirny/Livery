@@ -250,8 +250,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   memory at their next situation change; a random row with others on its list picks again
   from them. A Default worn from it stays on.
 - Afterwards the list is rebuilt without it and nothing is selected; the preview shows the
-  Inventory page's ticks, or, when the captured actor was redressed with Live Preview on,
-  what they wear now, the Inventory page following them (§6). The Inventory page's loaded
+  Inventory page's ticks, or, when the captured actor was redressed, what they wear now, the
+  Inventory page following them (§6). The Inventory page's loaded
   outfit and the Save page's chosen outfit are cleared when they were it.
 - Other saves change nothing at load: their rows keep the removed outfit's id, which counts
   as not on the row and never shows (docs/situation-management-ui.md §1), and restoring
@@ -262,18 +262,19 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 Assignments run only with no preview on, since the preview restores what it found at
 `OutfitPreview::Begin`. A Manage Wardrobe change that redresses:
 
-- the captured actor, Live Preview on: one SKSE task runs `OutfitPreview::End`, the
-  assignment change, then `OutfitPreview::Begin` with the outfit Manage Wardrobe has
-  selected (Update), or with what they wear now (Remove), so the new state is what the
-  preview later restores. The camera and the movement hold stay. When Begin refuses, the
-  Live Preview tick greys with the reason, as at Open. Then the Inventory page follows what
-  they wear, as Open would list it now (`CaptureWindow::OutfitList::actorPieces`): each
-  piece's heading, the worn pieces ticked (the user's ticks replaced), the heading of
-  Livery's outfit named after the one now on them, the loaded outfit let go. Armor the
-  window did not list at Open cannot be listed, since its indices are fixed: it shows on the
-  preview but is not ticked.
-- the captured actor, Live Preview off: queued and run in `onClose`, after the preview ended.
-- any other actor: queued and run in `onClose`.
+- the captured actor, at once, Live Preview on or off. With it on, one SKSE task runs
+  `OutfitPreview::End`, the assignment change, then `OutfitPreview::Begin` with the outfit
+  Manage Wardrobe has selected (Update), or with what they wear now (Remove), so the new
+  state is what the preview later restores. The camera and the movement hold stay. When
+  Begin refuses, the Live Preview tick greys with the reason, as at Open. With it off, the
+  assignment runs in the game the window froze, which shows it once the window closes
+  (docs/design.md §6). Then the Inventory page follows what they wear, as Open would list
+  it now (`CaptureWindow::OutfitList::actorPieces`): each piece's heading, the worn pieces
+  ticked (the user's ticks replaced), the heading of Livery's outfit named after the one now
+  on them, the loaded outfit let go. Armor the window did not list at Open cannot be listed,
+  since its indices are fixed: it shows on the preview but is not ticked.
+- any other actor, taken out of a removed outfit or situation: queued and run in `onClose`,
+  after the preview ended.
 - A load closing the window (`kPreLoadGame`) drops the queue.
 
 What redresses the captured actor: Update of the outfit they wear, for any row,
@@ -283,12 +284,9 @@ inventory. Not worn now: nothing, since every row reads its outfit from the libr
 time it goes on. Remove: §5.
 
 An Apply (the Inventory page's, Apply to #{Name}, Update and Apply) dresses the captured
-actor at once, Live Preview on or off, and the window stays on its page. The redresses
-queued for them run first, in their order, and leave the queue, so the close cannot undo
-the Apply. With Live Preview on, `OutfitPreview::End`, the assignment, then
-`OutfitPreview::Begin` with what they wear now (the Inventory page) or the outfit Manage
-Wardrobe has selected, as above; with it off, the assignment runs in the game the window
-froze, which shows it once the window closes. The Inventory page follows what they wear
+actor at once, Live Preview on or off, as above, and the window stays on its page; with
+Live Preview on the preview begins again on what they wear now (the Inventory page) or the
+outfit Manage Wardrobe has selected. The Inventory page follows what they wear
 (`actorPieces`), and `Restore Outfit` shows while Livery dresses them
 (`OutfitList::dressed`). The Save page's Create and Apply and Restore Outfit close the window
 first.
@@ -324,10 +322,10 @@ first.
 - Step 1: each sort's headings, folded and unfolded; Load from its button; the three skins.
 - Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
   rebuilt list; a taken name refused; Edit, Use Ticked Pieces and Back; the three warnings;
-  Update of the outfit the captured actor wears, with Live Preview on (at once) and off (at
-  close); the three skins.
+  Update of the outfit the captured actor wears, at once with Live Preview on and off (the
+  game showing it once the window closes); the three skins.
 - Step 3: Remove of an outfit in use lists its users; the captured actor wearing it for a
-  situation changes at once (Live Preview on) or at close; a default from it keeps its
+  situation changes at once, Live Preview on or off; a default from it keeps its
   pieces; the assignments survive save and load.
 - Situations and Apply: ticking a free situation and Default, then one that wears another
   outfit (`"B" replaces "A"`, Confirm, Cancel) and saving with Update, Live Preview on (at once) and off
