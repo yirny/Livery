@@ -22,7 +22,7 @@
 //                  one's details; Select fills the Update tab (ChooseOutfit), Cancel
 //                  leaves it as it was
 //   Manage Wardrobe - the tab beside the Inventory page: library outfits and the selected
-//                  one's name, gender and pieces, edited in place and kept for
+//                  one's name and pieces, edited in place and kept for
 //                  one outfit at a time (Discard changes / Keep editing before another is
 //                  selected); the edited outfit on the preview; Update lists the changes
 //                  (Save changes?; Confirm / Cancel) and hands them to onManageUpdate, Remove
@@ -386,13 +386,11 @@ namespace CaptureWindow::Internal
 		DrawOutfitPieces(a_state, outfit);
 	}
 
-	// The name and gender with no label, as Manage Wardrobe's fields.
+	// The name with no label, as Manage Wardrobe's field.
 	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom)
 	{
 		DrawSelectedName(a_state, a_index, "");
 		const auto& outfit = OutfitAt(a_state, a_index);
-		Theme::SectionGap();  // a field with no label
-		ImGui::TextUnformatted(GenderName(outfit.gender));
 		Theme::LabelText(a_state.situationsLabel.c_str());
 		ImGui::TextWrapped("%s", a_situations.c_str());
 		Theme::AfterFieldGap();
@@ -591,7 +589,6 @@ namespace CaptureWindow::Internal
 		const auto& outfit = OutfitAt(a_state, a_index);
 		form.name.fill('\0');
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
-		form.gender = outfit.gender;
 		form.pieces = outfit.pieces;
 		a_state.manageApplyTip = ApplyTooltip(a_state);
 	}
@@ -604,13 +601,12 @@ namespace CaptureWindow::Internal
 		QueuePreview(a_state, a_index >= 0 ? a_state.manage.pieces : TickedPieces(a_state));
 	}
 
-	// The selected outfit's edits differ from the library: its trimmed name, gender or
-	// loaded pieces.
+	// The selected outfit's edits differ from the library: its trimmed name or loaded pieces.
 	bool HasLibraryEdits(const State& a_state)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		return Trimmed(form.name.data()) != outfit.name || form.gender != outfit.gender || form.pieces != outfit.pieces;
+		return Trimmed(form.name.data()) != outfit.name || form.pieces != outfit.pieces;
 	}
 
 	// Anything Update would save: an outfit is selected and has library edits.
@@ -649,7 +645,7 @@ namespace CaptureWindow::Internal
 		return helpHovered;
 	}
 
-	// Right column: the selected outfit's name and gender as edited, then its pieces as
+	// Right column: the selected outfit's name as edited, then its pieces as
 	// edited under a count line ending in Edit. Returns true when Edit is clicked.
 	bool DrawManageForm(State& a_state)
 	{
@@ -659,7 +655,6 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		DrawNameField(a_state, form.name);
-		DrawGenderField(form.gender);
 		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str());
 		const bool edit = Theme::LabelLink("Edit");
@@ -822,7 +817,7 @@ namespace CaptureWindow::Internal
 	void OpenEditPage(State& a_state);
 
 	// What the library edits change, one line each, as the Save page's Update tab lists it:
-	// the pieces, a rename, the gender, the unloaded pieces kept.
+	// the pieces, a rename, the unloaded pieces kept.
 	void DrawLibraryChangeLines(const State& a_state)
 	{
 		const auto& form = a_state.manage;
@@ -832,9 +827,6 @@ namespace CaptureWindow::Internal
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
-		}
-		if (form.gender != outfit.gender) {
-			ImGui::TextUnformatted(std::format("Its gender becomes {}.", GenderName(form.gender)).c_str());
 		}
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
@@ -1029,7 +1021,6 @@ namespace CaptureWindow::Internal
 		a_state.error.clear();
 		CaptureWindow::SaveRequest edit{ .outfit = ManagedOutfitId(a_state),
 			.name = Trimmed(form.name.data()),
-			.gender = form.gender,
 			.pieces = form.pieces };
 		if (a_applyRow) {
 			edit.assign.push_back(*a_applyRow);

@@ -64,12 +64,8 @@ namespace CaptureWindow
 		int           typeOrder = 0;  // what the Type column sorts by
 		std::string   slotText;       // the Slot column: its body slots by number, lowest first ("32, 34")
 		int           slotOrder = 0;  // what the Slot column sorts by: its lowest slot
-		// The ticked piece with the lowest rank decides the Create tab's suggested gender: the
-		// index of its first slot of Body, Head, Hands, Feet, Circlet; -1 for none.
-		int           suggestRank = -1;
-		bool          femaleOnly = false;  // none of its armor addons has a male model, one has a female model
-		std::string   icon;                // PieceIcons' key of the icon left of its name; "" for none
-		std::uint32_t iconColor = 0;       // the icon's tint, 0xRRGGBB
+		std::string   icon;           // PieceIcons' key of the icon left of its name; "" for none
+		std::uint32_t iconColor = 0;  // the icon's tint, 0xRRGGBB
 	};
 
 	// One frame of mouse and key input over the game rather than the window,
@@ -95,8 +91,7 @@ namespace CaptureWindow
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
 		std::size_t   unloadedPieces = 0;
-		std::uint32_t id = 0;       // the library's id, handed back in SaveRequest::outfit
-		int           gender = -1;  // -1 unisex, 0 male, 1 female
+		std::uint32_t id = 0;  // the library's id, handed back in SaveRequest::outfit
 		// Who has it among Livery's assignments in this save, one line each, for Remove's
 		// popup: "Lydia: Default, Town", the actor's FormID when not in memory.
 		std::vector<std::string> users;
@@ -156,10 +151,9 @@ namespace CaptureWindow
 	{
 		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
 		std::string              name;        // trimmed, non-empty
-		int                      gender = -1;
-		std::vector<std::size_t> pieces;  // ticked indices into Request::pieces, ascending, never empty
-		std::vector<std::size_t> assign;  // rows that get the outfit, ascending; a row another outfit is worn for only after Confirm
-		std::vector<std::size_t> remove;  // Update only: rows that had the outfit and are unticked, ascending
+		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
+		std::vector<std::size_t> assign;      // rows that get the outfit, ascending; a row another outfit is worn for only after Confirm
+		std::vector<std::size_t> remove;      // Update only: rows that had the outfit and are unticked, ascending
 		// Create and Apply: `assign` holds the row the outfit is worn for once saved, ticked or
 		// agreed to in the Wear popup, and the pieces in `fromPlayer` (those of `pieces` the
 		// window lists under Player's Inventory) move first; those that do not move stay out of
@@ -219,7 +213,7 @@ namespace CaptureWindow
 		std::function<void()> onRestore;
 
 		// Runs on the game thread when the user confirms Manage Wardrobe's Update: `edit` holds
-		// the outfit, its new name, gender and pieces; no row changes. The library
+		// the outfit, its new name and pieces; no row changes. The library
 		// write comes first; a refused or failed write assigns nothing. The window stays open: it
 		// must end by calling SetOutfits() with the library as written, or SetError(). With
 		// `apply` (Update and Apply, from Apply to #{Name} with unsaved edits) it then dresses

@@ -65,7 +65,7 @@ The outfit the window's Apply gives (`Assignments::Assign`) is the actor's defau
 replaces it while the situation lasts, by the same steps: the worn pieces are released
 (copies removed, the actor's own pieces back on) and the new outfit is dressed. When the
 actor wears a library outfit and the ticks differ from it, Apply asks first: Yes updates
-that outfit's pieces (`Library::Update`, name, gender and classes kept), then the Default
+that outfit's pieces (`Library::Update`, name kept), then the Default
 gets the outfit, or, for a situation outfit, `Assignments::Refresh` dresses the updated
 outfit with the Default untouched; No, apply as is makes the ticks the Default's pieces,
 not a saved outfit, with `chosen` 0 and random off. The library write comes first; a
@@ -153,10 +153,10 @@ would have to be kept in step).
 - Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
-- An outfit has no categories (the window calls the library the wardrobe). An older file's
-  `categories` is read past and gone at the next write. Situations are per actor (§7), not
-  in the library.
-- `Library::Update` replaces pieces, name and gender; a name is taken when another outfit
+- An outfit has no categories and no gender (the window calls the library the wardrobe). An
+  older file's `categories` and `gender` are read past and gone at the next write. Situations
+  are per actor (§7), not in the library.
+- `Library::Update` replaces pieces and name; a name is taken when another outfit
   has it (ASCII case ignored).
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
   then takes it off every row in this save (a `chosen` that was it becomes 0), and a Default

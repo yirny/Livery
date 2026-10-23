@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants      - slots that decide an outfit's armor class and gender
 //   Library writes - SaveOutfit adds the outfit to Livery's library (Library); UpdateOutfit
-//                    replaces a confirmed existing outfit's pieces, classes, name and gender;
+//                    replaces a confirmed existing outfit's pieces and name;
 //                    UpdateWornPieces only its pieces (the Apply popup's Yes)
 //   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
 //                    outfit pages, through OutfitPreview, seen through PreviewCamera, while the
@@ -68,11 +67,6 @@
 
 namespace
 {
-	// Slots that decide an outfit's class and gender, most telling first:
-	// Body sets how the outfit reads at a glance.
-	using BipedSlot = RE::BGSBipedObjectForm::BipedObjectSlot;
-	constexpr std::array kSlotPriority{ BipedSlot::kBody, BipedSlot::kHead, BipedSlot::kHands, BipedSlot::kFeet, BipedSlot::kCirclet };
-
 	RE::ObjectRefHandle g_target{};
 	bool                g_ready = false;
 
@@ -110,11 +104,11 @@ namespace
 	}
 
 	// Contract: game thread. Library::Create checks every refusal before it changes
-	// anything, so a refusal never leaves an empty outfit. gender: -1 unisex, 0 male, 1 female.
+	// anything, so a refusal never leaves an empty outfit.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors, int gender)
+	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors)
 	{
-		if (auto error = Library::Create(name, gender, armors)) {
+		if (auto error = Library::Create(name, armors)) {
 			return error;
 		}
 		Notify(std::format("Livery: saved {} ({} pieces).", name, armors.size()));
@@ -135,7 +129,7 @@ namespace
 	// Its pieces whose plugin is not loaded stay in it; the HUD message says how many, and its
 	// old name when it is renamed.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, int gender, const std::vector<RE::TESObjectARMO*>& armors)
+	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, const std::vector<RE::TESObjectARMO*>& armors)
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
@@ -144,7 +138,7 @@ namespace
 		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
 		Library::LoadedPieces(*outfit, &unloaded);
-		if (auto error = Library::Update(id, name, gender, armors)) {
+		if (auto error = Library::Update(id, name, armors)) {
 			return error;
 		}
 		auto text = name == oldName ? std::format("Livery: updated {} ({} pieces)", name, armors.size()) :
@@ -157,7 +151,7 @@ namespace
 	}
 
 	// Contract: game thread; the user chose Yes in the Apply popup for the library outfit
-	// Livery has on the actor. Only its pieces change; its name and gender stay.
+	// Livery has on the actor. Only its pieces change; its name stays.
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> UpdateWornPieces(std::uint32_t id, const std::vector<RE::TESObjectARMO*>& armors)
 	{
@@ -167,8 +161,7 @@ namespace
 		}
 		// Copied: the update leaves `outfit` stale.
 		const std::string name = outfit->name;
-		const int         gender = outfit->gender;
-		return UpdateOutfit(id, name, gender, armors);
+		return UpdateOutfit(id, name, armors);
 	}
 
 	// --- Preview --------------------------------------------------------------
@@ -448,47 +441,6 @@ namespace
 		});
 	}
 
-	// A piece is for women when none of its armor addons has a male model and
-	// one has a female model.
-	bool IsFemaleOnly(const RE::TESObjectARMO& armor)
-	{
-		bool female = false;
-		for (const auto* addon : armor.armorAddons) {
-			if (!addon) {
-				continue;
-			}
-			const auto* male = addon->bipedModels[RE::SEXES::kMale].GetModel();
-			if (male && *male) {
-				return false;
-			}
-			const auto* model = addon->bipedModels[RE::SEXES::kFemale].GetModel();
-			female = female || (model && *model);
-		}
-		return female;
-	}
-
-	// Gender of an outfit (-1 unisex, 1 female): decided by the first
-	// piece found on a kSlotPriority slot; unisex when none is. Never male: only
-	// the user picks that, in the window.
-	int DetectGender(const std::vector<RE::TESObjectARMO*>& armors)
-	{
-		for (const auto slot : kSlotPriority) {
-			for (const auto* armor : armors) {
-				if (armor->HasPartOf(slot)) {
-					return IsFemaleOnly(*armor) ? 1 : -1;
-				}
-			}
-		}
-		return -1;
-	}
-
-	// Index of the first kSlotPriority slot the armor covers; -1 for none.
-	int SuggestRank(const RE::TESObjectARMO& armor)
-	{
-		const auto found = std::ranges::find_if(kSlotPriority, [&](const auto slot) { return armor.HasPartOf(slot); });
-		return found != kSlotPriority.end() ? static_cast<int>(found - kSlotPriority.begin()) : -1;
-	}
-
 	// The body slots of `mask` as the Creation Kit numbers them, lowest first: "32, 34"; "" for none.
 	std::string SlotText(std::uint32_t mask)
 	{
@@ -503,9 +455,9 @@ namespace
 		return text;
 	}
 
-	// A row of the window's piece list, with SkyUI's Type (ArmorInfo), its body slots, its icon
-	// and what the window's suggested gender needs. An I4 rule's Type text replaces SkyUI's,
-	// as SkyUI with I4 shows it; the sort order stays the slot's.
+	// A row of the window's piece list, with SkyUI's Type (ArmorInfo), its body slots and its
+	// icon. An I4 rule's Type text replaces SkyUI's, as SkyUI with I4 shows it; the sort order
+	// stays the slot's.
 	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected)
 	{
 		const auto type = ArmorInfo::TypeOf(armor);
@@ -519,8 +471,6 @@ namespace
 			.typeOrder = type.order,
 			.slotText = SlotText(slots),
 			.slotOrder = std::countr_zero(slots),
-			.suggestRank = SuggestRank(armor),
-			.femaleOnly = IsFemaleOnly(armor),
 			.icon = std::move(icon.key),
 			.iconColor = icon.color };
 	}
@@ -628,7 +578,6 @@ namespace
 			CaptureWindow::ExistingOutfit outfit{
 				.name = stored->name,
 				.id = stored->id,
-				.gender = stored->gender,
 				.users = UserLines(stored->id)
 			};
 			// LoadedPieces lists each form once, so the indices do not repeat.
@@ -762,7 +711,7 @@ namespace
 		request.situationsNow = Situations::Evaluate(actor);
 		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
 			const auto picked = PickPieces(armors, save.pieces);
-			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, save.gender, picked) : SaveOutfit(save.name, picked, save.gender);
+			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked) : SaveOutfit(save.name, picked);
 			if (error) {
 				CaptureWindow::SetError(*error);
 				return;
@@ -1042,7 +991,7 @@ namespace
 		// as Apply does (ApplyOutfit).
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
-			if (const auto error = UpdateOutfit(edit.outfit, edit.name, edit.gender, picked)) {
+			if (const auto error = UpdateOutfit(edit.outfit, edit.name, picked)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
@@ -1228,8 +1177,7 @@ namespace
 	// Every inventory piece is listed, the worn ones under the library outfit Livery put on
 	// them, Livery's pieces that are not one, or those Livery did not put on; worn ones start
 	// ticked. For an NPC the player's armor follows (AddPlayerPieces), then the library
-	// outfits' other pieces, for Load Outfit. The window suggests the class and gender from
-	// the ticked pieces (Piece::suggestRank, Piece::femaleOnly).
+	// outfits' other pieces, for Load Outfit.
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
 	{
 		CaptureWindow::Request request;
@@ -1327,14 +1275,14 @@ namespace
 			return;
 		}
 
-		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name and the
-		// detected gender. Never a situation pool: the user chose none here.
+		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name. Never a
+		// situation pool: the user chose none here.
 		const auto name = NextAutomaticName();
 		if (name.empty()) {
 			Notify("Livery: no free outfit name.");
 			return;
 		}
-		if (const auto error = SaveOutfit(name, armors, DetectGender(armors))) {
+		if (const auto error = SaveOutfit(name, armors)) {
 			Notify("Livery: " + *error);
 		}
 	}

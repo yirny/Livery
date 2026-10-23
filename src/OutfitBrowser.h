@@ -23,7 +23,6 @@ namespace OutfitBrowser
 	enum class SortKey
 	{
 		kName,      // name only
-		kGender,    // Female, Male, then Unisex
 		kSituation  // the actor's rows holding the outfit (CaptureWindow::kSituationGroup)
 	};
 

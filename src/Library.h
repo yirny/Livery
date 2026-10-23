@@ -27,16 +27,15 @@ namespace Library
 
 	struct Outfit
 	{
-		std::uint32_t         id = 0;       // unique and never reused
-		std::string           name;         // unique, ASCII case ignored
-		int                   gender = -1;  // -1 unisex, 0 male, 1 female
-		std::vector<PieceRef> pieces;       // never empty
+		std::uint32_t         id = 0;  // unique and never reused
+		std::string           name;    // unique, ASCII case ignored
+		std::vector<PieceRef> pieces;  // never empty
 	};
 
 	// Reads the file. A missing or empty file (nothing but whitespace) is an empty library. A
 	// file that cannot be read, or that a newer version wrote, leaves the library empty and
 	// refuses every change, so the file is never overwritten. An older file's outfit
-	// categories are read past; the file is not written here.
+	// categories and gender are read past; the file is not written here.
 	void Load();
 
 	// Contract: pointers and references into the library go stale at the next Create, Update
@@ -51,12 +50,12 @@ namespace Library
 
 	// Adds an outfit and writes the file. Returns why it refused, having changed nothing:
 	// an empty or taken name, no armor, armor created in game, or a file it cannot write.
-	std::optional<std::string> Create(std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor);
+	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor);
 
 	// Replaces the outfit's loaded pieces with `a_armor` (pieces whose plugin or form is not
-	// loaded stay) and its name and gender, then writes the file. Refuses as Create does,
-	// having changed nothing; a name is taken when another outfit has it.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor);
+	// loaded stay) and its name, then writes the file. Refuses as Create does, having changed
+	// nothing; a name is taken when another outfit has it.
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor);
 
 	// Takes the outfit out and writes the file; its id is never given again. Returns why it
 	// refused, having changed nothing: the outfit is gone already, or a file it cannot write.
