@@ -33,7 +33,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 ## Compatibility
 
-- Compatible with Skyrim SE, AE, and VR. On VR there is no capture window: the outfit is saved under an automatic name.
+- Compatible with Skyrim SE, AE, and VR. On VR there is no capture window: the hotkey only shows a message.
 - No ESP/ESL required.
 
 <!-- nexus:end -->
