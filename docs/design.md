@@ -168,7 +168,9 @@ place in the function's first `kScanBytes` (0x400) where it does, which the log 
 signature found nowhere, or twice, leaves the site alone with a warning. Skyrim VR is not
 covered. Checked in game on 1.6.1170 only; the overlay's own two hooks (`src/Hooks.cpp`) check
 at install that their sites hold a `call` reaching the callee dMenu NG verified on 1.6.1170,
-1.7.99 and 1.7.104, and leave the overlay off otherwise.
+1.7.99 and 1.7.104, or code outside the game's `.text` (another plugin hooked the call first, as
+HotkeyAtlas does the input dispatch; Livery's hook then calls that one in turn, and the log says
+so), and leave the overlay off otherwise.
 
 Rejected: a permanent `ExtraOutfitItem` on the copies (id = the NPC's DOFT hides them in
 vanilla, but any `SetOutfit` then deletes them, and a non-outfit id has no precedent);

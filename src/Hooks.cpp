@@ -272,20 +272,31 @@ namespace
 
 	// --- Install --------------------------------------------------------------
 
-	// Whether `a_site` holds a `call rel32` and, on AE, one that reaches `T::calleeAE`. A game
-	// build that moved the call fails this, and the overlay stays off instead of crashing. On
-	// SE only the opcode is checked (dMenu NG checks no callee there either).
+	// Whether the site of `T` holds a `call rel32` and, on AE, one that reaches `T::calleeAE` or
+	// leaves the game's code: the latter is another plugin's hook on the same call (HotkeyAtlas
+	// hooks the input dispatch), which Livery's hook then calls in turn. A game build that moved
+	// the call fails this, and the overlay stays off instead of crashing. On SE only the opcode
+	// is checked (dMenu NG checks no callee there either). Logs a site that fails or is chained.
 	template <class T>
-	bool IsExpectedCall(std::uintptr_t a_site)
+	bool CheckSite()
 	{
-		if (*reinterpret_cast<const std::uint8_t*>(a_site) != 0xE8) {
-			return false;
+		const REL::Relocation<std::uintptr_t> site{ T::id, T::offset };
+		const auto                            address = site.address();
+		bool                                  expected = *reinterpret_cast<const std::uint8_t*>(address) == 0xE8;
+		if (expected && REL::Module::IsAE()) {
+			const auto target = address + 5 + *reinterpret_cast<const std::int32_t*>(address + 1);
+			const auto code = REL::Module::get().segment(REL::Segment::textx);
+			if (target >= code.address() && target < code.address() + code.size()) {
+				expected = target == REL::Relocation<std::uintptr_t>{ REL::ID(T::calleeAE) }.address();
+			} else {
+				logger::info("The hook site {}+{:#x} already holds another plugin's hook; Livery chains onto it", T::id.id(), T::offset.offset());
+			}
 		}
-		if (!REL::Module::IsAE()) {
-			return true;
+		if (!expected) {
+			logger::error("The hook site {}+{:#x} does not hold the expected call on this game build: overlay disabled, automatic outfit names only",
+				T::id.id(), T::offset.offset());
 		}
-		const auto target = a_site + 5 + *reinterpret_cast<const std::int32_t*>(a_site + 1);
-		return target == REL::Relocation<std::uintptr_t>{ REL::ID(T::calleeAE) }.address();
+		return expected;
 	}
 
 	template <class T>
@@ -306,11 +317,9 @@ namespace Hooks
 		}
 		// Both sites are checked before either is written: one hook without the other would be a
 		// window that cannot be drawn, or cannot be used.
-		const REL::Relocation<std::uintptr_t> d3dInit{ D3DInitHook::id, D3DInitHook::offset };
-		const REL::Relocation<std::uintptr_t> input{ InputDispatchHook::id, InputDispatchHook::offset };
-		if (!IsExpectedCall<D3DInitHook>(d3dInit.address()) || !IsExpectedCall<InputDispatchHook>(input.address())) {
-			logger::error("The hook sites {}+{:#x} and {}+{:#x} do not both hold the expected call on this game build: overlay disabled, automatic outfit names only",
-				D3DInitHook::id.id(), D3DInitHook::offset.offset(), InputDispatchHook::id.id(), InputDispatchHook::offset.offset());
+		const bool d3dInitOk = CheckSite<D3DInitHook>();
+		const bool inputOk = CheckSite<InputDispatchHook>();
+		if (!d3dInitOk || !inputOk) {
 			return;
 		}
 
