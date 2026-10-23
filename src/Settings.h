@@ -25,6 +25,10 @@ namespace Settings
 	// Whether the capture window opens with Live Preview on. Safe from any thread.
 	bool LivePreview();
 
+	// Whether a captured NPC turns their head to the player and says a greeting (NpcReaction)
+	// when the window opens with Live Preview on. Safe from any thread.
+	bool NpcReaction();
+
 	// Safe from any thread.
 	Theme::Skin Skin();
 

@@ -28,6 +28,7 @@ namespace
 	constexpr auto kIniSection = L"General";
 	constexpr auto kRestrictKey = L"RestrictToFollowersAndSpouse";
 	constexpr auto kLivePreviewKey = L"LivePreview";
+	constexpr auto kNpcReactionKey = L"NpcReaction";
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kSkinKey = L"Skin";
 	constexpr auto kPaletteKey = L"Palette";
@@ -72,7 +73,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 15> kIniKeys{ {
+	constexpr std::array<IniKey, 16> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -80,6 +81,10 @@ namespace
 		{ kIniSection, kLivePreviewKey, L"1",
 			L"1 = the capture window opens with Live Preview on: the game keeps running and the character wears the ticked pieces.\n"
 			L"0 = it opens with Live Preview off and the game paused; tick Live Preview in the window to turn it on.\n"
+			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kIniSection, kNpcReactionKey, L"1",
+			L"1 = an NPC you capture turns their head to you and says a greeting, when the window opens with Live Preview on.\n"
+			L"0 = they do neither.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kUiSection, kSkinKey, L"Modern",
 			L"Skin of the capture window: Modern, Vanilla or Nordic. Tailor, from earlier versions, reads as Modern.\n"
@@ -158,6 +163,7 @@ namespace
 
 	std::atomic<bool>          g_followersAndSpouseOnly{ true };
 	std::atomic<bool>          g_livePreview{ true };
+	std::atomic<bool>          g_npcReaction{ true };
 	std::atomic<Theme::Skin>   g_skin{ kSkinOptions[0].skin };
 	std::atomic<bool>          g_menuSounds{ true };
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
@@ -573,6 +579,17 @@ namespace
 		ImGuiMCP::Spacing();
 
 		// Takes effect the next time the capture window opens.
+		bool npcReaction = g_npcReaction.load();
+		if (ImGuiMCP::Checkbox("NPC Reaction: a captured NPC turns to you and says a greeting (with Live Preview on)", &npcReaction)) {
+			g_npcReaction = npcReaction;
+			SaveFlag(kIniSection, kNpcReactionKey, npcReaction);
+			logger::info("NpcReaction = {} (SKSE Menu Framework)", npcReaction);
+		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		// Takes effect the next time the capture window opens.
 		ImGuiMCP::Text("Window skin");
 		const auto skin = g_skin.load();
 		for (const auto& option : kSkinOptions) {
@@ -745,6 +762,11 @@ namespace Settings
 		g_livePreview = std::wstring_view{ value } != L"0";
 		logger::info("LivePreview = {}", g_livePreview.load());
 
+		// A missing key keeps the default (on).
+		::GetPrivateProfileStringW(kIniSection, kNpcReactionKey, L"1", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		g_npcReaction = std::wstring_view{ value } != L"0";
+		logger::info("NpcReaction = {}", g_npcReaction.load());
+
 		// A missing or unknown value keeps the default (Modern), as Tailor does: the skin Modern replaced.
 		wchar_t skin[16]{};
 		::GetPrivateProfileStringW(kUiSection, kSkinKey, L"", skin, static_cast<DWORD>(std::size(skin)), g_iniPath.c_str());
@@ -852,6 +874,11 @@ namespace Settings
 	bool LivePreview()
 	{
 		return g_livePreview.load();
+	}
+
+	bool NpcReaction()
+	{
+		return g_npcReaction.load();
 	}
 
 	Theme::Skin Skin()

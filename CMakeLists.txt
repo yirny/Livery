@@ -98,6 +98,7 @@ else()
         src/Hooks.cpp
         src/Library.cpp
         src/MovementHold.cpp
+        src/NpcReaction.cpp
         src/OutfitBrowser.cpp
         src/OutfitPages.cpp
         src/OutfitPreview.cpp
