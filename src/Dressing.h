@@ -60,6 +60,12 @@ namespace Dressing
 	// copies it added. Instances that were the actor's own stay with them.
 	void Release(RE::Actor& actor, const std::vector<Piece>& pieces, bool removeCopies);
 
+	// Rebuilds their model now from what they wear. Equip calls alone leave the player's model
+	// as it was until something else rebuilds it (Dress, Release and PutBack rebuild it), and
+	// an NPC's until their actor update, which a frozen game skips. Nothing while their 3D is
+	// not loaded.
+	void RefreshModel(RE::Actor& actor);
+
 	// Puts on again, without a lock, the copies of `keys` they still carry: their own pieces
 	// Dress took off. A copy gone, already worn or locked is left alone. Returns how many
 	// went on.

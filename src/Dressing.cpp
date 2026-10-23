@@ -5,8 +5,8 @@
 //               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
-//   API       - Dress / PutBackOn / Release / PutBack / MarkAsOutfitItems / UnmarkOutfitItems /
-//               WornArmor / MoveFromPlayer
+//   API       - RefreshModel / Dress / PutBackOn / Release / PutBack / MarkAsOutfitItems /
+//               UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -168,18 +168,6 @@ namespace
 		return mark;
 	}
 
-	// Rebuilds the player's model now: equip calls alone leave it as it was until
-	// something else rebuilds it. Tailor's RefreshPlayerModel, as in OutfitPreview.cpp.
-	void RefreshModel(RE::Actor& player)
-	{
-		auto* process = player.Is3DLoaded() ? player.GetActorRuntimeData().currentProcess : nullptr;
-		if (!process) {
-			return;
-		}
-		process->Set3DUpdateFlag(RE::RESET_3D_FLAGS::kModel);
-		process->Update3DModel(&player);
-	}
-
 	// --- Equip ----------------------------------------------------------------
 
 	// An instance to dress them in; a plain copy has no extra list, and the equip
@@ -333,6 +321,17 @@ namespace
 
 namespace Dressing
 {
+	// Tailor's RefreshPlayerModel, as in OutfitPreview.cpp.
+	void RefreshModel(RE::Actor& actor)
+	{
+		auto* process = actor.Is3DLoaded() ? actor.GetActorRuntimeData().currentProcess : nullptr;
+		if (!process) {
+			return;
+		}
+		process->Set3DUpdateFlag(RE::RESET_3D_FLAGS::kModel);
+		process->Update3DModel(&actor);
+	}
+
 	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing)
 	{
 		Result result;
