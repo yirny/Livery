@@ -7,7 +7,8 @@
 //   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
 //                    outfit pages, through OutfitPreview, seen through PreviewCamera, while the
 //                    window's Live Preview tick is on; saving is off and an NPC is held where they
-//                    stand (MovementHold) while the window is open, and every close of the window,
+//                    stand (MovementHold) while the window is open, and turns to the player with a
+//                    greeting (NpcReaction) as it opens with the preview on; every close of the window,
 //                    a save included, ends them all
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
 //                    armor (and for an NPC the player's, per the settings), each piece with its group,
@@ -44,6 +45,7 @@
 #include "Hooks.h"
 #include "Library.h"
 #include "MovementHold.h"
+#include "NpcReaction.h"
 #include "OutfitPreview.h"
 #include "PieceIcons.h"
 #include "PreviewCamera.h"
@@ -1225,9 +1227,14 @@ namespace
 			RedressAtClose();
 			AllowSaving();
 			MovementHold::End();
+			NpcReaction::End();
 		};
 		BlockSaving();
 		MovementHold::Begin(actor);
+		// A frozen game (Live Preview off) would hold the head turn and the greeting until the close.
+		if (request.previewOn) {
+			NpcReaction::Begin(actor);
+		}
 		CaptureWindow::Open(std::move(request));
 	}
 
