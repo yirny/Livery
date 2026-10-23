@@ -23,10 +23,10 @@ namespace Assignments
 	// Contract: call once at kDataLoaded.
 	void RegisterSinks();
 
-	// Whether a keyboard key going down (DirectInput scan code) is the release-everyone
-	// key; when it is, the release is queued as an SKSE task.
-	// Contract: call from the input path while handling that key's event.
-	bool HandleKey(std::uint32_t a_scanCode);
+	// The uninstall step: ends every assignment, as Unassign does for one actor, Livery's
+	// copies deleted. Actors not in memory keep their locks and copies. Shows a HUD message.
+	// Contract: game thread; a save is loaded and no preview is on (the capture window is closed).
+	void ReleaseEveryone();
 
 	// Gives their Default, worn wherever no situation applies, library outfit `a_outfit`
 	// (OutfitRows::Give; the Default's pieces go when it becomes `chosen`), or with `a_outfit`

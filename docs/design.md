@@ -95,7 +95,9 @@ says so), so a lock would be needed anyway.
 - Death: release the mod's locks (`TESDeathEvent`) and forget the actor, so the corpse
   behaves like vanilla; the copies stay on it, lootable, and its own pieces are not put
   back on.
-- Release everything (F8, for uninstall): unassign every managed actor. Actors not
+- Release everything (for uninstall): Release everyone at the end of the SKSE Menu
+  Framework settings page, confirmed in a popup, refused without a loaded save or while
+  the capture window is open; no key does it. Unassign every managed actor. Actors not
   in memory (non-persistent NPCs whose cell is not loaded) cannot be reached and keep
   their locks and copies. Locks and copies are otherwise the only residue after removal;
   they do not break a save.
@@ -111,7 +113,7 @@ on the player as on an NPC, unlocked like the default, and not in beast form.
 ### Items
 
 Livery deletes an item in two places only, each by its own `ExtraUniqueID` key and only for a
-copy Livery added: `Dressing::Release` with `removeCopies` (Unassign, a redress, F8) and the live
+copy Livery added: `Dressing::Release` with `removeCopies` (Unassign, a redress, release everything) and the live
 preview's take-back of the copies it added. An actor's own instance is never deleted: the pieces
 Livery takes off stay in the inventory, and death releases the locks and removes nothing. The
 one removal without an instance key is the rollback of a refused equip (`PutOn` in
@@ -124,7 +126,7 @@ Copies Livery adds to an NPC reach the player only by looting the corpse; throug
 container or pickpocket menu of an NPC whose base has no `defaultOutfit`, or on a runtime where
 the filter found no call site (§3); through other mods' inventory access (follower frameworks,
 Papyrus `RemoveAllItems`), which the menu filter does not see; or from an actor out of reach at
-F8, whose copies are ordinary items once Livery is removed. Copies on the player exist only with
+release everything, whose copies are ordinary items once Livery is removed. Copies on the player exist only with
 `[Player] AddMissingPieces` on: unlocked ordinary items, and Release takes back only those still
 carried. The capture menu swallows every input event and disables the pause menu, so no save is
 made while a preview is on, and no preview copy reaches a save.
@@ -358,8 +360,7 @@ Each stage ends with an in-game check before the next starts.
 
 1. Rename the project (CMake, DLL, INI, log, deploy folder, repository directory),
    settings, co-save, dressing core: assign, unassign,
-   load-time re-equip, death release, release everything (F8, checked before the
-   capture hotkey). Done.
+   load-time re-equip, death release, release everything. Done.
 2. Library: capture the worn pieces into an outfit, JSON storage, the ImGui window,
    outfit list and preview from the add-on's code; the preview dresses everyone through
    the inventory; the window's Assign and Release replace the stage-1 keys, and the

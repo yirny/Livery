@@ -13,9 +13,11 @@ namespace Settings
 	// Contract: call once from SKSEPluginLoad, before any other function here.
 	void Load();
 
+	// The page ends with Release everyone, whose popup's Yes calls `a_releaseEveryone` on
+	// SKSE Menu Framework's render thread.
 	// Contract: call at kPostLoad, when every SKSE plugin (SKSE Menu Framework
 	// included) is loaded. Does nothing when SKSE Menu Framework is not loaded.
-	void RegisterMenu();
+	void RegisterMenu(void (*a_releaseEveryone)());
 
 	// Safe from any thread.
 	bool FollowersAndSpouseOnly();
