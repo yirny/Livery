@@ -22,10 +22,10 @@
 //                    Manage Wardrobe' Update writes the library and redresses the actor when they
 //                    wear the outfit; its Remove writes the library, clears the outfit from the
 //                    assignments (Assignments::ForgetOutfit) and takes those wearing it for a
-//                    situation out of it: the captured actor at once with the preview on, the
-//                    others at the window's close or, out of reach, when they load; both hand
-//                    the window the rebuilt list (CaptureWindow::SetOutfits), with the captured
-//                    actor's pieces as they are after a redress with the preview on;
+//                    situation out of it: the captured actor at once, the others at the
+//                    window's close or, out of reach, when they load; both hand the window the
+//                    rebuilt list (CaptureWindow::SetOutfits), with the captured actor's pieces
+//                    as they are after a redress;
 //                    Manage Situations' Save Changes writes the situations' names and
 //                    descriptions (SituationStore), then the captured actor's rows
 //                    (Assignments::SetRows) and redresses them as Update does; Remove
@@ -792,36 +792,27 @@ namespace
 		};
 	}
 
-	// A redress Manage Wardrobe or Manage Situations leaves for the window's close, after its
-	// preview ended (docs/outfit-management-ui.md §6).
+	// What a Manage Wardrobe or Manage Situations change redresses the captured actor for
+	// (RedressCaptured; docs/outfit-management-ui.md §6).
 	struct PendingRedress
 	{
-		RE::FormID    actor = 0;
 		std::uint32_t updated = 0;  // the outfit Update changed; 0 when a situation outfit they wear left the library
 		// Their rows changed already (Assignments::SetRows): dressed for anew
 		// (Assignments::Refresh), the row they wear wearing `pick` when it gained one.
 		bool          refresh = false;
 		std::uint32_t pick = 0;
-
-		// `pick` aside, so QueueRedress merges the refreshes of one actor.
-		friend bool operator==(const PendingRedress& a_left, const PendingRedress& a_right)
-		{
-			return a_left.actor == a_right.actor && a_left.updated == a_right.updated && a_left.refresh == a_right.refresh;
-		}
 	};
 
+	// Actors other than the captured one taken out of a removed situation outfit, or of a
+	// removed situation, at the window's close, after its preview ended.
 	// Contract: game thread; emptied by the close that runs them, and at kPreLoadGame
-	// before that load closes the window; an Apply runs and takes out its actor's first
-	// (RunQueuedRedress).
-	std::vector<PendingRedress> g_redressAtClose;
+	// before that load closes the window.
+	std::vector<RE::FormID> g_redressAtClose;
 
-	// A later save's pick wins over an earlier one queued for the same refresh.
-	void QueueRedress(const PendingRedress& redress)
+	void QueueRedress(RE::FormID actor)
 	{
-		if (const auto found = std::ranges::find(g_redressAtClose, redress); found == g_redressAtClose.end()) {
-			g_redressAtClose.push_back(redress);
-		} else if (redress.pick != 0) {
-			found->pick = redress.pick;
+		if (std::ranges::find(g_redressAtClose, actor) == g_redressAtClose.end()) {
+			g_redressAtClose.push_back(actor);
 		}
 	}
 
@@ -919,66 +910,40 @@ namespace
 		return CurrentActorPieces(actor, inventory, armors, offered);
 	}
 
-	// Redresses the captured actor: with Live Preview on at once (DressCaptured), returning
-	// their pieces for the window (SetOutfits); with it off the redress waits for the window's
-	// close and nullopt is returned.
+	// Redresses the captured actor at once, Live Preview on or off (DressCaptured), returning
+	// their pieces for the window (SetOutfits).
 	// Contract: as DressCaptured's.
-	std::optional<CaptureWindow::ActorPieces> RedressCaptured(RE::Actor& actor, const PendingRedress& redress, const std::vector<RE::TESObjectARMO*>& armors,
+	CaptureWindow::ActorPieces RedressCaptured(RE::Actor& actor, const PendingRedress& redress, const std::vector<RE::TESObjectARMO*>& armors,
 		const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>* shown)
 	{
-		if (!OutfitPreview::IsActive()) {
-			QueueRedress(redress);
-			return std::nullopt;
-		}
 		return DressCaptured(actor, [&actor, &redress] { RunRedress(actor, redress); }, armors, offered, shown);
 	}
 
-	// An actor taken out of a removed situation outfit only while loaded and alive, as the
-	// poll does; the others are dressed when they load (Assignments::ActorsWithSituations).
-	// Contract: game thread; no preview is on.
-	void RunQueued(const std::vector<PendingRedress>& queued)
-	{
-		for (const auto& redress : queued) {
-			auto* actor = RE::TESForm::LookupByID<RE::Actor>(redress.actor);
-			if (!actor || (redress.updated == 0 && !redress.refresh && (!actor->Is3DLoaded() || actor->IsDead()))) {
-				continue;
-			}
-			RunRedress(*actor, redress);
-		}
-	}
-
+	// The queued actors taken out of what they wore only while loaded and alive, as the poll
+	// does; the others are dressed when they load (Assignments::ActorsWithSituations).
 	// Contract: game thread, in the window's onClose after OutfitPreview::End.
 	void RedressAtClose()
 	{
-		RunQueued(std::exchange(g_redressAtClose, {}));
-	}
-
-	// The redresses queued for `actor`, run now in their order and taken off the queue, so an
-	// Apply made at once after them goes on over what they asked for, a random row's pick
-	// included, and the close cannot undo it.
-	// Contract: game thread; no preview is on.
-	void RunQueuedRedress(RE::FormID actor)
-	{
-		const auto                        theirs = std::ranges::stable_partition(g_redressAtClose, [actor](const PendingRedress& redress) { return redress.actor != actor; });
-		const std::vector<PendingRedress> queued(theirs.begin(), theirs.end());
-		g_redressAtClose.erase(theirs.begin(), theirs.end());
-		RunQueued(queued);
+		for (const auto id : std::exchange(g_redressAtClose, {})) {
+			auto* actor = RE::TESForm::LookupByID<RE::Actor>(id);
+			if (!actor || !actor->Is3DLoaded() || actor->IsDead()) {
+				continue;
+			}
+			Assignments::WearFor(*actor, Situations::Evaluate(*actor));
+		}
 	}
 
 	// Manage Wardrobe's Apply: the outfit goes to window row `row` (RowSituation), the one the
 	// window chose: the situation they wear another outfit for now, after the user agreed in
 	// its popup, the one they wear it for, or the Default; then they are dressed for their
-	// situations now, after the redresses queued for them (RunQueuedRedress), with the window
-	// open (DressCaptured): the preview begins again on `shown`, the outfit as Manage Wardrobe
-	// shows it. Returns their pieces for the window (SetOutfits).
+	// situations now with the window open (DressCaptured): the preview begins again on
+	// `shown`, the outfit as Manage Wardrobe shows it. Returns their pieces for the window
+	// (SetOutfits).
 	// Contract: as DressCaptured's.
 	CaptureWindow::ActorPieces ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row, const std::vector<RE::TESObjectARMO*>& armors,
 		const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>& shown)
 	{
-		const auto dress = [&actor, outfit, row] {
-			RunQueuedRedress(actor.GetFormID());
-			Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) } });
-		};
+		const auto dress = [&actor, outfit, row] { Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) } }); };
 		return DressCaptured(actor, dress, armors, offered, &shown);
 	}
 
@@ -1004,10 +969,9 @@ namespace
 	// those the window lists under Player's Inventory moved to an NPC first (a piece
 	// Livery put on them while the window was open is listed as theirs); with Yes in its
 	// popup the worn library outfit takes the ticks before. The window stays open: they are
-	// dressed after the redresses queued for them (RunQueuedRedress) with no preview on
-	// (DressCaptured), and the Inventory page follows what they wear. Restore, shown while
-	// Livery has pieces on them, ends what Livery chose for them; it closes the window first,
-	// so the preview has put back what they wore before.
+	// dressed with no preview on (DressCaptured), and the Inventory page follows what they
+	// wear. Restore, shown while Livery has pieces on them, ends what Livery chose for them;
+	// it closes the window first, so the preview has put back what they wore before.
 	// Contract: game thread; `armors` matches request.pieces index for index, `offered` are the
 	// player's armor among them. A refused or failed library write moves and assigns nothing
 	// (CLAUDE.md §2.1).
@@ -1025,8 +989,8 @@ namespace
 				CaptureWindow::SetError(std::format("{} is no longer here.", name));
 				return;
 			}
-			// Read before the queued redresses run: the row they wear as the window shows it,
-			// which follows a redress made while it is open.
+			// The row they wear as the window shows it, which follows a redress made while it is
+			// open.
 			const auto current = Assignments::ChoicesOf(actorID);
 			const bool forSituation = current && current->worn != Situations::Situation::kDefault;
 			const auto picked = PickPieces(armors, pieces);
@@ -1037,7 +1001,6 @@ namespace
 				}
 			}
 			const auto dress = [&] {
-				RunQueuedRedress(actorID);
 				const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
 				// A situation outfit is read from the library, so the update is what goes on;
 				// the default is not touched.
@@ -1073,10 +1036,10 @@ namespace
 	{
 		const auto handle = actor.GetHandle();
 		const auto actorID = actor.GetFormID();
-		// When they wear the outfit, it is dressed again as RedressFor does: at once with Live
-		// Preview on (RedressCaptured keeps the preview in step, on the outfit as edited, and
-		// the Inventory page follows what they wear), else at the window's close. Update and
-		// Apply instead dresses them at once as Apply does (ApplyOutfit), Live Preview on or off.
+		// When they wear the outfit, it is dressed again as RedressFor does, at once, Live
+		// Preview on or off (RedressCaptured keeps the preview in step, on the outfit as edited,
+		// and the Inventory page follows what they wear). Update and Apply instead dresses them
+		// as Apply does (ApplyOutfit).
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
 			if (const auto error = UpdateOutfit(edit.outfit, edit.name, edit.gender, picked)) {
@@ -1088,16 +1051,15 @@ namespace
 			if (target && apply && !edit.assign.empty()) {
 				redressed = ApplyOutfit(*target, edit.outfit, edit.assign.front(), armors, offered, picked);
 			} else if (target && !apply && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
-				redressed = RedressCaptured(*target, { .actor = actorID, .updated = edit.outfit }, armors, offered, &picked);
+				redressed = RedressCaptured(*target, { .updated = edit.outfit }, armors, offered, &picked);
 			}
 			auto list = CurrentOutfitList(actorID, armors);
 			list.actorPieces = std::move(redressed);
 			CaptureWindow::SetOutfits(std::move(list));
 		};
 		// The outfit leaves every row, and a Default this leaves wearing nothing keeps its
-		// pieces (Assignments::ForgetOutfit); one HUD message sums it up. The captured actor
-		// redressed with Live Preview on is shown as they are now, and the Inventory page
-		// follows.
+		// pieces (Assignments::ForgetOutfit); one HUD message sums it up. The captured actor,
+		// redressed at once, is shown as they are now, and the Inventory page follows.
 		request.onManageRemove = [handle, actorID, armors, offered](std::uint32_t outfit) {
 			const auto* stored = Library::Find(outfit);
 			// Read before Remove, which leaves `stored` stale. The armor forms stay valid.
@@ -1114,9 +1076,9 @@ namespace
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			for (const auto id : wearing) {
 				if (id == actorID && target) {
-					redressed = RedressCaptured(*target, { .actor = id }, armors, offered, nullptr);
+					redressed = RedressCaptured(*target, {}, armors, offered, nullptr);
 				} else {
-					QueueRedress({ .actor = id });
+					QueueRedress(id);
 				}
 			}
 			auto list = CurrentOutfitList(actorID, armors);
@@ -1175,10 +1137,10 @@ namespace
 		const auto handle = actor.GetHandle();
 		const auto actorID = actor.GetFormID();
 		request.restoreChanges = SituationStore::RestoreChanges();
-		// The rows are made at once, so the window shows them, and dressed for in one Refresh:
-		// at once with Live Preview on (RedressCaptured, the preview begun again on the outfit
-		// whose details show, else on what they wear), else at the window's close. The row they
-		// wear, when random, wears the outfit it gained first.
+		// The rows are made at once, so the window shows them, and dressed for in one Refresh,
+		// at once, Live Preview on or off (RedressCaptured, the preview begun again on the
+		// outfit whose details show, else on what they wear). The row they wear, when random,
+		// wears the outfit it gained first.
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
 			if (!save.edits.empty()) {
 				std::vector<SituationStore::Edit> edits;
@@ -1196,7 +1158,7 @@ namespace
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			if (target && !save.rows.empty()) {
 				if (const auto pick = Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces)) {
-					redressed = RedressCaptured(*target, { .actor = actorID, .refresh = true, .pick = *pick }, armors, offered,
+					redressed = RedressCaptured(*target, { .refresh = true, .pick = *pick }, armors, offered,
 						save.previewPieces ? &shown : nullptr);
 				}
 			}
@@ -1220,9 +1182,9 @@ namespace
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			for (const auto id : wearing) {
 				if (id == actorID && target) {
-					redressed = RedressCaptured(*target, { .actor = id }, armors, offered, nullptr);
+					redressed = RedressCaptured(*target, {}, armors, offered, nullptr);
 				} else {
-					QueueRedress({ .actor = id });
+					QueueRedress(id);
 				}
 			}
 			auto list = CurrentOutfitList(actorID, armors);
@@ -1301,7 +1263,8 @@ namespace
 		AttachManage(request, actor, armors, offered);
 		AttachSituations(request, actor, armors, offered);
 		// Every close, whatever closed the window, ends the preview, redresses the actors
-		// Manage Wardrobe left for it, lets saving back on and lets an NPC walk again.
+		// Manage Wardrobe or Manage Situations left for it, lets saving back on and lets an NPC
+		// walk again.
 		request.onClose = [] {
 			PreviewCamera::End();
 			OutfitPreview::End();

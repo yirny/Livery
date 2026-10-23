@@ -823,7 +823,7 @@ namespace CaptureWindow::Internal
 		});
 	}
 
-	// SetOutfits after the captured actor was redressed at once (Live Preview on, or an Apply):
+	// SetOutfits after the captured actor was redressed with the window open:
 	// the Inventory page lists their pieces as they are now, ticks the ones they wear and lets
 	// the loaded outfit go, as if the window had just opened.
 	// Contract: `a_pieces.groups` has one group per request.pieces.
