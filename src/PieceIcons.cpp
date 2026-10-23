@@ -64,6 +64,8 @@ namespace
 		std::string                             key;       // the icon's key; "" when the rule sets none or no PNG has it
 		std::optional<std::uint32_t>            color;     // 0xRRGGBB
 		std::string                             typeName;  // subTypeDisplay as written, a "$" key or the text; "" for none
+		// TypeText of typeName, read at the first piece the rule matches; "" for none.
+		std::optional<std::string> typeText;
 	};
 
 	// Game thread only; written by Load.
@@ -502,7 +504,7 @@ namespace PieceIcons
 			key.clear();
 		}
 		std::string typeName;
-		for (const auto& rule : g_rules) {
+		for (auto& rule : g_rules) {
 			if (!Matches(rule, a_armor)) {
 				continue;
 			}
@@ -512,8 +514,12 @@ namespace PieceIcons
 			if (rule.color) {
 				color = *rule.color;
 			}
-			if (auto text = TypeText(rule.typeName)) {
-				typeName = std::move(*text);
+			// The translation follows sLanguage, which a session never changes: once per rule.
+			if (!rule.typeText) {
+				rule.typeText = TypeText(rule.typeName).value_or(std::string{});
+			}
+			if (!rule.typeText->empty()) {
+				typeName = *rule.typeText;
 			}
 		}
 		return { std::move(key), color, std::move(typeName) };
