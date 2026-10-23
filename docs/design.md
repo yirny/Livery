@@ -157,7 +157,8 @@ The capture window's `Inventory` heading follows the engine's rule: an NPC's own
 copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list shows what the
 trade menu shows.
 
-Call sites, Address Library IDs, with SPID's offsets: AE from 1.6.1130, 1.7.x included,
+Call sites, Address Library IDs (the 1.6.1170, 1.6.1179 and 1.7.104 tables hold them all, the
+overlay's callees in `src/Hooks.cpp` included), with SPID's offsets: AE from 1.6.1130, 1.7.x included,
 `51145+0xEB`, `51146+0x15B`, `51144+0x10F` (an AE function inlines the caller of the first); AE
 up to 1.6.629 `51145+0xBE`, `51146+0x12E`; AE 1.6.640 `51144+0xE2`; SE 1.5.97 `50216+0xED`,
 `50217+0x152`. The Steam executable is DRM-wrapped, so the bytes are checked at install instead:
