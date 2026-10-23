@@ -60,6 +60,7 @@ The library (`outfits.json`, `src/Library.cpp`) is shared by every save and char
 ## 3. Development policy
 
 - Stability and performance first; the simplest design that works.
+- Normal play (the window closed, no preview) costs as close to nothing as possible: what runs then (the situation poll, event sinks, hooks) returns early before any allocation, lookup or logging, and does heavy work (a redress, a library scan) only when something changed.
 - Small isolated changes — minimum code that solves the problem, nothing speculative; touch only what the task requires, clean up only your own mess (§4/§5 comment duties are not "extra"). No large rewrites unless asked; explain why before a large change to existing code. Readability refactors ≠ behavior changes in one change.
 - State success criteria before implementing; verify what you can yourself (build, exports, unit tests). When only an in-game check can confirm, hand the user one concrete check (log line, HUD message, `outfits.json`, window state) instead of looping.
 - Null-check what the engine or API may return null. No speculative try/catch, retries or fallbacks — add only after a reported failure.
