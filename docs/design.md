@@ -312,7 +312,9 @@ snowy region. The rules:
 
 - In combat: none, so a fight is fought in the default outfit.
 - Swimming: the actor state's swimming flag, or the engine reports a water height
-  relevant to them no lower than 40 units under their feet (wading counts). On a mount
+  relevant to them no lower than 40 units under their feet (wading counts); once the poll
+  saw them swimming, they stay in it until that water is 60 units under their feet, so a
+  shore does not flip it on and off. On a mount
   only the swimming flag counts: a rider's feet are above the water the horse wades.
 - Sleep: sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
   and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
@@ -338,7 +340,9 @@ outfit, or still wearing one whose row a Remove cleared, who is 3D-loaded and al
 playable: werewolf, Vampire Lord; the transformation takes the gear off and puts it back
 on), it evaluates the situations and, when they differ from the last poll's, calls `Assignments::WearFor`, which redresses only when the resolved
 row or the outfit it wears differs from the one worn (`worn`, `wornOutfit` in the record). One redress per poll: when the
-weather turns for everyone, the others follow at the next polls. A change is acted on
+weather turns for everyone, the others follow at the next polls. The poll redresses an
+actor at most once in 3 seconds; a change it holds back is not marked seen, so it is
+evaluated again at a later poll. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
 again until the situations change. With `[Situations] NotifyChanges` on (off by default),
 each such redress shows a HUD message naming what they wear now. Apply and the Save page

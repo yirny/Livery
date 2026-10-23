@@ -95,6 +95,7 @@ namespace Situations
 		friend bool operator==(const Applicable&, const Applicable&) = default;
 	};
 
+	// Swimming ends later for an actor the poll last saw swimming (hysteresis on a shore).
 	// Contract: game thread.
 	Applicable Evaluate(RE::Actor& a_actor);
 
