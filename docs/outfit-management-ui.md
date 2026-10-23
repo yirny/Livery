@@ -166,7 +166,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     count line.
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
-  has unsaved edits asks `Discard changes` / `Keep editing`.
+  has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Update's
+  popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited; with none selected, the Inventory page's
   ticks.
 - Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Exit`.
@@ -211,10 +212,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
 - Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
-  "#{Outfit}".` with `Save Changes` / `Discard Changes` / `Back`
-  (docs/situation-management-ui.md §6): Save Changes opens Update's popup, and its Confirm
-  saves, then goes once the write took (a refused one stays; Cancel stays); Discard Changes
-  starts the edits again from the library and goes; Back stays.
+  "#{Outfit}".` with the lines Update's popup lists, then `Save Changes` /
+  `Discard Changes` / `Back` (docs/situation-management-ui.md §6): Save Changes opens
+  Update's popup, and its Confirm saves, then goes once the write took (a refused one stays;
+  Cancel stays); Discard Changes starts the edits again from the library and goes; Back stays.
 
 ### Edit page
 
