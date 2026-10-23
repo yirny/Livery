@@ -835,8 +835,8 @@ namespace
 	// preview on, as the preview puts back what it found at Begin: with it on, it ends, `dress`
 	// runs and it begins again on `shown`, or with none on what they wear now, the camera and
 	// the movement hold staying; a refusal turns Live Preview off with the reason. With it off
-	// `dress` runs in the game the window froze. Then returns their pieces for the window
-	// (SetOutfits).
+	// `dress` runs in the game the window froze, and an NPC's model is rebuilt after it. Then
+	// returns their pieces for the window (SetOutfits).
 	// Contract: game thread; `actor` is the captured actor; `armors` matches the window's
 	// Request::pieces index for index, `offered` are the player's armor among them.
 	CaptureWindow::ActorPieces DressCaptured(RE::Actor& actor, const std::function<void()>& dress, const std::vector<RE::TESObjectARMO*>& armors,
@@ -847,6 +847,12 @@ namespace
 			OutfitPreview::End();
 		}
 		dress();
+		// Contract: with no preview on, the window froze the game, which skips the NPC's actor
+		// update that builds their new pieces' 3D, while a copy Livery took back lost its 3D at
+		// once (their torso shows empty): rebuild the model now. Dress rebuilds the player's.
+		if (!previewing && !actor.IsPlayerRef()) {
+			Dressing::RefreshModel(actor);
+		}
 		std::size_t skipped = 0;
 		std::size_t substituted = 0;
 		const auto  inventory = CollectArmor(actor, skipped, substituted);
