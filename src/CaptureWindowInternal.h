@@ -346,10 +346,10 @@ namespace CaptureWindow::Internal
 		kBack
 	};
 
-	// The unsaved-changes alert: `a_text`, then Save Changes (greyed with `a_noSave`, which shows
-	// on hover), Discard Changes and Back. Back and Escape forget the leave; the page acts on
-	// the other two.
-	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave);
+	// The unsaved-changes alert: `a_text`, the lines `a_drawDetails` draws (what is unsaved; none
+	// with nullptr), then Save Changes (greyed with `a_noSave`, which shows on hover), Discard
+	// Changes and Back. Back and Escape forget the leave; the page acts on the other two.
+	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave, void (*a_drawDetails)(const State&) = nullptr);
 
 	// --- Pages (OutfitPages.cpp) ----------------------------------------------
 

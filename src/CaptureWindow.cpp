@@ -596,7 +596,7 @@ namespace CaptureWindow::Internal
 		GoToPage(a_state, a_leave.page);
 	}
 
-	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave)
+	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave, void (*a_drawDetails)(const State&))
 	{
 		if (!BeginModal(kLeavePopup)) {
 			return LeaveChoice::kNone;
@@ -607,6 +607,9 @@ namespace CaptureWindow::Internal
 			return LeaveChoice::kNone;
 		}
 		ImGui::TextUnformatted(a_text.c_str());
+		if (a_drawDetails) {
+			a_drawDetails(a_state);
+		}
 		BeginButtonRow({ "Save Changes", "Discard Changes", "Back" });
 		const bool save = ReasonButton("Save Changes", a_noSave);
 		ImGui::SameLine();
