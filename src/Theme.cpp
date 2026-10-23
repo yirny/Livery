@@ -2637,11 +2637,18 @@ namespace Theme
 			const ImVec2 pos = ImGui::GetItemRectMin();
 			draw->AddText(pos, color, label.c_str());
 			if (sorted) {
-				const float left = pos.x + text.x + style.ItemInnerSpacing.x;
-				const float midY = pos.y + text.y * 0.5f;
-				const float half = arrow * 0.5f;
-				const float tip = a_descending ? half * 0.6f : -half * 0.6f;  // the point's offset from midY
-				draw->AddTriangleFilled(ImVec2(left, midY - tip), ImVec2(left + arrow, midY - tip), ImVec2(left + half, midY + tip), color);
+				const float  left = pos.x + text.x + style.ItemInnerSpacing.x;
+				const float  midY = pos.y + text.y * 0.5f;
+				const float  half = arrow * 0.5f;
+				const float  tip = a_descending ? half * 0.6f : -half * 0.6f;  // the point's offset from midY
+				const ImVec2 baseL(left, midY - tip), baseR(left + arrow, midY - tip), point(left + half, midY + tip);
+				// ImGui fills clockwise shapes only: a counter-clockwise one gets its anti-aliasing fringe
+				// inward and looks a pixel smaller, so the up arrow lists its base the other way round.
+				if (a_descending) {
+					draw->AddTriangleFilled(baseL, baseR, point, color);
+				} else {
+					draw->AddTriangleFilled(baseR, baseL, point, color);
+				}
 			}
 		}
 		ImGui::PopFont();
