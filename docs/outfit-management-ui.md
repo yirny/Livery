@@ -264,8 +264,8 @@ Assignments run only with no preview on, since the preview restores what it foun
   Manage Wardrobe has selected (Update), or with what they wear now (Remove), so the new
   state is what the preview later restores. The camera and the movement hold stay. When
   Begin refuses, the Live Preview tick greys with the reason, as at Open. With it off, the
-  assignment runs in the game the window froze, which shows it once the window closes
-  (docs/design.md §6). Then the Inventory page follows what they wear, as Open would list
+  assignment runs in the game the window froze, and the NPC's model is rebuilt at once
+  (`Dressing::RefreshModel`; docs/design.md §6). Then the Inventory page follows what they wear, as Open would list
   it now (`CaptureWindow::OutfitList::actorPieces`): each piece's heading, the worn pieces
   ticked (the user's ticks replaced), the heading of Livery's outfit named after the one now
   on them, the loaded outfit let go. Armor the window did not list at Open cannot be listed,
@@ -320,7 +320,7 @@ first.
 - Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
   rebuilt list; a taken name refused; Edit, Use Ticked Pieces and Back; the three warnings;
   Update of the outfit the captured actor wears, at once with Live Preview on and off (the
-  game showing it once the window closes); the three skins.
+  frozen game showing the new outfit, no empty torso); the three skins.
 - Step 3: Remove of an outfit in use lists its users; the captured actor wearing it for a
   situation changes at once, Live Preview on or off; a default from it keeps its
   pieces; the assignments survive save and load.

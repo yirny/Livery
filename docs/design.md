@@ -233,7 +233,10 @@ can come later if sharing across characters is wanted.
   back; wading on horseback is not Swimming; the choices survive save and load.
 - Dressing while the capture window froze the game (Live Preview off, 2026-10-23):
   `EquipObject` and the assignment change the equipment data at once, so the window's list
-  follows at once; the NPC's 3D changes once the window closes.
+  follows at once, but an NPC's new pieces get no 3D until their actor update, which the
+  frozen game skips, while a copy taken back (`RemoveItem`) loses its 3D at once (the torso
+  showed empty). `Set3DUpdateFlag(kModel)` + `Update3DModel` on the NPC right after the
+  dressing shows the new outfit at once, in the frozen game.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).
