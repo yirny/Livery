@@ -160,9 +160,10 @@ namespace CaptureWindow
 		std::vector<std::size_t> pieces;  // ticked indices into Request::pieces, ascending, never empty
 		std::vector<std::size_t> assign;  // rows that get the outfit, ascending; a row another outfit is worn for only after Confirm
 		std::vector<std::size_t> remove;  // Update only: rows that had the outfit and are unticked, ascending
-		// Create and Apply: once saved and given its rows, the outfit goes on as the Inventory
-		// page's Apply puts it on, the pieces in `fromPlayer` (those of `pieces` the window lists
-		// under Player's Inventory) moved first. Always false and empty for Update.
+		// Create and Apply: `assign` holds the row the outfit is worn for once saved, ticked or
+		// agreed to in the Wear popup, and the pieces in `fromPlayer` (those of `pieces` the
+		// window lists under Player's Inventory) move first; those that do not move stay out of
+		// the dressing. Always false and empty for Update.
 		bool                     apply = false;
 		std::vector<std::size_t> fromPlayer;
 	};
@@ -189,7 +190,10 @@ namespace CaptureWindow
 		std::vector<ExistingOutfit> existingOutfits;  // listed on the Load page and the Update tab's selection, in display order
 		std::vector<SituationInfo>  situations;       // one per row of `assigned`: the Default, then the situations not removed
 		std::vector<RowAssignment>  assigned;         // one per row, in `situations`' order
-		std::vector<std::string>    restoreChanges;   // what Restore Presets would change, one line each; empty while every preset is as installed
+		// The situations the actor is in as the window opens, the most specific first: Create
+		// and Apply reads from them which row the new outfit would be worn for.
+		Situations::Applicable   situationsNow;
+		std::vector<std::string> restoreChanges;  // what Restore Presets would change, one line each; empty while every preset is as installed
 		// Apply moves PieceGroup::kPlayer pieces to the NPC; off, the NPC gets copies.
 		bool movesFromPlayer = true;
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
