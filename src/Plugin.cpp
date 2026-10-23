@@ -1018,8 +1018,13 @@ namespace
 		const auto actorID = actor.GetFormID();
 		request.movesFromPlayer = Settings::MoveFromPlayer();
 		request.protectsFavorites = Settings::ProtectFavorites();
-		request.onApply = [handle, actorID, armors, offered](const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer,
-							  std::uint32_t outfit, bool updateWorn) {
+		request.onApply = [handle, actorID, armors, offered, name = request.actorName](const std::vector<std::size_t>& pieces,
+							  const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn) {
+			const auto target = handle.get();
+			if (!target) {
+				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				return;
+			}
 			// Read before the queued redresses run: the row they wear as the window shows it,
 			// which follows a redress made while it is open.
 			const auto current = Assignments::ChoicesOf(actorID);
@@ -1031,21 +1036,18 @@ namespace
 					return;
 				}
 			}
-			std::optional<CaptureWindow::ActorPieces> dressed;
-			if (const auto target = handle.get()) {
-				const auto dress = [&] {
-					RunQueuedRedress(actorID);
-					const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
-					// A situation outfit is read from the library, so the update is what goes on;
-					// the default is not touched.
-					if (updateWorn && forSituation) {
-						Assignments::Refresh(*target, notMoved);
-						return;
-					}
-					AssignMoved(*target, picked, notMoved, outfit);
-				};
-				dressed = DressCaptured(*target, dress, armors, offered, nullptr);
-			}
+			const auto dress = [&] {
+				RunQueuedRedress(actorID);
+				const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
+				// A situation outfit is read from the library, so the update is what goes on;
+				// the default is not touched.
+				if (updateWorn && forSituation) {
+					Assignments::Refresh(*target, notMoved);
+					return;
+				}
+				AssignMoved(*target, picked, notMoved, outfit);
+			};
+			auto dressed = DressCaptured(*target, dress, armors, offered, nullptr);
 			auto list = CurrentOutfitList(actorID, armors);  // after the dressing
 			list.actorPieces = std::move(dressed);
 			CaptureWindow::SetOutfits(std::move(list));
@@ -1124,7 +1126,12 @@ namespace
 		// Apply to #{Name}: the outfit as the library has it goes to the row the window chose
 		// and on (ApplyOutfit), the window staying open; the Inventory page follows what they
 		// wear.
-		request.onManageApply = [handle, actorID, armors, offered](std::uint32_t outfit, std::size_t row) {
+		request.onManageApply = [handle, actorID, armors, offered, name = request.actorName](std::uint32_t outfit, std::size_t row) {
+			const auto target = handle.get();
+			if (!target) {
+				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				return;
+			}
 			const auto* stored = Library::Find(outfit);
 			if (!stored) {
 				CaptureWindow::SetError("The outfit no longer exists.");
@@ -1135,10 +1142,7 @@ namespace
 				CaptureWindow::SetError("None of its pieces is loaded.");
 				return;
 			}
-			std::optional<CaptureWindow::ActorPieces> dressed;
-			if (const auto target = handle.get()) {
-				dressed = ApplyOutfit(*target, outfit, row, armors, offered, pieces);
-			}
+			auto dressed = ApplyOutfit(*target, outfit, row, armors, offered, pieces);
 			auto list = CurrentOutfitList(actorID, armors);  // after the dressing
 			list.actorPieces = std::move(dressed);
 			CaptureWindow::SetOutfits(std::move(list));

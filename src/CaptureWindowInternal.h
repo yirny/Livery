@@ -235,6 +235,7 @@ namespace CaptureWindow::Internal
 		ManageForm               manage;
 		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
 		std::string              manageApplyLabel;  // "Apply to #{Name}"
+		std::string              manageApplyTip;    // its tooltip, what it dresses them for (FillManageForm); "" with no outfit selected
 		std::unique_ptr<bool[]>  editTicked;        // the Edit page's ticks, one per request.pieces
 		std::vector<std::size_t> editShown;         // the edited pieces it opened with and those loaded since, so those nobody carries stay listed
 		std::string              editTitle;         // "Edit \"#{Outfit}\""
@@ -361,7 +362,9 @@ namespace CaptureWindow::Internal
 	bool HasManageEdits(const State& a_state);
 
 	// Starts Manage Wardrobe' edits of outfit `a_index` (-1 for none) from the library,
-	// without touching the preview.
+	// without touching the preview, and words Apply's tooltip for it.
+	// Contract: every change of the selection, or of what the actor wears (SetOutfits), comes
+	// through here, so State::manageApplyTip stays current.
 	void FillManageForm(State& a_state, int a_index);
 
 	struct BrowserControls

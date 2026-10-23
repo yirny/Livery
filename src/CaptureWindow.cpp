@@ -2044,6 +2044,7 @@ namespace CaptureWindow
 			FillSituationForm(state, state.request.situations);
 			state.situationsTitle = std::format("{}'s Situational Outfits", state.request.actorName);
 			state.manageApplyLabel = std::format("Apply to {}", state.request.actorName);
+			state.manageApplyTip.clear();
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
 			state.editShown.clear();
 			state.recentreFrames = kRecentreFrames;
