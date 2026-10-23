@@ -790,7 +790,10 @@ namespace CaptureWindow::Internal
 		kSecond
 	};
 
-	// A popup with UnsavedText and buttons `a_first` and `a_second`; Escape is the second.
+	void DrawLibraryChangeLines(const State& a_state);
+
+	// A popup with UnsavedText, the library changes, and buttons `a_first` and `a_second`;
+	// Escape is the second.
 	UnsavedChoice DrawUnsavedPopup(const State& a_state, const char* a_id, const char* a_first, const char* a_second)
 	{
 		if (!BeginModal(a_id)) {
@@ -802,6 +805,7 @@ namespace CaptureWindow::Internal
 			return UnsavedChoice::kNone;
 		}
 		ImGui::TextUnformatted(UnsavedText(a_state).c_str());
+		DrawLibraryChangeLines(a_state);
 		BeginButtonRow({ a_first, a_second });
 		const bool first = Theme::Button(a_first);
 		ImGui::SameLine();
@@ -1114,7 +1118,7 @@ namespace CaptureWindow::Internal
 		if (DrawUnsavedPopup(a_state, kDiscardPopup, "Discard changes", "Keep editing") == UnsavedChoice::kFirst) {
 			SelectManaged(a_state, a_state.discardFor);
 		}
-		switch (DrawLeavePopup(a_state, UnsavedText(a_state), UpdateReason(a_state))) {
+		switch (DrawLeavePopup(a_state, UnsavedText(a_state), UpdateReason(a_state), DrawLibraryChangeLines)) {
 		case LeaveChoice::kSave:
 			ImGui::OpenPopup(kManageConfirmPopup);
 			break;
