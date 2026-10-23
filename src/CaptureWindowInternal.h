@@ -64,27 +64,14 @@ namespace CaptureWindow::Internal
 		const char*            label;
 		OutfitBrowser::SortKey key;
 	};
-	constexpr std::array<SortOption, 3> kSortOptions{ {
+	constexpr std::array<SortOption, 2> kSortOptions{ {
 		{ "Name", OutfitBrowser::SortKey::kName },
-		{ "Gender", OutfitBrowser::SortKey::kGender },
 		{ CaptureWindow::kSituationGroup, OutfitBrowser::SortKey::kSituation },
 	} };
 
 	// The outfit browser's Filter dropdown, hidden for now; its code stays, as it is likely
 	// to return (docs/outfit-management-ui.md §1).
 	constexpr bool kShowFilter = false;
-
-	// The Save page's gender radio buttons, in their order.
-	struct GenderOption
-	{
-		const char* label;
-		int         value;  // as the library stores it
-	};
-	constexpr std::array<GenderOption, 3> kGenderOptions{ {
-		{ "Unisex", -1 },
-		{ "Male", 0 },
-		{ "Female", 1 },
-	} };
 
 	// The piece list's columns, in their order (State::sortColumn).
 	constexpr int                        kNameColumn = 0;
@@ -146,8 +133,7 @@ namespace CaptureWindow::Internal
 	struct SaveForm
 	{
 		std::array<char, kNameCapacity> name{};
-		int                             gender = -1;  // -1 unisex, 0 male, 1 female
-		std::unique_ptr<bool[]>         wearsFor;     // one per row of "SITUATIONS (#{Name})" (request.assigned)
+		std::unique_ptr<bool[]>         wearsFor;  // one per row of "SITUATIONS (#{Name})" (request.assigned)
 	};
 
 	// Manage Wardrobe' edits of the selected outfit, kept while the window is open; selecting
@@ -156,8 +142,7 @@ namespace CaptureWindow::Internal
 	{
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
 		std::array<char, kNameCapacity> name{};
-		int                             gender = -1;  // -1 unisex, 0 male, 1 female
-		std::vector<std::size_t>        pieces;       // its loaded pieces as edited: indices into request.pieces, ascending
+		std::vector<std::size_t>        pieces;  // its loaded pieces as edited: indices into request.pieces, ascending
 	};
 
 	// One situation of Manage Situations as edited, in request.situations' order.
@@ -204,7 +189,6 @@ namespace CaptureWindow::Internal
 		CaptureWindow::Request   request;
 		std::unique_ptr<bool[]>  pieceTicked;  // one per request.pieces; bool[] because Theme::TickRow needs bool*
 		SaveForm                 createForm;
-		int                      suggestedGender = -1;  // the Create tab's last suggestion (SuggestGender)
 		SaveForm                 updateForm;
 		bool                     updateTab = false;      // the Save page shows the Update tab
 		int                      chosenOutfit = -1;      // the Update tab's outfit: index into request.existingOutfits, -1 for none yet
@@ -283,9 +267,7 @@ namespace CaptureWindow::Internal
 	void                     DrawError(const std::string& a_message);
 	void                     RequestCancel();
 	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name);
-	void                     DrawGenderField(int& a_gender);
 	bool                     BeginModal(const char* a_id);
-	const char*              GenderName(int a_gender);
 	void                     SetGroupHeadings(State& a_state);
 
 	void                                 QueueMenuSound(RE::FormID a_sound);
@@ -388,7 +370,7 @@ namespace CaptureWindow::Internal
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
 	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:
-	// its name, gender, `a_situations` under the "SITUATIONS (#{Name})" label, then its
+	// its name, `a_situations` under the "SITUATIONS (#{Name})" label, then its
 	// pieces under their count line, their list ending by screen Y `a_bottom` and scrolling
 	// when they need more (one row shows at least).
 	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom);

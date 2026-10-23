@@ -88,12 +88,12 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   opens the outfit selection (the Load page's browser and preview, titled `Select an Outfit
   to Update`, no summary line, `No outfit selected` on the right while none is); Cancel
   returns to the former tab with nothing changed. Clicking it again reopens the selection
-  with the chosen outfit selected and previewed. Once chosen: name, Class and gender fill
-  from the outfit, the `SITUATIONS (#{Name})` ticks (below) from this actor's assignments
-  of it, and the button reads
-  `Update #{Outfit}`. Name and gender may be changed: CLAUDE.md §2.1 is rewritten (change
-  name and gender only through the confirmed Update path; a name must be unused, ASCII case
-  ignored, by any other outfit) and `Library::Update` takes name and gender.
+  with the chosen outfit selected and previewed. Once chosen: the name fills from the
+  outfit, the `SITUATIONS (#{Name})` ticks (below) from this actor's assignments of it, and
+  the button reads
+  `Update #{Outfit}`. The name may be changed: CLAUDE.md §2.1 is rewritten (change the
+  name only through the confirmed Update path; a name must be unused, ASCII case ignored,
+  by any other outfit) and `Library::Update` takes the name.
 - `Create New Outfit`: as today; buttons `Create` and `Create and Apply`. Create and Apply
   saves as Create does (the replace popup first) and has the actor wear the new outfit: the
   row it would be worn for once saved (the first situation they are in, as the window
@@ -104,8 +104,7 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   and those that do not move stay out of the one dressing (`SaveRequest::apply`,
   `Assignments::Changes::leaveOut`).
 - Fields, as Manage Wardrobe's: the name, with no label (`Outfit Name` on hover while not
-  being typed in; a failed save's error instead), the gender, with no label, then
-  `SITUATIONS (#{Name})`.
+  being typed in; a failed save's error instead), then `SITUATIONS (#{Name})`.
 - Field `SITUATIONS (#{Name})`: a multi-choice dropdown of `Default` and the situations. A tick gives
   the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's
   `(?)`: "Situational outfit. #{Name} changes into it whenever a ticked situation applies.
@@ -117,7 +116,7 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   the assignment, Default included (a clear-default API: the worn default comes off, its
   situations stay). Update always replaces the outfit's pieces with the ticks: a pure
   assignment edit is Manage Situations' job. The confirm popup stays and adds
-  lines for a rename, a gender change and the assignment changes (`Home: removed`,
+  lines for a rename and the assignment changes (`Home: removed`,
   `Default: added`).
 - Order: the library write; on failure `SetError` and nothing assigned; on success Close (the
   preview restores), then every assignment change in one call that redresses once; one HUD
@@ -134,7 +133,7 @@ write assigns nothing.
   now is a library outfit (the default's id when the default is worn, else the worn
   situation's) and the ticks differ from its loaded pieces. For a situation it adds `"X" is
   #{Name}'s Town outfit.`
-  - `Yes`: `Library::Update(X, pieces = ticks, name and gender kept)`. Default
+  - `Yes`: `Library::Update(X, pieces = ticks, name kept)`. Default
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced
     redress puts the updated outfit on (new Assignments API; `WearFor` only redresses on a
     change).
@@ -167,6 +166,6 @@ and the outfit worn with random off. Spec and steps: docs/situation-management-u
 - `Assignments::Choices`: the armor FormIDs Livery has on the actor (§1).
 - `Assignments`: clear the default alone; apply several assignment changes with one redress;
   force a redress of the worn situation outfit (§4, §5).
-- `Library::Update`: name and gender (§4).
+- `Library::Update`: the name (§4).
 - `Settings`: the four keys of §2 and their menu entries.
 - `Theme`: column header row, multi-column `TickRow`, text-only tabs, borderless text button.

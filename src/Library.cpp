@@ -8,10 +8,11 @@
 //   API       - Load / Outfits / Find / FindByName / LoadedPieces / Create / Update / Remove
 //
 // outfits.json, version 1:
-//   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard", "gender": -1,
+//   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard",
 //     "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
 //     "name": "Imperial Light Armor" } ] } ] }
-// An outfit's "categories" in a file older versions wrote is read past and gone at the next write.
+// An outfit's "categories" and "gender" in a file older versions wrote are read past and gone
+// at the next write.
 #include "PCH.h"
 
 #include "Library.h"
@@ -168,11 +169,6 @@ namespace
 		if (!ReadString(Field(a_json, "name"), a_outfit.name)) {
 			return "no name";
 		}
-		const auto* gender = Field(a_json, "gender");
-		if (!gender || !gender->is_number_integer() || gender->get<std::int64_t>() < -1 || gender->get<std::int64_t>() > 1) {
-			return "no gender of -1, 0 or 1";
-		}
-		a_outfit.gender = gender->get<int>();
 		const auto* pieces = Field(a_json, "pieces");
 		if (!pieces || !pieces->is_array() || pieces->empty()) {
 			return "no pieces";
@@ -223,7 +219,7 @@ namespace
 			for (const auto& piece : outfit.pieces) {
 				pieces.push_back({ { "plugin", piece.plugin }, { "formId", std::format("0x{:06X}", piece.localID) }, { "name", piece.name } });
 			}
-			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "gender", outfit.gender }, { "pieces", std::move(pieces) } });
+			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "pieces", std::move(pieces) } });
 		}
 		return { { "version", kLibraryVersion }, { "nextId", a_nextId }, { "outfits", std::move(list) } };
 	}
@@ -338,7 +334,7 @@ namespace Library
 
 	// Contract: every refusal is checked before anything changes, so no outfit is ever
 	// left without pieces.
-	std::optional<std::string> Create(std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor)
+	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -349,7 +345,7 @@ namespace Library
 		if (FindByName(a_name)) {
 			return std::format("An outfit named \"{}\" already exists.", a_name);
 		}
-		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .gender = a_gender };
+		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name } };
 		if (auto problem = ToPieces(a_armor, outfit.pieces)) {
 			return problem;
 		}
@@ -364,7 +360,7 @@ namespace Library
 	}
 
 	// Contract: as Create; the new pieces and the name are checked before anything changes.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, int a_gender, const std::vector<RE::TESObjectARMO*>& a_armor)
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -386,7 +382,6 @@ namespace Library
 		}
 		Outfit updated = *found;
 		updated.name = std::string{ a_name };
-		updated.gender = a_gender;
 		// This load order cannot tell what a piece of a missing plugin was, so it stays.
 		std::erase_if(updated.pieces, [](const PieceRef& piece) { return ArmorOf(piece) != nullptr; });
 		updated.pieces.insert(updated.pieces.begin(), pieces.begin(), pieces.end());

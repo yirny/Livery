@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants - the gender sort's headings
 //   Helpers   - name matching and ordering, the categories an outfit is in, filter rows,
 //               group keys and headings
 //   Browser   - Reset / Rebuild / Refresh / SetSort, the folded headings, and the
@@ -14,11 +13,6 @@
 
 namespace
 {
-	// --- Constants ------------------------------------------------------------
-
-	// The gender sort's headings, in its order (GenderRank).
-	constexpr std::array<const char*, 3> kGenderHeadings{ "Female", "Male", "Unisex" };
-
 	// --- Helpers --------------------------------------------------------------
 
 	// Outfit names are UTF-8; only ASCII letters fold, as typed text is ASCII only.
@@ -40,21 +34,13 @@ namespace
 		return std::lexicographical_compare_three_way(a_left.begin(), a_left.end(), a_right.begin(), a_right.end(), compare);
 	}
 
-	// The gender sort's place for the library's gender (-1 unisex, 0 male, 1 female): an
-	// index into kGenderHeadings.
-	std::size_t GenderRank(int a_gender)
-	{
-		return a_gender == 1 ? 0 : (a_gender == 0 ? 1 : 2);
-	}
-
-	// The group a sort key lists the outfits by; "" for kName and kGender.
+	// The group a sort key lists the outfits by; "" for kName.
 	std::string_view GroupOf(OutfitBrowser::SortKey a_key)
 	{
 		switch (a_key) {
 		case OutfitBrowser::SortKey::kSituation:
 			return CaptureWindow::kSituationGroup;
 		case OutfitBrowser::SortKey::kName:
-		case OutfitBrowser::SortKey::kGender:
 			break;
 		}
 		return {};
@@ -230,9 +216,7 @@ namespace OutfitBrowser
 		std::vector<std::vector<int>> keys(outfits.size());
 		a_state.headings.assign(outfits.size(), std::string{});
 		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			if (a_state.sort == SortKey::kGender) {
-				a_state.headings[i] = kGenderHeadings[GenderRank(outfits[i].gender)];
-			} else if (!group.empty()) {
+			if (!group.empty()) {
 				keys[i] = GroupKey(a_state.categories[i], a_request, group);
 				a_state.headings[i] = GroupHeading(keys[i], a_request, group);
 			}
@@ -243,9 +227,7 @@ namespace OutfitBrowser
 			const auto left = static_cast<std::size_t>(a);
 			const auto right = static_cast<std::size_t>(b);
 			auto       order = std::weak_ordering::equivalent;
-			if (a_state.sort == SortKey::kGender) {
-				order = GenderRank(outfits[left].gender) <=> GenderRank(outfits[right].gender);
-			} else if (!group.empty()) {
+			if (!group.empty()) {
 				order = CompareGroupKeys(keys[left], keys[right]);
 			}
 			if (order == 0) {

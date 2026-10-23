@@ -26,11 +26,11 @@ namespace
 			{ kSituationGroup, "Warm" },
 		};
 		request.existingOutfits = {
-			{ .name = "iron set", .id = 1, .gender = 0 },
-			{ .name = "Guard Uniform", .id = 2, .gender = -1 },
-			{ .name = "Town Dress", .id = 3, .gender = 1 },
-			{ .name = "Bare", .id = 4, .gender = -1 },
-			{ .name = "Scout", .id = 5, .gender = 1 },
+			{ .name = "iron set", .id = 1 },
+			{ .name = "Guard Uniform", .id = 2 },
+			{ .name = "Town Dress", .id = 3 },
+			{ .name = "Bare", .id = 4 },
+			{ .name = "Scout", .id = 5 },
 		};
 		// Default, Town, Home, Sleep, Swimming, Warm. A row shows only what it holds: Town's "Guard
 		// Uniform" is hidden behind its chosen "Scout", Home's "Bare" is on its list with none
@@ -217,17 +217,6 @@ TEST_CASE("Search and filter combine", "[browser]")
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set" });
 }
 
-TEST_CASE("Gender sort: Female, Male, Unisex, then name", "[browser]")
-{
-	const auto           request = MakeRequest();
-	OutfitBrowser::State state;
-	OutfitBrowser::Reset(state, request);
-	Sort(state, request, OutfitBrowser::SortKey::kGender);
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Scout", "Town Dress", "iron set", "Bare", "Guard Uniform" });
-	CHECK(VisibleHeadings(state) == std::vector<std::string>{ "Female", "Female", "Male", "Unisex", "Unisex" });
-	CHECK(state.headingCount == 3);
-}
-
 TEST_CASE("Situation sort: Default, then the situations' order", "[browser]")
 {
 	const auto           request = MakeRequest();
@@ -278,9 +267,10 @@ TEST_CASE("Folded headings: toggled one by one, kept by Rebuild, cleared by SetS
 	// The list skips folded outfits as it draws them; the browser still lists every one.
 	CHECK(state.visible.size() == request.existingOutfits.size());
 
-	Sort(state, request, OutfitBrowser::SortKey::kGender);
+	Sort(state, request, OutfitBrowser::SortKey::kName);
 	CHECK(state.folded.empty());
-	OutfitBrowser::ToggleFolded(state, "Male");
+	Sort(state, request, OutfitBrowser::SortKey::kSituation);
+	OutfitBrowser::ToggleFolded(state, "No Situation");
 	OutfitBrowser::Reset(state, request);
 	CHECK(state.folded.empty());
 }
