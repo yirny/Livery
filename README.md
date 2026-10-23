@@ -33,8 +33,11 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 ## Compatibility
 
-- Compatible with Skyrim SE and AE. Skyrim VR is not supported.
-- No ESP/ESL required.
+- Skyrim SE and AE. Skyrim VR is not supported.
+- No ESP/ESL. Livery will not corrupt a save or set your PC on fire next to any other mod: no scripts, and its co-save record is skipped when it is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
+- **Nether's Follower Framework**: fine, as long as you don't use its outfit features on the followers Livery dresses.
+- **Tailor**: fine for wigs; leave the outfits to one of the two.
+- **Devious Devices**: not tested. Don't dress a character wearing devices.
 
 <!-- nexus:end -->
 
