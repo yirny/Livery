@@ -1806,7 +1806,7 @@ namespace
 	}
 
 	// Modern's checkbox, after the game's settings one: a square as tall as the text, a thin
-	// light frame and a thin tick in the text colour, then the label; the box and label are
+	// light frame and a thin tick in the accent, then the label; the box and label are
 	// one click target. Returns true when pressed; the caller changes the value. Drawn as it
 	// will be after the press. No frame padding, so the item is as tall as the box.
 	bool ModernCheckbox(const char* a_label, bool a_ticked)
@@ -1839,7 +1839,7 @@ namespace
 			for (std::size_t i = 0; i < std::size(kTick); ++i) {
 				points[i] = ImVec2(boxMin.x + side * kTick[i].x, boxMin.y + side * kTick[i].y);
 			}
-			draw->AddPolyline(points, static_cast<int>(std::size(points)), ImGui::GetColorU32(ImGuiCol_Text), ImDrawFlags_None, (std::max)(1.0f, 1.5f * g_scale));
+			draw->AddPolyline(points, static_cast<int>(std::size(points)), ImGui::GetColorU32(ImGuiCol_CheckMark), ImDrawFlags_None, (std::max)(1.0f, 1.5f * g_scale));
 		}
 		draw->AddText(ImVec2(boxMax.x + style.ItemInnerSpacing.x, midY - text.y * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return pressed;
