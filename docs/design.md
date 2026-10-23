@@ -108,6 +108,27 @@ switchable in the settings (`[Player] AddMissingPieces`) with a warning that it 
 items; nothing is put back on the player when they load. Situation outfits (§7) switch
 on the player as on an NPC, unlocked like the default, and not in beast form.
 
+### Items
+
+Livery deletes an item in two places only, each by its own `ExtraUniqueID` key and only for a
+copy Livery added: `Dressing::Release` with `removeCopies` (Unassign, a redress, F8) and the live
+preview's take-back of the copies it added. An actor's own instance is never deleted: the pieces
+Livery takes off stay in the inventory, and death releases the locks and removes nothing. The
+one removal without an instance key is the rollback of a refused equip (`PutOn` in
+`Dressing.cpp`), one copy of the armor just added with `AddObjectToContainer`; it runs only when
+the actor had no unlocked copy, so it can reach the actor's own copy only when that copy is
+unworn and locked by another mod. `MoveFromPlayer` moves the player's instance to the NPC, who
+owns it from then on: lootable at their death, gone with a respawned NPC.
+
+Copies Livery adds to an NPC reach the player only by looting the corpse; through the trade,
+container or pickpocket menu of an NPC whose base has no `defaultOutfit`, or on a runtime where
+the filter found no call site (§3); through other mods' inventory access (follower frameworks,
+Papyrus `RemoveAllItems`), which the menu filter does not see; or from an actor out of reach at
+F8, whose copies are ordinary items once Livery is removed. Copies on the player exist only with
+`[Player] AddMissingPieces` on: unlocked ordinary items, and Release takes back only those still
+carried. The capture menu swallows every input event and disables the pause menu, so no save is
+made while a preview is on, and no preview copy reaches a save.
+
 ### Contracts
 
 Building calls and anything taking `RE::Actor*` run on the game thread (SKSE task).
@@ -118,8 +139,8 @@ outfit copy (§6).
 
 ## 3. Hiding the mod's copies in the trade menu (stage 3)
 
-Copies the mod adds are ordinary items, so the trade, container and gift menus would list
-them and the player could take them for free. The engine hides an NPC's own outfit items in
+Copies the mod adds are ordinary items, so the trade, container, pickpocket and gift menus
+would list them and the player could take them for free. The engine hides an NPC's own outfit items in
 those menus by one rule, applied inside the functions that fill a menu's item list from an
 inventory: an entry whose `ExtraOutfitItem` names the actor base's current `defaultOutfit` is
 skipped. `src/TradeFilter.cpp` hooks the calls to those functions, the ones SPID hooks for
@@ -136,12 +157,17 @@ The capture window's `Inventory` heading follows the engine's rule: an NPC's own
 copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list shows what the
 trade menu shows.
 
-Call sites, Address Library IDs (they exist in the 1.6.1170 and 1.6.1179 databases): AE
-1.6.1130+ `51145+0xEB`, `51146+0x15B`, `51144+0x10F` (an AE function inlines the caller of
-the first); SE 1.5.97 `50216+0xED`, `50217+0x152`. The Steam executable is DRM-wrapped, so the
-bytes are checked at install instead: a site must match SPID's signature, the `call` and the
-instructions after it (`E8 ?? ?? ?? ?? 90 48 85 DB` for the list fill), or it is left alone
-with a warning in the log. Skyrim VR and AE before 1.6.1130 are not covered.
+Call sites, Address Library IDs, with SPID's offsets: AE from 1.6.1130, 1.7.x included,
+`51145+0xEB`, `51146+0x15B`, `51144+0x10F` (an AE function inlines the caller of the first); AE
+up to 1.6.629 `51145+0xBE`, `51146+0x12E`; AE 1.6.640 `51144+0xE2`; SE 1.5.97 `50216+0xED`,
+`50217+0x152`. The Steam executable is DRM-wrapped, so the bytes are checked at install instead:
+a site is hooked where SPID's signature, the `call` and the instructions after it
+(`E8 ?? ?? ?? ?? 90 48 85 DB` for the list fill), matches, at SPID's offset or else at the one
+place in the function's first `kScanBytes` (0x400) where it does, which the log reports; a
+signature found nowhere, or twice, leaves the site alone with a warning. Skyrim VR is not
+covered. Checked in game on 1.6.1170 only; the overlay's own two hooks (`src/Hooks.cpp`) check
+at install that their sites hold a `call` reaching the callee dMenu NG verified on 1.6.1170,
+1.7.99 and 1.7.104, and leave the overlay off otherwise.
 
 Rejected: a permanent `ExtraOutfitItem` on the copies (id = the NPC's DOFT hides them in
 vanilla, but any `SetOutfit` then deletes them, and a non-outfit id has no precedent);
@@ -237,6 +263,8 @@ can come later if sharing across characters is wanted.
   frozen game skips, while a copy taken back (`RemoveItem`) loses its 3D at once (the torso
   showed empty). `Set3DUpdateFlag(kModel)` + `Update3DModel` on the NPC right after the
   dressing shows the new outfit at once, in the frozen game.
+- The trade-menu filter (§3) hides Livery's copies in the pickpocket menu too (2026-10-23):
+  it fills its list through the hooked container-menu call sites.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
   (prevents removal when worn, equip when unworn), SPID `SPID/src/Outfits/Helpers.h`
   (blocks the slot in `UpdateWornGear`).

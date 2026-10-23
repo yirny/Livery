@@ -10,10 +10,12 @@
 //                      the HUD is hidden while it is open
 //   Input            - InputDispatchHook routes events to the window; while it is
 //                      open the game sees no input at all
-//   Install          - writes the two trampoline calls (SE/AE only), registers the menu
+//   Install          - checks both call sites, writes the two trampoline calls (SE/AE only),
+//                      registers the menu
 //
-// The IDs and offsets match two independent, widely used ImGui mods
-// (Wheeler, SKSE Menu Framework); see docs in CLAUDE.md §2.2 before changing.
+// The IDs and offsets match two independent, widely used ImGui mods (Wheeler, SKSE Menu
+// Framework), and dMenu NG checked them, with the callees below, on 1.6.1170, 1.7.99 and
+// 1.7.104 (its src/bin/RuntimeCompatibility.cpp); see CLAUDE.md §2.2 before changing.
 #include "PCH.h"
 
 #include "Hooks.h"
@@ -48,8 +50,9 @@ namespace
 
 	struct D3DInitHook
 	{
-		static constexpr auto id = REL::RelocationID(75595, 77226);
-		static constexpr auto offset = REL::VariantOffset(0x9, 0x275, 0x0);
+		static constexpr auto          id = REL::RelocationID(75595, 77226);
+		static constexpr auto          offset = REL::VariantOffset(0x9, 0x275, 0x0);
+		static constexpr std::uint64_t calleeAE = 77396;  // the function the call at the site reaches on AE
 
 		static void                                    thunk();
 		static inline REL::Relocation<decltype(thunk)> func;
@@ -57,8 +60,9 @@ namespace
 
 	struct InputDispatchHook
 	{
-		static constexpr auto id = REL::RelocationID(67315, 68617);
-		static constexpr auto offset = REL::VariantOffset(0x7B, 0x7B, 0x0);
+		static constexpr auto          id = REL::RelocationID(67315, 68617);
+		static constexpr auto          offset = REL::VariantOffset(0x7B, 0x7B, 0x0);
+		static constexpr std::uint64_t calleeAE = 68655;
 
 		static void                                    thunk(RE::BSTEventSource<RE::InputEvent*>* a_dispatcher, RE::InputEvent* const* a_events);
 		static inline REL::Relocation<decltype(thunk)> func;
@@ -268,6 +272,22 @@ namespace
 
 	// --- Install --------------------------------------------------------------
 
+	// Whether `a_site` holds a `call rel32` and, on AE, one that reaches `T::calleeAE`. A game
+	// build that moved the call fails this, and the overlay stays off instead of crashing. On
+	// SE only the opcode is checked (dMenu NG checks no callee there either).
+	template <class T>
+	bool IsExpectedCall(std::uintptr_t a_site)
+	{
+		if (*reinterpret_cast<const std::uint8_t*>(a_site) != 0xE8) {
+			return false;
+		}
+		if (!REL::Module::IsAE()) {
+			return true;
+		}
+		const auto target = a_site + 5 + *reinterpret_cast<const std::int32_t*>(a_site + 1);
+		return target == REL::Relocation<std::uintptr_t>{ REL::ID(T::calleeAE) }.address();
+	}
+
 	template <class T>
 	void WriteCall(SKSE::Trampoline& a_trampoline)
 	{
@@ -282,6 +302,15 @@ namespace Hooks
 	{
 		if (REL::Module::IsVR()) {
 			logger::info("Skyrim VR: overlay disabled, automatic outfit names only");
+			return;
+		}
+		// Both sites are checked before either is written: one hook without the other would be a
+		// window that cannot be drawn, or cannot be used.
+		const REL::Relocation<std::uintptr_t> d3dInit{ D3DInitHook::id, D3DInitHook::offset };
+		const REL::Relocation<std::uintptr_t> input{ InputDispatchHook::id, InputDispatchHook::offset };
+		if (!IsExpectedCall<D3DInitHook>(d3dInit.address()) || !IsExpectedCall<InputDispatchHook>(input.address())) {
+			logger::error("The hook sites {}+{:#x} and {}+{:#x} do not both hold the expected call on this game build: overlay disabled, automatic outfit names only",
+				D3DInitHook::id.id(), D3DInitHook::offset.offset(), InputDispatchHook::id.id(), InputDispatchHook::offset.offset());
 			return;
 		}
 

@@ -141,7 +141,7 @@ Palettes: each `.ini` in `Data\SKSE\Plugins\Livery\palettes\` is a set of the Mo
 - Slots an assigned outfit leaves empty stay the game's: an NPC can put on a helmet or shield they own there.
 - Updating an outfit changes another character's Default only when you give it to them again: a Default keeps the pieces it was given.
 - Your Sleep outfit goes on only with a mod that puts you into bed: the game's own beds just pass the time.
-- On Skyrim VR and on AE before 1.6.1130 the copies Livery adds to an NPC show in the trade menu, where you can take them for free; so do those of an NPC who has no default outfit.
+- On Skyrim VR the copies Livery adds to an NPC show in the trade menu, where you can take them for free; so do those of an NPC who has no default outfit, and those on any game version where `Livery.log` reports a trade-menu call site it could not find.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\Livery.log` (`Skyrim Special Edition GOG` for the GOG version).
 
