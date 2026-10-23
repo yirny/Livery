@@ -1,11 +1,5 @@
 # Nexus Mods Page Content
 
-## Short Description
-
-Aim at a follower, press a key, and the armor they wear becomes a Tailor outfit. Name it, pick its categories and gender in a small window, or put the pieces on an outfit Tailor already has.
-
----
-
 ## Tags
 
 - SKSE
@@ -20,39 +14,7 @@ Aim at a follower, press a key, and the armor they wear becomes a Tailor outfit.
      Do not copy this file directly — the generated block markers are not valid BBCode. -->
 
 ```bbcode
-[center][size=5][b]Tailor Outfit Capture[/b][/size]
-[i]Turn what an NPC, or you, wear into a Tailor outfit[/i][/center]
-
-[line]
-
-[size=4][b][color=#B8953E]Overview[/color][/b][/size]
-
-Tailor builds outfits from pieces you pick one by one. This plugin skips that: aim the crosshair at a follower or your spouse (or at nothing, for yourself), press the capture hotkey ([b]F10[/b] by default), and a window lists every piece they wear or carry. From there:
-
-[list]
-[*][b]Create New[/b] saves the ticked pieces as a new outfit. The name is pre-filled ([font=Courier New]Captured Outfit 001[/font] and so on), the armor class (Clothing, Light Armor, Heavy Armor) is detected and ticked, the gender is suggested from the pieces, and Tailor's situations and your own custom categories are one click away.
-[*][b]Update Existing[/b] puts the ticked pieces on an outfit Tailor already has, after a confirmation, and can add it to more categories.
-[*][b]Live Preview[/b] dresses them in the ticked pieces as you click, seen through a free camera you move with W/A/S/D and the mouse.
-[*][b]Load Outfit[/b] shows any outfit from Tailor's library on them and ticks its pieces.
-[/list]
-
-Wigs are listed but unticked, so a captured outfit does not replace another character's hair. Player-enchanted gear is saved as the armor it was made from.
-
-Apart from the preview's working outfit, [font=Courier New]Capture Preview[/font], nothing is written to Tailor until you confirm, and the plugin never deletes or renames an outfit.
-
-[size=4][b][color=#B8953E]Settings[/color][/b][/size]
-
-[font=Courier New]Data\SKSE\Plugins\TailorOutfitCapture.ini[/font] is created on first start. With [b]SKSE Menu Framework[/b] installed, the same settings are on its Tailor Outfit Capture page:
-
-[list]
-[*]Capture only followers and your spouse (default), or any adult NPC.
-[*]Hotkey, with an optional Shift, Ctrl or Alt.
-[*]Window skin: Tailor (matches Tailor's own menus), Vanilla, Nordic (NORDIC UI) or Classic.
-[*]Open the window with Live Preview on (default), or off with the game paused.
-[*]Preview camera speed.
-[/list]
-
-Only ASCII can be typed into the name field. Live Preview cannot run on someone another mod has set an outfit override on. On yourself, unticking the last piece leaves it shown, as Tailor does not dress the player in an empty outfit; the saved outfit follows the ticks. [font=Courier New]Capture Preview[/font] stays in Tailor's library, since Tailor's mod API cannot delete an outfit.
+[center][size=5][b]Livery - Immersive Outfit Management[/b][/size][/center]
 
 [line]
 
@@ -61,8 +23,7 @@ Only ASCII can be typed into the name field. Live Preview cannot run on someone 
 
 [list]
 [*][url=https://skse.silverlock.org/]SKSE64[/url]
-[*][url=https://github.com/heathbrownkeyworks/Tailor]Tailor[/url] 3.0 or newer (mod API 1.0)
-[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] for SE and AE, or [url=https://www.nexusmods.com/skyrimspecialedition/mods/58101]VR Address Library for SKSEVR[/url] for VR
+[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] for SE and AE
 [*]Optional: SKSE Menu Framework, for changing the settings in game
 [/list]
 
@@ -73,14 +34,14 @@ Only ASCII can be typed into the name field. Live Preview cannot run on someone 
 [b]Mod manager (recommended):[/b]
 [list=1]
 [*]Install the requirements above.
-[*]Install Tailor Outfit Capture via your mod manager.
+[*]Install Livery via your mod manager.
 [*]Launch Skyrim via SKSE.
 [/list]
 
 [b]Manual:[/b]
 [list=1]
 [*]Install the requirements above.
-[*]Copy the [font=Courier New]SKSE[/font] folder from the archive into [font=Courier New]Data\[/font] (it holds [font=Courier New]tailoroutfitcapture.dll[/font] and the fonts and textures of the window skins).
+[*]Copy the [font=Courier New]SKSE[/font] folder from the archive into [font=Courier New]Data\[/font] (it holds [font=Courier New]livery.dll[/font] and the fonts, textures and palettes of the window skins).
 [*]Launch Skyrim via SKSE.
 [/list]
 
@@ -89,23 +50,11 @@ Only ASCII can be typed into the name field. Live Preview cannot run on someone 
 [size=4][b][color=#B8953E]Compatibility[/color][/b][/size]
 
 [list]
-[*]Compatible with Skyrim SE, AE, and VR. On VR there is no capture window: the outfit is saved under an automatic name.
-[*]No ESP/ESL required.
+[*]Skyrim SE and AE. Skyrim VR is not supported.
+[*]No ESP/ESL. Livery will not corrupt a save or set your PC on fire next to any other mod: no scripts, and its co-save record is skipped when it is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
+[*][b]Nether's Follower Framework[/b]: fine, as long as you don't use its outfit features on the followers Livery dresses.
+[*][b]Tailor[/b]: fine for wigs; leave the outfits to one of the two.
+[*][b]Devious Devices[/b]: not tested. Don't dress a character wearing devices.
 [/list]
 <!-- generated:end -->
-
-[line]
-
-[size=4][b][color=#B8953E]Credits[/color][/b][/size]
-
-[list]
-[*][url=https://github.com/heathbrownkeyworks/Tailor]Tailor[/url] and its mod API by heathbrownkeyworks
-[*][url=https://skse.silverlock.org/]SKSE[/url] by the SKSE Team
-[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] by [url=https://www.nexusmods.com/profile/meh321]meh321[/url]
-[*][url=https://github.com/alandtse/CommonLibSSE-NG]CommonLibSSE-NG[/url] by [url=https://github.com/alandtse]alandtse[/url] and contributors
-[*]SKSE Menu Framework, whose API header this plugin uses for its settings page
-[*][url=https://github.com/ocornut/imgui]Dear ImGui[/url] by Omar Cornut and contributors
-[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/49881]NORDIC UI - Interface Overhaul[/url] by Dopesan: the Nordic skin's corner knot and heading rope, used under the permissions on that page
-[*][url=https://github.com/googlefonts/OswaldFont]Oswald[/url] by the Oswald Project Authors and [url=https://mjorka.net]Sovngarde[/url] by mjorka, both under the SIL Open Font License
-[/list]
 ```
