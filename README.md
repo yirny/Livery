@@ -44,7 +44,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 1. Load a save or start a new game.
 2. Aim the crosshair at a follower or your spouse (any adult NPC once `RestrictToFollowersAndSpouse` is off; never a child). With nothing under the crosshair the hotkey captures the player instead.
-3. Press the capture hotkey (`[Hotkey] Key`, see [Settings](#settings); F10 by default). The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. While the window is open the HUD is hidden, the game cannot be saved, and an NPC stays where they stand.
+3. Press the capture hotkey (`[Hotkey] Key`, see [Settings](#settings); F10 by default). The capture window opens and the character wears the ticked pieces (see [Live Preview](#live-preview)); with Live Preview off the game freezes instead. With Live Preview on, a captured NPC turns their head to you and says a greeting (see `NpcReaction` in [Settings](#settings)). While the window is open the HUD is hidden, the game cannot be saved, and an NPC stays where they stand.
 
 The window has seven pages. A column of icon tabs at its left edge switches between the Inventory page, Manage Wardrobe and Manage Situations; hover a tab for its name. Switching keeps the Inventory page's ticks until the window closes. Leaving Manage Wardrobe or Manage Situations with unsaved edits, by a tab, **Exit** or Esc, first asks `You have unsaved changes.` (on Manage Wardrobe `You have unsaved changes for "Outfit".` and what changes, as **Update** lists it): **Save Changes** saves them as that page does, then goes, staying when the save is refused; **Discard Changes** drops them and goes; **Back** stays.
 
@@ -112,6 +112,7 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 | ------------ | ------------------------------ | -------- | ------------------------------------------------------------------------------------------------------ |
 | `General`    | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                               |
 | `General`    | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.     |
+| `General`    | `NpcReaction`                  | `1`      | `1` has a captured NPC turn to you and say a greeting when the window opens with Live Preview on.      |
 | `UI`         | `Skin`                         | `Modern` | Look of the capture window: `Modern`, `Vanilla` or `Nordic` (an old `Tailor` reads as Modern).         |
 | `UI`         | `Palette`                      | `Edge`   | Colours of the Modern skin: a file in `Livery\palettes\`, named without `.ini` (see Palettes).         |
 | `Hotkey`     | `Key`                          | `68`     | Capture key as a DirectInput scan code (`68` = F10). In game, click the hotkey button and press a key. |
