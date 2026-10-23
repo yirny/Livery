@@ -14,7 +14,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 ## Requirements
 
 - [SKSE64](https://skse.silverlock.org/)
-- [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) for SE and AE, or [VR Address Library for SKSEVR](https://www.nexusmods.com/skyrimspecialedition/mods/58101) for VR
+- [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) for SE and AE
 - Optional: SKSE Menu Framework, for changing the settings in game
 
 ## Installation
@@ -33,7 +33,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 ## Compatibility
 
-- Compatible with Skyrim SE, AE, and VR. On VR there is no capture window: the hotkey only shows a message.
+- Compatible with Skyrim SE and AE. Skyrim VR is not supported.
 - No ESP/ESL required.
 
 <!-- nexus:end -->
@@ -134,14 +134,13 @@ Palettes: each `.ini` in `Data\SKSE\Plugins\Livery\palettes\` is a set of the Mo
 ### Limits
 
 - Only ASCII can be typed into the name field (the game's text input carries the ANSI code page).
-- The window is drawn with Dear ImGui on Skyrim SE/AE only. On Skyrim VR the hotkey only shows a message.
 - Pieces from plugins that are not loaded have no row in the window, and an update leaves them in the outfit. Edit `outfits.json` to remove them.
 - The window has no delete. Edit `outfits.json` for that, with the game closed.
 - Earlier versions, as a Tailor add-on, kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - Slots an assigned outfit leaves empty stay the game's: an NPC can put on a helmet or shield they own there.
 - Updating an outfit changes another character's Default only when you give it to them again: a Default keeps the pieces it was given.
 - Your Sleep outfit goes on only with a mod that puts you into bed: the game's own beds just pass the time.
-- On Skyrim VR the copies Livery adds to an NPC show in the trade menu, where you can take them for free; so do those of an NPC who has no default outfit, and those on any game version where `Livery.log` reports a trade-menu call site it could not find.
+- The copies Livery adds to an NPC who has no default outfit show in the trade menu, where you can take them for free; so do those on any game version where `Livery.log` reports a trade-menu call site it could not find.
 
 Details go to `Documents\My Games\Skyrim Special Edition\SKSE\Livery.log` (`Skyrim Special Edition GOG` for the GOG version).
 
