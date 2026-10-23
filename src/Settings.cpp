@@ -171,7 +171,8 @@ namespace
 	std::atomic<bool>          g_protectFavorites{ true };
 	std::atomic<bool>          g_moveFromPlayer{ true };
 	std::atomic<bool>          g_notifySituationChanges{ false };
-	std::filesystem::path      g_iniPath;  // set once by Load, read-only afterwards
+	std::filesystem::path      g_iniPath;   // set once by Load, read-only afterwards
+	void (*g_releaseEveryone)() = nullptr;  // set once by RegisterMenu, before the page can render
 
 	// A palette file of the Modern skin.
 	struct PaletteOption
@@ -519,6 +520,32 @@ namespace
 		return true;
 	}
 
+	// The uninstall step, asked once more in a popup since it undoes every assignment.
+	// Contract: render thread (RenderSettings); g_releaseEveryone only queues an SKSE task,
+	// which checks whether the release can run now.
+	void RenderReleaseEveryone()
+	{
+		constexpr auto kPopup = "Release everyone?###ReleaseEveryone";
+		if (ImGuiMCP::Button("Release everyone")) {
+			ImGuiMCP::OpenPopup(kPopup);
+		}
+		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
+			return;
+		}
+		ImGuiMCP::Text("Release every character Livery dresses? Do this before you uninstall Livery.");
+		if (ImGuiMCP::Button("Yes")) {
+			if (g_releaseEveryone) {
+				g_releaseEveryone();
+			}
+			ImGuiMCP::CloseCurrentPopup();
+		}
+		ImGuiMCP::SameLine();
+		if (ImGuiMCP::Button("No")) {
+			ImGuiMCP::CloseCurrentPopup();
+		}
+		ImGuiMCP::EndPopup();
+	}
+
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
 	// the page is shown. The INI is written only when the player clicks.
 	void __stdcall RenderSettings()
@@ -681,6 +708,11 @@ namespace
 			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
 			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
 		}
+
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+
+		RenderReleaseEveryone();
 	}
 }
 
@@ -784,13 +816,14 @@ namespace Settings
 		logger::info("NotifyChanges = {}", g_notifySituationChanges.load());
 	}
 
-	void RegisterMenu()
+	void RegisterMenu(void (*a_releaseEveryone)())
 	{
 		// The module handle, not IsInstalled() (a file check), tells whether the DLL actually loaded.
 		if (!GetMenuFrameworkModule()) {
 			logger::info("SKSE Menu Framework not loaded; settings are INI only");
 			return;
 		}
+		g_releaseEveryone = a_releaseEveryone;
 		SKSEMenuFramework::SetSection("Livery");
 		SKSEMenuFramework::AddSectionItem("Settings", RenderSettings);
 		// Registered for the life of the process; the framework owns the returned object.

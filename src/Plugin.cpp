@@ -12,8 +12,7 @@
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
 //                    armor (and for an NPC the player's, per the settings), each piece with its group,
 //                    SkyUI's Type and Class (ArmorInfo) and its icon (PieceIcons), detect the class, list the library's outfits (adding
-//                    their pieces nobody carries), then open the window with the worn pieces ticked (or save
-//                    those under an automatic name where the overlay is unavailable); the window's Save
+//                    their pieces nobody carries), then open the window with the worn pieces ticked; the window's Save
 //                    writes the library, then changes the actor's rows (Assignments::Change); Apply moves
 //                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
 //                    and dresses them (Assignments) with the window open (DressCaptured), as
@@ -30,8 +29,9 @@
 //                    (Assignments::SetRows) and redresses them as Update does; Remove
 //                    Situation writes situations.json, clears the situation's rows
 //                    (Assignments::ForgetSituation) and takes those wearing it out of it as
-//                    Remove does; Restore Presets writes situations.json
-//   Event sinks    - crosshair target, keys: Livery's release-everyone key (Assignments) first, then the capture hotkey
+//                    Remove does; Restore Presets writes situations.json; the settings page's
+//                    Release everyone goes to Assignments
+//   Event sinks    - crosshair target, the capture hotkey
 //   Messaging      - situation data, outfit library and piece icon rules, settings page, sink and menu registration,
 //                    ready state, the situation poll (Situations) around loads
 //   Entry          - log, settings, co-save, trampoline, hooks (overlay, trade-menu filter)
@@ -1241,6 +1241,11 @@ namespace
 		if (CaptureWindow::IsOpen()) {
 			return;
 		}
+		// No overlay (Skyrim VR, or ImGui failed to initialise): the hotkey only opens the window.
+		if (!Hooks::IsRenderReady()) {
+			Notify("Livery: the window is not available.");
+			return;
+		}
 
 		// Nothing (or something other than an actor) under the crosshair captures the player.
 		auto*      player = RE::PlayerCharacter::GetSingleton();
@@ -1266,31 +1271,23 @@ namespace
 
 		std::size_t skipped = 0;
 		std::size_t substituted = 0;
-		const auto  inventory = CollectArmor(*actor, skipped, substituted);
-		const auto  armors = WornArmors(inventory);
 		// The window also offers carried armor and Load Outfit, so it opens even when
-		// the actor carries no armor; only the automatic save below needs worn armor.
-		const bool hasWindow = Hooks::IsRenderReady();
-		if (!hasWindow && armors.empty()) {
-			Notify(skipped ? "Livery: worn armor was created in-game and cannot be saved." : "Livery: no worn armor was found.");
-			return;
-		}
+		// the actor carries no armor.
+		OpenNameWindow(*actor, CollectArmor(*actor, skipped, substituted));
+	}
 
-		if (hasWindow) {
-			OpenNameWindow(*actor, inventory);
-			return;
-		}
-
-		// No overlay (Skyrim VR, or ImGui failed to initialise): automatic name. Never a
-		// situation pool: the user chose none here.
-		const auto name = NextAutomaticName();
-		if (name.empty()) {
-			Notify("Livery: no free outfit name.");
-			return;
-		}
-		if (const auto error = SaveOutfit(name, armors)) {
-			Notify("Livery: " + *error);
-		}
+	// The settings page's Release everyone, refused while a release could break what the
+	// window is doing.
+	// Contract: SKSE Menu Framework's render thread; the release runs as an SKSE task.
+	void QueueReleaseEveryone()
+	{
+		SKSE::GetTaskInterface()->AddTask([] {
+			if (!g_ready || CaptureWindow::IsOpen()) {
+				Notify("Livery: load a save and close the capture window first.");
+				return;
+			}
+			Assignments::ReleaseEveryone();
+		});
 	}
 
 	// --- Event sinks ----------------------------------------------------------
@@ -1325,10 +1322,6 @@ namespace
 				if (!button || button->GetDevice() != RE::INPUT_DEVICE::kKeyboard || !button->IsDown()) {
 					continue;
 				}
-				// Livery's keys first: F8 releases everyone even while it is the capture hotkey too.
-				if (Assignments::HandleKey(button->GetIDCode())) {
-					break;
-				}
 				if (Settings::IsHotkey(button->GetIDCode())) {
 					const auto handle = g_target;
 					SKSE::GetTaskInterface()->AddTask([handle] { Capture(handle); });
@@ -1351,7 +1344,7 @@ namespace
 	{
 		switch (message->type) {
 		case SKSE::MessagingInterface::kPostLoad:
-			Settings::RegisterMenu();
+			Settings::RegisterMenu(QueueReleaseEveryone);
 			break;
 
 		case SKSE::MessagingInterface::kInputLoaded:
