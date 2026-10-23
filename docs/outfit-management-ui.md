@@ -39,8 +39,6 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 - Wording: the window calls the library the wardrobe (`12 outfit(s) in the wardrobe`,
   `Not in Wardrobe`).
-- The Create tab's gender is suggested from the ticked pieces at Open and at each Save on
-  the Capture page; one the user changed stays.
 - One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
   the library. An older file's outfit categories are read past and gone at the next write.
@@ -77,10 +75,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   has a faint white (16/255) under its fills, in every skin, as Tailor 3.0's outfit list
   alternates its rows. Names start 22px in from the row's left edge.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
-- `Sort by`: Name, Gender, Situation. Every key but Name puts headings in the list: the
-  rows holding the outfit joined with `, ` (`Town, Swimming`), in their order (Default, then
-  `Situations::kChoosable`). Gender's headings are Female, Male, Unisex, in that order.
-  Outfits on none of the rows come last under `No Situation`. Within a heading, by name.
+- `Sort by`: Name, Situation. Situation puts headings in the list: the rows holding the
+  outfit joined with `, ` (`Town, Swimming`), in their order (Default, then
+  `Situations::kChoosable`). Outfits on none of the rows come last under `No Situation`. Within a heading, by name.
 - A heading has a chevron at the list's left edge, pointing down while open and right while
   folded, its text after it, and a rule in the list's rule colour from 12px after its text to
   4px short of the list's right end. In a list whose rows have a drag grip (Manage
@@ -159,7 +156,7 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 - Title `Manage Wardrobe` (the tab's name too), no summary line. Two columns as on the Load
   page: the outfit list (§1) on the left; on the right the selected outfit, editable:
-  - name and gender, as the Save page's fields.
+  - name, as the Save page's field.
   - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
     stay in the outfit. The Load and Select pages' details keep the same room before their
@@ -171,9 +168,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - The preview shows the selected outfit as edited; with none selected, the Inventory page's
   ticks.
 - Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Exit`.
-  - Update: greyed until the outfit differs from the library (trimmed name, gender,
-    pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
-    what changes (pieces, rename, gender), as the Save page's Update tab does; the
+  - Update: greyed until the outfit differs from the library (trimmed name, pieces), and
+    with an empty name (`kNeedName`). A popup (`Save changes?`) lists
+    what changes (pieces, rename), as the Save page's Update tab does; the
     buttons are `Confirm` / `Cancel`. The window hands the edits to
     `Request::onManageUpdate`; no row changes. CLAUDE.md §2.1 applies: a name another outfit
     has (ASCII case ignored) is refused, and a refused or failed write changes nothing and
@@ -303,7 +300,7 @@ first.
   `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with one row
   (`Request::wornFor` tells the row of the outfit worn); the Save page's row helpers
   (`TakenRows`, `AssignedRows`, `RemovedRows`, `DrawRowChangeLines`).
-- `OutfitBrowser`: sort keys Name, Gender, Situation (`SetSort`); per outfit its heading,
+- `OutfitBrowser`: sort keys Name, Situation (`SetSort`); per outfit its heading,
   rows and situation mark text; the folded headings. Unit tests cover the keys, the
   headings, the folding and the marks.
 - `Library`: `Remove` (step 3), written through the temporary file as Create and Update are.

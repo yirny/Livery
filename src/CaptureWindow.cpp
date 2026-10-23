@@ -23,7 +23,7 @@
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
-//                  name, gender and "SITUATIONS (#{Name})" rows (Default, the
+//                  name and "SITUATIONS (#{Name})" rows (Default, the
 //                  situations); a popup (Confirm / Cancel) before replacing the outfit a row
 //                  wears, the Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
 //                  fills the Update tab from the Select page's choice
@@ -1370,28 +1370,6 @@ namespace CaptureWindow::Internal
 		return restore;
 	}
 
-	// The ticked piece with the lowest Piece::suggestRank (the earlier one on a tie) decides
-	// the Create tab's gender: Female when it is femaleOnly, else Unisex. A gender still as
-	// last suggested follows; one the user changed stays.
-	void SuggestGender(State& a_state)
-	{
-		const auto&                 pieces = a_state.request.pieces;
-		const CaptureWindow::Piece* deciding = nullptr;
-		for (const auto index : TickedPieces(a_state)) {
-			const auto& piece = pieces[index];
-			if (piece.suggestRank >= 0 && (!deciding || piece.suggestRank < deciding->suggestRank)) {
-				deciding = &piece;
-			}
-		}
-		const int gender = deciding && deciding->femaleOnly ? 1 : -1;
-
-		auto& form = a_state.createForm;
-		if (form.gender == a_state.suggestedGender) {
-			form.gender = gender;
-		}
-		a_state.suggestedGender = gender;
-	}
-
 	void DrawCapturePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -1431,7 +1409,6 @@ namespace CaptureWindow::Internal
 			break;
 		case CaptureAction::kSavePage:
 			QueueMenuSound(kOkSound);
-			SuggestGender(a_state);
 			GoToPage(a_state, Page::kSave);
 			break;
 		case CaptureAction::kApply:
@@ -1597,12 +1574,6 @@ namespace CaptureWindow::Internal
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("pieces that are not a saved outfit");
 	}
 
-	const char* GenderName(int a_gender)
-	{
-		const auto found = std::ranges::find(kGenderOptions, a_gender, &GenderOption::value);
-		return found != kGenderOptions.end() ? found->label : "Unisex";
-	}
-
 	// "Create New Outfit / Update Existing Outfit..." as the page's heading, in the heading
 	// font; the second is greyed while the library is empty. Returns 0 or 1 for the tab
 	// clicked, else -1.
@@ -1652,21 +1623,6 @@ namespace CaptureWindow::Internal
 			ImGui::SetTooltip("Outfit Name");
 		}
 		return enter && !Trimmed(a_name.data()).empty();
-	}
-
-	// The outfit's gender as one row of radio buttons, with no label.
-	void DrawGenderField(int& a_gender)
-	{
-		Theme::SectionGap();  // a field with no label
-		for (std::size_t i = 0; i < kGenderOptions.size(); ++i) {
-			if (i > 0) {
-				ImGui::SameLine();
-			}
-			if (Theme::RadioButton(kGenderOptions[i].label, a_gender == kGenderOptions[i].value)) {
-				a_gender = kGenderOptions[i].value;
-				QueueMenuSound(kFocusSound);
-			}
-		}
 	}
 
 	// "SITUATIONS (#{Name})" with its "(?)" over the rows' multi-choice dropdown, as on
@@ -1812,7 +1768,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// Update tab: returns true when the user confirmed replacing the outfit's pieces with
-	// the ticked ones, and its name, gender and rows as the tab has them.
+	// the ticked ones, and its name and rows as the tab has them.
 	bool DrawConfirmPopup(const State& a_state)
 	{
 		if (!BeginModal(kConfirmPopup)) {
@@ -1832,9 +1788,6 @@ namespace CaptureWindow::Internal
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
-		}
-		if (form.gender != outfit.gender) {
-			ImGui::TextUnformatted(std::format("Its gender becomes {}.", GenderName(form.gender)).c_str());
 		}
 		// The replace popup came first, so the taken rows are kept or already agreed.
 		DrawRowChangeLines(a_state, form.wearsFor.get(), outfit.id, Trimmed(form.name.data()));
@@ -1860,7 +1813,6 @@ namespace CaptureWindow::Internal
 		const auto&                form = ActiveForm(a_state);
 		CaptureWindow::SaveRequest save{ .outfit = TargetOutfit(a_state),
 			.name = Trimmed(form.name.data()),
-			.gender = form.gender,
 			.pieces = TickedPieces(a_state),
 			.assign = AssignedRows(a_state),
 			.remove = a_state.updateTab ? RemovedRows(a_state) : std::vector<std::size_t>{} };
@@ -1929,7 +1881,6 @@ namespace CaptureWindow::Internal
 		auto&     form = ActiveForm(a_state);
 		ImGui::PushID(a_state.updateTab ? "update" : "create");
 		const bool enter = DrawNameField(a_state, form.name);
-		DrawGenderField(form.gender);
 		DrawWearsForField(a_state, form);
 		ImGui::PopID();
 		if (!a_state.error.empty()) {
@@ -1968,7 +1919,7 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// Fills the Update tab from outfit `a_index`: its name and gender, and the rows the actor
+	// Fills the Update tab from outfit `a_index`: its name, and the rows the actor
 	// has it for. Choosing the outfit already chosen keeps the user's edits.
 	void ChooseOutfit(State& a_state, int a_index)
 	{
@@ -1982,7 +1933,6 @@ namespace CaptureWindow::Internal
 		auto&       form = a_state.updateForm;
 		form.name.fill('\0');
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
-		form.gender = outfit.gender;
 		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
 			form.wearsFor[row] = HoldsOutfit(a_state, row, outfit.id);
 		}
@@ -2006,11 +1956,10 @@ namespace CaptureWindow
 				state.pieceTicked[i] = state.request.pieces[i].selected;
 			}
 			const auto rows = state.request.assigned.size();
-			// Create starts from the suggested gender and no row ticked (CLAUDE.md §2.1); the
-			// Update tab is filled when an outfit is chosen (ChooseOutfit).
+			// Create starts with no row ticked (CLAUDE.md §2.1); the Update tab is filled when an
+			// outfit is chosen (ChooseOutfit).
 			state.createForm = { .wearsFor = std::make_unique<bool[]>(rows) };
 			std::strncpy(state.createForm.name.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
-			state.suggestedGender = state.createForm.gender;  // as the empty form has, so the first suggestion fills it
 			state.updateForm = { .wearsFor = std::make_unique<bool[]>(rows) };
 			state.updateTab = false;
 			state.chosenOutfit = -1;
@@ -2062,7 +2011,6 @@ namespace CaptureWindow
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.previewOn;
-			SuggestGender(state);  // from the pieces that start ticked, once the ticks are set
 		}
 		g_open = true;
 		if (state.frozeGame) {
