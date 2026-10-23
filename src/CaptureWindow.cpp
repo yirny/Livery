@@ -1855,11 +1855,14 @@ namespace CaptureWindow::Internal
 		ContinueSave(a_state);
 	}
 
-	// The Update tab's outfit selection, with the chosen outfit (or else the one last loaded)
-	// selected and on the preview.
+	// The Update tab's outfit selection, with the chosen outfit (or else the one last loaded,
+	// or else the library outfit Livery has on the actor) selected and on the preview.
 	void OpenOutfitSelection(State& a_state)
 	{
 		a_state.selectingOutfit = a_state.chosenOutfit >= 0 ? a_state.chosenOutfit : a_state.loadedOutfit;
+		if (a_state.selectingOutfit < 0) {
+			a_state.selectingOutfit = WornOutfitIndex(a_state);
+		}
 		if (a_state.selectingOutfit >= 0) {
 			PreviewOutfitOrTicks(a_state, a_state.selectingOutfit);
 		}
