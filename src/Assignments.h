@@ -48,6 +48,7 @@ namespace Assignments
 		std::uint32_t                      outfit = 0;
 		std::vector<Situations::Situation> assign;
 		std::vector<Situations::Situation> remove;
+		std::vector<RE::TESObjectARMO*>    leaveOut;  // stays out of this dressing only (pieces that could not be moved to them)
 	};
 
 	// Makes every change, then dresses them once, anew, for their situations now, so an
