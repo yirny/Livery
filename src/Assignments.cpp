@@ -945,7 +945,7 @@ namespace Assignments
 			(OutfitRows::HoldsAny(assignment.rows[RowOf(row)]) ? kept : emptied).push_back(row);
 		}
 		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor),
-			{ .force = true, .given = a_changes.outfit, .givenRows = a_changes.assign });
+			{ .force = true, .leaveOut = a_changes.leaveOut, .given = a_changes.outfit, .givenRows = a_changes.assign });
 		const auto worn = assignment.worn;  // read before DropIfEmpty, which may end the record
 		const auto pieces = assignment.pieces.size();
 		DropIfEmpty(id);

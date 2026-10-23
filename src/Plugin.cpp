@@ -749,8 +749,9 @@ namespace
 
 	// The Save page: its "SITUATIONS (#{Name})" rows with what the actor has in each now, and the
 	// save. The library is written first; only once it took the outfit does the window close,
-	// which ends the preview, and do the rows change, in one call that redresses once; Create
-	// and Apply then dresses the actor as the Inventory page's Apply does.
+	// which ends the preview, and do the rows change, in one call that redresses once. Create
+	// and Apply moves the Player's Inventory pieces first, and its rows include the one the
+	// outfit is worn for now, which the user agreed to in the window.
 	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
 	// failed write assigns nothing (CLAUDE.md §2.1).
 	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
@@ -758,6 +759,7 @@ namespace
 	{
 		request.situations = SituationInfos();
 		request.assigned = AssignedRows(choices);
+		request.situationsNow = Situations::Evaluate(actor);
 		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
 			const auto picked = PickPieces(armors, save.pieces);
 			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, save.gender, picked) : SaveOutfit(save.name, picked, save.gender);
@@ -772,21 +774,20 @@ namespace
 			if (outfit == 0 || !target) {
 				return;
 			}
-			// Create and Apply: the pieces move before the rows dress anyone, so a row's dressing
-			// finds them carried; then they go on as Apply puts them on, after a Create.
-			const auto notMoved = save.apply ? MovePlayerPieces(*target, PickPieces(armors, save.fromPlayer)) : std::vector<RE::TESObjectARMO*>{};
-			if (!save.assign.empty() || !save.remove.empty()) {
-				Assignments::Changes changes{ .outfit = outfit };
-				for (const auto row : save.assign) {
-					changes.assign.push_back(RowSituation(row));
-				}
-				for (const auto row : save.remove) {
-					changes.remove.push_back(RowSituation(row));
-				}
-				Assignments::Change(*target, changes);
-			}
+			// Create and Apply: the pieces move before the rows dress anyone, so the dressing
+			// finds them carried; those that did not move stay out of it, never a copy.
+			Assignments::Changes changes{ .outfit = outfit };
 			if (save.apply) {
-				AssignMoved(*target, picked, notMoved, outfit);
+				changes.leaveOut = MovePlayerPieces(*target, PickPieces(armors, save.fromPlayer));
+			}
+			for (const auto row : save.assign) {
+				changes.assign.push_back(RowSituation(row));
+			}
+			for (const auto row : save.remove) {
+				changes.remove.push_back(RowSituation(row));
+			}
+			if (!changes.assign.empty() || !changes.remove.empty()) {
+				Assignments::Change(*target, changes);
 			}
 		};
 	}

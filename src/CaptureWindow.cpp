@@ -1755,6 +1755,59 @@ namespace CaptureWindow::Internal
 		return confirm;
 	}
 
+	// The row the new outfit is worn for once the Create tab's ticked rows have it, as
+	// Assignments::Change resolves it (OutfitRows::Resolve): the first situation the actor is
+	// in that is ticked or holds an outfit, else the Default (row 0). A situation removed from
+	// situations.json has no row and is skipped.
+	// Contract: reads Request::situationsNow, the situations as the window opened; the save
+	// itself dresses for those of its own time, so a stale guess only asks or skips the popup.
+	std::size_t WearRowAfterSave(const State& a_state)
+	{
+		const auto& request = a_state.request;
+		const bool* ticked = a_state.createForm.wearsFor.get();
+		const auto& now = request.situationsNow;
+		for (std::size_t i = 0; i < now.count; ++i) {
+			const auto found = std::ranges::find(request.situations, now.items[i], &CaptureWindow::SituationInfo::situation);
+			if (found == request.situations.end()) {
+				continue;
+			}
+			const auto row = static_cast<std::size_t>(found - request.situations.begin());
+			if (ticked[row] || OutfitRows::HoldsAny(request.assigned[row].row)) {
+				return row;
+			}
+		}
+		return 0;
+	}
+
+	// Create and Apply with the row the outfit would be worn for unticked: `Wear "A" for Town
+	// now?`, what giving it that row changes, then Yes or Cancel. Returns true on Yes.
+	bool DrawWearPopup(const State& a_state)
+	{
+		if (!BeginModal(kWearPopup)) {
+			return false;
+		}
+		const auto row = WearRowAfterSave(a_state);
+		const auto name = Trimmed(ActiveForm(a_state).name.data());
+		ImGui::TextUnformatted(std::format("Wear \"{}\" for {} now?", name, RowName(a_state, row)).c_str());
+		if (IsTaken(a_state, row, 0)) {
+			ImGui::TextUnformatted(TakenRowLine(a_state, row, name).c_str());
+		} else {
+			const bool random = a_state.request.assigned[row].row.random;
+			ImGui::TextUnformatted(std::format("{}: {}", RowName(a_state, row), random ? "added to its list" : "added").c_str());
+		}
+		BeginButtonRow({ "Yes", "Cancel" });
+		const bool yes = Theme::Button("Yes");
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		if (yes || cancel) {
+			QueueMenuSound(yes ? kOkSound : kCancelSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return yes;
+	}
+
 	// Update tab: returns true when the user confirmed replacing the outfit's pieces with
 	// the ticked ones, and its name, gender and rows as the tab has them.
 	bool DrawConfirmPopup(const State& a_state)
@@ -1811,6 +1864,10 @@ namespace CaptureWindow::Internal
 		if (!a_state.updateTab && a_state.applyOnCreate) {
 			save.apply = true;
 			save.fromPlayer = TickedFromPlayer(a_state);
+			if (a_state.wearRow >= 0) {  // unticked, so not in `assign` yet
+				const auto row = static_cast<std::size_t>(a_state.wearRow);
+				save.assign.insert(std::ranges::lower_bound(save.assign, row), row);
+			}
 		}
 		auto onSave = a_state.request.onSave;
 		SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
@@ -1827,9 +1884,15 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// Contract: called in the window's own ID scope, as DrawReplacePopup is.
+	// Create and Apply asks first when the row the outfit would be worn for is unticked
+	// (DrawWearPopup); then the replace popup for the ticked rows it takes over.
+	// Contract: called in the window's own ID scope, as DrawReplacePopup and DrawWearPopup are.
 	void BeginSave(State& a_state)
 	{
+		if (!a_state.updateTab && a_state.applyOnCreate && a_state.wearRow < 0 && !a_state.createForm.wearsFor[WearRowAfterSave(a_state)]) {
+			ImGui::OpenPopup(kWearPopup);
+			return;
+		}
 		if (!TakenRows(a_state).empty()) {
 			ImGui::OpenPopup(kReplacePopup);
 			return;
@@ -1855,6 +1918,9 @@ namespace CaptureWindow::Internal
 		if (std::exchange(a_state.openConfirm, false)) {
 			ImGui::OpenPopup(kConfirmPopup);
 		}
+		if (std::exchange(a_state.continueSave, false)) {
+			BeginSave(a_state);
+		}
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const int tab = DrawSaveTabs(a_state);
 		auto&     form = ActiveForm(a_state);
@@ -1870,6 +1936,10 @@ namespace CaptureWindow::Internal
 		EndButtonRow();
 		ImGui::EndDisabled();
 
+		if (DrawWearPopup(a_state)) {
+			a_state.wearRow = static_cast<int>(WearRowAfterSave(a_state));
+			a_state.continueSave = true;  // BeginSave again a frame later, past the Wear popup
+		}
 		if (DrawReplacePopup(a_state)) {
 			ContinueSave(a_state);
 		}
@@ -1887,6 +1957,7 @@ namespace CaptureWindow::Internal
 		} else if (action == SaveAction::kSave || action == SaveAction::kSaveAndApply) {
 			QueueMenuSound(kOkSound);
 			a_state.applyOnCreate = action == SaveAction::kSaveAndApply;
+			a_state.wearRow = -1;
 			BeginSave(a_state);
 		} else if (action == SaveAction::kBack) {
 			QueueMenuSound(kCancelSound);
@@ -1942,7 +2013,9 @@ namespace CaptureWindow
 			state.chosenOutfit = -1;
 			state.selectingOutfit = -1;
 			state.openConfirm = false;
+			state.continueSave = false;
 			state.applyOnCreate = false;
+			state.wearRow = -1;
 			state.situationsLabel = std::format("SITUATIONS ({})", state.request.actorName);
 			state.error.clear();
 			state.pending.clear();

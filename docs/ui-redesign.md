@@ -95,9 +95,14 @@ Reached from `Save` with the ticked pieces, which both tabs save.
   name and gender only through the confirmed Update path; a name must be unused, ASCII case
   ignored, by any other outfit) and `Library::Update` takes name and gender.
 - `Create New Outfit`: as today; buttons `Create` and `Create and Apply`. Create and Apply
-  saves as Create does (the replace popup first), then dresses the actor as the Inventory
-  page's Apply does with the new outfit: the Player's Inventory pieces move first, then the
-  rows change, then the ticks become the Default (`SaveRequest::apply`).
+  saves as Create does (the replace popup first) and has the actor wear the new outfit: the
+  row it would be worn for once saved (the first situation they are in, as the window
+  opened, that is ticked or holds an outfit, else the Default) gets it too. When that row is
+  not ticked, the Wear popup asks first: `Wear "#{Outfit}" for #{Row} now?`, then
+  `#{Row}: "#{Outfit}" replaces "B"` or `#{Row}: added` (`added to its list` for a random
+  row); Yes adds the row, Cancel saves nothing. The Player's Inventory pieces move first,
+  and those that do not move stay out of the one dressing (`SaveRequest::apply`,
+  `Assignments::Changes::leaveOut`).
 - Fields, as Manage Wardrobe's: the name, with no label (`Outfit Name` on hover while not
   being typed in; a failed save's error instead), the gender, with no label, then
   `SITUATIONS (#{Name})`.

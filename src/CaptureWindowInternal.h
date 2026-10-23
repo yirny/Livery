@@ -33,6 +33,7 @@ namespace CaptureWindow::Internal
 	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kReplacePopup = "Replace outfits?";
+	constexpr const char* kWearPopup = "Wear it now?";
 	constexpr const char* kApplyPopup = "Update the outfit?";
 	// Manage Wardrobe' popups.
 	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
@@ -210,6 +211,8 @@ namespace CaptureWindow::Internal
 		int                      selectingOutfit = -1;   // on the Select page: index into request.existingOutfits, -1 for none
 		bool                     openConfirm = false;    // open the Update tab's confirm popup on the next frame
 		bool                     applyOnCreate = false;  // the Create tab's save is Create and Apply (SaveRequest::apply)
+		int                      wearRow = -1;           // Create and Apply: the unticked row Yes in the Wear popup gives the outfit, -1 for none
+		bool                     continueSave = false;   // after that Yes: BeginSave again on the next frame
 		std::string              situationsLabel;        // "SITUATIONS (#{Name})", over the Save page's and Manage Wardrobe's rows
 		std::string              error;
 		bool                     focusNameField = false;
