@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants   - the release-everyone key, the player's reference, co-save ids
+//   Constants   - the player's reference, co-save ids
 //   Records     - one assignment per actor, with its rows (OutfitRows); g_managed mirrors the
 //                 NPCs for the event sinks
 //   Dressing    - which row a situation resolves to and the outfit it wears (a random row's
 //                 pick), and putting it on in place of the one worn
-//   Release     - Livery's locks and copies off, the actor's own pieces back on; everyone
+//   Release     - Livery's locks and copies off, the actor's own pieces back on
 //   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies
 //   Co-save     - save, load (versions 1 to 4; older ones turned into rows; the rows of
 //                 situations removed in situations.json dropped), revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent
-//   API         - RegisterCoSave / RegisterSinks / HandleKey / Assign / Change / SetRows / Refresh / WearFor /
+//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
 #include "PCH.h"
@@ -38,10 +38,6 @@ namespace
 	using Situations::Situation;
 
 	// --- Constants ------------------------------------------------------------
-
-	// The uninstall step. Plugin.cpp checks it before the capture hotkey, so it wins even
-	// when the capture hotkey is set to F8 too. F9 is the game's Quick Load.
-	constexpr std::uint32_t kReleaseEveryoneKey = RE::BSKeyboardDevice::Keys::Key::kF8;
 
 	// Skyrim.esm always loads at index 00, so the player's reference is always 0x14.
 	constexpr RE::FormID kPlayerRef = 0x14;
@@ -402,25 +398,6 @@ namespace
 		SyncManaged();
 		Dressing::Release(actor, assignment.pieces, removeCopies);
 		return putBack ? Dressing::PutBack(actor, assignment.takenOff) : 0;
-	}
-
-	// The uninstall step. An actor not in memory (a non-persistent NPC whose cell is not
-	// loaded) cannot be reached: their locks and copies stay, which never breaks a save.
-	// Contract: game thread (SKSE task from HandleKey).
-	void ReleaseEveryone()
-	{
-		const auto  total = g_assignments.size();
-		std::size_t released = 0;
-		for (const auto& assignment : std::exchange(g_assignments, {})) {
-			if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(assignment.actor)) {
-				Dressing::Release(*actor, assignment.pieces, true);
-				Dressing::PutBack(*actor, assignment.takenOff);
-				++released;
-			}
-		}
-		SyncManaged();
-		Notify(released == total ? std::format("Livery: released {} character(s).", total) :
-								   std::format("Livery: released {} of {} character(s); the others are out of reach and keep their pieces.", released, total));
 	}
 
 	// --- Load, death ----------------------------------------------------------
@@ -881,13 +858,22 @@ namespace Assignments
 		events->AddEventSink<RE::TESDeathEvent>(&DeathSink::Get());
 	}
 
-	bool HandleKey(std::uint32_t a_scanCode)
+	// An actor not in memory (a non-persistent NPC whose cell is not loaded) cannot be
+	// reached: their locks and copies stay, which never breaks a save.
+	void ReleaseEveryone()
 	{
-		if (a_scanCode != kReleaseEveryoneKey) {
-			return false;
+		const auto  total = g_assignments.size();
+		std::size_t released = 0;
+		for (const auto& assignment : std::exchange(g_assignments, {})) {
+			if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(assignment.actor)) {
+				Dressing::Release(*actor, assignment.pieces, true);
+				Dressing::PutBack(*actor, assignment.takenOff);
+				++released;
+			}
 		}
-		SKSE::GetTaskInterface()->AddTask([] { ReleaseEveryone(); });
-		return true;
+		SyncManaged();
+		Notify(released == total ? std::format("Livery: released {} character(s).", total) :
+								   std::format("Livery: released {} of {} character(s); the others are out of reach and keep their pieces.", released, total));
 	}
 
 	void Assign(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_armor, std::uint32_t a_outfit)
