@@ -3,7 +3,7 @@
 
 // The capture window's constants, state and shared helpers, private to CaptureWindow.cpp
 // (the window and its tab column, the Inventory and Save pages), OutfitPages.cpp (the
-// outfit browser and lists, the Load, Select, Manage Wardrobe and Edit pages) and
+// outfit browser and lists, the Load, Manage Wardrobe and Edit pages) and
 // SituationPage.cpp (the Manage Situations page). The helpers are defined in
 // CaptureWindow.cpp, the pages in OutfitPages.cpp and SituationPage.cpp; each definition
 // carries its comment.
@@ -32,8 +32,7 @@ namespace CaptureWindow::Internal
 	constexpr std::size_t kNameCapacity = 64;                 // bytes, UTF-8, including the terminator
 	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
-	constexpr const char* kReplacePopup = "Replace outfits?";
-	constexpr const char* kWearPopup = "Wear it now?";
+	constexpr const char* kCreateApplyPopup = "Apply outfit?###createAndApply";
 	constexpr const char* kApplyPopup = "Update the outfit?";
 	// Manage Wardrobe' popups.
 	constexpr const char* kDiscardPopup = "Discard changes?###discardSelect";
@@ -106,7 +105,6 @@ namespace CaptureWindow::Internal
 		kCapture,  // the Inventory page
 		kSave,
 		kLoad,
-		kSelect,
 		kManage,     // Manage Wardrobe
 		kEdit,       // Manage Wardrobe' piece editor
 		kSituations  // Manage Situations
@@ -128,14 +126,6 @@ namespace CaptureWindow::Internal
 	};
 
 	// --- State ----------------------------------------------------------------
-
-	// One tab of the Save page: what it saves, kept while the window is open. bool[] because
-	// Theme::Checkbox needs bool*.
-	struct SaveForm
-	{
-		std::array<char, kNameCapacity> name{};
-		std::unique_ptr<bool[]>         wearsFor;  // one per row of "SITUATIONS (#{Name})" (request.assigned)
-	};
 
 	// Manage Wardrobe' edits of the selected outfit, kept while the window is open; selecting
 	// another outfit starts them again from the library.
@@ -187,17 +177,10 @@ namespace CaptureWindow::Internal
 		std::mutex               mutex;
 		Status                   status = Status::kClosed;
 		CaptureWindow::Request   request;
-		std::unique_ptr<bool[]>  pieceTicked;  // one per request.pieces; bool[] because Theme::TickRow needs bool*
-		SaveForm                 createForm;
-		SaveForm                 updateForm;
-		bool                     updateTab = false;      // the Save page shows the Update tab
-		int                      chosenOutfit = -1;      // the Update tab's outfit: index into request.existingOutfits, -1 for none yet
-		int                      selectingOutfit = -1;   // on the Select page: index into request.existingOutfits, -1 for none
-		bool                     openConfirm = false;    // open the Update tab's confirm popup on the next frame
-		bool                     applyOnCreate = false;  // the Create tab's save is Create and Apply (SaveRequest::apply)
-		int                      wearRow = -1;           // Create and Apply: the unticked row Yes in the Wear popup gives the outfit, -1 for none
-		bool                     continueSave = false;   // after that Yes: BeginSave again on the next frame
-		std::string              situationsLabel;        // "SITUATIONS (#{Name})", over the Save page's and Manage Wardrobe's rows
+		std::unique_ptr<bool[]>  pieceTicked;        // one per request.pieces; bool[] because Theme::TickRow needs bool*
+		bool                     updateTab = false;  // the Save page shows the Update tab
+		int                      chosenOutfit = -1;  // the Update tab's outfit: index into request.existingOutfits, -1 for none
+		std::string              situationsLabel;    // "SITUATIONS (#{Name})", over Manage Situations' outfit details
 		std::string              error;
 		bool                     focusNameField = false;
 		std::vector<InputRecord> pending;
@@ -214,7 +197,7 @@ namespace CaptureWindow::Internal
 		bool                     loadIntoEdit = false;  // the Load page was opened from the Edit page, whose ticks it adds to
 		int                      loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
 		OutfitBrowser::State     loadBrowser;           // search, filter and sort of the Load page's outfit list
-		OutfitBrowser::State     selectBrowser;         // the Select page's
+		OutfitBrowser::State     updateBrowser;         // the Save page's Update tab's
 		OutfitBrowser::State     manageBrowser;         // Manage Wardrobe'
 		ManageForm               manage;
 		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
@@ -244,6 +227,9 @@ namespace CaptureWindow::Internal
 		int                         viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
 		float                       viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
 		float                       viewDragY = 0.0f;
+		// The Save page's tabs' names, each kept while the window is open.
+		std::array<char, kNameCapacity> createName{};
+		std::array<char, kNameCapacity> updateName{};
 	};
 
 	// The piece list a page shows (DrawPieceRows): the Inventory page's ticks with the
@@ -286,11 +272,10 @@ namespace CaptureWindow::Internal
 	void                                 BeginButtonRow(std::initializer_list<const char*> a_labels);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
-	bool                                 BeginColumns(const char* a_id);
-	void                                 EndColumns();
+	bool                                 BeginColumns(const char* a_id, int a_count = 2);
+	void                                 EndColumns(int a_count = 2);
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
-	void                                 ChooseOutfit(State& a_state, int a_index);
 	void                                 DrawHelpTooltip(const std::string& a_text);
 	std::size_t                          RowCount(const State& a_state);
 	const char*                          RowName(const State& a_state, std::size_t a_row);
@@ -300,16 +285,6 @@ namespace CaptureWindow::Internal
 	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
 	std::string HeldOutfitName(const State& a_state, std::size_t a_row);
 	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
-	// The rows a form's "SITUATIONS (#{Name})" ticks (`a_wearsFor`, one per row of request.assigned)
-	// change for library outfit `a_outfit`: those ticked whose worn outfit the save replaces
-	// (IsTaken), which it gives the outfit only after Confirm; those the save gives it; those
-	// that hold it and are unticked.
-	std::vector<std::size_t> TakenRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
-	std::vector<std::size_t> AssignedRows(const State& a_state, const bool* a_wearsFor);
-	std::vector<std::size_t> RemovedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit);
-	// The lines a confirm popup shows for those rows: `Town: added`, `Town: removed`, and for
-	// the taken ones `Town: "B" replaces "A"` (`a_name` is the outfit's name).
-	void DrawRowChangeLines(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, const std::string& a_name);
 
 	// Leaving a page: Exit, Escape or a tab. With unsaved edits (Manage Wardrobe, Manage
 	// Situations) the page first shows the unsaved-changes alert (kLeavePopup); else it goes.
@@ -336,7 +311,6 @@ namespace CaptureWindow::Internal
 	// --- Pages (OutfitPages.cpp) ----------------------------------------------
 
 	void DrawLoadPage(State& a_state);
-	void DrawSelectPage(State& a_state);
 	void DrawManagePage(State& a_state);
 	void DrawEditPage(State& a_state);
 
@@ -375,11 +349,46 @@ namespace CaptureWindow::Internal
 	// when they need more (one row shows at least).
 	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom);
 
-	// The form field Manage Wardrobe and the Save page share: a multi-choice dropdown over
-	// the actor's rows (`a_ticked`, one per request.assigned: Default, then the situations)
-	// under `a_label` with its "(?)", which returns true while that mark is hovered, for the
-	// caller's help tooltip. Its frame names the ticked ones, or `None` greyed.
-	bool DrawRowsDropdown(const State& a_state, const char* a_label, bool* a_ticked);
+	// An outfit's piece count line, the pieces whose plugin is not loaded included.
+	std::string PieceCountText(std::size_t a_loaded, std::size_t a_unloaded);
+
+	// Pieces' names (indices into request.pieces) in read-only rows laid out as the outfit
+	// list's, ending by screen Y `a_bottom` and scrolling when they need more; one row shows at
+	// least.
+	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces, float a_bottom = FLT_MAX);
+
+	// What an Apply popup dresses the actor in (docs/outfit-management-ui.md §4): Manage
+	// Wardrobe's selected outfit, or the outfit the Save page's Create and Apply creates.
+	struct ApplySubject
+	{
+		std::string   name;        // as the library has it, or as it is created
+		std::uint32_t id = 0;      // its library id; 0 for one not created yet
+		std::string   applyLabel;  // the button of the popup that offers no situation: "Apply", "Update and Apply", "Create and Apply"
+		// What is saved first, which the question starts with (`Save your changes to "A"`,
+		// `Create "A"`), and its sentence in Apply as Default's help; "" for nothing.
+		std::string saveFirst;
+		std::string saveFirstHelp;
+		void (*drawSaveLines)(const State&) = nullptr;  // the lines under the question saying what is saved; nullptr for none
+	};
+
+	// The situation row Apply offers to give library outfit `a_outfit` (0 for one not created
+	// yet) beside the Default: the one the actor wears another outfit for now. nullopt when
+	// they wear the Default, nothing of Livery's or that outfit itself.
+	std::optional<std::size_t> OfferedRow(const State& a_state, std::uint32_t a_outfit);
+
+	// The row Apply gives the outfit when no row is offered (OfferedRow): the situation the
+	// actor wears it for now, which it is dressed again for, else the Default.
+	std::size_t DirectApplyRow(const State& a_state);
+
+	// Whether Apply of library outfit `a_outfit` (0 for one not created yet) asks first,
+	// library edits aside: a situation row is offered, or the Default's worn outfit would be
+	// replaced.
+	bool ApplyAsksFirst(const State& a_state, std::uint32_t a_outfit);
+
+	// The body of an Apply popup, inside BeginModal: with a row offered (OfferedRow) Yes, Apply
+	// as Default (?) and Cancel, else `a_subject.applyLabel` and Cancel. Returns the row the
+	// user applies the outfit to, or nullopt.
+	std::optional<std::size_t> DrawApplyPopupBody(const State& a_state, const ApplySubject& a_subject);
 
 	// --- Manage Situations (SituationPage.cpp) --------------------------------
 

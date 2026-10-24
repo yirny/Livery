@@ -37,8 +37,8 @@ small font in every skin.
 
 ## 1. Outfit list (step 1)
 
-The outfit list shared by the Load page, the Save page's outfit selection (the Select page)
-and the Manage Wardrobe page. Each page keeps its own search and sort.
+The outfit list shared by the Load page, the Save page's Update tab and the Manage Wardrobe
+page. Each page keeps its own search and sort.
 
 - Wording: the window calls the library the wardrobe (`12 outfit(s) in the wardrobe`,
   `Not in Wardrobe`).
@@ -163,8 +163,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   - name, as the Save page's field.
   - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
-    stay in the outfit. The Load and Select pages' details keep the same room before their
-    count line.
+    stay in the outfit. The Load page's details and the Save page's piece columns keep the
+    same room before their count line.
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
   has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Update's
@@ -299,15 +299,15 @@ first.
 ## 7. Code
 
 - `src/CaptureWindow.cpp` (about 2400 lines) splits at the start of step 2, in a move-only
-  commit: the outfit browser, the outfit lists and the Load, Select, Manage Wardrobe and Edit
+  commit: the outfit browser, the outfit lists and the Load, Manage Wardrobe and Edit
   pages go to `src/OutfitPages.cpp`; the state and shared helpers to a header private to
   the two files. `CMakeLists.txt` gains the file (CLAUDE.md §1, build system).
 - `CaptureWindow`: pages for Manage Wardrobe and Edit; `SetOutfits` (the rebuilt outfits
   and rows, the window's indices into them found again by id); a call that greys
   Live Preview with a reason; `Request::onManageUpdate` and, in step 3,
   `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with one row
-  (`Request::wornFor` tells the row of the outfit worn); the Save page's row helpers
-  (`TakenRows`, `AssignedRows`, `RemovedRows`, `DrawRowChangeLines`).
+  (`Request::wornFor` tells the row of the outfit worn); Apply's popup body
+  (`DrawApplyPopupBody`, `ApplySubject`), which the Save page's Create and Apply shares.
 - `OutfitBrowser`: sort keys Name, Situation (`SetSort`); per outfit its heading,
   rows and situation mark text; the folded headings. Unit tests cover the keys, the
   headings, the folding and the marks.

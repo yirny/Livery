@@ -22,13 +22,14 @@
 //                  at the row's right end while Livery dresses the actor; Apply asks first
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
-//   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
-//                  name and "SITUATIONS (#{Name})" rows (Default, the
-//                  situations); a popup (Confirm / Cancel) before replacing the outfit a row
-//                  wears, the Update tab's confirm popup; both tabs hand over to onSave; ChooseOutfit
-//                  fills the Update tab from the Select page's choice
-//   Outfit pages - the outfit browser and lists, the Load, Select, Manage Wardrobe and Edit
-//                  pages: OutfitPages.cpp; the Manage Situations page: SituationPage.cpp
+//   Save page    - Create New Outfit / Update Existing Outfit tabs, each with its own name:
+//                  Create shows the ticked pieces read only, Create and Apply gives the new
+//                  outfit the row Manage Wardrobe's Apply would (its popup first when that asks);
+//                  Update shows the wardrobe's outfits, the chosen one's pieces and the ticked
+//                  ones in three columns (ChooseOutfit), its confirm popup before the write;
+//                  both tabs hand over to onSave
+//   Outfit pages - the outfit browser and lists, the Load, Manage Wardrobe and Edit pages:
+//                  OutfitPages.cpp; the Manage Situations page: SituationPage.cpp
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
@@ -60,7 +61,7 @@ namespace CaptureWindow::Internal
 
 	// The Save page's tabs, Create first, then Update: its heading (DrawSaveTabs), which sets its
 	// least width.
-	constexpr std::array<const char*, 2> kSaveTabs{ "Create New Outfit", "Update Existing Outfit..." };
+	constexpr std::array<const char*, 2> kSaveTabs{ "Create New Outfit", "Update Existing Outfit" };
 
 	// --- State ----------------------------------------------------------------
 
@@ -238,15 +239,20 @@ namespace CaptureWindow::Internal
 
 	// --- Draw -----------------------------------------------------------------
 
-	// The new page is centred where the current one is (the user may have moved
+	// The window's next size is centred where the current one is (the user may have moved
 	// it); PlaceWindow keeps it inside the screen.
+	void HoldCentre(State& a_state)
+	{
+		a_state.placeCentre = ImVec2(a_state.windowPos.x + a_state.windowSize.x * 0.5f, a_state.windowPos.y + a_state.windowSize.y * 0.5f);
+		a_state.recentreFrames = kRecentreFrames;
+	}
+
 	void GoToPage(State& a_state, Page a_page)
 	{
 		a_state.page = a_page;
 		a_state.error.clear();
 		a_state.focusNameField = a_page == Page::kSave;
-		a_state.placeCentre = ImVec2(a_state.windowPos.x + a_state.windowSize.x * 0.5f, a_state.windowPos.y + a_state.windowSize.y * 0.5f);
-		a_state.recentreFrames = kRecentreFrames;
+		HoldCentre(a_state);
 	}
 
 	// While pinned, centres the window on placeCentre, or on its start place:
@@ -293,22 +299,6 @@ namespace CaptureWindow::Internal
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, a_id, &CaptureWindow::ExistingOutfit::id);
 		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
-	}
-
-	// Ticks of the rows `a_old` moved onto `a_new`, matched by situation: a row that is gone
-	// (a removed situation) takes its tick with it, a new one (a restored one) starts unticked.
-	std::unique_ptr<bool[]> RemapRows(const std::vector<CaptureWindow::SituationInfo>& a_old, const bool* a_ticks,
-		const std::vector<CaptureWindow::SituationInfo>& a_new)
-	{
-		auto ticks = std::make_unique<bool[]>(a_new.size());  // all false
-		if (!a_ticks) {
-			return ticks;
-		}
-		for (std::size_t i = 0; i < a_new.size(); ++i) {
-			const auto found = std::ranges::find(a_old, a_new[i].situation, &CaptureWindow::SituationInfo::situation);
-			ticks[i] = found != a_old.end() && a_ticks[found - a_old.begin()];
-		}
-		return ticks;
 	}
 
 	// The Inventory page's list: its ticks, the loaded outfit's pieces nobody carries under
@@ -467,32 +457,35 @@ namespace CaptureWindow::Internal
 		ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
 	}
 
-	// The Load and Update pages' two equal columns; every table of them on a
-	// page lines up, each with its own `a_id`. When it returns true, fill the
-	// cells and call EndColumns, which draws the rule between them (Theme::ColumnRule).
-	bool BeginColumns(const char* a_id)
+	// The outfit pages' `a_count` equal columns; every table of them on a page lines up, each
+	// with its own `a_id`. When it returns true, fill the cells and call EndColumns with the
+	// same count, which draws the rules between them (Theme::ColumnRule).
+	bool BeginColumns(const char* a_id, int a_count)
 	{
 		constexpr float kColumnGap = 36.0f;  // pixels at 1080p, between the columns
 
 		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(kColumnGap * 0.5f * Theme::Scale(), ImGui::GetStyle().CellPadding.y));
 		// NoClip lets the lists reach the window's edges (Theme::BeginList).
-		if (!ImGui::BeginTable(a_id, 2, ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_NoClip)) {
+		if (!ImGui::BeginTable(a_id, a_count, ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_NoClip)) {
 			ImGui::PopStyleVar();
 			return false;
 		}
-		ImGui::TableSetupColumn("left", ImGuiTableColumnFlags_WidthStretch);
-		ImGui::TableSetupColumn("right", ImGuiTableColumnFlags_WidthStretch);
+		for (int column = 0; column < a_count; ++column) {
+			ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch);
+		}
 		return true;
 	}
 
-	void EndColumns()
+	void EndColumns(int a_count)
 	{
 		ImGui::EndTable();
 		ImGui::PopStyleVar();
-		// The table is the last item: its rect spans both columns, which are equally wide.
+		// The table is the last item: its rect spans every column, which are equally wide.
 		const ImVec2 min = ImGui::GetItemRectMin();
 		const ImVec2 max = ImGui::GetItemRectMax();
-		Theme::ColumnRule((min.x + max.x) * 0.5f, min.y, max.y);
+		for (int rule = 1; rule < a_count; ++rule) {
+			Theme::ColumnRule(min.x + (max.x - min.x) * static_cast<float>(rule) / static_cast<float>(a_count), min.y, max.y);
+		}
 	}
 
 	void RequestCancel()
@@ -651,8 +644,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// The page's heading: the Inventory page's own title over the summary line; Manage
-	// Wardrobe's, Manage Situations', the Select page's and the Edit page's with no summary
-	// line; the Load page's the actor's name over the summary line. The Save page's tabs are
+	// Wardrobe's, Manage Situations' and the Edit page's with no summary line; the Load page's the actor's name over the summary line. The Save page's tabs are
 	// its heading (DrawSaveTabs).
 	void DrawTitle(const State& a_state)
 	{
@@ -668,9 +660,6 @@ namespace CaptureWindow::Internal
 			break;
 		case Page::kEdit:
 			Theme::HeadingText(a_state.editTitle.c_str());
-			break;
-		case Page::kSelect:
-			Theme::HeadingText("Select an Outfit to Update");
 			break;
 		case Page::kLoad:
 			Theme::HeadingText(a_state.request.actorName.c_str(), a_state.request.actorSummary.c_str());
@@ -1411,6 +1400,9 @@ namespace CaptureWindow::Internal
 			break;
 		case CaptureAction::kSavePage:
 			QueueMenuSound(kOkSound);
+			if (a_state.updateTab) {
+				PreviewOutfitOrTicks(a_state, a_state.chosenOutfit);  // the tab shows its outfit again
+			}
 			GoToPage(a_state, Page::kSave);
 			break;
 		case CaptureAction::kApply:
@@ -1458,20 +1450,21 @@ namespace CaptureWindow::Internal
 		return a_state.request.situations[a_row].name.c_str();
 	}
 
-	SaveForm& ActiveForm(State& a_state)
+	// The name field of the tab the Save page shows.
+	std::array<char, kNameCapacity>& ActiveName(State& a_state)
 	{
-		return a_state.updateTab ? a_state.updateForm : a_state.createForm;
+		return a_state.updateTab ? a_state.updateName : a_state.createName;
 	}
 
-	const SaveForm& ActiveForm(const State& a_state)
+	const std::array<char, kNameCapacity>& ActiveName(const State& a_state)
 	{
-		return a_state.updateTab ? a_state.updateForm : a_state.createForm;
+		return a_state.updateTab ? a_state.updateName : a_state.createName;
 	}
 
 	// The library outfit the Save page writes: the Update tab's, or 0 for a new one.
 	std::uint32_t TargetOutfit(const State& a_state)
 	{
-		return a_state.updateTab ? OutfitAt(a_state, a_state.chosenOutfit).id : 0;
+		return a_state.updateTab && a_state.chosenOutfit >= 0 ? OutfitAt(a_state, a_state.chosenOutfit).id : 0;
 	}
 
 	// Whether row `a_row` of the actor holds library outfit `a_outfit` now (OutfitRows::Holds).
@@ -1489,78 +1482,6 @@ namespace CaptureWindow::Internal
 		return row.chosen != 0 ? row.chosen != a_outfit : pieces;
 	}
 
-	std::vector<std::size_t> TakenRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit)
-	{
-		std::vector<std::size_t> rows;
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			if (a_wearsFor[row] && IsTaken(a_state, row, a_outfit)) {
-				rows.push_back(row);
-			}
-		}
-		return rows;
-	}
-
-	std::vector<std::size_t> AssignedRows(const State& a_state, const bool* a_wearsFor)
-	{
-		std::vector<std::size_t> rows;
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			if (a_wearsFor[row]) {
-				rows.push_back(row);
-			}
-		}
-		return rows;
-	}
-
-	std::vector<std::size_t> RemovedRows(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit)
-	{
-		std::vector<std::size_t> rows;
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			if (!a_wearsFor[row] && HoldsOutfit(a_state, row, a_outfit)) {
-				rows.push_back(row);
-			}
-		}
-		return rows;
-	}
-
-	// `Town: "B" replaces "A"`: a taken row, as the popups name it.
-	std::string TakenRowLine(const State& a_state, std::size_t a_row, const std::string& a_name)
-	{
-		return std::format("{}: \"{}\" replaces {}", RowName(a_state, a_row), a_name, HeldOutfitName(a_state, a_row));
-	}
-
-	void DrawRowChangeLines(const State& a_state, const bool* a_wearsFor, std::uint32_t a_outfit, const std::string& a_name)
-	{
-		const auto taken = TakenRows(a_state, a_wearsFor, a_outfit);
-		const auto removed = RemovedRows(a_state, a_wearsFor, a_outfit);
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			if (!a_wearsFor[row]) {
-				if (std::ranges::find(removed, row) != removed.end()) {
-					ImGui::TextUnformatted(std::format("{}: removed", RowName(a_state, row)).c_str());
-				}
-			} else if (std::ranges::find(taken, row) != taken.end()) {
-				ImGui::TextUnformatted(TakenRowLine(a_state, row, a_name).c_str());
-			} else if (!HoldsOutfit(a_state, row, a_outfit)) {
-				ImGui::TextUnformatted(std::format("{}: added", RowName(a_state, row)).c_str());
-			}
-		}
-	}
-
-	// The Save page's rows: the active tab's ticks for the outfit it writes.
-	std::vector<std::size_t> TakenRows(const State& a_state)
-	{
-		return TakenRows(a_state, ActiveForm(a_state).wearsFor.get(), TargetOutfit(a_state));
-	}
-
-	std::vector<std::size_t> AssignedRows(const State& a_state)
-	{
-		return AssignedRows(a_state, ActiveForm(a_state).wearsFor.get());
-	}
-
-	std::vector<std::size_t> RemovedRows(const State& a_state)
-	{
-		return RemovedRows(a_state, ActiveForm(a_state).wearsFor.get(), TargetOutfit(a_state));
-	}
-
 	// A library outfit as the popups name it, quoted, or says it is gone.
 	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit)
 	{
@@ -1576,7 +1497,7 @@ namespace CaptureWindow::Internal
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("pieces that are not a saved outfit");
 	}
 
-	// "Create New Outfit / Update Existing Outfit..." as the page's heading, in the heading
+	// "Create New Outfit / Update Existing Outfit" as the page's heading, in the heading
 	// font; the second is greyed while the library is empty. Returns 0 or 1 for the tab
 	// clicked, else -1.
 	int DrawSaveTabs(const State& a_state)
@@ -1627,16 +1548,118 @@ namespace CaptureWindow::Internal
 		return enter && !Trimmed(a_name.data()).empty();
 	}
 
-	// "SITUATIONS (#{Name})" with its "(?)" over the rows' multi-choice dropdown, as on
-	// Manage Wardrobe.
-	void DrawWearsForField(const State& a_state, SaveForm& a_form)
+	// Makes outfit `a_index` (-1 for none) the Update tab's and shows it on the preview, or the
+	// ticks with none; its name fills the tab's field. Choosing the outfit already chosen keeps
+	// the name the user typed.
+	void ChooseOutfit(State& a_state, int a_index)
 	{
-		if (DrawRowsDropdown(a_state, a_state.situationsLabel.c_str(), a_form.wearsFor.get())) {
-			DrawHelpTooltip(std::format(
-				"Situational outfit. {0} changes into it whenever a ticked situation applies. Default is what {0} "
-				"wears wherever no situation applies.",
-				a_state.request.actorName));
+		a_state.error.clear();
+		if (a_state.chosenOutfit != a_index) {
+			a_state.chosenOutfit = a_index;
+			a_state.updateName.fill('\0');
+			if (a_index >= 0) {
+				std::strncpy(a_state.updateName.data(), OutfitAt(a_state, a_index).name.c_str(), kNameCapacity - 1);
+			}
 		}
+		PreviewOutfitOrTicks(a_state, a_index);
+	}
+
+	// The Create tab, and the preview back on the ticks; the page's width changes, so its
+	// centre is kept.
+	void ShowCreateTab(State& a_state)
+	{
+		a_state.updateTab = false;
+		a_state.error.clear();
+		if (a_state.chosenOutfit >= 0) {
+			QueuePreview(a_state, TickedPieces(a_state));
+		}
+		HoldCentre(a_state);
+	}
+
+	// The Update tab with its outfit, or else the one last loaded, or else the library outfit
+	// Livery has on the actor, chosen and on the preview; its centre kept as ShowCreateTab's.
+	void ShowUpdateTab(State& a_state)
+	{
+		a_state.updateTab = true;
+		int index = a_state.chosenOutfit;
+		if (index < 0) {
+			index = a_state.loadedOutfit;
+		}
+		if (index < 0) {
+			index = WornOutfitIndex(a_state);
+		}
+		ChooseOutfit(a_state, index);
+		HoldCentre(a_state);
+	}
+
+	// The Create tab's fields: the name, then the ticked pieces read only under their count
+	// line, as Manage Wardrobe shows an outfit's. Returns true on the name field's Enter.
+	bool DrawCreateTab(State& a_state)
+	{
+		ImGui::PushID("create");
+		const bool enter = DrawNameField(a_state, a_state.createName);
+		Theme::AfterFieldGap();
+		const auto pieces = TickedPieces(a_state);
+		Theme::CountText(PieceCountText(pieces.size(), 0).c_str());
+		DrawPieceNames(a_state, pieces);
+		ImGui::PopID();
+		return enter;
+	}
+
+	struct UpdateTabInput
+	{
+		bool enter = false;        // the name field's Enter
+		bool escapeTaken = false;  // Escape cleared the outfit search, so it is not also Back
+		int  clicked = -1;         // the outfit clicked: index into request.existingOutfits, -1 for none
+	};
+
+	// One piece column of the Update tab: `a_label` where the outfit search is beside it, then
+	// the pieces under their count line, as the Load page's details lay them out.
+	void DrawPieceColumn(const State& a_state, const char* a_label, const std::vector<std::size_t>& a_pieces, std::size_t a_unloaded)
+	{
+		ImGui::TableNextColumn();
+		ResetCellBaseline();
+		ImGui::PushID(a_label);
+		Theme::LabelText(a_label);
+		Theme::AfterFieldGap();
+		Theme::CountText(PieceCountText(a_pieces.size(), a_unloaded).c_str());
+		DrawPieceNames(a_state, a_pieces);
+		ImGui::PopID();
+	}
+
+	// The Update tab's fields: the name (greyed while no outfit is chosen), then three columns:
+	// the wardrobe's outfits with their search and Sort, the chosen outfit's pieces as the
+	// library has them, and the ticked pieces that replace them.
+	UpdateTabInput DrawUpdateTab(State& a_state)
+	{
+		UpdateTabInput input;
+		const bool     chosen = a_state.chosenOutfit >= 0;
+		ImGui::PushID("update");
+		if (!chosen) {
+			a_state.focusNameField = false;  // a greyed field takes no focus
+		}
+		ImGui::BeginDisabled(!chosen);
+		input.enter = DrawNameField(a_state, a_state.updateName);
+		ImGui::EndDisabled();
+		Theme::AfterFieldGap();
+		if (BeginColumns("columns", 3)) {
+			ImGui::TableNextColumn();
+			const auto controls = DrawBrowserControls(a_state, a_state.updateBrowser);
+			input.escapeTaken = controls.escapeTaken;
+			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit, controls.height);
+			if (chosen) {
+				const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
+				DrawPieceColumn(a_state, "Current Pieces", outfit.pieces, outfit.unloadedPieces);
+			} else {
+				ImGui::TableNextColumn();
+				ResetCellBaseline();
+				Theme::LabelText("Select an outfit to update");
+			}
+			DrawPieceColumn(a_state, "New Pieces", TickedPieces(a_state), 0);
+			EndColumns(3);
+		}
+		ImGui::PopID();
+		return input;
 	}
 
 	enum class SaveAction
@@ -1648,28 +1671,35 @@ namespace CaptureWindow::Internal
 	};
 
 	// Create and Create and Apply, or Update #{Outfit} on the Update tab, and Back, centred
-	// below a gap; `a_enter` is the name field's Enter, which is Create. Escape is Back unless a
-	// popup is open, which has its own.
-	SaveAction DrawSaveButtons(const State& a_state, bool a_enter)
+	// below a gap; `a_enter` is the name field's Enter, which is Create or Update. Escape is Back
+	// unless a popup is open, which has its own, or the outfit search took it (`a_escapeTaken`).
+	SaveAction DrawSaveButtons(const State& a_state, bool a_enter, bool a_escapeTaken)
 	{
 		constexpr const char* kCreateAndApply = "Create and Apply";
 
-		const std::string save = a_state.updateTab ? std::format("Update {}", OutfitAt(a_state, a_state.chosenOutfit).name) : std::string("Create");
+		const bool  chosen = a_state.chosenOutfit >= 0;
+		std::string save = "Create";
 		if (a_state.updateTab) {
+			save = chosen ? std::format("Update {}", OutfitAt(a_state, a_state.chosenOutfit).name) : std::string("Update");
 			BeginButtonRow({ save.c_str(), "Back" });
 		} else {
 			BeginButtonRow({ save.c_str(), kCreateAndApply, "Back" });
 		}
-		const bool  valid = !Trimmed(ActiveForm(a_state).name.data()).empty();
-		const char* reason = valid ? nullptr : kNeedName;
-		const bool  pressed = ReasonButton(save.c_str(), reason) || a_enter;
-		bool        apply = false;
+		const char* reason = nullptr;
+		if (a_state.updateTab && !chosen) {
+			reason = kNeedOutfit;
+		} else if (Trimmed(ActiveName(a_state).data()).empty()) {
+			reason = kNeedName;
+		}
+		const bool pressed = ReasonButton(save.c_str(), reason) || a_enter;
+		bool       apply = false;
 		if (!a_state.updateTab) {
 			ImGui::SameLine();
 			apply = ReasonButton(kCreateAndApply, reason);
 		}
 		ImGui::SameLine();
-		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+		const bool back = Theme::Button("Back") || escape;
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Saving...");
@@ -1678,99 +1708,28 @@ namespace CaptureWindow::Internal
 		if (apply) {
 			return SaveAction::kSaveAndApply;
 		}
-		if (pressed && valid) {
+		if (pressed && !reason) {
 			return SaveAction::kSave;
 		}
 		return back ? SaveAction::kBack : SaveAction::kNone;
 	}
 
-	// The ticked rows whose worn outfit the save replaces, one line each (`Town: "B" replaces
-	// "A"`), then Confirm or Cancel. The replaced outfit leaves the row's list (OutfitRows::Give).
-	// Returns true on Confirm.
-	bool DrawReplacePopup(const State& a_state)
+	// Create and Apply's popup, opened when it asks first (ApplyAsksFirst): Manage Wardrobe's
+	// Apply popup for the outfit Create makes first (`Create "A", then ...?`). Returns the row
+	// the user applies it to, or nullopt; Cancel saves nothing.
+	std::optional<std::size_t> DrawCreateApplyPopup(const State& a_state)
 	{
-		if (!BeginModal(kReplacePopup)) {
-			return false;
+		if (!BeginModal(kCreateApplyPopup)) {
+			return std::nullopt;
 		}
-		const auto rows = TakenRows(a_state);
-		if (rows.empty()) {
-			ImGui::CloseCurrentPopup();
-			ImGui::EndPopup();
-			return false;
-		}
-		const auto name = Trimmed(ActiveForm(a_state).name.data());
-		ImGui::TextUnformatted(rows.size() == 1 ? "This already has an outfit:" : "These already have an outfit:");
-		for (const auto row : rows) {
-			ImGui::TextUnformatted(TakenRowLine(a_state, row, name).c_str());
-		}
-		BeginButtonRow({ "Confirm", "Cancel" });
-		const bool confirm = Theme::Button("Confirm");
-		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
-		EndButtonRow();
-		if (confirm || cancel) {
-			QueueMenuSound(confirm ? kOkSound : kCancelSound);
-			ImGui::CloseCurrentPopup();
-		}
+		const auto name = Trimmed(a_state.createName.data());
+		const auto row = DrawApplyPopupBody(a_state, { .name = name, .applyLabel = "Create and Apply", .saveFirst = std::format("Create \"{}\"", name) });
 		ImGui::EndPopup();
-		return confirm;
-	}
-
-	// The row the new outfit is worn for once the Create tab's ticked rows have it, as
-	// Assignments::Change resolves it (OutfitRows::Resolve): the first situation the actor is
-	// in that is ticked or holds an outfit, else the Default (row 0). A situation removed from
-	// situations.json has no row and is skipped.
-	// Contract: reads Request::situationsNow, the situations as the window opened; the save
-	// itself dresses for those of its own time, so a stale guess only asks or skips the popup.
-	std::size_t WearRowAfterSave(const State& a_state)
-	{
-		const auto& request = a_state.request;
-		const bool* ticked = a_state.createForm.wearsFor.get();
-		const auto& now = request.situationsNow;
-		for (std::size_t i = 0; i < now.count; ++i) {
-			const auto found = std::ranges::find(request.situations, now.items[i], &CaptureWindow::SituationInfo::situation);
-			if (found == request.situations.end()) {
-				continue;
-			}
-			const auto row = static_cast<std::size_t>(found - request.situations.begin());
-			if (ticked[row] || OutfitRows::HoldsAny(request.assigned[row].row)) {
-				return row;
-			}
-		}
-		return 0;
-	}
-
-	// Create and Apply with the row the outfit would be worn for unticked: `Wear "A" for Town
-	// now?`, what giving it that row changes, then Yes or Cancel. Returns true on Yes.
-	bool DrawWearPopup(const State& a_state)
-	{
-		if (!BeginModal(kWearPopup)) {
-			return false;
-		}
-		const auto row = WearRowAfterSave(a_state);
-		const auto name = Trimmed(ActiveForm(a_state).name.data());
-		ImGui::TextUnformatted(std::format("Wear \"{}\" for {} now?", name, RowName(a_state, row)).c_str());
-		if (IsTaken(a_state, row, 0)) {
-			ImGui::TextUnformatted(TakenRowLine(a_state, row, name).c_str());
-		} else {
-			const bool random = a_state.request.assigned[row].row.random;
-			ImGui::TextUnformatted(std::format("{}: {}", RowName(a_state, row), random ? "added to its list" : "added").c_str());
-		}
-		BeginButtonRow({ "Yes", "Cancel" });
-		const bool yes = Theme::Button("Yes");
-		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
-		EndButtonRow();
-		if (yes || cancel) {
-			QueueMenuSound(yes ? kOkSound : kCancelSound);
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-		return yes;
+		return row;
 	}
 
 	// Update tab: returns true when the user confirmed replacing the outfit's pieces with
-	// the ticked ones, and its name and rows as the tab has them.
+	// the ticked ones, and its name with the tab's. No row changes.
 	bool DrawConfirmPopup(const State& a_state)
 	{
 		if (!BeginModal(kConfirmPopup)) {
@@ -1782,17 +1741,14 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-		const auto& form = a_state.updateForm;
 		ImGui::TextUnformatted(std::format("Replace the {} piece(s) of \"{}\"", outfit.pieces.size(), outfit.name).c_str());
 		ImGui::TextUnformatted(std::format("with the {} ticked piece(s)?", CountTickedPieces(a_state)).c_str());
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
-		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
+		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
 		}
-		// The replace popup came first, so the taken rows are kept or already agreed.
-		DrawRowChangeLines(a_state, form.wearsFor.get(), outfit.id, Trimmed(form.name.data()));
 		BeginButtonRow({ "Confirm", "Cancel" });
 		const bool confirm = Theme::Button("Confirm");
 		ImGui::SameLine();
@@ -1806,140 +1762,89 @@ namespace CaptureWindow::Internal
 		return confirm;
 	}
 
+	// Hands the save to onSave; `a_applyRow` (Create and Apply) is the row the new outfit goes
+	// to and is worn for, the ticked pieces under Player's Inventory moving first.
 	// Contract: the onSave handler writes the library before it assigns anything, and a
 	// refused or failed write assigns nothing (CLAUDE.md §2.1).
-	void RequestSave(State& a_state)
+	void RequestSave(State& a_state, std::optional<std::size_t> a_applyRow)
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
-		const auto&                form = ActiveForm(a_state);
 		CaptureWindow::SaveRequest save{ .outfit = TargetOutfit(a_state),
-			.name = Trimmed(form.name.data()),
+			.name = Trimmed(ActiveName(a_state).data()),
 			.pieces = TickedPieces(a_state),
-			.assign = AssignedRows(a_state),
-			.remove = a_state.updateTab ? RemovedRows(a_state) : std::vector<std::size_t>{} };
-		if (!a_state.updateTab && a_state.applyOnCreate) {
-			save.apply = true;
+			.applyRow = a_applyRow };
+		if (a_applyRow) {
 			save.fromPlayer = TickedFromPlayer(a_state);
-			if (a_state.wearRow >= 0) {  // unticked, so not in `assign` yet
-				const auto row = static_cast<std::size_t>(a_state.wearRow);
-				save.assign.insert(std::ranges::lower_bound(save.assign, row), row);
-			}
 		}
 		auto onSave = a_state.request.onSave;
 		SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
 	}
 
-	// After the replace popup, or with no row to take over: Create saves at once, the Update
-	// tab first asks in its confirm popup, which opens a frame later in the page's ID scope.
-	void ContinueSave(State& a_state)
+	// Create and Apply gives the new outfit the row Manage Wardrobe's Apply would: it asks
+	// first when that offers a situation or replaces the Default (ApplyAsksFirst), else
+	// saves at once for the Default.
+	// Contract: called in the window's own ID scope, as DrawCreateApplyPopup is.
+	void BeginCreateAndApply(State& a_state)
 	{
-		if (a_state.updateTab) {
-			a_state.openConfirm = true;
-		} else {
-			RequestSave(a_state);
-		}
-	}
-
-	// Create and Apply asks first when the row the outfit would be worn for is unticked
-	// (DrawWearPopup); then the replace popup for the ticked rows it takes over.
-	// Contract: called in the window's own ID scope, as DrawReplacePopup and DrawWearPopup are.
-	void BeginSave(State& a_state)
-	{
-		if (!a_state.updateTab && a_state.applyOnCreate && a_state.wearRow < 0 && !a_state.createForm.wearsFor[WearRowAfterSave(a_state)]) {
-			ImGui::OpenPopup(kWearPopup);
+		if (ApplyAsksFirst(a_state, 0)) {
+			ImGui::OpenPopup(kCreateApplyPopup);
 			return;
 		}
-		if (!TakenRows(a_state).empty()) {
-			ImGui::OpenPopup(kReplacePopup);
-			return;
-		}
-		ContinueSave(a_state);
-	}
-
-	// The Update tab's outfit selection, with the chosen outfit (or else the one last loaded,
-	// or else the library outfit Livery has on the actor) selected and on the preview.
-	void OpenOutfitSelection(State& a_state)
-	{
-		a_state.selectingOutfit = a_state.chosenOutfit >= 0 ? a_state.chosenOutfit : a_state.loadedOutfit;
-		if (a_state.selectingOutfit < 0) {
-			a_state.selectingOutfit = WornOutfitIndex(a_state);
-		}
-		if (a_state.selectingOutfit >= 0) {
-			PreviewOutfitOrTicks(a_state, a_state.selectingOutfit);
-		}
-		GoToPage(a_state, Page::kSelect);
+		RequestSave(a_state, DirectApplyRow(a_state));
 	}
 
 	// Reached only with at least one piece ticked, which onSave relies on; the ticks cannot
-	// change here. Each tab keeps what was typed and ticked on it while the window is open.
+	// change here. Each tab keeps its name while the window is open, the Update tab its outfit.
+	// Create saves at once; Update asks in its confirm popup first.
 	void DrawSavePage(State& a_state)
 	{
-		if (std::exchange(a_state.openConfirm, false)) {
-			ImGui::OpenPopup(kConfirmPopup);
-		}
-		if (std::exchange(a_state.continueSave, false)) {
-			BeginSave(a_state);
-		}
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
-		const int tab = DrawSaveTabs(a_state);
-		auto&     form = ActiveForm(a_state);
-		ImGui::PushID(a_state.updateTab ? "update" : "create");
-		const bool enter = DrawNameField(a_state, form.name);
-		DrawWearsForField(a_state, form);
-		ImGui::PopID();
+		const int      tab = DrawSaveTabs(a_state);
+		UpdateTabInput input;
+		if (a_state.updateTab) {
+			input = DrawUpdateTab(a_state);
+		} else {
+			input.enter = DrawCreateTab(a_state);
+		}
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
-		const auto action = DrawSaveButtons(a_state, enter);
+		const auto action = DrawSaveButtons(a_state, input.enter, input.escapeTaken);
 		EndButtonRow();
 		ImGui::EndDisabled();
 
-		if (DrawWearPopup(a_state)) {
-			a_state.wearRow = static_cast<int>(WearRowAfterSave(a_state));
-			a_state.continueSave = true;  // BeginSave again a frame later, past the Wear popup
-		}
-		if (DrawReplacePopup(a_state)) {
-			ContinueSave(a_state);
+		if (const auto row = DrawCreateApplyPopup(a_state)) {
+			RequestSave(a_state, *row);
 		}
 		if (DrawConfirmPopup(a_state)) {
-			RequestSave(a_state);
+			RequestSave(a_state, std::nullopt);
 		}
 
 		if (tab == 0 && a_state.updateTab) {
 			QueueMenuSound(kFocusSound);
-			a_state.updateTab = false;
-			a_state.error.clear();
-		} else if (tab == 1) {
+			ShowCreateTab(a_state);
+		} else if (tab == 1 && !a_state.updateTab) {
+			QueueMenuSound(kFocusSound);
+			ShowUpdateTab(a_state);
+		} else if (input.clicked >= 0) {
+			ChooseOutfit(a_state, input.clicked == a_state.chosenOutfit ? -1 : input.clicked);
+		} else if (action == SaveAction::kSave) {
 			QueueMenuSound(kOkSound);
-			OpenOutfitSelection(a_state);
-		} else if (action == SaveAction::kSave || action == SaveAction::kSaveAndApply) {
+			if (a_state.updateTab) {
+				ImGui::OpenPopup(kConfirmPopup);
+			} else {
+				RequestSave(a_state, std::nullopt);
+			}
+		} else if (action == SaveAction::kSaveAndApply) {
 			QueueMenuSound(kOkSound);
-			a_state.applyOnCreate = action == SaveAction::kSaveAndApply;
-			a_state.wearRow = -1;
-			BeginSave(a_state);
+			BeginCreateAndApply(a_state);
 		} else if (action == SaveAction::kBack) {
 			QueueMenuSound(kCancelSound);
+			if (a_state.updateTab && a_state.chosenOutfit >= 0) {
+				QueuePreview(a_state, TickedPieces(a_state));
+			}
 			GoToPage(a_state, Page::kCapture);
-		}
-	}
-
-	// Fills the Update tab from outfit `a_index`: its name, and the rows the actor
-	// has it for. Choosing the outfit already chosen keeps the user's edits.
-	void ChooseOutfit(State& a_state, int a_index)
-	{
-		a_state.updateTab = true;
-		a_state.error.clear();
-		if (a_state.chosenOutfit == a_index) {
-			return;
-		}
-		a_state.chosenOutfit = a_index;
-		const auto& outfit = OutfitAt(a_state, a_index);
-		auto&       form = a_state.updateForm;
-		form.name.fill('\0');
-		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
-		for (std::size_t row = 0; row < RowCount(a_state); ++row) {
-			form.wearsFor[row] = HoldsOutfit(a_state, row, outfit.id);
 		}
 	}
 }
@@ -1960,19 +1865,12 @@ namespace CaptureWindow
 			for (std::size_t i = 0; i < state.request.pieces.size(); ++i) {
 				state.pieceTicked[i] = state.request.pieces[i].selected;
 			}
-			const auto rows = state.request.assigned.size();
-			// Create starts with no row ticked (CLAUDE.md §2.1); the Update tab is filled when an
-			// outfit is chosen (ChooseOutfit).
-			state.createForm = { .wearsFor = std::make_unique<bool[]>(rows) };
-			std::strncpy(state.createForm.name.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
-			state.updateForm = { .wearsFor = std::make_unique<bool[]>(rows) };
+			// The Update tab's name is filled when an outfit is chosen (ChooseOutfit).
+			state.createName.fill('\0');
+			std::strncpy(state.createName.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
+			state.updateName.fill('\0');
 			state.updateTab = false;
 			state.chosenOutfit = -1;
-			state.selectingOutfit = -1;
-			state.openConfirm = false;
-			state.continueSave = false;
-			state.applyOnCreate = false;
-			state.wearRow = -1;
 			state.situationsLabel = std::format("SITUATIONS ({})", state.request.actorName);
 			state.error.clear();
 			state.pending.clear();
@@ -1989,7 +1887,7 @@ namespace CaptureWindow
 			SortPieces(state);
 			state.previewedOutfit = -1;
 			state.loadedOutfit = -1;
-			for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser, &state.situationBrowser }) {
+			for (auto* browser : { &state.loadBrowser, &state.updateBrowser, &state.manageBrowser, &state.situationBrowser }) {
 				OutfitBrowser::Reset(*browser, state.request);
 			}
 			state.manage = {};
@@ -2039,8 +1937,8 @@ namespace CaptureWindow
 			frozeGame = std::exchange(state.frozeGame, false);
 			state.status = Status::kClosed;
 			state.request = {};
-			state.createForm = {};
-			state.updateForm = {};
+			state.createName = {};
+			state.updateName = {};
 			state.manage = {};
 			state.situationForm = {};
 			state.pending.clear();
@@ -2082,14 +1980,10 @@ namespace CaptureWindow
 		const auto previewed = idOf(state.previewedOutfit);
 		const auto loaded = idOf(state.loadedOutfit);
 		const auto chosen = idOf(state.chosenOutfit);
-		const auto selecting = idOf(state.selectingOutfit);
 		const auto managed = idOf(state.manage.outfit);
 
 		auto& request = state.request;
-		for (auto* ticks : { &state.createForm.wearsFor, &state.updateForm.wearsFor }) {
-			*ticks = RemapRows(request.situations, ticks->get(), a_list.situations);
-		}
-		const auto assignedBefore = std::exchange(request.assigned, std::move(a_list.assigned));
+		request.assigned = std::move(a_list.assigned);
 		const auto situationsBefore = std::exchange(request.situations, std::move(a_list.situations));
 		request.restoreChanges = std::move(a_list.restoreChanges);
 		request.existingOutfits = std::move(a_list.existingOutfits);
@@ -2104,23 +1998,10 @@ namespace CaptureWindow
 			FollowActorPieces(state, *a_list.actorPieces);
 		}
 		state.chosenOutfit = IndexOfOutfit(state, chosen);
-		state.selectingOutfit = IndexOfOutfit(state, selecting);
-		if (chosen != 0 && state.chosenOutfit < 0) {
-			state.updateTab = false;  // the Save page's Update tab has no outfit left to update
+		if (request.existingOutfits.empty()) {
+			state.updateTab = false;  // the Save page's Update tab has no outfit left to list
 		}
-		// The Update tab's "SITUATIONS (#{Name})" ticks follow the rows Manage Situations changed
-		// for its outfit, so its Update cannot undo them unseen; the user's other ticks stay. Rows
-		// are matched by situation, as one may have been removed.
-		for (std::size_t row = 0; state.chosenOutfit >= 0 && row < RowCount(state); ++row) {
-			const auto found = std::ranges::find(situationsBefore, request.situations[row].situation, &SituationInfo::situation);
-			const auto rowBefore = static_cast<std::size_t>(found - situationsBefore.begin());
-			const bool before = rowBefore < assignedBefore.size() && OutfitRows::Holds(assignedBefore[rowBefore].row, chosen);
-			const bool now = HoldsOutfit(state, row, chosen);
-			if (before != now) {
-				state.updateForm.wearsFor[row] = now;
-			}
-		}
-		for (auto* browser : { &state.loadBrowser, &state.selectBrowser, &state.manageBrowser, &state.situationBrowser }) {
+		for (auto* browser : { &state.loadBrowser, &state.updateBrowser, &state.manageBrowser, &state.situationBrowser }) {
 			OutfitBrowser::Rebuild(*browser, request);
 		}
 		FillSituationForm(state, situationsBefore);
@@ -2233,10 +2114,15 @@ namespace CaptureWindow
 		FinishLeave(state);  // before the page's width, which a switch changes
 
 		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
-		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, Select, Manage Wardrobe and Manage Situations pages
+		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, Manage Wardrobe and Manage Situations pages
+		constexpr float kWideWidthRatio = 1.05f;    // of the screen height, for the Save page's Update tab and its three columns
 		constexpr float kNarrowWidthRatio = 0.53f;  // of the screen height, for the one-column pages
-		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kSelect || state.page == Page::kManage || state.page == Page::kSituations;
-		float           width = io.DisplaySize.y * (twoColumns ? kWindowWidthRatio : kNarrowWidthRatio);
+		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kManage || state.page == Page::kSituations;
+		float           ratio = twoColumns ? kWindowWidthRatio : kNarrowWidthRatio;
+		if (state.page == Page::kSave && state.updateTab) {
+			ratio = kWideWidthRatio;
+		}
+		float width = io.DisplaySize.y * ratio;
 		if (state.page == Page::kCapture) {
 			width = (std::max)(width, CaptureButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
 		} else if (state.page == Page::kSave) {
@@ -2285,9 +2171,6 @@ namespace CaptureWindow
 			break;
 		case Page::kLoad:
 			DrawLoadPage(state);
-			break;
-		case Page::kSelect:
-			DrawSelectPage(state);
 			break;
 		case Page::kManage:
 			DrawManagePage(state);
