@@ -127,6 +127,9 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineLink(const char* label);
 
+	// Width LineHelpLink(label) takes, so a caller can keep room for it beside a centred row.
+	float LineHelpLinkWidth(const char* label);
+
 	// Extra room above a field, on top of the item spacing: 6px in Modern, 8px in Vanilla and
 	// Nordic. LabelText adds it itself, so call it only before a field that has no label.
 	void SectionGap();

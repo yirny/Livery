@@ -2658,6 +2658,14 @@ namespace Theme
 		return RightEndHelpLink(a_label, nullptr, false);
 	}
 
+	float LineHelpLinkWidth(const char* a_label)
+	{
+		PushSmallFont();
+		const float width = ImGui::CalcTextSize(a_label).x + ImGui::CalcTextSize(" ").x + ImGui::CalcTextSize(kHelpMark).x;
+		ImGui::PopFont();
+		return width;
+	}
+
 	bool Button(const char* a_label)
 	{
 		switch (g_skin) {
