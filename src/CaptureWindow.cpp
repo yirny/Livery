@@ -940,7 +940,7 @@ namespace CaptureWindow::Internal
 			Theme::ListHeading(heading.c_str(), icon);
 			return;
 		}
-		if (!Theme::ListHeadingHelp(heading.c_str(), false, icon)) {
+		if (!Theme::ListHeadingHelp(heading.c_str(), icon)) {
 			return;
 		}
 		const auto& name = a_state.request.actorName;

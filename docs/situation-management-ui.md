@@ -148,13 +148,12 @@ outfit for Town any more`.
 
 ## 4. Situation List (left pane)
 
-- Heading `Situation List (?)` (`Theme::ListHeadingHelp`), its text starting where the
-  situations' names do: `Each situation lists the outfits #{Name} can wear there. When several
+- Label `Situation List (?)` above the list (`Theme::LabelText` + `LabelHelpMark`):
+  `Each situation lists the outfits #{Name} can wear there. When several
   apply, the most specific one with an outfit is worn; otherwise, and in combat, the Default.
   Drag an outfit onto a situation to add it, between its outfits to place it, onto another
   situation to move it, or back to the outfit list to take it off.` (The most specific:
   `Situations::Evaluate`'s order.)
-- The list has no rules above and below it.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
   order. Each: the star of the Situations tab, a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
@@ -317,7 +316,7 @@ shows the situation's.
   front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick.
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
   (`SituationHeading` with its `SituationHeadingLook`, the die of random on, right-hand chevron and Edit with their
-  own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
+  own click areas, `HeadingClick::kEdit`), the
   drag grip (`Theme::Grip` for `OutfitRow`), the
   details' Remove link (`LineLink`), Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
