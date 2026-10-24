@@ -520,4 +520,12 @@ namespace Theme
 	// window ends with the font stack it began with.
 	void PushSmallFont();
 	void PopSmallFont();
+
+	// The window's tooltips, in the body font at its size whatever font is pushed where they
+	// are asked for: Tooltip shows `text` as is; BeginTooltip / EndTooltip wrap a tooltip the
+	// caller fills.
+	// Contract: every tooltip of the capture window goes through these, so they all look alike.
+	void Tooltip(const char* text);
+	void BeginTooltip();
+	void EndTooltip();
 }
