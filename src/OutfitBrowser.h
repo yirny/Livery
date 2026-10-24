@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
-// Search, filter and sort of the library outfits listed on the outfit pages, each outfit's
-// categories and heading, and the headings folded away (see OutfitBrowser.cpp).
+// Search, filter and sort of the library outfits listed on the outfit pages, and each outfit's
+// categories (see OutfitBrowser.cpp).
 // Pure logic with no ImGui or SKSE, so the unit tests build it.
 //
 // Contract: a State belongs to one Request: call Reset with it before anything
@@ -19,11 +19,11 @@ namespace OutfitBrowser
 {
 	constexpr std::size_t kSearchCapacity = 64;  // bytes, UTF-8, including the terminator
 
-	// Every key but kName lists the outfits under headings, by name within each.
+	// The outfit lists' columns, in their order (the header's).
 	enum class SortKey
 	{
-		kName,      // name only
-		kSituation  // the actor's rows holding the outfit (CaptureWindow::kSituationGroup)
+		kIcon,  // OutfitIcons' key order, then its colour order, then the name
+		kName   // the name, ASCII case ignored
 	};
 
 	// One row of the Filter dropdown: a category, or the row for outfits in
@@ -41,36 +41,26 @@ namespace OutfitBrowser
 		std::vector<FilterOption>         filter;        // per group of Request::categories: its categories, then its "No <group>" row
 		std::unique_ptr<bool[]>           filterTicked;  // one per filter; bool[] for the rows' bool&
 		SortKey                           sort = SortKey::kName;
-		std::vector<int>                  visible;     // indices into Request::existingOutfits that pass, in display order
-		std::vector<std::vector<int>>     categories;  // per outfit: indices into Request::categories it is in, ascending
+		bool                              descending = false;  // the whole order reversed, ties included
+		std::vector<int>                  visible;             // indices into Request::existingOutfits that pass, in display order
+		std::vector<std::vector<int>>     categories;          // per outfit: indices into Request::categories it is in, ascending
 		// Per outfit: the tooltip of its row's situation mark, "For Town, Warm" from the situations
 		// (never Default) the actor wears it for; "" for none.
 		std::vector<std::string> situations;
-		// Per outfit: the heading it is listed under for `sort`; "" for every outfit with kName.
-		std::vector<std::string> headings;
-		// Distinct headings among every outfit's, so the list's height does not follow the search.
-		std::size_t headingCount = 0;
-		// The headings whose outfits the list folds away; empty after Reset and SetSort.
-		std::vector<std::string> folded;
 	};
 
-	// Everything listed, by name, nothing typed or ticked.
+	// Everything listed, by name ascending, nothing typed or ticked.
 	void Reset(State& state, const CaptureWindow::Request& request);
 
-	// Rebuilds `visible`, `headings` and `headingCount`. Call after changing search,
-	// filterTicked or sort.
+	// Rebuilds `visible`. Call after changing search or filterTicked.
 	void Refresh(State& state, const CaptureWindow::Request& request);
 
 	// For a request whose outfits or categories changed (CaptureWindow::SetOutfits): keeps
-	// the search, the sort and the folded headings, clears the filter's ticks, then refreshes.
+	// the search and the sort, clears the filter's ticks, then refreshes.
 	void Rebuild(State& state, const CaptureWindow::Request& request);
 
-	// Sorts by `key` with every heading unfolded, then refreshes.
-	void SetSort(State& state, const CaptureWindow::Request& request, SortKey key);
-
-	// Whether the outfits under `heading` are folded away; a click on the heading toggles it.
-	bool IsFolded(const State& state, const std::string& heading);
-	void ToggleFolded(State& state, const std::string& heading);
+	// Sorts by `key`, reversed while `descending`, then refreshes.
+	void SetSort(State& state, const CaptureWindow::Request& request, SortKey key, bool descending);
 
 	bool IsSearching(const State& state);
 	bool IsFiltering(const State& state);

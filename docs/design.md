@@ -193,8 +193,12 @@ would have to be kept in step).
 - An outfit has no categories and no gender (the window calls the library the wardrobe). An
   older file's `categories` and `gender` are read past and gone at the next write. Situations
   are per actor (§7), not in the library.
-- `Library::Update` replaces pieces and name; a name is taken when another outfit
-  has it (ASCII case ignored).
+- An outfit has an icon: `"icon"`, PieceIcons' key of a PNG under `icons/`
+  (`skyui/icons_item_psychosteve/armor_body`), and `"color"`, its tint as `#rrggbb`. A
+  missing or unreadable one is the default (`OutfitIcons::kDefaultKey`, `#eaeaea`), so an
+  older file reads as it is; `Library::Create` gives the default.
+- `Library::Update` replaces pieces, name and icon; a name is taken when another outfit
+  has it (ASCII case ignored). The Save page's Update keeps the icon.
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
   then takes it off every row in this save (a `chosen` that was it becomes 0), and a Default
   this leaves wearing nothing gets the outfit's pieces, read before the remove, as its
@@ -425,3 +429,11 @@ Each stage ends with an in-game check before the next starts.
   `icons_item_psychosteve.swf`) and for `I4IconAddon/icons` `clothing_cloak` and
   `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their
   permission (`icons/ICON-CREDITS.txt`). Other icon packs' PNGs are not in the repository.
+- Outfit icons use the same PNGs (§4: an outfit's `icon` and `color`). The outfit rows, their
+  drag copies and Manage Wardrobe's icon field draw the outfit's icon tinted with its colour;
+  a key whose PNG is not loaded draws the default key's PNG in that colour. Manage
+  Wardrobe's picker offers the keys of `OutfitIcons::kKeys` whose PNG is loaded, in that
+  order: SkyUI's slots (helmet, circlet, body, hands, forearms, feet, calves, necklace, ring,
+  shield; each heavy, light, clothing), Jelidity's cloak and backpack, then BOOBIES'
+  `bodyparts` from head to feet. The colours are `OutfitIcons::kColors`: `#eaeaea`, then
+  pale tints (HSL about 60% saturation, 78% lightness) from blue violet to blue.

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "OutfitIcons.h"
+
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -189,11 +192,13 @@ namespace Theme
 	// The column labels over a list, in LabelText's font, colour and capitals, each lit
 	// while hovered (the text colour in Vanilla and Nordic, the accent in Modern); the label of
 	// column `sorted` has a small arrow after it, pointing up unless
-	// `descending`. Opens a field as LabelText does. Returns the index of the
-	// column clicked, or -1. Faded and inert inside BeginDisabled.
+	// `descending`. A label starting with "##" is an unnamed column: its arrow alone, centred
+	// on its x, or while unsorted both arrows half as tall, one over the other, faded until
+	// hovered, with `unnamedTip` (if any) as its tooltip. Opens a field as LabelText does.
+	// Returns the index of the column clicked, or -1. Faded and inert inside BeginDisabled.
 	// Contract: right above BeginList, one label per column; the labels are shown
 	// as is and are ImGui IDs.
-	int HeaderRow(std::span<const char* const> labels, std::span<const float> columnX, int sorted, bool descending);
+	int HeaderRow(std::span<const char* const> labels, std::span<const float> columnX, int sorted, bool descending, const char* unnamedTip = nullptr);
 
 	// A row the user ticks on and off, one text per column; returns true when
 	// toggled. While ticked, Modern fills it in the palette's selected colour, full at the
@@ -267,27 +272,16 @@ namespace Theme
 	// 12px past them.
 	enum class Grip
 	{
-		kNone,
-		kEdge,  // where a FoldHeading's text starts, after its chevron (Manage Situations' outfit list)
+		kNone,  // no grip, the icon where a tick row's text starts (the outfit lists)
+		kLine,  // no grip, the text 22px in (the Situation List's line for the Default's items)
+		kEdge,  // where the text after a fold chevron starts (Manage Situations' outfit list)
 		kName   // 14px in from the row's left edge (the Situation List, level with its headings' names)
 	};
 
-	// A list heading rule (FoldHeading, SituationHeading): in Vanilla and Nordic, SkyUI's MCM
+	// A list heading rule (SituationHeading): in Vanilla and Nordic, SkyUI's MCM
 	// header rule in ListHeading's grey, a knot at its left end and a double line on to its
 	// closed right end, 0.7 times LabelText's font size tall; in Modern, or without its texture
 	// or room for its two ends, a 1px line in the list's rule colour.
-
-	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
-	// away: a chevron pointing down while `open` and right while folded, then the text in
-	// capitals, both in ListHeading's grey and lit while hovered (the text colour in Vanilla and Nordic, the accent in Modern),
-	// then, 12px on, a list heading rule to 4px short of the list's right end. The whole row is
-	// the click target; returns true when clicked, and the caller folds or unfolds.
-	// In LabelText's font. Its chevron starts at the list's left edge, the text after it, where
-	// the grip of a Grip::kEdge row starts.
-	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are; the
-	// text is shown as is and is the row's ImGui ID.
-	bool  FoldHeading(const char* text, bool open);
-	float FoldHeadingHeight();
 
 	// Which part of a SituationHeading was clicked.
 	enum class HeadingClick
@@ -342,21 +336,26 @@ namespace Theme
 		const char* situations = nullptr;
 	};
 
-	// A SelectRow with the outfit's name, ending in an ellipsis short of `marks`, after SkyUI's
-	// body armor icon in white, a square of the text height, and 6px (none without its PNG).
-	// The icon starts 22px in from the row's left edge in every skin, and a `striped`
-	// row (every other one) has the palette's stripe colour under its fills. With `grip`, a drag grip where
-	// it says, in LabelText's grey at low alpha, and
-	// the icon starts 12px past its dots instead. Selected, Vanilla marks it with the equipped
-	// mark of a ticked piece and Nordic with the select arrow, 2px right of the
-	// centre of the room left of the icon, or centred left of the dots with Grip::kName; with Grip::kEdge in the dots' place,
-	// the dots hidden, shrunk to leave 2px on either side.
+	// A row with the outfit's name, ending in an ellipsis short of `marks`, after its `icon`
+	// (none for nullptr) tinted with its colour, a square of the text height, and 6px; an icon
+	// whose PNG is missing draws the default one (OutfitIcons). The text has 5px above and
+	// below it, and a `striped` row (every other one) has the palette's stripe colour under its
+	// fills. Where the icon starts, and the grip (two columns of dots in LabelText's grey at low
+	// alpha) with it, go by `grip`; with a grip the icon starts 12px past its dots. Selected,
+	// Vanilla marks it with the equipped mark of a ticked piece and Nordic with the select
+	// arrow: without a grip in the equipped mark's column, as on a ticked piece, centred left of
+	// the dots with Grip::kName, with Grip::kEdge in the dots' place, the dots hidden, shrunk to
+	// leave 2px on either side.
 	// OutfitRowHeight is its height, which holds the row gap: lay rows out with
 	// no item spacing, so the stripes meet.
 	// Contract: OutfitRow inside BeginList; the name is shown as is and is the row's ImGui
 	// ID, so PushID around rows whose names may repeat.
-	bool  OutfitRow(const char* name, bool selected, const OutfitMarks& marks, bool striped, Grip grip = Grip::kNone);
+	bool  OutfitRow(const char* name, bool selected, const OutfitMarks& marks, bool striped, Grip grip, const OutfitIcons::Icon* icon);
 	float OutfitRowHeight();
+
+	// Where HeaderRow's columns go over outfit rows with `grip`: the unnamed icon column
+	// centred over the rows' icons, then Name where their names start.
+	std::array<float, 2> OutfitColumns(Grip grip);
 
 	// A grey line in an outfit row's place, such as an empty list's hint: OutfitRowHeight tall,
 	// the text where OutfitRow puts the icon without a grip, with no fill or click.
@@ -364,11 +363,31 @@ namespace Theme
 	void HintRow(const char* text);
 
 	// A see-through copy of the outfit row just drawn, shown while it is dragged: the popup
-	// background with the grip's dots, the icon and the name, no fills or marks in any skin, held where
-	// the row was grabbed and following the mouse above every window.
+	// background with the grip's dots, the icon (none for nullptr) and the name, no fills or
+	// marks in any skin, held where the row was grabbed and following the mouse above every window.
 	// Contract: right after the OutfitRow it copies, inside that row's BeginDragDropSource opened
 	// with ImGuiDragDropFlags_SourceNoPreviewTooltip, so its list is still the current window.
-	void OutfitDragGhost(const char* name, Grip grip);
+	void OutfitDragGhost(const char* name, Grip grip, const OutfitIcons::Icon* icon);
+
+	// Whether the PNG of PieceIcons' key `key` is loaded, so the icon picker can offer it.
+	bool HasOutfitIcon(std::string_view key);
+
+	// Manage Wardrobe's icon field: the outfit's `icon` as OutfitRow draws it, IconFieldWidth
+	// wide (8px on either side) and as tall as a field, the whole of it filled in the hover
+	// colour while hovered. Returns true when clicked. `id` is its ImGui ID.
+	bool  IconField(const char* id, const OutfitIcons::Icon& icon);
+	float IconFieldWidth();
+
+	// One icon of the icon picker, an IconTileSide square: the icon as tall as a frame with
+	// 6px around it, filled in the hover colour while hovered, and in the selected colour with
+	// a rim while `selected`. Returns true when clicked. `id` is its ImGui ID.
+	bool  IconTile(const char* id, const OutfitIcons::Icon& icon, bool selected);
+	float IconTileSide();
+
+	// A rectangle of colour `rgb` (0xRRGGBB), `width` by `height`, with a 1px rim in the text
+	// colour while hovered and a 2px one while `selected`. Returns true when clicked; the
+	// caller asks ImGui whether it is hovered. `id` is its ImGui ID.
+	bool ColorSwatch(const char* id, std::uint32_t rgb, bool selected, float width, float height);
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Modern a

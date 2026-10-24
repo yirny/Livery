@@ -247,11 +247,11 @@ namespace CaptureWindow::Internal
 			return OutfitRows::HoldsAny(a_form.entries[a_entry].row) || ShowsPieces(a_form, a_entry);
 		}
 
-		// A grey line in an outfit row's place (kPiecesLine).
+		// A grey line in an outfit row's place (kPiecesLine), with no icon.
 		void DrawLineRow(const char* a_text, Theme::Grip a_grip)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			Theme::OutfitRow(a_text, false, {}, false, a_grip);
+			Theme::OutfitRow(a_text, false, {}, false, a_grip, nullptr);
 			ImGui::PopStyleColor();
 		}
 
@@ -286,10 +286,10 @@ namespace CaptureWindow::Internal
 					return;
 				}
 				const float top = ImGui::GetCursorScreenPos().y;
-				DrawLineRow(kPiecesLine, Theme::Grip::kNone);
+				DrawLineRow(kPiecesLine, Theme::Grip::kLine);
 				// The copy greyed as the line is.
 				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-				OfferOutfitDrag({ .from = 0 }, kPiecesLine, Theme::Grip::kNone);
+				OfferOutfitDrag({ .from = 0 }, kPiecesLine, Theme::Grip::kLine, nullptr);
 				ImGui::PopStyleColor();
 				if (ImGui::BeginDragDropTarget()) {
 					if (const auto dropped = AcceptOnSituation(top)) {
@@ -314,7 +314,8 @@ namespace CaptureWindow::Internal
 					ViewOutfit(a_state, index);
 				}
 				const float bottom = ImGui::GetItemRectMax().y;
-				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, OutfitAt(a_state, index).name.c_str(), Theme::Grip::kName);
+				const auto& outfit = OutfitAt(a_state, index);
+				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, outfit.name.c_str(), Theme::Grip::kName, &outfit.icon);
 				if (ImGui::BeginDragDropTarget()) {
 					const bool after = random && ImGui::GetMousePos().y >= (top + bottom) * 0.5f;
 					if (const auto dropped = AcceptOnSituation(after ? bottom : top)) {
@@ -852,13 +853,13 @@ namespace CaptureWindow::Internal
 		return NamesChanged(a_state) || RowsChanged(a_state);
 	}
 
-	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip)
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon)
 	{
 		if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoPreviewTooltip)) {
 			return;
 		}
 		ImGui::SetDragDropPayload(kOutfitPayload, &a_payload, sizeof(a_payload));
-		Theme::OutfitDragGhost(a_label, a_grip);
+		Theme::OutfitDragGhost(a_label, a_grip, a_icon);
 		ImGui::EndDragDropSource();
 	}
 
