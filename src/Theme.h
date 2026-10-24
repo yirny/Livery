@@ -34,7 +34,7 @@ namespace Theme
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
 		std::uint32_t hover = 0x4B4E4FFF;        // a hovered row
 		std::uint32_t selected = 0x2A2D2EFF;     // a selected row, the selected tab, a narrowing field's fill
-		std::uint32_t stripe = 0x00000010;       // every second outfit row, laid over it
+		std::uint32_t stripe = 0x00000020;       // every second outfit row, laid over it
 		std::uint32_t error = 0xFF6666FF;        // error text and fields
 	};
 
