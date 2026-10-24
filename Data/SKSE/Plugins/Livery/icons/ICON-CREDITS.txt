@@ -1,0 +1,11 @@
+The piece icons in this folder are SkyUI icon art, rendered from the swf frames as
+128x128 white alpha masks; the plugin tints them at draw time. They are used with their
+authors' permission and under the permissions on the mod pages named below.
+
+- skyui/icons_item_psychosteve/: the armor slot icons by PsychoSteve, from SkyUI's
+  interface/skyui/icons_item_psychosteve.swf
+  (SkyUI, https://www.nexusmods.com/skyrimspecialedition/mods/12604).
+- I4IconAddon/icons/ (clothing_cloak, clothing_backpack): by Jelidity, from
+  interface/I4IconAddon/icons.swf of Inventory Interface Information Injector
+  (https://www.nexusmods.com/skyrimspecialedition/mods/85702). Credit Jelidity when
+  reusing them; AI-made variants of these icons are not permitted.

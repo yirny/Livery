@@ -415,5 +415,7 @@ Each stage ends with an in-game check before the next starts.
   `SKSE::Translation::Translate`) when the window lists the pieces; a key with no
   translation is ignored and the earlier text stays, so a raw `$` key never shows.
 - Keywords are tested by editor ID when the window lists the pieces, so those KID adds count.
-- The PNGs under SkyUI's labels are game-icons.net placeholders (CC BY 3.0,
-  `icons/GAME-ICONS-CREDITS.txt`) until permitted art replaces them.
+- Livery ships the PNGs for SkyUI's labels (PsychoSteve's art from
+  `icons_item_psychosteve.swf`) and for `I4IconAddon/icons` `clothing_cloak` and
+  `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their
+  permission (`icons/ICON-CREDITS.txt`). Other icon packs' PNGs are not in the repository.
