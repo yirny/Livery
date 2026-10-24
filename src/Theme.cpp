@@ -2843,12 +2843,12 @@ namespace Theme
 					draw->AddTriangleFilled(baseR, baseL, point, color);
 				}
 			} else if (unnamed) {
-				// Both arrows, half as tall, one over the other, faded until hovered.
-				const ImU32 pair = hovered ? color : ImGui::GetColorU32(LabelGrey(), kUnsortedAlpha);
-				const float tall = half * 0.6f;
-				const float gap = (std::max)(1.0f, g_scale);
-				draw->AddTriangleFilled(ImVec2(left + arrow, midY - gap), ImVec2(left, midY - gap), ImVec2(left + half, midY - gap - tall), pair);
-				draw->AddTriangleFilled(ImVec2(left, midY + gap), ImVec2(left + arrow, midY + gap), ImVec2(left + half, midY + gap + tall), pair);
+				// The up and down arrows base to base, a diamond, faded until hovered. Clockwise, as
+				// ImGui's anti-aliased fill needs.
+				const ImU32  diamond = hovered ? color : ImGui::GetColorU32(LabelGrey(), kUnsortedAlpha);
+				const float  tall = half * 1.2f;  // each arrow's height, as the sorted one's
+				const ImVec2 points[] = { { left + half, midY - tall }, { left + arrow, midY }, { left + half, midY + tall }, { left, midY } };
+				draw->AddConvexPolyFilled(points, 4, diamond);
 			}
 		}
 		ImGui::PopFont();

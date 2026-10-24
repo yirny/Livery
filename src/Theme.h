@@ -193,7 +193,7 @@ namespace Theme
 	// while hovered (the text colour in Vanilla and Nordic, the accent in Modern); the label of
 	// column `sorted` has a small arrow after it, pointing up unless
 	// `descending`. A label starting with "##" is an unnamed column: its arrow alone, centred
-	// on its x, or while unsorted both arrows half as tall, one over the other, faded until
+	// on its x, or while unsorted the up and down arrows base to base, a diamond, faded until
 	// hovered, with `unnamedTip` (if any) as its tooltip. Opens a field as LabelText does.
 	// Returns the index of the column clicked, or -1. Faded and inert inside BeginDisabled.
 	// Contract: right above BeginList, one label per column; the labels are shown

@@ -84,8 +84,8 @@ page. Each page keeps its own search and sort.
 - Column labels over the list, as the piece list's (`Theme::HeaderRow`): an unnamed icon
   column centred over the rows' icons, then `NAME` over their names. A click on a label
   sorts by its column, a second one reverses the order, the arrow after the sorted label
-  showing which way. The icon column shows its arrow alone; while Name sorts, both arrows
-  half as tall, one over the other, faded until hovered, with the tooltip `Sort by icon`.
+  showing which way. The icon column shows its arrow alone; while Name sorts, the up and
+  down arrows base to base, a diamond, faded until hovered, with the tooltip `Sort by icon`.
   Icon sorts by `OutfitIcons::kKeys`' order, then `kColors`' order, then the name (icons
   and colours not in the tables last); Name by the name, ASCII case ignored; descending
   reverses the whole order. Each page's list starts at Name ascending when the window opens.
