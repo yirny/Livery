@@ -756,22 +756,18 @@ namespace CaptureWindow::Internal
 		return Trimmed(a_state.manage.name.data()).empty() ? kNeedName : nullptr;
 	}
 
-	// Update / Remove / Apply to #{Name} / Exit centred below a gap. Update needs
-	// Request::onManageUpdate (UpdateReason); Remove needs Request::onManageRemove
-	// and a selected outfit; Apply needs Request::onManageApply (ApplyReason), and says what
-	// it dresses the actor for on hover. a_escapeTaken: the browser used this frame's
-	// Escape, which is otherwise Exit.
+	// Update / Apply to #{Name} / Exit centred below a gap, then Remove at the row's right
+	// end, a link as Restore Outfit is. Update needs Request::onManageUpdate (UpdateReason);
+	// Remove needs Request::onManageRemove and a selected outfit; Apply needs
+	// Request::onManageApply (ApplyReason), and says what it dresses the actor for on hover.
+	// a_escapeTaken: the browser used this frame's Escape, which is otherwise Exit.
 	ManageAction DrawManageButtons(const State& a_state, bool a_escapeTaken)
 	{
 		const char* noUpdate = UpdateReason(a_state);
 		const char* apply = a_state.manageApplyLabel.c_str();
-		BeginButtonRow({ "Update", "Remove", apply, "Exit" });
+		BeginButtonRow({ "Update", apply, "Exit" });
 		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
 		const bool update = ReasonButton("Update", noUpdate);
-		ImGui::EndDisabled();
-		ImGui::SameLine();
-		ImGui::BeginDisabled(!a_state.request.onManageRemove);
-		const bool remove = ReasonButton("Remove", a_state.manage.outfit < 0 ? kNeedOutfit : nullptr);
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		ImGui::BeginDisabled(!a_state.request.onManageApply);
@@ -780,6 +776,16 @@ namespace CaptureWindow::Internal
 		ImGui::SameLine();
 		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 		const bool cancel = Theme::Button("Exit") || escape;
+
+		const bool noOutfit = a_state.manage.outfit < 0;
+		ImGui::BeginDisabled(noOutfit || !a_state.request.onManageRemove);
+		const bool remove = Theme::LineLink("Remove");
+		const bool removeHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		ImGui::EndDisabled();
+		// After EndDisabled, so the tooltip is not drawn faded.
+		if (noOutfit && removeHovered) {
+			ImGui::SetTooltip("%s", kNeedOutfit);
+		}
 
 		if (update) {
 			return ManageAction::kUpdate;
