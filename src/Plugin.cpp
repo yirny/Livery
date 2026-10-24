@@ -616,21 +616,42 @@ namespace
 		});
 	}
 
+	// How many of the pieces Livery put on them they wear no copy of in `inventory`
+	// (CollectArmor): taken back in the trade menu, or taken off by another mod or by the
+	// player in their own inventory. 0 when Livery has nothing on them.
+	std::size_t PiecesNotWorn(const std::optional<Assignments::Choices>& choices, const std::vector<InventoryArmor>& inventory)
+	{
+		if (!choices || !choices->dressed) {
+			return 0;
+		}
+		return static_cast<std::size_t>(std::ranges::count_if(choices->wornArmor, [&inventory](RE::FormID armor) {
+			const auto found = std::ranges::find_if(inventory, [armor](const InventoryArmor& piece) { return piece.armor->GetFormID() == armor; });
+			return found == inventory.end() || !found->worn;
+		}));
+	}
+
+	// Contract: game thread. The captured actor's PiecesNotWorn, read from their inventory
+	// with no preview on: as the window opens and after each dressing with it open
+	// (DressCaptured). The window freezes the game, so what they wear holds until the next.
+	std::size_t g_capturedNotWorn = 0;
+
 	// The line under the actor's name: what Livery has on them now and what for, `Wearing "X"
 	// for Town.` or `Wearing "X" as Default.` Pieces that are not a saved outfit, or an outfit
 	// gone from the library (another save's), which the window shows no row of, go unnamed:
-	// `Dressed by Livery.`
-	std::string DescribeAssignment(const Assignments::Choices& choices)
+	// `Dressed by Livery.` With `notWorn` of the pieces off them (PiecesNotWorn), the outfit is
+	// only theirs: `Assigned "X" as Default, 1 piece not worn.`
+	std::string DescribeAssignment(const Assignments::Choices& choices, std::size_t notWorn)
 	{
 		if (!choices.dressed) {
 			return "Not dressed by Livery right now.";
 		}
+		const auto  missing = notWorn == 0 ? std::string{} : std::format(", {} {} not worn", notWorn, notWorn == 1 ? "piece" : "pieces");
 		const auto* stored = choices.wornOutfit ? Library::Find(choices.wornOutfit) : nullptr;
 		if (!stored) {
-			return "Dressed by Livery.";
+			return std::format("Dressed by Livery{}.", missing);
 		}
 		const auto worn = choices.worn == Situations::Situation::kDefault ? " as " + SituationStore::Name(choices.worn) : SituationStore::Suffix(choices.worn);
-		return std::format("Wearing \"{}\"{}.", stored->name, worn);
+		return std::format("{} \"{}\"{}{}.", notWorn == 0 ? "Wearing" : "Assigned", stored->name, worn, missing);
 	}
 
 	// The library outfit Livery has on them now, for the first heading of the piece list;
@@ -860,6 +881,7 @@ namespace
 		std::size_t skipped = 0;
 		std::size_t substituted = 0;
 		const auto  inventory = CollectArmor(actor, skipped, substituted);
+		g_capturedNotWorn = PiecesNotWorn(Assignments::ChoicesOf(actor.GetFormID()), inventory);  // before the preview begins again
 		if (previewing) {
 			if (const auto reason = OutfitPreview::Begin(actor, shown ? *shown : WornArmors(inventory)); !reason.empty()) {
 				PreviewCamera::End();
@@ -917,8 +939,9 @@ namespace
 			.situations = SituationInfos(),
 			.restoreChanges = SituationStore::RestoreChanges() };
 		if (choices) {
-			list.actorSummary = DescribeAssignment(*choices);
+			list.actorSummary = DescribeAssignment(*choices, g_capturedNotWorn);
 			list.dressed = choices->dressed;
+			list.piecesNotWorn = choices->dressed ? g_capturedNotWorn : 0;
 		}
 		return list;
 	}
@@ -981,8 +1004,9 @@ namespace
 			}
 		};
 		if (choices) {
-			request.actorSummary = DescribeAssignment(*choices);
+			request.actorSummary = DescribeAssignment(*choices, g_capturedNotWorn);
 			request.dressed = choices->dressed;
+			request.piecesNotWorn = choices->dressed ? g_capturedNotWorn : 0;
 		}
 	}
 
@@ -1207,6 +1231,7 @@ namespace
 				request.wornSituation = SituationStore::Name(choices->worn);
 			}
 		}
+		g_capturedNotWorn = PiecesNotWorn(choices, inventory);  // read before the preview begins
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& piece : inventory) {
