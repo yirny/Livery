@@ -177,7 +177,8 @@ page. Each page keeps its own search and sort.
     as the icons, a 1px rim while hovered and 2px while chosen; then `OK` / `Cancel`.
     While the mouse is over a colour, every icon shows in it; a click chooses an icon or a
     colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
-    leaves it. Nothing is written until Update.
+    leaves it. Nothing is written until Update. The Save page's Create tab opens the same
+    popup for the new outfit's icon (docs/ui-redesign.md).
   - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
     stay in the outfit. The Load page's details and the Save page's piece columns keep the

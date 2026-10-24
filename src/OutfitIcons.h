@@ -10,9 +10,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // An outfit's icon (docs/design.md §9): a piece icon PNG, named by PieceIcons' key, tinted with
-// one of kColors. The tables set the order of Manage Wardrobe's icon picker and of the outfit
+// one of kColors. The tables set the order of the icon picker (Choose icon) and of the outfit
 // lists' icon sort. Pure data and logic with no ImGui or SKSE, so the unit tests build it.
 namespace OutfitIcons
 {
@@ -97,6 +98,43 @@ namespace OutfitIcons
 	inline std::size_t KeyOrder(std::string_view a_key)
 	{
 		return static_cast<std::size_t>(std::ranges::find(kKeys, a_key) - kKeys.begin());
+	}
+
+	// A piece a new outfit may take its icon from: its body slot mask (BipedObjectSlot bits,
+	// slot 30 in bit 0) and its PieceIcons key ("" for none).
+	struct PieceKey
+	{
+		std::uint32_t    slots = 0;
+		std::string_view key;
+	};
+
+	// The icon key the Save page's Create tab starts a new outfit with: the key of the first
+	// piece the picker could choose (kKeys lists it and `a_loaded(key)`, its PNG is loaded),
+	// looking at the pieces on the body slot first, then head (head, hair, long hair), circlet,
+	// hands, feet, amulet, ring, then any, each in `a_pieces`' order; kDefaultKey for none.
+	template <class Loaded>
+	std::string_view SuggestKey(const std::vector<PieceKey>& a_pieces, Loaded a_loaded)
+	{
+		constexpr std::uint32_t kAny = 0xFFFFFFFFu;
+		constexpr auto          kSlotOrder = std::to_array<std::uint32_t>({
+			1u << 2,                       // body (32)
+			1u << 0 | 1u << 1 | 1u << 11,  // head (30), hair (31), long hair (41)
+			1u << 12,                      // circlet (42)
+			1u << 3,                       // hands (33)
+			1u << 7,                       // feet (37)
+			1u << 5,                       // amulet (35)
+			1u << 6,                       // ring (36)
+			kAny,                          // a piece on no slot too
+		});
+
+		for (const auto slots : kSlotOrder) {
+			for (const auto& piece : a_pieces) {
+				if ((slots == kAny || (piece.slots & slots) != 0) && KeyOrder(piece.key) < kKeys.size() && a_loaded(piece.key)) {
+					return piece.key;
+				}
+			}
+		}
+		return kDefaultKey;
 	}
 
 	// Its place in kColors; kColors.size() for a colour not there, which sorts last.
