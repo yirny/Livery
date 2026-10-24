@@ -214,7 +214,7 @@ namespace CaptureWindow::Internal
 	// Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable)
 	{
-		constexpr std::array<const char*, 2> kLabels{ "##icon", "Name" };  // in OutfitBrowser::SortKey's order
+		constexpr std::array<const char*, 2> kLabels{ "##iconColumn", "Name" };  // in OutfitBrowser::SortKey's order
 
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto& visible = a_browser.visible;
