@@ -1531,7 +1531,7 @@ namespace CaptureWindow::Internal
 	{
 		Theme::SectionGap();  // a field with no label
 		if (a_icon) {
-			const bool clicked = Theme::IconField("##icon", *a_icon);
+			const bool clicked = Theme::IconField("##outfitIcon", *a_icon);
 			if (ImGui::IsItemHovered()) {
 				ImGui::SetTooltip("Outfit Icon");
 			}
