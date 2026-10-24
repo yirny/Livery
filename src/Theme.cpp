@@ -1685,7 +1685,7 @@ namespace
 	// Contract: called with the skin's frame padding in force (not PushFieldStyle's).
 	void DrawFieldIcon(const Theme::FieldStyle& a_style, ImVec2 a_min, ImVec2 a_max)
 	{
-		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the clear button's cross
+		constexpr float kLineWidth = 1.0f;  // pixels at 1080p, as the clear button's cross
 
 		if (a_style.icon == Theme::FieldIcon::kNone) {
 			return;
@@ -1695,7 +1695,7 @@ namespace
 		const float top = (a_min.y + a_max.y - size) * 0.5f;
 		const auto  at = [&](float a_x, float a_y) { return ImVec2(left + size * a_x, top + size * a_y); };
 		const ImU32 color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		const float thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
+		const float thickness = (std::max)(1.0f, kLineWidth * g_scale);
 		auto*       draw = ImGui::GetWindowDrawList();
 		if (a_style.icon == Theme::FieldIcon::kSearch) {
 			const ImVec2 centre = at(0.42f, 0.42f);
@@ -1731,10 +1731,10 @@ namespace
 	// the line where the tip's cone meets the body, and the band near the far end.
 	void DrawPenIcon(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color)
 	{
-		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the field icons'
+		constexpr float kLineWidth = 1.0f;  // pixels at 1080p, as the field icons'
 
 		const auto  at = [&](float a_x, float a_y) { return ImVec2(a_topLeft.x + a_side * a_x, a_topLeft.y + a_side * a_y); };
-		const float thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
+		const float thickness = (std::max)(1.0f, kLineWidth * g_scale);
 		// The tip is cut off square, a short flat end.
 		const ImVec2 outline[] = { at(0.14f, 0.86f), at(0.18f, 0.72f), at(0.23f, 0.60f), at(0.74f, 0.09f), at(0.91f, 0.26f), at(0.40f, 0.77f), at(0.28f, 0.82f) };
 		a_draw->AddPolyline(outline, 7, a_color, ImDrawFlags_Closed, thickness);
@@ -2259,7 +2259,7 @@ namespace
 	float DrawHeadingIcon(ImDrawList* a_draw, ImVec2 a_topLeft, Theme::HeadingIcon a_icon, ImU32 a_color)
 	{
 		constexpr float kSide = 18.0f;      // pixels at 1080p
-		constexpr float kLineWidth = 1.2f;  // pixels at 1080p, as an outfit row's marks
+		constexpr float kLineWidth = 1.0f;  // pixels at 1080p, as an outfit row's marks
 
 		void (*icon)(ImDrawList*, const IconFrame&, ImU32, float) = nullptr;
 		switch (a_icon) {
@@ -3100,14 +3100,14 @@ namespace Theme
 
 	bool ClearButton(const char* a_id, float a_side)
 	{
-		constexpr float kCrossRatio = 0.22f;      // half the cross's width, of the font size
-		constexpr float kThicknessRatio = 0.08f;  // of the font size, as the category rows' check mark
+		constexpr float kCrossRatio = 0.22f;  // half the cross's width, of the font size
+		constexpr float kLineWidth = 1.0f;    // pixels at 1080p, as the field icons'
 
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(a_side, a_side));
 		const ImU32  color = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled);
 		const float  half = ImGui::GetFontSize() * kCrossRatio;
-		const float  thickness = (std::max)(1.0f, ImGui::GetFontSize() * kThicknessRatio);
+		const float  thickness = (std::max)(1.0f, kLineWidth * g_scale);
 		const ImVec2 centre(topLeft.x + a_side * 0.5f, topLeft.y + a_side * 0.5f);
 		auto*        draw = ImGui::GetWindowDrawList();
 		draw->AddLine(ImVec2(centre.x - half, centre.y - half), ImVec2(centre.x + half, centre.y + half), color, thickness);
@@ -3281,6 +3281,7 @@ namespace Theme
 		constexpr float       kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
 		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron and Edit
 		constexpr float       kDiceShrink = 4.0f;    // pixels at 1080p, the die's square short of the name's line height
+		constexpr float       kLineWidth = 1.0f;     // pixels at 1080p, the star's, the die's and the chevron's
 
 		const float  gap = ListPaddingY();  // the row gap the list leaves out, half above and half below
 		const float  height = SituationHeadingHeight();
@@ -3338,7 +3339,7 @@ namespace Theme
 		}
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const ImU32 nameColor = a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text);
-		const float thick = (std::max)(1.0f, 1.5f * g_scale);
+		const float thick = (std::max)(1.0f, kLineWidth * g_scale);
 		DrawStarIcon(draw, IconFrame{ ImVec2(starX, midY - iconSide * 0.5f), iconSide }, nameColor, thick);
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
 		if (a_look.random) {
@@ -3432,9 +3433,9 @@ namespace Theme
 		return width;
 	}
 
-	// Laid out as TextRow lays out its text, or from the list's indent as a situation heading's
-	// name, the icon first; the rule after the mark, to the list's right end, unless indented.
-	bool ListHeadingHelp(const char* a_text, bool a_situationIndent, HeadingIcon a_icon)
+	// Laid out as TextRow lays out its text, the icon first; the rule after the mark, to the
+	// list's right end.
+	bool ListHeadingHelp(const char* a_text, HeadingIcon a_icon)
 	{
 		PushLabelFont();
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
@@ -3442,16 +3443,14 @@ namespace Theme
 		ImGui::Dummy(ImVec2(width, SelectRowHeight()));
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		auto*       draw = ImGui::GetWindowDrawList();
-		ImVec2      text(cursor.x + (a_situationIndent ? SituationNameInset() : RowTextShift()), cursor.y + kSelectRowPadY * g_scale);
+		ImVec2      text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
 		text.x += DrawHeadingIcon(draw, text, a_icon, grey);
 		const Caps   caps(a_text);
 		const float  markX = text.x + ImGui::CalcTextSize(caps.c_str()).x + ImGui::CalcTextSize(" ").x;
 		const ImVec2 markSize = ImGui::CalcTextSize(kHelpMark);
 		draw->AddText(text, grey, caps.c_str());
 		draw->AddText(ImVec2(markX, text.y), grey, kHelpMark);
-		if (!a_situationIndent) {
-			DrawListHeadingRule(draw, cursor, width, markX + markSize.x, text.y + markSize.y * 0.5f);
-		}
+		DrawListHeadingRule(draw, cursor, width, markX + markSize.x, text.y + markSize.y * 0.5f);
 		ImGui::PopFont();
 		return ImGui::IsMouseHoveringRect(ImVec2(markX, text.y), ImVec2(markX + markSize.x, text.y + markSize.y));
 	}
@@ -3482,7 +3481,7 @@ namespace Theme
 	// SelectRow holding the row gap the list leaves out, half above the name and half below it.
 	bool OutfitRow(const char* a_name, bool a_selected, const OutfitMarks& a_marks, bool a_striped, Grip a_grip, const OutfitIcons::Icon* a_icon)
 	{
-		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
+		constexpr float kMarkLineWidth = 1.0f;  // pixels at 1080p
 		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of the select mark in an edge grip's room
 
 		const float   gap = ListPaddingY();
