@@ -205,7 +205,7 @@ namespace Theme
 	// row's centre, 0.6 of it at the left end and fading to nothing at the right end, with an
 	// accent rule on its left edge, as Tailor 3.0 marks a selected row; Vanilla and Nordic
 	// draw it like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a bar in the
-	// selected colour fading in from the left. Hovered: Modern's hover colour, Vanilla's soft
+	// selected colour fading in from the left. Hovered: Modern's hover colour, graded as the ticked fill, Vanilla's soft
 	// ellipse and NORDIC UI's selection line under the row in the hover colour.
 	// With `icon`, the icon's texture is drawn where the row's text starts, centred on the row,
 	// tinted; a key with no texture draws nothing.

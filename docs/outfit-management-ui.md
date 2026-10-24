@@ -47,7 +47,7 @@ page. Each page keeps its own search and sort.
   the library. An older file's outfit categories are read past and gone at the next write.
 - Each row: the outfit's name alone, one line high.
 - Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
-  colour; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
+  colour, graded as a selected row's fill; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
   NORDIC UI's list selection line under it (skyui/inventorylists.swf, `ItemsListEntry`'s
   `selectIndicator`, shape 1: a thin wedge pointed at its left end, #e5e5e5 fading from 0.4

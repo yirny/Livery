@@ -1307,17 +1307,37 @@ namespace
 		}
 	}
 
+	// Modern's fill of a selected or hovered row from `a_min` to `a_max` (screen pixels), in
+	// `a_color`: full at the row's centre, 0.6 of it at its left end and fading to nothing at its
+	// right end. Square-cornered: ImGui's gradient fill has no rounding.
+	void DrawGradientFill(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, ImGuiCol a_color)
+	{
+		constexpr float kLeftAlpha = 0.6f;  // of the colour's alpha, at the left end
+
+		const ImVec4 color = ImGui::GetStyleColorVec4(a_color);
+		const ImU32  left = ImGui::GetColorU32(ImVec4(color.x, color.y, color.z, color.w * kLeftAlpha));
+		const ImU32  centre = ImGui::GetColorU32(color);
+		const ImU32  right = ImGui::GetColorU32(ImVec4(color.x, color.y, color.z, 0.0f));
+		const float  midX = std::round((a_min.x + a_max.x) * 0.5f);
+		a_draw->AddRectFilledMultiColor(a_min, ImVec2(midX, a_max.y), left, centre, centre, left);
+		a_draw->AddRectFilledMultiColor(ImVec2(midX, a_min.y), a_max, centre, right, right, centre);
+	}
+
 	// The fill of a hovered row from `a_min` to `a_max` (screen pixels): Modern's hover
-	// colour; Vanilla's hover glow stretched over it, a soft ellipse in the hover colour (a
-	// white at 64/255) brightest at the row's centre (a flat tint without the texture); Nordic's
-	// selection line under it.
+	// colour (DrawGradientFill); Vanilla's hover glow stretched over it, a soft ellipse in the
+	// hover colour (a white at 64/255) brightest at the row's centre (a flat tint without the
+	// texture); Nordic's selection line under it.
 	void DrawRowHover(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_rounding)
 	{
 		if (g_skin == Theme::Skin::kNordic) {
 			DrawNordicLine(a_draw, a_min, a_max);
 			return;
 		}
-		if (g_skin == Theme::Skin::kModern || !g_hoverGlow.view) {
+		if (g_skin == Theme::Skin::kModern) {
+			DrawGradientFill(a_draw, a_min, a_max, ImGuiCol_HeaderHovered);
+			return;
+		}
+		if (!g_hoverGlow.view) {
 			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_HeaderHovered), a_rounding);
 			return;
 		}
@@ -1351,29 +1371,13 @@ namespace
 		}
 	}
 
-	// Modern's fill of a selected row from `a_min` to `a_max` (screen pixels): the selected
-	// colour, full at the row's centre, 0.6 of it at its left end and fading to nothing
-	// at its right end. Square-cornered: ImGui's gradient fill has no rounding.
-	void DrawSelectedFill(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
-	{
-		constexpr float kLeftAlpha = 0.6f;  // of the selected colour's alpha, at the left end
-
-		const ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Header);
-		const ImU32  left = ImGui::GetColorU32(ImVec4(color.x, color.y, color.z, color.w * kLeftAlpha));
-		const ImU32  centre = ImGui::GetColorU32(color);
-		const ImU32  right = ImGui::GetColorU32(ImVec4(color.x, color.y, color.z, 0.0f));
-		const float  midX = std::round((a_min.x + a_max.x) * 0.5f);
-		a_draw->AddRectFilledMultiColor(a_min, ImVec2(midX, a_max.y), left, centre, centre, left);
-		a_draw->AddRectFilledMultiColor(ImVec2(midX, a_min.y), a_max, centre, right, right, centre);
-	}
-
 	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Modern's selected fill
-	// (DrawSelectedFill), Vanilla's selection bar, none in Nordic, whose arrow alone tells it.
+	// (DrawGradientFill), Vanilla's selection bar, none in Nordic, whose arrow alone tells it.
 	// Hovered: the hover fill over an unselected row, and Nordic's line under any row.
 	void DrawRowFills(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, bool a_selected, bool a_hovered, float a_rounding)
 	{
 		if (a_selected && g_skin == Theme::Skin::kModern) {
-			DrawSelectedFill(a_draw, a_min, a_max);
+			DrawGradientFill(a_draw, a_min, a_max, ImGuiCol_Header);
 		} else if (a_selected && g_skin == Theme::Skin::kVanilla) {
 			DrawSelectBar(a_draw, a_min, a_max);
 		}
@@ -1448,7 +1452,7 @@ namespace
 	}
 
 	// Modern's tick row, marked as Tailor 3.0 marks a selected row: while ticked, the selected
-	// fill (DrawSelectedFill) with an accent rule down its left edge; the hover colour while
+	// fill (DrawGradientFill) with an accent rule down its left edge; the hover fill while
 	// hovered. The text sits clear of the rule.
 	bool ModernRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
 	{
@@ -1460,7 +1464,7 @@ namespace
 
 		auto* draw = ImGui::GetWindowDrawList();
 		if (*a_ticked) {
-			DrawSelectedFill(draw, row.fillMin, row.fillMax);
+			DrawGradientFill(draw, row.fillMin, row.fillMax, ImGuiCol_Header);
 		}
 		if (row.hovered) {
 			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);
