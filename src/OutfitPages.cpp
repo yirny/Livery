@@ -8,8 +8,8 @@
 //   Outfit browser - Search (and Filter, hidden by kShowFilter), above an outfit page's
 //                  list in its column, in the small font (OutfitBrowser.cpp narrows and
 //                  orders it); each page has its own; Escape first clears the search
-//   Outfit lists - the library outfit list with its Sort dropdown and the sort's headings (a
-//                  click folds their outfits away), the selected outfit's name
+//   Outfit lists - the library outfit list under its icon and Name column labels, which sort
+//                  it (a second click reverses), its count line below it, the selected outfit's name
 //                  (or a hint while none is) and its piece list, and an outfit read only
 //                  in Manage Wardrobe's order, which the outfit pages and Manage Situations
 //                  share (there each row has a grip and drags a copy of its outfit);
@@ -19,7 +19,7 @@
 //                  pieces and returns (greyed while none of them is loaded); opened from
 //                  the Edit page, it adds them to that page's ticks
 //   Manage Wardrobe - the tab beside the Inventory page: library outfits and the selected
-//                  one's name and pieces, edited in place and kept for
+//                  one's icon (Choose icon popup), name and pieces, edited in place and kept for
 //                  one outfit at a time (Discard changes / Keep editing before another is
 //                  selected); the edited outfit on the preview; Update lists the changes
 //                  (Save changes?; Confirm / Cancel) and hands them to onManageUpdate, Remove
@@ -175,78 +175,23 @@ namespace CaptureWindow::Internal
 
 	// --- Outfit lists ---------------------------------------------------------
 
-	// The Sort dropdown's rows, the current key highlighted with no tick mark;
-	// choosing one sorts by it (OutfitBrowser::SetSort) and closes the popup. A
-	// zero-high spacer as wide as the widest row keeps the popup, which starts as
-	// narrow as its frame, from cutting a row's label.
-	void DrawSortRows(const State& a_state, OutfitBrowser::State& a_browser)
-	{
-		const auto& style = ImGui::GetStyle();
-		float       widest = 0.0f;
-		for (const auto& option : kSortOptions) {
-			widest = (std::max)(widest, Theme::DropdownRowWidth(option.label, false));
-		}
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));  // rows carry their own gap
-		ImGui::Dummy(ImVec2(widest, 0.0f));
-		for (const auto& option : kSortOptions) {
-			bool ticked = a_browser.sort == option.key;
-			if (DrawCategoryRow(option.label, ticked, false)) {
-				if (a_browser.sort != option.key) {
-					OutfitBrowser::SetSort(a_browser, a_state.request, option.key);
-				}
-				ImGui::CloseCurrentPopup();
-			}
-		}
-		ImGui::PopStyleVar();
-	}
-
-	// "Sort by <key>" and the skin's arrow, bare, in the small font and greyed
-	// as the fields' hints are, at the right end of the label just drawn with
-	// its text's bottom on the label's. Its width fits the longest key, so
-	// switching keys does not move it. It leaves the cursor where the label
-	// did, so the list below does not move.
-	void DrawSortCombo(const State& a_state, OutfitBrowser::State& a_browser)
-	{
-		const ImVec2 labelMax = ImGui::GetItemRectMax();
-		const ImVec2 after = ImGui::GetCursorScreenPos();
-		const float  right = after.x + ImGui::GetContentRegionAvail().x;
-		const auto   preview = [](const SortOption& a_option) { return std::format("Sort by {}", a_option.label); };
-
-		Theme::PushSmallFont();
-		constexpr Theme::FieldStyle style{ .shape = Theme::FieldShape::kBare, .previewIsHint = true, .alignRight = true };
-		float                       width = 0.0f;
-		std::string                 current;
-		for (const auto& option : kSortOptions) {
-			width = (std::max)(width, Theme::ComboWidth(preview(option).c_str(), style));
-			if (option.key == a_browser.sort) {
-				current = preview(option);
-			}
-		}
-		ImGui::SetCursorScreenPos(ImVec2(right - width, labelMax.y - Theme::FieldHeight(style)));
-		ImGui::SetNextItemWidth(width);
-		const bool open = Theme::BeginCombo("##sort", ImGuiComboFlags_None, style);
-		if (open) {
-			DrawSortRows(a_state, a_browser);
-		}
-		Theme::EndCombo(open, current.c_str(), style);
-		Theme::PopSmallFont();
-		ImGui::SetCursorScreenPos(after);
-	}
-
-	// Height of the outfit list with every library outfit and every heading of the sort in
-	// view, capped as ListHeight caps it, so narrowing the list does not move the buttons.
+	// Height of the outfit list with every library outfit in view, capped as ListHeight caps
+	// it with the count line below it kept in view too, so narrowing the list does not move
+	// the buttons.
 	// Contract: called with the list's row spacing pushed.
-	float OutfitListHeight(const State& a_state, const OutfitBrowser::State& a_browser, float a_reserved)
+	float OutfitListHeight(const State& a_state, float a_reserved)
 	{
+		Theme::PushSmallFont();
+		const float countLine = ImGui::GetTextLineHeightWithSpacing();
+		Theme::PopSmallFont();
 		const float rowHeight = Theme::OutfitRowHeight();
-		const float rows = static_cast<float>(a_browser.headingCount) * Theme::FoldHeadingHeight() +
-		                   static_cast<float>(a_state.request.existingOutfits.size()) * rowHeight;
-		return FittedListHeight((std::max)(rows, rowHeight), rowHeight, a_reserved);
+		const float rows = static_cast<float>(a_state.request.existingOutfits.size()) * rowHeight;
+		return FittedListHeight((std::max)(rows, rowHeight), rowHeight, a_reserved + countLine);
 	}
 
 	// One outfit of the list: its name, and at its right end the marks of the outfit the actor
 	// wears now or has as their Default and of one chosen for a situation (Theme::OutfitMarks), the last with `a_situationMark` only;
-	// `a_striped` for every second row under a heading.
+	// `a_striped` for every second row.
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped, Theme::Grip a_grip,
 		bool a_situationMark)
 	{
@@ -255,69 +200,60 @@ namespace CaptureWindow::Internal
 		const Theme::OutfitMarks marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
 			.defaultOutfit = HoldsOutfit(a_state, 0, outfit.id),
 			.situations = a_situationMark && !situations.empty() ? situations.c_str() : nullptr };
-		return Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip);
+		return Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &outfit.icon);
 	}
 
 	// Left column of the outfit pages: the wardrobe's outfits that pass the
-	// browser, in its order, under the sort's headings, `a_selected`
-	// highlighted, under a label with the Sort dropdown. A click on a heading folds its
-	// outfits away or back. The list stays as tall as the whole wardrobe, so narrowing or folding it does
-	// not move the buttons; `a_reserved` is the browser's height (ListHeight).
+	// browser, in its order, `a_selected` highlighted, under the icon and Name column labels
+	// and over the count line. A click on a label sorts by its column, a second one reverses
+	// the order, as the piece list's labels do. The list stays as tall as the whole wardrobe,
+	// so narrowing it does not move the buttons; `a_reserved` is the browser's height (ListHeight).
 	// Returns the index into request.existingOutfits of the one clicked, or -1;
 	// a click plays the focus sound. `a_draggable` (Manage Situations): each row has a grip
 	// and drags a copy of its outfit.
 	// Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable)
 	{
+		constexpr std::array<const char*, 2> kLabels{ "##icon", "Name" };  // in OutfitBrowser::SortKey's order
+
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto& visible = a_browser.visible;
-		if (visible.size() == outfits.size()) {
-			Theme::CountText(std::format("{} outfit(s) in the wardrobe", outfits.size()).c_str());
-		} else {
-			Theme::CountText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str());
+		const auto  grip = a_draggable ? Theme::Grip::kEdge : Theme::Grip::kNone;
+		const auto  columns = Theme::OutfitColumns(grip);
+		const int   sorted = static_cast<int>(a_browser.sort);
+		if (const int column = Theme::HeaderRow(kLabels, columns, sorted, a_browser.descending, "Sort by icon"); column >= 0) {
+			QueueMenuSound(kFocusSound);
+			OutfitBrowser::SetSort(a_browser, a_state.request, static_cast<OutfitBrowser::SortKey>(column), column == sorted && !a_browser.descending);
 		}
-		DrawSortCombo(a_state, a_browser);
 		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
 		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-		const auto  grip = a_draggable ? Theme::Grip::kEdge : Theme::Grip::kNone;
-		const float listHeight = OutfitListHeight(a_state, a_browser, a_reserved);
+		const float listHeight = OutfitListHeight(a_state, a_reserved);
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
 			if (visible.empty()) {
 				Theme::HintRow("No outfit matches.");
 			}
-			const std::string* heading = nullptr;  // the last one drawn
-			bool               folded = false;     // its outfits are folded away
-			std::size_t        drawn = 0;          // rows drawn under it, for the stripes: every second one has one
-			for (const int index : visible) {
-				const auto& own = a_browser.headings[static_cast<std::size_t>(index)];
-				if (!own.empty() && (!heading || *heading != own)) {
-					folded = OutfitBrowser::IsFolded(a_browser, own);
-					drawn = 0;
-					if (Theme::FoldHeading(own.c_str(), !folded)) {
-						QueueMenuSound(kFocusSound);
-						OutfitBrowser::ToggleFolded(a_browser, own);
-						folded = !folded;
-					}
-				}
-				heading = &own;
-				if (folded) {
-					continue;
-				}
+			for (std::size_t drawn = 0; drawn < visible.size(); ++drawn) {
+				const int index = visible[drawn];
 				ImGui::PushID(index);
-				if (DrawOutfitRow(a_state, a_browser, index, a_selected == index, drawn++ % 2 == 1, grip)) {
+				if (DrawOutfitRow(a_state, a_browser, index, a_selected == index, drawn % 2 == 1, grip)) {
 					clicked = index;
 				}
 				if (a_draggable) {
 					const auto& outfit = OutfitAt(a_state, index);
-					OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), grip);
+					OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), grip, &outfit.icon);
 				}
 				ImGui::PopID();
 			}
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
+		if (visible.size() == outfits.size()) {
+			Theme::CountText(std::format("{} outfit(s) in the wardrobe", outfits.size()).c_str(), false);
+		} else {
+			Theme::CountText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str(), false);
+		}
 		if (clicked >= 0) {
 			QueueMenuSound(kFocusSound);
 		}
@@ -520,6 +456,7 @@ namespace CaptureWindow::Internal
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_index);
+		form.icon = outfit.icon;
 		form.name.fill('\0');
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
 		form.pieces = outfit.pieces;
@@ -534,12 +471,12 @@ namespace CaptureWindow::Internal
 		QueuePreview(a_state, a_index >= 0 ? a_state.manage.pieces : TickedPieces(a_state));
 	}
 
-	// The selected outfit's edits differ from the library: its trimmed name or loaded pieces.
+	// The selected outfit's edits differ from the library: its icon, trimmed name or loaded pieces.
 	bool HasLibraryEdits(const State& a_state)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		return Trimmed(form.name.data()) != outfit.name || form.pieces != outfit.pieces;
+		return form.icon != outfit.icon || Trimmed(form.name.data()) != outfit.name || form.pieces != outfit.pieces;
 	}
 
 	// Anything Update would save: an outfit is selected and has library edits.
@@ -554,21 +491,33 @@ namespace CaptureWindow::Internal
 		return a_state.manage.outfit >= 0 ? std::format("You have unsaved changes for \"{}\".", OutfitAt(a_state, a_state.manage.outfit).name) : std::string{};
 	}
 
-	// Right column: the selected outfit's name as edited, then its pieces as
-	// edited under a count line ending in Edit. Returns true when Edit is clicked.
-	bool DrawManageForm(State& a_state)
+	enum class ManageFormClick
+	{
+		kNone,
+		kIcon,  // the icon field
+		kEdit
+	};
+
+	// Right column: the selected outfit's icon and name as edited, then its pieces as
+	// edited under a count line ending in Edit. Returns what was clicked; the page opens the
+	// icon picker in its own ID scope.
+	ManageFormClick DrawManageForm(State& a_state)
 	{
 		auto& form = a_state.manage;
 		if (form.outfit < 0) {
 			Theme::LabelText("Select an outfit to edit");
-			return false;
+			return ManageFormClick::kNone;
 		}
-		DrawNameField(a_state, form.name);
+		bool icon = false;
+		DrawNameField(a_state, form.name, &form.icon, &icon);
 		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str());
 		const bool edit = Theme::LabelLink("Edit");
 		DrawPieceNames(a_state, form.pieces);
-		return edit;
+		if (icon) {
+			return ManageFormClick::kIcon;
+		}
+		return edit ? ManageFormClick::kEdit : ManageFormClick::kNone;
 	}
 
 	enum class ManageAction
@@ -748,7 +697,7 @@ namespace CaptureWindow::Internal
 	void OpenEditPage(State& a_state);
 
 	// What the library edits change, one line each, as the Save page's Update tab lists it:
-	// the pieces, a rename, the unloaded pieces kept.
+	// the pieces, a rename, a new icon, the unloaded pieces kept.
 	void DrawLibraryChangeLines(const State& a_state)
 	{
 		const auto& form = a_state.manage;
@@ -758,6 +707,9 @@ namespace CaptureWindow::Internal
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
+		}
+		if (form.icon != outfit.icon) {
+			ImGui::TextUnformatted("Its icon changes.");
 		}
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} item(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
@@ -962,7 +914,8 @@ namespace CaptureWindow::Internal
 		a_state.error.clear();
 		CaptureWindow::SaveRequest edit{ .outfit = ManagedOutfitId(a_state),
 			.name = Trimmed(form.name.data()),
-			.pieces = form.pieces };
+			.pieces = form.pieces,
+			.icon = form.icon };
 		edit.applyRow = a_applyRow;
 		const bool apply = a_applyRow.has_value();
 		auto       onUpdate = a_state.request.onManageUpdate;
@@ -1030,11 +983,89 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([onApply, id = ManagedOutfitId(a_state), a_row] { onApply(id, a_row); });
 	}
 
+	// Choose icon: the icons whose PNG is loaded, in OutfitIcons' order, the chosen one marked;
+	// under them the colours, the chosen one marked; then OK / Cancel. A click on an icon or a
+	// colour chooses it; while the mouse is over a colour every icon shows in it. OK makes the
+	// choice the edited outfit's icon, an edit as a rename is; Cancel (or Escape) leaves it.
+	// Nothing is written here.
+	void DrawIconPopup(State& a_state)
+	{
+		constexpr int   kColumns = 8;                // icons per row; to be tuned in game
+		constexpr float kTileGap = 2.0f;             // pixels at 1080p, between the icons and between the colours
+		constexpr float kSwatchHeightRatio = 0.75f;  // of the frame height
+
+		if (!BeginModal(kIconPopup)) {
+			return;
+		}
+		if (a_state.manage.outfit < 0) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return;
+		}
+		auto&       pick = a_state.iconPicker.pick;
+		const float gap = kTileGap * Theme::Scale();
+		const auto  shown = a_state.iconPicker.hoverColor.value_or(pick.rgb);
+		int         drawn = 0;
+		for (const auto key : OutfitIcons::kKeys) {
+			if (!Theme::HasOutfitIcon(key)) {
+				continue;
+			}
+			if (drawn % kColumns != 0) {
+				ImGui::SameLine(0.0f, gap);
+			} else if (drawn > 0) {
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + gap);
+			}
+			ImGui::PushID(drawn++);
+			if (Theme::IconTile("##icon", { std::string{ key }, shown }, pick.key == key)) {
+				QueueMenuSound(kFocusSound);
+				pick.key = key;
+			}
+			ImGui::PopID();
+		}
+
+		const auto  colors = OutfitIcons::kColors.size();
+		const float width = static_cast<float>(kColumns) * Theme::IconTileSide() + static_cast<float>(kColumns - 1) * gap;
+		const float swatch = (width - static_cast<float>(colors - 1) * gap) / static_cast<float>(colors);
+		Theme::SectionGap();
+		std::optional<std::uint32_t> hovered;
+		for (std::size_t i = 0; i < colors; ++i) {
+			if (i > 0) {
+				ImGui::SameLine(0.0f, gap);
+			}
+			const auto rgb = OutfitIcons::kColors[i];
+			ImGui::PushID(static_cast<int>(i));
+			if (Theme::ColorSwatch("##color", rgb, pick.rgb == rgb, swatch, ImGui::GetFrameHeight() * kSwatchHeightRatio)) {
+				QueueMenuSound(kFocusSound);
+				pick.rgb = rgb;
+			}
+			if (ImGui::IsItemHovered()) {
+				hovered = rgb;
+			}
+			ImGui::PopID();
+		}
+		a_state.iconPicker.hoverColor = hovered;
+
+		BeginButtonRow({ "OK", "Cancel" });
+		const bool ok = Theme::Button("OK");
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		if (ok || cancel) {
+			QueueMenuSound(ok ? kOkSound : kCancelSound);
+			ImGui::CloseCurrentPopup();
+		}
+		if (ok) {
+			a_state.manage.icon = pick;
+		}
+		ImGui::EndPopup();
+	}
+
 	// The page's popups, each opened by the page in its own ID scope. The unsaved-changes
 	// alert's Save Changes saves through Update's popup, whose Confirm the leave follows
 	// once the save took (Draw); Discard Changes starts the edits again from the library.
 	void DrawManagePopups(State& a_state)
 	{
+		DrawIconPopup(a_state);
 		if (DrawManageConfirmPopup(a_state)) {
 			RequestManageUpdate(a_state, std::nullopt);
 			a_state.leaveAfterSave = a_state.leave.has_value();
@@ -1073,14 +1104,14 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		BrowserControls controls;
 		int             clicked = -1;
-		bool            edit = false;
+		auto            formClick = ManageFormClick::kNone;
 		if (BeginColumns("manage")) {
 			ImGui::TableNextColumn();
 			controls = DrawBrowserControls(a_state, a_state.manageBrowser);
 			clicked = DrawOutfitList(a_state, a_state.manageBrowser, a_state.manage.outfit, controls.height);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
-			edit = DrawManageForm(a_state);
+			formClick = DrawManageForm(a_state);
 			EndColumns();
 		}
 		if (!a_state.error.empty()) {
@@ -1099,9 +1130,13 @@ namespace CaptureWindow::Internal
 				SelectManaged(a_state, target);
 			}
 		}
-		if (edit) {
+		if (formClick == ManageFormClick::kEdit) {
 			QueueMenuSound(kOkSound);
 			OpenEditPage(a_state);
+		} else if (formClick == ManageFormClick::kIcon) {
+			QueueMenuSound(kOkSound);
+			a_state.iconPicker = { .pick = a_state.manage.icon };
+			ImGui::OpenPopup(kIconPopup);
 		}
 		if (action == ManageAction::kUpdate) {
 			QueueMenuSound(kOkSound);

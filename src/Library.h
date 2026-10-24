@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "OutfitIcons.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -30,6 +32,7 @@ namespace Library
 		std::uint32_t         id = 0;  // unique and never reused
 		std::string           name;    // unique, ASCII case ignored
 		std::vector<PieceRef> pieces;  // never empty
+		OutfitIcons::Icon     icon;    // the default one for a file that names none
 	};
 
 	// Reads the file. A missing or empty file (nothing but whitespace) is an empty library. A
@@ -48,14 +51,15 @@ namespace Library
 	// number of pieces whose plugin or form is not loaded.
 	std::vector<RE::TESObjectARMO*> LoadedPieces(const Outfit& a_outfit, std::size_t* a_unloaded = nullptr);
 
-	// Adds an outfit and writes the file. Returns why it refused, having changed nothing:
-	// an empty or taken name, no armor, armor created in game, or a file it cannot write.
+	// Adds an outfit with the default icon and writes the file. Returns why it refused, having
+	// changed nothing: an empty or taken name, no armor, armor created in game, or a file it
+	// cannot write.
 	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor);
 
 	// Replaces the outfit's loaded pieces with `a_armor` (pieces whose plugin or form is not
-	// loaded stay) and its name, then writes the file. Refuses as Create does, having changed
-	// nothing; a name is taken when another outfit has it.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor);
+	// loaded stay), its name and its icon, then writes the file. Refuses as Create does, having
+	// changed nothing; a name is taken when another outfit has it.
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon);
 
 	// Takes the outfit out and writes the file; its id is never given again. Returns why it
 	// refused, having changed nothing: the outfit is gone already, or a file it cannot write.

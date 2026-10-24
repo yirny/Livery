@@ -86,8 +86,8 @@ namespace
 	constexpr float kSmallFontRatio = 0.85f;
 	// Nordic's labels and list headings, of the body font's (PushLabelFont): 14px at 1080p.
 	constexpr float kNordicLabelRatio = 0.7f;
-	// A fold heading's chevron: its box, of the font size (FoldHeading), and its stroke
-	// (pixels at 1080p).
+	// A fold chevron, after which a Grip::kEdge row's grip starts (FoldTextInset): its box, of
+	// the label font's size, and its stroke (pixels at 1080p).
 	constexpr float kFoldChevronRatio = 0.5f;
 	constexpr float kFoldChevronStroke = 1.5f;
 
@@ -104,6 +104,8 @@ namespace
 	constexpr float kAccentRuleGap = 8.0f;
 	// Room above and below the text of a single-choice list row; its fill covers it (pixels at 1080p).
 	constexpr float kSelectRowPadY = 4.0f;
+	// The same for an outfit row (OutfitRow), a pixel more (pixels at 1080p).
+	constexpr float kOutfitRowPadY = kSelectRowPadY + 1.0f;
 	// A tab of the tab column, a square with its fill, and the room between the tabs and the
 	// rule beside them (pixels at 1080p).
 	constexpr float kTabSide = 34.0f;
@@ -119,8 +121,8 @@ namespace
 	constexpr float kOutfitMarkGap = 6.0f;
 	// The dice mark's left and right corners, in from its square's sides (of the side).
 	constexpr float kDiceInset = 0.14f;
-	// From an outfit list row's left edge to its name, without a grip, in every skin
-	// (pixels at 1080p).
+	// From the left edge of the Situation List's line for the Default's items to its text
+	// (Grip::kLine), in every skin (pixels at 1080p).
 	constexpr float kOutfitRowPadX = 22.0f;
 	// From a situation heading's left edge to its name, and from a Situation List row's left
 	// edge to its grip's dots, level with that name (pixels at 1080p).
@@ -154,8 +156,6 @@ namespace
 	// it and the row's first column (pixels at 1080p).
 	constexpr float kRowIconRatio = 0.8f;
 	constexpr float kRowIconGap = 6.0f;
-	// The icon before an outfit row's name, SkyUI's body armor (PieceIcons' key), drawn white.
-	constexpr std::string_view kOutfitIconKey = "skyui/icons_item_psychosteve/armor_body";
 
 	struct FontFile
 	{
@@ -2054,13 +2054,13 @@ namespace
 		return (std::max)(1.0f, kRadius * g_scale);
 	}
 
-	// A fold heading's chevron stroke on the back buffer (FoldHeading).
+	// A fold chevron's stroke on the back buffer.
 	float FoldChevronThickness()
 	{
 		return (std::max)(1.0f, kFoldChevronStroke * g_scale);
 	}
 
-	// From a fold heading's left edge to its chevron (pixels on the back buffer): in Modern
+	// From a list row's left edge to a fold chevron (pixels on the back buffer): in Modern
 	// kRuleEndPad, as much as the rule leaves at the right end, since the list's backdrop starts
 	// at that edge; nothing in Vanilla and Nordic, whose rows run on past the content.
 	float FoldChevronPad()
@@ -2068,8 +2068,8 @@ namespace
 		return g_skin == Theme::Skin::kModern ? kRuleEndPad * g_scale : 0.0f;
 	}
 
-	// From a fold heading's left edge to its text (pixels on the back buffer): the chevron's
-	// pad, half its stroke, its box and the inner spacing after it (FoldHeading). Measured once
+	// From a list row's left edge to the text after a fold chevron (pixels on the back buffer):
+	// the chevron's pad, half its stroke, its box and the inner spacing after it. Measured once
 	// a frame: every draggable outfit row asks for it twice (DrawGrip, RowTextInset).
 	// Contract: ImGui's thread, inside a frame.
 	float FoldTextInset()
@@ -2110,14 +2110,26 @@ namespace
 		}
 	}
 
-	// From an outfit row's left edge to its name (pixels on the back buffer):
-	// kOutfitRowPadX, or on a draggable row kGripTextGap past its grip's dots (DrawGrip).
+	// From an outfit row's left edge to its icon (pixels on the back buffer): where a tick
+	// row's text starts (TickTextShift), kOutfitRowPadX for Grip::kLine, or on a draggable row
+	// kGripTextGap past its grip's dots (DrawGrip).
 	float RowTextInset(Theme::Grip a_grip)
 	{
-		if (a_grip == Theme::Grip::kNone) {
+		switch (a_grip) {
+		case Theme::Grip::kNone:
+			return TickTextShift();
+		case Theme::Grip::kLine:
 			return kOutfitRowPadX * g_scale;
+		case Theme::Grip::kEdge:
+		case Theme::Grip::kName:
+			break;
 		}
 		return GripPadX(a_grip) + (kGripDotStep + kGripTextGap) * g_scale + GripDotRadius() * 2.0f;
+	}
+
+	bool HasGrip(Theme::Grip a_grip)
+	{
+		return a_grip == Theme::Grip::kEdge || a_grip == Theme::Grip::kName;
 	}
 
 	// From a situation heading's left edge to its name (pixels on the back buffer), which leaves
@@ -2174,20 +2186,70 @@ namespace
 		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
 	}
 
-	// The white body armor icon (kOutfitIconKey) before an outfit's name, a square of the text
-	// height, its left edge at `a_left` and centred on `a_midY`, tinted through the style alpha.
-	// Returns the room it takes before the name, the gap included; 0 without its texture.
-	float DrawOutfitIcon(ImDrawList* a_draw, float a_left, float a_midY)
+	// The texture of an outfit's icon: its key's, else the default key's (OutfitIcons); nullptr
+	// when neither PNG is loaded.
+	const IconTexture* OutfitIconTexture(std::string_view a_key)
 	{
-		const auto found = g_rowIcons.find(kOutfitIconKey);
+		auto found = g_rowIcons.find(a_key);
 		if (found == g_rowIcons.end()) {
+			found = g_rowIcons.find(OutfitIcons::kDefaultKey);
+		}
+		return found != g_rowIcons.end() ? &found->second : nullptr;
+	}
+
+	// The white icon `a_icon` tinted with its colour, `a_side` square from `a_topLeft`, through
+	// the style alpha. Nothing when OutfitIconTexture has none.
+	void DrawOutfitIconAt(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, const OutfitIcons::Icon& a_icon)
+	{
+		const auto* texture = OutfitIconTexture(a_icon.key);
+		if (!texture) {
+			return;
+		}
+		const ImVec2 topLeft(std::round(a_topLeft.x), std::round(a_topLeft.y));
+		const ImU32  tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
+		a_draw->AddImage(texture->Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+	}
+
+	// An outfit row's icon: a square of the text height.
+	float OutfitIconSide()
+	{
+		return std::round(ImGui::GetTextLineHeight());
+	}
+
+	// The room an outfit row's icon takes before the name, the gap included; 0 when even the
+	// default icon's PNG is missing, so the rows and the header's Name line up either way.
+	float OutfitIconRoom()
+	{
+		return OutfitIconTexture(OutfitIcons::kDefaultKey) ? OutfitIconSide() + kRowIconGap * g_scale : 0.0f;
+	}
+
+	// The outfit's icon (`a_icon`; nullptr for none) before its name, its left edge at `a_left`
+	// and centred on `a_midY`. Returns the room it takes before the name (OutfitIconRoom), 0
+	// for none.
+	float DrawOutfitIcon(ImDrawList* a_draw, float a_left, float a_midY, const OutfitIcons::Icon* a_icon)
+	{
+		if (!a_icon) {
 			return 0.0f;
 		}
-		const float  side = std::round(ImGui::GetTextLineHeight());
-		const ImVec2 topLeft(std::round(a_left), std::round(a_midY - side * 0.5f));
-		a_draw->AddImage(found->second.Id(side), topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
-			ImGui::GetColorU32(IM_COL32_WHITE));
-		return side + kRowIconGap * g_scale;
+		const float side = OutfitIconSide();
+		DrawOutfitIconAt(a_draw, ImVec2(a_left, a_midY - side * 0.5f), side, *a_icon);
+		return OutfitIconRoom();
+	}
+
+	// An icon tile's or the icon field's fills: the hover colour while hovered, the selected colour with a rim while
+	// selected, both with the frames' rounding, in every skin.
+	void DrawTileFills(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, bool a_selected, bool a_hovered)
+	{
+		constexpr float kRimAlpha = 0.6f;  // of the text colour
+
+		const float rounding = ImGui::GetStyle().FrameRounding;
+		if (a_selected) {
+			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_Header), rounding);
+			a_draw->AddRect(a_min, a_max, ImGui::GetColorU32(ImGuiCol_Text, kRimAlpha), rounding, 0, (std::max)(1.0f, g_scale));
+		}
+		if (a_hovered) {
+			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_HeaderHovered), rounding);
+		}
 	}
 
 	// A list heading's icon (Theme::HeadingIcon), an 18px square in every skin, its left edge at
@@ -2728,9 +2790,10 @@ namespace Theme
 		return kColumnGap * g_scale;
 	}
 
-	int HeaderRow(std::span<const char* const> a_labels, std::span<const float> a_columnX, int a_sorted, bool a_descending)
+	int HeaderRow(std::span<const char* const> a_labels, std::span<const float> a_columnX, int a_sorted, bool a_descending, const char* a_unnamedTip)
 	{
-		constexpr float kArrowRatio = 0.4f;  // the sort arrow's width, of the font size
+		constexpr float kArrowRatio = 0.4f;     // the sort arrow's width, of the font size
+		constexpr float kUnsortedAlpha = 0.5f;  // of an unnamed column's arrow pair while another column sorts
 
 		SectionGap();
 		PushLabelSpacing();  // the gap below is LabelText's
@@ -2739,27 +2802,37 @@ namespace Theme
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
 		const float  textX = origin.x + TickTextShift();
 		const float  arrow = ImGui::GetFontSize() * kArrowRatio;
+		const float  lineHeight = ImGui::GetTextLineHeight();
 		auto*        draw = ImGui::GetWindowDrawList();
 		int          clicked = -1;
 		for (std::size_t i = 0; i < a_labels.size(); ++i) {
 			const bool   sorted = static_cast<int>(i) == a_sorted;
-			const Caps   label(a_labels[i]);  // shown; the ImGui ID stays a_labels[i]
-			const ImVec2 text = ImGui::CalcTextSize(label.c_str());
-			const float  width = text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f);
+			const bool   unnamed = std::string_view(a_labels[i]).starts_with("##");
+			const Caps   label(unnamed ? "" : a_labels[i]);  // shown; the ImGui ID stays a_labels[i]
+			const ImVec2 text = unnamed ? ImVec2(0.0f, lineHeight) : ImGui::CalcTextSize(label.c_str());
+			// An unnamed column's click area is a square of the line height.
+			const float width = unnamed ? lineHeight : text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f);
 			if (i > 0) {
 				ImGui::SameLine();
 			}
-			ImGui::SetCursorScreenPos(ImVec2(textX + a_columnX[i], origin.y));
+			// An unnamed column's arrows are centred on its x, a label starts there.
+			ImGui::SetCursorScreenPos(ImVec2(textX + a_columnX[i] - (unnamed ? width * 0.5f : 0.0f), origin.y));
 			if (ImGui::InvisibleButton(a_labels[i], ImVec2((std::max)(1.0f, width), (std::max)(1.0f, text.y)))) {
 				clicked = static_cast<int>(i);
 			}
-			const ImU32  color = LinkColor(ImGui::IsItemHovered());
+			const bool   hovered = ImGui::IsItemHovered();
+			const ImU32  color = LinkColor(hovered);
 			const ImVec2 pos = ImGui::GetItemRectMin();
-			draw->AddText(pos, color, label.c_str());
+			if (unnamed && hovered && a_unnamedTip) {
+				ImGui::SetTooltip("%s", a_unnamedTip);
+			}
+			if (!unnamed) {
+				draw->AddText(pos, color, label.c_str());
+			}
+			const float left = unnamed ? pos.x + (width - arrow) * 0.5f : pos.x + text.x + style.ItemInnerSpacing.x;
+			const float midY = pos.y + text.y * 0.5f;
+			const float half = arrow * 0.5f;
 			if (sorted) {
-				const float  left = pos.x + text.x + style.ItemInnerSpacing.x;
-				const float  midY = pos.y + text.y * 0.5f;
-				const float  half = arrow * 0.5f;
 				const float  tip = a_descending ? half * 0.6f : -half * 0.6f;  // the point's offset from midY
 				const ImVec2 baseL(left, midY - tip), baseR(left + arrow, midY - tip), point(left + half, midY + tip);
 				// ImGui fills clockwise shapes only: a counter-clockwise one gets its anti-aliasing fringe
@@ -2769,11 +2842,24 @@ namespace Theme
 				} else {
 					draw->AddTriangleFilled(baseR, baseL, point, color);
 				}
+			} else if (unnamed) {
+				// Both arrows, half as tall, one over the other, faded until hovered.
+				const ImU32 pair = hovered ? color : ImGui::GetColorU32(LabelGrey(), kUnsortedAlpha);
+				const float tall = half * 0.6f;
+				const float gap = (std::max)(1.0f, g_scale);
+				draw->AddTriangleFilled(ImVec2(left + arrow, midY - gap), ImVec2(left, midY - gap), ImVec2(left + half, midY - gap - tall), pair);
+				draw->AddTriangleFilled(ImVec2(left, midY + gap), ImVec2(left + arrow, midY + gap), ImVec2(left + half, midY + gap + tall), pair);
 			}
 		}
 		ImGui::PopFont();
 		ImGui::PopStyleVar();
 		return clicked;
+	}
+
+	std::array<float, 2> OutfitColumns(Grip a_grip)
+	{
+		const float iconLeft = RowTextInset(a_grip) - TickTextShift();  // from where HeaderRow's columns start
+		return { iconLeft + OutfitIconSide() * 0.5f, iconLeft + OutfitIconRoom() };
 	}
 
 	bool TickRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const RowIcon& a_icon)
@@ -3122,7 +3208,7 @@ namespace Theme
 	}
 
 	// The rule after a ListHeading's text, kTextRuleGap past `a_textRight`, to kRuleEndPad short of
-	// where the row's fills end (RowFillRight), as FoldHeading's. `a_cursor` is the heading's cursor
+	// where the row's fills end (RowFillRight). `a_cursor` is the heading's cursor
 	// before its Dummy, `a_width` the content width it took.
 	void DrawListHeadingRule(ImDrawList* a_draw, ImVec2 a_cursor, float a_width, float a_textRight, float a_midY)
 	{
@@ -3146,38 +3232,6 @@ namespace Theme
 		const ImVec2 size = ImGui::CalcTextSize(caps.c_str());
 		DrawListHeadingRule(draw, cursor, width, text.x + size.x, text.y + size.y * 0.5f);
 		ImGui::PopFont();
-	}
-
-	// The chevron's box starts at the list's left edge, where the rows' fills do, the text
-	// after it (FoldTextInset, where a draggable row's grip starts). The rule ends 4px short of
-	// where the rows' fills end.
-	bool FoldHeading(const char* a_text, bool a_open)
-	{
-		PushLabelFont();
-		const float   gap = ListPaddingY();  // the row gap the outfit list leaves out, half above and half below
-		const ListRow row = LayOutListRow(a_text, SelectRowHeight() + gap);
-		const float   side = ImGui::GetFontSize() * kFoldChevronRatio;
-		const float   midY = (row.min.y + row.max.y) * 0.5f;
-		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		const float   thick = FoldChevronThickness();
-		// Its pad, then half the stroke in, so its outer edge sits on the list's edge in Vanilla
-		// and Nordic, where that edge is the list's clip, which would cut the stroke.
-		const float left = row.fillMin.x + FoldChevronPad() + thick * 0.5f;
-		auto*       draw = ImGui::GetWindowDrawList();
-		if (a_open) {
-			const ImVec2 points[] = { { left, midY - side * 0.25f }, { left + side * 0.5f, midY + side * 0.25f }, { left + side, midY - side * 0.25f } };
-			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
-		} else {
-			const ImVec2 points[] = { { left + side * 0.25f, midY - side * 0.5f }, { left + side * 0.75f, midY }, { left + side * 0.25f, midY + side * 0.5f } };
-			draw->AddPolyline(points, 3, color, ImDrawFlags_None, thick);
-		}
-		const float textX = row.fillMin.x + FoldTextInset();
-		const Caps  text(a_text);  // shown; the ImGui ID stays a_text
-		draw->AddText(ImVec2(textX, row.min.y + gap * 0.5f + kSelectRowPadY * g_scale), color, text.c_str());
-		const float ruleLeft = textX + ImGui::CalcTextSize(text.c_str()).x + kTextRuleGap * g_scale;
-		DrawTextRule(draw, ruleLeft, row.fillMax.x - kRuleEndPad * g_scale, midY);
-		ImGui::PopFont();
-		return row.pressed;
 	}
 
 	// Three click areas side by side, edge to edge of the list as LayOutListRow's: the name and
@@ -3378,11 +3432,6 @@ namespace Theme
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kAfterFieldGap * g_scale);
 	}
 
-	float FoldHeadingHeight()
-	{
-		return ListHeadingHeight() + ListPaddingY();
-	}
-
 	float SituationHeadingHeight()
 	{
 		return SelectRowHeight() + ListPaddingY();
@@ -3390,20 +3439,19 @@ namespace Theme
 
 	float OutfitRowHeight()
 	{
-		return SelectRowHeight() + ListPaddingY();
+		return ImGui::GetTextLineHeight() + kOutfitRowPadY * 2.0f * g_scale + ListPaddingY();
 	}
 
 	// SelectRow holding the row gap the list leaves out, half above the name and half below it.
-	bool OutfitRow(const char* a_name, bool a_selected, const OutfitMarks& a_marks, bool a_striped, Grip a_grip)
+	bool OutfitRow(const char* a_name, bool a_selected, const OutfitMarks& a_marks, bool a_striped, Grip a_grip, const OutfitIcons::Icon* a_icon)
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
 		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of the select mark in an edge grip's room
-		constexpr float kMarkShift = 2.0f;      // pixels at 1080p, the select mark right of its room's centre on a row without a grip
 
 		const float   gap = ListPaddingY();
 		const ListRow row = LayOutListRow(a_name, OutfitRowHeight());
 		const float   textX = row.fillMin.x + RowTextInset(a_grip);
-		const float   textY = row.min.y + gap * 0.5f + kSelectRowPadY * g_scale;
+		const float   textY = row.min.y + gap * 0.5f + kOutfitRowPadY * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
 		if (a_striped) {
 			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(PaletteColor(g_palette.stripe)));
@@ -3411,9 +3459,9 @@ namespace Theme
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		// Selected: Modern's rule on the row's edge (DrawSelectMark), which leaves the grip room;
 		// Vanilla's equipped mark, as on a ticked piece, or Nordic's select arrow (its equipped
-		// mark stays the inventory's), 2px right of the centre of the room left of the name, or
-		// centred left of the dots at the name's place; at the edge it takes the dots' place,
-		// shrunk to fit.
+		// mark stays the inventory's), without a grip in the equipped mark's column, as on a
+		// ticked piece, or centred left of the dots at the name's place; at the edge it takes the
+		// dots' place, shrunk to fit.
 		const float nameMidY = textY + ImGui::GetTextLineHeight() * 0.5f;
 		const bool  modern = g_skin == Theme::Skin::kModern;
 		const bool  markOnGrip = a_selected && !modern && a_grip == Grip::kEdge;
@@ -3423,8 +3471,8 @@ namespace Theme
 			const float  left = markOnGrip ? row.fillMin.x : row.min.x;
 			const float  right = a_grip == Grip::kName ? row.fillMin.x + GripPadX(a_grip) : textX;
 			const float  room = (std::max)(1.0f, right - left - kEdgeMarkPad * 2.0f * g_scale);  // across, at the edge
-			const float  shift = a_grip == Grip::kNone ? kMarkShift * g_scale : 0.0f;
-			const ImVec2 centre((left + right) * 0.5f + shift, nameMidY);
+			const float  centreX = a_grip == Grip::kNone ? row.fillMin.x + EquippedMarkSide() * 0.5f : (left + right) * 0.5f;
+			const ImVec2 centre(centreX, nameMidY);
 			if (g_skin == Theme::Skin::kNordic) {
 				ImVec2 size = SelectArrowSize();
 				if (markOnGrip && size.x > room) {
@@ -3436,7 +3484,7 @@ namespace Theme
 				DrawEquippedMark(draw, centre, side);
 			}
 		}
-		if (a_grip != Grip::kNone && !markOnGrip) {
+		if (HasGrip(a_grip) && !markOnGrip) {
 			DrawGrip(draw, row.fillMin.x, nameMidY, a_grip);
 		}
 		// The marks, right of the name on its line, in LabelText's grey; the name is cut
@@ -3446,7 +3494,7 @@ namespace Theme
 		const ImVec2 markCentre(marksRight, textY + side * 0.5f);
 		const int    marks = DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
 		const float  nameRight = marksRight - OutfitMarksWidth(a_marks);
-		const float  nameX = textX + DrawOutfitIcon(draw, textX, nameMidY);
+		const float  nameX = textX + DrawOutfitIcon(draw, textX, nameMidY, a_icon);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
 		if (nameX + nameSize.x <= nameRight) {
 			draw->AddText(ImVec2(nameX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
@@ -3469,14 +3517,14 @@ namespace Theme
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, OutfitRowHeight()));
 		const float textX = ImGui::GetWindowPos().x + g_listReach.x + RowTextInset(Grip::kNone);
-		const float textY = cursor.y + ListPaddingY() * 0.5f + kSelectRowPadY * g_scale;
+		const float textY = cursor.y + ListPaddingY() * 0.5f + kOutfitRowPadY * g_scale;
 		ImGui::GetWindowDrawList()->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_TextDisabled), a_text);
 	}
 
 	// Laid out as OutfitRow lays out its row: across the fills' span, the dots and the name on
 	// the name's line. The grab point is ImGui's ActiveIdClickOffset, which the row's button set
 	// when pressed and which holds while its drag is on (the drag keeps the row active).
-	void OutfitDragGhost(const char* a_name, Grip a_grip)
+	void OutfitDragGhost(const char* a_name, Grip a_grip, const OutfitIcons::Icon* a_icon)
 	{
 		constexpr float kGhostAlpha = 0.7f;  // of the whole copy, on top of the style's alpha
 
@@ -3490,7 +3538,7 @@ namespace Theme
 		const ImVec2 ghostMin(left + g_listReach.x + shiftX, itemMin.y + shiftY);
 		const ImVec2 ghostMax(RowFillRight(left, itemMax.x) + shiftX, itemMax.y + shiftY);
 		const float  textX = ghostMin.x + RowTextInset(a_grip);
-		const float  textY = ghostMin.y + ListPaddingY() * 0.5f + kSelectRowPadY * g_scale;
+		const float  textY = ghostMin.y + ListPaddingY() * 0.5f + kOutfitRowPadY * g_scale;
 		const auto&  style = ImGui::GetStyle();
 		auto*        draw = ImGui::GetForegroundDrawList();
 		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.Alpha * kGhostAlpha);
@@ -3499,11 +3547,11 @@ namespace Theme
 			draw->AddRect(ghostMin, ghostMax, ImGui::GetColorU32(ImGuiCol_Border), style.PopupRounding, 0, style.PopupBorderSize);
 		}
 		const float midY = textY + ImGui::GetTextLineHeight() * 0.5f;
-		if (a_grip != Grip::kNone) {
+		if (HasGrip(a_grip)) {
 			DrawGrip(draw, ghostMin.x, midY, a_grip);
 		}
 		const float  nameRight = ghostMax.x - style.FramePadding.x;
-		const float  nameX = textX + DrawOutfitIcon(draw, textX, midY);
+		const float  nameX = textX + DrawOutfitIcon(draw, textX, midY, a_icon);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
 		if (nameX + nameSize.x <= nameRight) {
 			draw->AddText(ImVec2(nameX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
@@ -3511,5 +3559,69 @@ namespace Theme
 			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
 		ImGui::PopStyleVar();
+	}
+
+	bool HasOutfitIcon(std::string_view a_key)
+	{
+		return g_rowIcons.contains(a_key);
+	}
+
+	float IconFieldWidth()
+	{
+		constexpr float kPadX = 8.0f;  // pixels at 1080p, left and right of the icon
+
+		return OutfitIconSide() + kPadX * 2.0f * g_scale;
+	}
+
+	bool IconField(const char* a_id, const OutfitIcons::Icon& a_icon)
+	{
+		const ImVec2 size(IconFieldWidth(), FieldHeight({}));
+		const bool   clicked = ImGui::InvisibleButton(a_id, size);
+		const ImVec2 min = ImGui::GetItemRectMin();
+		const ImVec2 max = ImGui::GetItemRectMax();
+		auto*        draw = ImGui::GetWindowDrawList();
+		DrawTileFills(draw, min, max, false, ImGui::IsItemHovered());
+		const float side = OutfitIconSide();
+		DrawOutfitIconAt(draw, ImVec2((min.x + max.x - side) * 0.5f, (min.y + max.y - side) * 0.5f), side, a_icon);
+		return clicked;
+	}
+
+	float IconTileSide()
+	{
+		constexpr float kPad = 6.0f;  // pixels at 1080p, around the icon
+
+		return std::round(ImGui::GetFrameHeight()) + kPad * 2.0f * g_scale;
+	}
+
+	bool IconTile(const char* a_id, const OutfitIcons::Icon& a_icon, bool a_selected)
+	{
+		const float  side = IconTileSide();
+		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(side, side));
+		const ImVec2 min = ImGui::GetItemRectMin();
+		auto*        draw = ImGui::GetWindowDrawList();
+		DrawTileFills(draw, min, ImGui::GetItemRectMax(), a_selected, ImGui::IsItemHovered());
+		const float icon = std::round(ImGui::GetFrameHeight());
+		DrawOutfitIconAt(draw, ImVec2(min.x + (side - icon) * 0.5f, min.y + (side - icon) * 0.5f), icon, a_icon);
+		return clicked;
+	}
+
+	bool ColorSwatch(const char* a_id, std::uint32_t a_rgb, bool a_selected, float a_width, float a_height)
+	{
+		constexpr float kHoverRim = 1.0f;     // pixels at 1080p
+		constexpr float kSelectedRim = 2.0f;  // pixels at 1080p
+
+		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2((std::max)(1.0f, a_width), (std::max)(1.0f, a_height)));
+		const ImVec2 min = ImGui::GetItemRectMin();
+		const ImVec2 max = ImGui::GetItemRectMax();
+		const float  rounding = ImGui::GetStyle().FrameRounding;
+		auto*        draw = ImGui::GetWindowDrawList();
+		draw->AddRectFilled(min, max, ImGui::GetColorU32(IM_COL32((a_rgb >> 16) & 0xFF, (a_rgb >> 8) & 0xFF, a_rgb & 0xFF, 255)), rounding);
+		const float rim = a_selected ? kSelectedRim : (ImGui::IsItemHovered() ? kHoverRim : 0.0f);
+		if (rim > 0.0f) {
+			const float width = (std::max)(1.0f, rim * g_scale);
+			const float in = width * 0.5f;  // the stroke inside the swatch
+			draw->AddRect(ImVec2(min.x + in, min.y + in), ImVec2(max.x - in, max.y - in), ImGui::GetColorU32(ImGuiCol_Text), rounding, 0, width);
+		}
+		return clicked;
 	}
 }

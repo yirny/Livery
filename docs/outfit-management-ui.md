@@ -32,8 +32,7 @@ and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nord
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add items from Wardrobe...`,
-`Edit`, `Restore`, `Remove`, `Restore Presets`) and `Sort by` take the
-small font in every skin.
+`Edit`, `Restore`, `Remove`, `Restore Presets`) take the small font in every skin.
 
 ## 1. Outfit list (step 1)
 
@@ -45,7 +44,7 @@ page. Each page keeps its own search and sort.
 - One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
   the library. An older file's outfit categories are read past and gone at the next write.
-- Each row: the outfit's name alone, one line high.
+- Each row: the outfit's icon and name, one line high.
 - Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
   colour, graded as a selected row's fill; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
@@ -62,7 +61,8 @@ page. Each page keeps its own search and sort.
   rows in Vanilla and Nordic (Nordic's 4px larger, its window padding 32px); the equipped
   mark on piece rows. A selected outfit row (the outfit the preview shows) has Vanilla's
   equipped mark or Nordic's MCM page arrow, centred where the arrow would be (on an outfit
-  row without a drag grip, 2px right of that); Nordic puts the arrow on a ticked dropdown row too, at its start.
+  row without a drag grip, in the equipped mark's column, as on a ticked piece row); Nordic
+  puts the arrow on a ticked dropdown row too, at its start.
 - A multi-choice dropdown row: Vanilla and Nordic draw the game's checkbox at the row's start
   (after Nordic's arrow), then the label; Modern a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
@@ -73,24 +73,27 @@ page. Each page keeps its own search and sort.
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
   it), `Default Outfit` on the bare form, `For Town, Warm` (`OutfitBrowser::State::situations`,
   computed at Rebuild). The form and the star side by side when both apply.
-- `Sort by`'s text is right-aligned, ending 6px short of its arrow.
-- Rows meet with no gap (the list lays them out with no item spacing; each row and heading
-  holds the former gap, half above and half below), and every second row under a heading
-  has the palette's Stripe colour under its fills (Vanilla and Nordic white at 16/255,
-  Modern black at 32/255), as Tailor 3.0's outfit list
-  alternates its rows. Each name follows SkyUI's body armor icon in white (`skyui/icons_item_psychosteve/armor_body`), a square of the text height, 6px before it; the icon starts 22px in from the row's left edge.
+- Rows meet with no gap (the list lays them out with no item spacing; each row holds the
+  former gap, half above and half below, and 5px above and below its name), and every
+  second row has the palette's Stripe colour under its fills (Vanilla and Nordic white at
+  16/255, Modern black at 32/255), as Tailor 3.0's outfit list alternates its rows. Each
+  name follows the outfit's icon (design.md §9), a square of the text height, 6px before
+  it; the icon starts where a piece row's text starts (`Theme::TickTextShift`), or on a
+  row with a drag grip 12px past its dots.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
-- `Sort by`: Name, Situation. Situation puts headings in the list: the rows holding the
-  outfit joined with `, ` (`Town, Swimming`), in their order (Default, then
-  `Situations::kChoosable`). Outfits on none of the rows come last under `No Situation`. Within a heading, by name.
-- A heading has a chevron at the list's left edge (in Modern 4px in from it, as much as the
-  rule leaves at the right end), pointing down while open and right while
-  folded, its text after it, and a rule in the list's rule colour from 12px after its text to
-  4px short of the list's right end. In a list whose rows have a drag grip (Manage
-  Situations), the grip's dots start where the heading's text does. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
-  by heading text). Every heading is open when the window opens and when the sort changes;
-  the list keeps the height of the whole library.
-- Headings and situation mark text are computed when the list is refreshed, never per frame.
+- Column labels over the list, as the piece list's (`Theme::HeaderRow`): an unnamed icon
+  column centred over the rows' icons, then `NAME` over their names. A click on a label
+  sorts by its column, a second one reverses the order, the arrow after the sorted label
+  showing which way. The icon column shows its arrow alone; while Name sorts, both arrows
+  half as tall, one over the other, faded until hovered, with the tooltip `Sort by icon`.
+  Icon sorts by `OutfitIcons::kKeys`' order, then `kColors`' order, then the name (icons
+  and colours not in the tables last); Name by the name, ASCII case ignored; descending
+  reverses the whole order. Each page's list starts at Name ascending when the window opens.
+- The count line under the list, as the piece list's: `12 outfit(s) in the wardrobe`, or
+  `3 of 12 outfits` while the search narrows it. The list's height cap leaves room for it,
+  and the list keeps the height of the whole library.
+- The order and the situation mark text are computed when the list is refreshed, never per
+  frame.
 
 ## 2. Inventory page (step 1)
 
@@ -162,7 +165,17 @@ page. Each page keeps its own search and sort.
 
 - Title `Manage Wardrobe` (the tab's name too), no summary line. Two columns as on the Load
   page: the outfit list (§1) on the left; on the right the selected outfit, editable:
-  - name, as the Save page's field.
+  - icon and name on one line: the icon field (`Theme::IconField`), the outfit's icon with
+    8px on either side, as tall as the name field, filled in the hover colour while hovered
+    (`Outfit Icon` on hover); then the name, as the Save page's field.
+  - A click on the icon field opens `Choose icon` (no title, as every popup): the icons
+    whose PNG is loaded, in `OutfitIcons::kKeys`' order, 8 to a row, each a tile with 6px
+    around it, filled in the hover colour while hovered and in the selected colour with a
+    rim while chosen; under them the ten colours of `OutfitIcons::kColors`, one row as wide
+    as the icons, a 1px rim while hovered and 2px while chosen; then `OK` / `Cancel`.
+    While the mouse is over a colour, every icon shows in it; a click chooses an icon or a
+    colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
+    leaves it. Nothing is written until Update.
   - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
     stay in the outfit. The Load page's details and the Save page's piece columns keep the
@@ -175,9 +188,9 @@ page. Each page keeps its own search and sort.
   ticks.
 - Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (step 3) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`).
-  - Update: greyed until the outfit differs from the library (trimmed name, pieces), and
+  - Update: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
     with an empty name (`kNeedName`). A popup (`Save changes?`) lists
-    what changes (pieces, rename), as the Save page's Update tab does; the
+    what changes (pieces, rename, `Its icon changes.`), as the Save page's Update tab does; the
     buttons are `Confirm` / `Cancel`. The window hands the edits to
     `Request::onManageUpdate`; no row changes. CLAUDE.md §2.1 applies: a name another outfit
     has (ASCII case ignored) is refused, and a refused or failed write changes nothing and
