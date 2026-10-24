@@ -4,7 +4,7 @@
 //   Constants - file location, the refusal for a file that could not be read
 //   State     - the table as read, whether the file may be written
 //   File      - write through a temporary file
-//   API       - Load / Name / Description / Suffix / IsRemoved / Offered / Apply / Remove /
+//   API       - Load / Name / Suffix / IsRemoved / Offered / Apply / Remove /
 //               RestorePresets / RestoreChanges
 //
 // The file's format and rules are in SituationTable.h.
@@ -122,14 +122,9 @@ namespace SituationStore
 		return EntryOf(a_situation).name;
 	}
 
-	const std::string& Description(Situations::Situation a_situation)
-	{
-		return EntryOf(a_situation).description;
-	}
-
 	std::string Suffix(Situations::Situation a_situation)
 	{
-		return SituationTable::Suffix(EntryOf(a_situation));
+		return a_situation == Situations::Situation::kDefault ? std::string{} : " for " + EntryOf(a_situation).name;
 	}
 
 	bool IsRemoved(Situations::Situation a_situation)
@@ -155,13 +150,12 @@ namespace SituationStore
 			return kUnreadable;
 		}
 		auto table = g_table;
-		for (const auto& [situation, name, description] : a_edits) {
+		for (const auto& [situation, name] : a_edits) {
 			auto& entry = table[SituationTable::IndexOf(situation)];
 			if (entry.removed) {
 				return std::format("\"{}\" has been removed.", entry.name);
 			}
 			entry.name = name;
-			entry.description = description;
 		}
 		if (auto problem = SituationTable::CheckNames(table)) {
 			return problem;

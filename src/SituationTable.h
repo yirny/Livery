@@ -16,22 +16,21 @@
 #include <type_traits>
 #include <vector>
 
-// The situations' names, descriptions and removed flags as situations.json keeps them
+// The situations' names and removed flags as situations.json keeps them
 // (docs/situation-management-ui.md §2), and the rules that need no game: the presets, the
 // file's parse and write, the name rules, Restore Presets' change lines. SituationStore
 // keeps the table and writes the file; the unit tests reach this header.
 //
-// situations.json, version 1, only the situations that differ from the presets:
-//   { "version": 1, "situations": [ { "key": "Town", "name": "City",
-//     "description": "in the city", "removed": false } ] }
+// situations.json, version 1, only the situations that differ from the presets; an entry's
+// other fields, such as a "description", are ignored:
+//   { "version": 1, "situations": [ { "key": "Town", "name": "City", "removed": false } ] }
 namespace SituationTable
 {
 	inline constexpr int kVersion = 1;  // the "version" field this code reads and writes
 
 	struct Entry
 	{
-		std::string name;         // shown wherever the window and the HUD name the situation
-		std::string description;  // ends the sentences that say what is worn; "" adds nothing
+		std::string name;  // shown wherever the window and the HUD name the situation
 		bool        removed = false;
 
 		friend bool operator==(const Entry&, const Entry&) = default;
@@ -46,32 +45,10 @@ namespace SituationTable
 		return static_cast<std::size_t>(a_situation);
 	}
 
-	// As Livery installs it: named as its key, described for the sentences; the Default has
-	// no description, since it is worn in towns without a Town outfit and in fights too.
+	// As Livery installs it: named as its key.
 	inline Entry Preset(Situations::Situation a_situation)
 	{
-		using Situations::Situation;
-		const char* description = "";
-		switch (a_situation) {
-		case Situation::kTown:
-			description = "in Town";
-			break;
-		case Situation::kHome:
-			description = "at Home";
-			break;
-		case Situation::kSleep:
-			description = "ready for Sleep";
-			break;
-		case Situation::kSwimming:
-			description = "swimming";
-			break;
-		case Situation::kWarm:
-			description = "keeping Warm";
-			break;
-		default:
-			break;
-		}
-		return { .name = Situations::Name(a_situation), .description = description };
+		return { .name = Situations::Name(a_situation) };
 	}
 
 	inline Table Presets()
@@ -81,12 +58,6 @@ namespace SituationTable
 			table[i] = Preset(static_cast<Situations::Situation>(i));
 		}
 		return table;
-	}
-
-	// ", in Town" for the end of a sentence; "" for an empty description.
-	inline std::string Suffix(const Entry& a_entry)
-	{
-		return a_entry.description.empty() ? std::string{} : ", " + a_entry.description;
 	}
 
 	// Why the names break the rules, or nullopt: every name has text, the Default keeps its
@@ -163,9 +134,8 @@ namespace SituationTable
 			}
 			a_seen[index] = true;
 			auto& entry = a_table[index];
-			if (!ReadOptional(a_json, "name", entry.name) || !ReadOptional(a_json, "description", entry.description) ||
-				!ReadOptional(a_json, "removed", entry.removed)) {
-				return std::format("Situation {} has a name or description that is not text, or a removed that is not true or false.", a_position);
+			if (!ReadOptional(a_json, "name", entry.name) || !ReadOptional(a_json, "removed", entry.removed)) {
+				return std::format("Situation {} has a name that is not text, or a removed that is not true or false.", a_position);
 			}
 			return std::nullopt;
 		}
@@ -219,7 +189,7 @@ namespace SituationTable
 			const auto  situation = static_cast<Situations::Situation>(i);
 			const auto& entry = a_table[i];
 			if (entry != Preset(situation)) {
-				list.push_back({ { "key", Situations::Name(situation) }, { "name", entry.name }, { "description", entry.description }, { "removed", entry.removed } });
+				list.push_back({ { "key", Situations::Name(situation) }, { "name", entry.name }, { "removed", entry.removed } });
 			}
 		}
 		const nlohmann::ordered_json json{ { "version", kVersion }, { "situations", std::move(list) } };
@@ -228,24 +198,16 @@ namespace SituationTable
 
 	// What Restore Presets changes, one line per situation that differs from its preset, the
 	// Default first, each under its name now: "Town: restored" for a removed one, else "Home:
-	// name reset", "Warm: name and description reset" or "Sleep: description reset". Empty
-	// while every preset is as installed.
+	// name reset". Empty while every preset is as installed.
 	inline std::vector<std::string> RestoreChanges(const Table& a_table)
 	{
 		std::vector<std::string> lines;
 		for (std::size_t i = 0; i < a_table.size(); ++i) {
 			const auto& entry = a_table[i];
-			const auto  preset = Preset(static_cast<Situations::Situation>(i));
-			const bool  renamed = entry.name != preset.name;
-			const bool  redescribed = entry.description != preset.description;
 			if (entry.removed) {
 				lines.push_back(entry.name + ": restored");
-			} else if (renamed && redescribed) {
-				lines.push_back(entry.name + ": name and description reset");
-			} else if (renamed) {
+			} else if (entry.name != Preset(static_cast<Situations::Situation>(i)).name) {
 				lines.push_back(entry.name + ": name reset");
-			} else if (redescribed) {
-				lines.push_back(entry.name + ": description reset");
 			}
 		}
 		return lines;

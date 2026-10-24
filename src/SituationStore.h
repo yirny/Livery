@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-// The situations' names, descriptions and removed flags (docs/situation-management-ui.md
+// The situations' names and removed flags (docs/situation-management-ui.md
 // §2), shared by every save in Data/SKSE/Plugins/Livery/situations.json, which holds only
 // the situations that differ from the presets (SituationTable.h). Logs name a situation by
 // its key (Situations::Name); the window and the HUD by Name here.
@@ -25,10 +25,8 @@ namespace SituationStore
 
 	// Contract: the reference goes stale at the next Apply, Remove or RestorePresets.
 	const std::string& Name(Situations::Situation a_situation);
-	const std::string& Description(Situations::Situation a_situation);
 
-	// ", in Town" for the end of a sentence that says what is worn for it; "" for an empty
-	// description.
+	// " for Town" for the end of a sentence that says what is worn for it; "" for the Default.
 	std::string Suffix(Situations::Situation a_situation);
 
 	// A removed situation offers no row anywhere; Situations::Evaluate still reports it and
@@ -39,15 +37,14 @@ namespace SituationStore
 	// the Default.
 	std::vector<Situations::Situation> Offered();
 
-	// A situation's name and description as the user leaves them.
+	// A situation's name as the user leaves it.
 	struct Edit
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;
 		std::string           name;
-		std::string           description;
 	};
 
-	// Gives each situation its name and description, then writes the file once. Returns why
+	// Gives each situation its name, then writes the file once. Returns why
 	// it refused, having changed nothing: a name rule broken (SituationTable::CheckNames), a
 	// removed situation, or a file it cannot write.
 	std::optional<std::string> Apply(const std::vector<Edit>& a_edits);
@@ -57,8 +54,8 @@ namespace SituationStore
 	// changed nothing: the Default, a situation removed already, or a file it cannot write.
 	std::optional<std::string> Remove(Situations::Situation a_situation);
 
-	// Every situation as installed: a removed one returns, a renamed or redescribed one gets
-	// its words back; then writes the file. Nobody's rows change. Returns why it refused,
+	// Every situation as installed: a removed one returns, a renamed one gets its name back;
+	// then writes the file. Nobody's rows change. Returns why it refused,
 	// having changed nothing: a file it cannot write.
 	std::optional<std::string> RestorePresets();
 
