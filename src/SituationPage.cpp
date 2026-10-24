@@ -509,7 +509,7 @@ namespace CaptureWindow::Internal
 			ImGui::EndDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (isDefault && nameHovered) {
-				ImGui::SetTooltip("%s", kDefaultName);
+				Theme::Tooltip(kDefaultName);
 			}
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -650,7 +650,7 @@ namespace CaptureWindow::Internal
 			ImGui::EndDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (installed && hovered) {
-				ImGui::SetTooltip("%s", kAsInstalled);
+				Theme::Tooltip(kAsInstalled);
 			} else if (helpHovered) {
 				DrawHelpTooltip(kRestoreHelp);
 			}

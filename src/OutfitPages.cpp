@@ -643,7 +643,7 @@ namespace CaptureWindow::Internal
 		ImGui::EndDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
 		if (noOutfit && removeHovered) {
-			ImGui::SetTooltip("%s", kNeedOutfit);
+			Theme::Tooltip(kNeedOutfit);
 		}
 
 		if (update) {
