@@ -20,18 +20,18 @@ namespace Theme
 		kNordic    // NORDIC UI
 	};
 
-	// The Modern skin's colours, each 0xRRGGBBAA (AA: opacity, FF opaque). The defaults are the
-	// Modern palette's, a dark grey; Settings reads the others from palette files, a colour a
-	// file leaves out keeping these.
+	// A skin's colours, each 0xRRGGBBAA (AA: opacity, FF opaque). The defaults are the Modern
+	// palette's, a dark grey; Settings holds Vanilla's and Nordic's and reads the palette files.
+	// Vanilla uses every colour but accentLight, Nordic neither accentLight, titleBar nor selected.
 	struct Palette
 	{
 		std::uint32_t window = 0x1A1B1CF0;       // the window
-		std::uint32_t surface = 0x3A3A3AFA;      // popups, dropdown lists and tooltips
+		std::uint32_t surface = 0x2A2D2EFA;      // popups, dropdown lists and tooltips
 		std::uint32_t titleBar = 0x0A0B0CFF;     // the title bars of the window and its popups
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
-		std::uint32_t accent = 0x79845AFF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
-		std::uint32_t accentLight = 0x59845AFF;  // the text cursor, a scroll bar or slider held
+		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
+		std::uint32_t accentLight = 0xD0D3D4FF;  // the text cursor, a scroll bar or slider held
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
 		std::uint32_t hover = 0x4B4E4FFF;        // a hovered row
 		std::uint32_t selected = 0x2A2D2EFF;     // a selected row, the selected tab, a narrowing field's fill
@@ -48,7 +48,7 @@ namespace Theme
 	void LoadTextures(ID3D11Device* device);
 
 	// Contract: render thread, before ImGui::NewFrame. Rebuilds the whole style
-	// for the skin (Modern in `palette`'s colours) and scales it to the back buffer
+	// for the skin in `palette`'s colours and scales it to the back buffer
 	// height in pixels.
 	void Apply(Skin skin, const Palette& palette, float displayHeight);
 
@@ -87,7 +87,7 @@ namespace Theme
 	// A field is a label (or none) and the control or list it names; a list's count line
 	// under it belongs to the list's field. LabelText is a field label in the label font (the
 	// small font; in Nordic 0.7 of the body font, 14px), in ASCII capitals, in a grey: the
-	// palette's label colour in Modern, NORDIC UI's in Vanilla and Nordic. The help marks and
+	// palette's label colour. The help marks and
 	// column labels on a label's line, and
 	// list headings, take the same font. It
 	// opens its field with SectionGap and sits a little closer to the control below it than the
@@ -102,7 +102,7 @@ namespace Theme
 	// A clickable label at the right end of the line just laid out (call it
 	// right after CountText): a filled rounded square with a plus cut out of
 	// it, then `label`, both in CountText's font and colour, lit while hovered
-	// (white in Vanilla and Nordic, the accent in Modern). Returns true when clicked.
+	// (the text colour in Vanilla and Nordic, the accent in Modern). Returns true when clicked.
 	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
 	bool LabelLink(const char* label);
@@ -136,7 +136,7 @@ namespace Theme
 	void SectionGap();
 
 	// Returns true when pressed. Nordic draws a pointed-end frame; Vanilla its label alone, 2px
-	// larger than the body font, in LabelText's grey and white while hovered or held, with 2px
+	// larger than the body font, in LabelText's grey and the text colour while hovered or held, with 2px
 	// clear on either side.
 	// Contract: the label is shown as is, so it must not use "##" IDs.
 	bool Button(const char* label);
@@ -192,7 +192,7 @@ namespace Theme
 	float ColumnGap();
 
 	// The column labels over a list, in LabelText's font, colour and capitals, each lit
-	// while hovered (white in Vanilla and Nordic, the accent in Modern); the label of
+	// while hovered (the text colour in Vanilla and Nordic, the accent in Modern); the label of
 	// column `sorted` has a small arrow after it, pointing up unless
 	// `descending`. Opens a field as LabelText does. Returns the index of the
 	// column clicked, or -1. Faded and inert inside BeginDisabled.
@@ -202,11 +202,11 @@ namespace Theme
 
 	// A row the user ticks on and off, one text per column; returns true when
 	// toggled. While ticked, Modern fills it in the palette's selected colour, full at the
-	// row's centre, 0.8 of it at the left end and fading to nothing at the right end, with an
+	// row's centre, 0.6 of it at the left end and fading to nothing at the right end, with an
 	// accent rule on its left edge, as Tailor 3.0 marks a selected row; Vanilla and Nordic
-	// draw it like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a white
-	// bar fading in from the left. Hovered: Modern's hover colour, Vanilla's soft white
-	// ellipse, NORDIC UI's selection line under the row.
+	// draw it like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a bar in the
+	// selected colour fading in from the left. Hovered: Modern's hover colour, Vanilla's soft
+	// ellipse and NORDIC UI's selection line under the row in the hover colour.
 	// With `icon`, the icon's texture is drawn where the row's text starts, centred on the row,
 	// tinted; a key with no texture draws nothing.
 	// Contract: inside BeginList, one cell per column; the cells are shown as is
@@ -226,7 +226,7 @@ namespace Theme
 	// A row of a single-choice list, SelectRowHeight tall, its text a little right of the
 	// list's indent; returns true when clicked. A selected row is marked left of its text:
 	// NORDIC UI's MCM page arrow in Vanilla and Nordic, Modern's accent rule on its left edge;
-	// Modern also fills it as a ticked row, Vanilla lays the tick row's white bar over it,
+	// Modern also fills it as a ticked row, Vanilla lays the tick row's bar over it,
 	// Nordic shows the arrow alone. A hovered row gets the tick row's hover fill.
 	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's
@@ -284,7 +284,7 @@ namespace Theme
 
 	// A sorted outfit list's heading, FoldHeadingHeight tall, that folds the rows under it
 	// away: a chevron pointing down while `open` and right while folded, then the text in
-	// capitals, both in ListHeading's grey and lit while hovered (white in Vanilla and Nordic, the accent in Modern),
+	// capitals, both in ListHeading's grey and lit while hovered (the text colour in Vanilla and Nordic, the accent in Modern),
 	// then, 12px on, a list heading rule to 4px short of the list's right end. The whole row is
 	// the click target; returns true when clicked, and the caller folds or unfolds.
 	// In LabelText's font. Its chevron starts at the list's left edge, the text after it, where
@@ -468,7 +468,7 @@ namespace Theme
 
 	// One tab of the column at the window's left edge, a square: the icon in the text colour
 	// on the selected row's fill while selected (its corners rounded 2px), else in LabelText's
-	// grey and lit while hovered (white in Vanilla and Nordic, the accent in Modern), with
+	// grey and lit while hovered (the text colour in Vanilla and Nordic, the accent in Modern), with
 	// `name` as a tooltip. Returns true when clicked. Faded and
 	// inert inside BeginDisabled.
 	// Contract: `name` is the ImGui ID.

@@ -367,41 +367,81 @@ namespace
 
 	// --- Palettes -------------------------------------------------------------
 
-	// A palette file's colour keys, each a colour of Theme::Palette, with the comment a shipped
-	// file has above it.
+	// Which skins read a palette key: a bit per Theme::Skin.
+	constexpr unsigned SkinBit(Theme::Skin a_skin)
+	{
+		return 1u << static_cast<unsigned>(a_skin);
+	}
+	constexpr unsigned kAllSkins = SkinBit(Theme::Skin::kModern) | SkinBit(Theme::Skin::kVanilla) | SkinBit(Theme::Skin::kNordic);
+	constexpr unsigned kNotNordic = kAllSkins & ~SkinBit(Theme::Skin::kNordic);
+	constexpr unsigned kModernOnly = SkinBit(Theme::Skin::kModern);
+
+	// A palette file's colour keys, each a colour of Theme::Palette, read only for the skins
+	// that use it, with the comment a shipped file has above it: Modern's, then Vanilla's and
+	// Nordic's (nullptr: Modern's).
 	struct PaletteKey
 	{
 		const wchar_t* key;
 		std::uint32_t Theme::Palette::* color;
+		unsigned                        skins;
 		const wchar_t*                  comment;
+		const wchar_t*                  squareComment = nullptr;
 	};
 	constexpr std::array<PaletteKey, 11> kPaletteKeys{ {
-		{ L"Window", &Theme::Palette::window, L"The window." },
-		{ L"Surface", &Theme::Palette::surface, L"Popups, dropdown lists and tooltips." },
-		{ L"TitleBar", &Theme::Palette::titleBar, L"The title bars of the window and its popups." },
-		{ L"Text", &Theme::Palette::text, L"Text." },
-		{ L"Label", &Theme::Palette::label, L"Field and column labels, list headings, links and greyed text." },
-		{ L"Accent", &Theme::Palette::accent,
-			L"Ticks, a selected row's rule, a link or label under the mouse, the dropdown arrow, the frame of a field that narrows a list." },
-		{ L"AccentLight", &Theme::Palette::accentLight, L"The text cursor, a scroll bar or slider held." },
-		{ L"Rule", &Theme::Palette::rule, L"The rules and frames of the window, its fields and lists." },
-		{ L"Hover", &Theme::Palette::hover, L"A row under the mouse." },
-		{ L"Selected", &Theme::Palette::selected,
-			L"A selected row (fading out towards its right end), the selected tab, the fill of a field that narrows a list." },
-		{ L"Error", &Theme::Palette::error, L"Error text and fields." },
+		{ L"Window", &Theme::Palette::window, kAllSkins, L"The window." },
+		{ L"Surface", &Theme::Palette::surface, kAllSkins, L"Popups, dropdown lists and tooltips." },
+		{ L"TitleBar", &Theme::Palette::titleBar, kNotNordic, L"The title bars of the window and its popups.", L"The title bars of popups." },
+		{ L"Text", &Theme::Palette::text, kAllSkins, L"Text, and faint, the fills of fields, buttons and the scroll bar.",
+			L"Text, a link or label under the mouse, and faint, the fills of fields, buttons and the scroll bar." },
+		{ L"Label", &Theme::Palette::label, kAllSkins, L"Field and column labels, list headings, links and greyed text." },
+		{ L"Accent", &Theme::Palette::accent, kAllSkins,
+			L"Ticks, a selected row's rule, a link or label under the mouse, the dropdown arrow, the frame of a field that narrows a list.",
+			L"The arrow at a selected row, ticks, and in Nordic the corner knots, the heading and tab ropes and the button frames." },
+		{ L"AccentLight", &Theme::Palette::accentLight, kModernOnly, L"The text cursor, a scroll bar or slider held." },
+		{ L"Rule", &Theme::Palette::rule, kAllSkins, L"The rules and frames of the window, its fields and lists." },
+		{ L"Hover", &Theme::Palette::hover, kAllSkins, L"A row under the mouse.",
+			L"A row under the mouse: Vanilla's glow over it, Nordic's line under it (this opacity at its left end)." },
+		{ L"Selected", &Theme::Palette::selected, kNotNordic,
+			L"A selected row (fading out towards its right end), the selected tab, the fill of a field that narrows a list.",
+			L"The bar over a selected row, fading in from its left end to this opacity." },
+		{ L"Error", &Theme::Palette::error, kAllSkins, L"Error text and fields." },
 	} };
 
 	// The palettes Livery ships. They are written by the plugin, never installed, so a player's
 	// edits survive an update (WriteMissingPalettes); Restore original palette writes one back.
 	struct ShippedPalette
 	{
-		const wchar_t*        stem;
-		Theme::Skin           skin;
-		const wchar_t*        about;    // the file's first comment lines, each ending in '\n'
-		const Theme::Palette* colours;  // nullptr: the file holds no colours
+		const wchar_t* stem;
+		Theme::Skin    skin;
+		const wchar_t* about;  // the file's first comment lines, each ending in '\n'
+		Theme::Palette colours;
 	};
 
+	// Each skin's own colours: what its palette files start from, a key left out keeping them.
+	// A colour the skin does not use keeps Modern's.
 	constexpr Theme::Palette kModernColours{};  // Theme::Palette's defaults
+	constexpr Theme::Palette kVanillaColours{
+		.window = 0x000000CC,
+		.surface = 0x000000EB,
+		.titleBar = 0x000000DC,
+		.text = 0xFFFFFFFF,
+		.label = 0xA5A5A5FF,
+		.accent = 0xFFFFFFFF,
+		.rule = 0xFFFFFF46,
+		.hover = 0xFFFFFF40,
+		.selected = 0xFFFFFF46,
+		.error = 0xFF6666FF,
+	};
+	constexpr Theme::Palette kNordicColours{
+		.window = 0x000000CC,
+		.surface = 0x0A0A0AEB,
+		.text = 0xF0F0F0FF,
+		.label = 0xA5A5A5FF,
+		.accent = 0xDEDEDEFF,
+		.rule = 0xC8C8C85A,
+		.hover = 0xE5E5E565,
+		.error = 0xFF6666FF,
+	};
 	constexpr Theme::Palette kEdgeColours{
 		.window = 0x1E1E1CF0,
 		.surface = 0x262522FA,
@@ -417,18 +457,28 @@ namespace
 	};
 
 	constexpr std::array<ShippedPalette, 4> kShippedPalettes{ {
-		{ L"Modern", Theme::Skin::kModern, L"; Livery palette: Modern, a general-purpose dark grey that suits Untarnished UI and Norden UI.\n", &kModernColours },
+		{ L"Modern", Theme::Skin::kModern, L"; Livery palette: Modern, a general-purpose dark grey that suits Untarnished UI and Norden UI.\n", kModernColours },
 		{ L"Edge", Theme::Skin::kModern, L"; Livery palette: Edge, after Edge UI (a SkyUI interface by EugeneUI): dark panels with a muted gold accent.\n",
-			&kEdgeColours },
+			kEdgeColours },
 		{ L"Vanilla", Theme::Skin::kVanilla,
-			L"; Livery palette: Vanilla, after the game's own menus.\n"
-			L"; The Vanilla skin takes no colours from its palette yet.\n",
-			nullptr },
+			L"; Livery palette: Vanilla, after the game's own menus. The game's art (scroll bar, checkbox, equipped mark) keeps its own colours.\n",
+			kVanillaColours },
 		{ L"Nordic", Theme::Skin::kNordic,
-			L"; Livery palette: Nordic, after NORDIC UI.\n"
-			L"; The Nordic skin takes no colours from its palette yet.\n",
-			nullptr },
+			L"; Livery palette: Nordic, after NORDIC UI. The game's art (scroll bar, checkbox) and NORDIC UI's equipped mark keep their own colours.\n",
+			kNordicColours },
 	} };
+
+	const Theme::Palette& SkinColours(Theme::Skin a_skin)
+	{
+		switch (a_skin) {
+		case Theme::Skin::kVanilla:
+			return kVanillaColours;
+		case Theme::Skin::kNordic:
+			return kNordicColours;
+		default:
+			return kModernColours;
+		}
+	}
 
 	// What every shipped palette file says after its first lines.
 	constexpr auto kPaletteHelp =
@@ -493,19 +543,21 @@ namespace
 		return nullptr;
 	}
 
-	// Writes `a_shipped` to `a_path` as Livery ships it, over any file there. False (logged) when
-	// the file cannot be written.
+	// Writes `a_shipped` to `a_path` as Livery ships it, over any file there: its skin, then the
+	// colour keys that skin reads. False (logged) when the file cannot be written.
 	bool WriteShippedPalette(const std::filesystem::path& a_path, const ShippedPalette& a_shipped)
 	{
+		const bool     modern = a_shipped.skin == Theme::Skin::kModern;
 		std::wofstream file{ a_path };
 		if (file) {
 			file << a_shipped.about << kPaletteHelp << L"\n[" << kPaletteSection << L"]\n";
 			file << kPaletteSkinComment << kPaletteSkinKey << L'=' << OptionOf(a_shipped.skin).name << L'\n';
 			for (const auto& entry : kPaletteKeys) {
-				if (!a_shipped.colours) {
-					break;
+				if ((entry.skins & SkinBit(a_shipped.skin)) == 0) {
+					continue;
 				}
-				file << L"; " << entry.comment << L'\n' << entry.key << L'=' << std::format(L"#{:08X}", a_shipped.colours->*entry.color) << L'\n';
+				const auto* comment = modern || !entry.squareComment ? entry.comment : entry.squareComment;
+				file << L"; " << comment << L'\n' << entry.key << L'=' << std::format(L"#{:08X}", a_shipped.colours.*entry.color) << L'\n';
 			}
 			file.flush();
 		}
@@ -551,19 +603,23 @@ namespace
 		return Theme::Skin::kModern;
 	}
 
-	// A palette file's skin and colours, and its label; a colour key left out, or one that is not
-	// a colour (logged), keeps the Modern palette's colour (Theme::Palette's defaults).
+	// A palette file's skin and colours, and its label. Only the colour keys the skin reads are
+	// read, from the skin's own colours: one left out, or not a colour (logged), keeps the skin's.
 	PaletteOption ReadPalette(const std::filesystem::path& a_path)
 	{
 		PaletteOption option;
 		option.stem = a_path.stem().wstring();
 		const auto name = SKSE::stl::utf16_to_utf8(option.stem).value_or("?");
 		option.skin = ReadPaletteSkin(a_path, name);
+		option.palette = SkinColours(option.skin);
 		const auto& skin = OptionOf(option.skin);
 		option.label = ::_wcsicmp(option.stem.c_str(), skin.name) == 0 ? std::string{ skin.label } : std::format("{} - {}", skin.label, name);
 
 		wchar_t value[32]{};
 		for (const auto& entry : kPaletteKeys) {
+			if ((entry.skins & SkinBit(option.skin)) == 0) {
+				continue;
+			}
 			const auto length = ::GetPrivateProfileStringW(kPaletteSection, entry.key, L"", value, static_cast<DWORD>(std::size(value)), a_path.c_str());
 			if (length == 0) {
 				continue;
@@ -571,7 +627,7 @@ namespace
 			if (const auto color = ParseColor(std::wstring_view{ value, length })) {
 				option.palette.*entry.color = *color;
 			} else {
-				logger::warn("Palette {}: {} = {} is not #RRGGBB or #RRGGBBAA; it keeps the Modern palette's colour", name,
+				logger::warn("Palette {}: {} = {} is not #RRGGBB or #RRGGBBAA; it keeps the skin's own colour", name,
 					SKSE::stl::utf16_to_utf8(entry.key).value_or(""), SKSE::stl::utf16_to_utf8(value).value_or(""));
 			}
 		}
