@@ -3167,7 +3167,7 @@ namespace Theme
 	{
 		constexpr const char* kEdit = "Edit";
 		constexpr float       kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
-		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron and Edit, and from Edit to the list's right end
+		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron and Edit
 		constexpr float       kDiceShrink = 4.0f;    // pixels at 1080p, the die's square short of the name's line height
 
 		const float  gap = ListPaddingY();  // the row gap the list leaves out, half above and half below
@@ -3197,7 +3197,7 @@ namespace Theme
 		const float countX = afterName + gapX;
 		const float textRight = count.empty() ? afterName : countX + countSize.x;
 		const float chevronX = textRight + pad * 2.0f;
-		const float editX = fillMax.x - pad - editSize.x;
+		const float editX = fillMax.x - SituationNameInset() - editSize.x;  // as far in from the right end as the name from the left
 		const float editLeft = editX - pad;
 		const float foldLeft = a_look.foldable ? chevronX - pad : editLeft;
 
