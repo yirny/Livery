@@ -22,12 +22,11 @@ namespace Theme
 
 	// A skin's colours, each 0xRRGGBBAA (AA: opacity, FF opaque). The defaults are the Modern
 	// palette's, a dark grey; Settings holds Vanilla's and Nordic's and reads the palette files.
-	// Vanilla uses every colour but accentLight, Nordic neither accentLight, titleBar nor selected.
+	// Vanilla uses every colour but accentLight, Nordic neither accentLight nor selected.
 	struct Palette
 	{
 		std::uint32_t window = 0x1A1B1CF0;       // the window
 		std::uint32_t surface = 0x2A2D2EFA;      // popups, dropdown lists and tooltips
-		std::uint32_t titleBar = 0x0A0B0CFF;     // the title bars of the window and its popups
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
 		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
@@ -54,11 +53,6 @@ namespace Theme
 
 	// The widgets below draw in the active skin, between Apply and Render; each one's comment
 	// says what a skin draws in place of ImGui's own.
-
-	// False when the skin draws its main window without a title bar (Vanilla, Nordic), or its
-	// popups (Nordic).
-	bool HasTitleBar();
-	bool HasPopupTitleBar();
 
 	// Call right after ImGui::Begin, or BeginPopupModal with `popup`: corner ornaments (Nordic);
 	// on the main window, Vanilla's frame, a 3px band of the rule colour inside its edge and a
