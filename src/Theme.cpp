@@ -3460,4 +3460,42 @@ namespace Theme
 		}
 		return row.pressed;
 	}
+
+	// Laid out as OutfitRow lays out its row: across the fills' span, the dots and the name on
+	// the name's line. The grab point is ImGui's ActiveIdClickOffset, which the row's button set
+	// when pressed and which holds while its drag is on (the drag keeps the row active).
+	void OutfitDragGhost(const char* a_name, Grip a_grip)
+	{
+		constexpr float kGhostAlpha = 0.7f;  // of the whole copy, on top of the style's alpha
+
+		const ImVec2 itemMin = ImGui::GetItemRectMin();
+		const ImVec2 itemMax = ImGui::GetItemRectMax();
+		const ImVec2 mouse = ImGui::GetMousePos();
+		const ImVec2 grab = ImGui::GetCurrentContext()->ActiveIdClickOffset;  // from the row's top-left
+		const float  shiftX = mouse.x - grab.x - itemMin.x;                   // from the row to its copy
+		const float  shiftY = mouse.y - grab.y - itemMin.y;
+		const float  left = ImGui::GetWindowPos().x;
+		const ImVec2 ghostMin(left + g_listReach.x + shiftX, itemMin.y + shiftY);
+		const ImVec2 ghostMax(RowFillRight(left, itemMax.x) + shiftX, itemMax.y + shiftY);
+		const float  textX = ghostMin.x + RowTextInset(a_grip);
+		const float  textY = ghostMin.y + ListPaddingY() * 0.5f + kSelectRowPadY * g_scale;
+		const auto&  style = ImGui::GetStyle();
+		auto*        draw = ImGui::GetForegroundDrawList();
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.Alpha * kGhostAlpha);
+		draw->AddRectFilled(ghostMin, ghostMax, ImGui::GetColorU32(ImGuiCol_PopupBg), style.PopupRounding);
+		if (style.PopupBorderSize > 0.0f) {
+			draw->AddRect(ghostMin, ghostMax, ImGui::GetColorU32(ImGuiCol_Border), style.PopupRounding, 0, style.PopupBorderSize);
+		}
+		if (a_grip != Grip::kNone) {
+			DrawGrip(draw, ghostMin.x, textY + ImGui::GetTextLineHeight() * 0.5f, a_grip);
+		}
+		const float  nameRight = ghostMax.x - style.FramePadding.x;
+		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
+		if (textX + nameSize.x <= nameRight) {
+			draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		} else if (nameRight > textX) {
+			ImGui::RenderTextEllipsis(draw, ImVec2(textX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
+		}
+		ImGui::PopStyleVar();
+	}
 }

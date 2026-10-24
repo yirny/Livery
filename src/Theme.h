@@ -361,6 +361,13 @@ namespace Theme
 	bool  OutfitRow(const char* name, bool selected, const OutfitMarks& marks, bool striped, Grip grip = Grip::kNone);
 	float OutfitRowHeight();
 
+	// A see-through copy of the outfit row just drawn, shown while it is dragged: the popup
+	// background with the grip's dots and the name, no fills or marks in any skin, held where
+	// the row was grabbed and following the mouse above every window.
+	// Contract: right after the OutfitRow it copies, inside that row's BeginDragDropSource opened
+	// with ImGuiDragDropFlags_SourceNoPreviewTooltip, so its list is still the current window.
+	void OutfitDragGhost(const char* name, Grip grip);
+
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Modern a
 	// square as tall as the text with a thin frame and tick. Faded and inert
