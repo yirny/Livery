@@ -196,7 +196,7 @@ would have to be kept in step).
   shows (docs/situation-management-ui.md §1); restoring outfits.json brings it back.
 - Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
   presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
-  situation key its name, description and removed flag, only for the situations that
+  situation key its name and removed flag, only for the situations that
   differ from the presets; a missing or empty file is every preset as installed and is not
   written at load. The same load and write rules as the library (docs/situation-management-ui.md
   §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
@@ -281,9 +281,9 @@ An assigned actor has a row per situation, Town, Home, Sleep, Swimming, Warm
 none of them applies. A row is a list of library outfit ids, a random flag and the one
 chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
-on. Each situation's name and description come from `situations.json` (§4): the window and
-the HUD show the name, the sentences that say what is worn end in `, <description>`
-(nothing for an empty one), and the logs keep the key. A removed situation offers no row
+on. Each situation's name comes from `situations.json` (§4): the window and the HUD show
+it, the sentences that say what is worn end in ` for <name>` (the summary line in `as
+Default` for the Default, the HUD in nothing), and the logs keep the key. A removed situation offers no row
 and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on and kept until it changes, a forced redress keeping it while it is on the list,
 and recorded as `chosen`, so turning random off keeps the last pick on. Giving a row an
@@ -297,8 +297,8 @@ the outfit that row (Yes, `OutfitRows::Give`, worn now) or the Default (Apply as
 the situation's outfit staying on); else the outfit goes to the situation they wear it
 for, or the Default.
 Manage Situations (docs/situation-management-ui.md §3-§6) edits every row of the captured
-actor by drag and drop, the random flags included, and the situations' names and
-descriptions; its Save Changes writes `situations.json` first, then replaces the rows
+actor by drag and drop, the random flags included, and the situations' names; its Save
+Changes writes `situations.json` first, then replaces the rows
 (`Assignments::SetRows`, the record only) and dresses them once (`Assignments::Refresh`,
 at once, Live Preview on or off; a random row worn now wears the outfit it gained
 first). Removing a situation writes `situations.json`, then clears the situation's rows

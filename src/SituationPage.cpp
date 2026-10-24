@@ -14,7 +14,7 @@
 //                     chevron folds) over the outfits it shows; a click on an outfit row of
 //                     either pane shows its details and puts it on the preview
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
-//                     details: name, description, conditions, Random Outfit (for #{Name}), Show
+//                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Edit and Back
 //   Buttons, popups - Restore Presets (?), Save Changes, Exit; Remove's and Restore Presets'
 //                     popups and the unsaved-changes alert, each handing its write to the
@@ -71,13 +71,12 @@ namespace CaptureWindow::Internal
 			std::strncpy(a_field.data(), a_text.c_str(), kNameCapacity - 1);
 		}
 
-		// A situation's name or description differs from situations.json.
-		bool WordsChanged(const State& a_state)
+		// A situation's name differs from situations.json.
+		bool NamesChanged(const State& a_state)
 		{
 			const auto& entries = a_state.situationForm.entries;
 			for (std::size_t i = 0; i < entries.size(); ++i) {
-				const auto& saved = a_state.request.situations[i];
-				if (Trimmed(entries[i].name.data()) != saved.name || Trimmed(entries[i].description.data()) != saved.description) {
+				if (Trimmed(entries[i].name.data()) != a_state.request.situations[i].name) {
 					return true;
 				}
 			}
@@ -476,16 +475,6 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
-		// Text in the small heading style: the small font, greyed, wrapped.
-		void DrawNote(const std::string& a_text)
-		{
-			Theme::PushSmallFont();
-			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			ImGui::TextWrapped("%s", a_text.c_str());
-			ImGui::PopStyleColor();
-			Theme::PopSmallFont();
-		}
-
 		// kPaneButtonGap, then the cursor placed so a row of buttons with these labels is
 		// centred in the pane.
 		void BeginPaneButtonRow(std::initializer_list<const char*> a_labels)
@@ -495,7 +484,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// The settings every actor shares: the name (read only for the Default, which says so on
-		// hover), the description and the sentence it ends, the conditions, read only.
+		// hover) and the conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			constexpr const char* kDefaultName = "The Default's name cannot be changed.";
@@ -518,11 +507,6 @@ namespace CaptureWindow::Internal
 			if (isDefault && nameHovered) {
 				ImGui::SetTooltip("%s", kDefaultName);
 			}
-			Theme::LabelText("Description");
-			ImGui::SetNextItemWidth(-FLT_MIN);
-			Theme::InputText("##description", entry.description.data(), entry.description.size(), ImGuiInputTextFlags_None);
-			const auto description = Trimmed(entry.description.data());
-			DrawNote(std::format("Shown as: Dressed by Livery in \"Outfit\"{}.", description.empty() ? "" : ", " + description));
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			ImGui::TextWrapped("%s", a_state.request.situations[a_entry].conditions.c_str());
@@ -536,7 +520,7 @@ namespace CaptureWindow::Internal
 			kRemove
 		};
 
-		// The selected situation's details as edited: its name, description and conditions,
+		// The selected situation's details as edited: its name and conditions,
 		// Random Outfit (for #{Name}), then Show Outfit List centred with Remove at the row's
 		// right end (not for the Default).
 		DetailsAction DrawSituationDetails(State& a_state)
@@ -642,8 +626,8 @@ namespace CaptureWindow::Internal
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
 			constexpr const char* kRestoreHelp =
-				"Brings the preset situations back as installed: a removed one returns, empty, and a renamed or "
-				"redescribed one gets its words back. Nobody's outfits change.";
+				"Brings the preset situations back as installed: a removed one returns, empty, and a renamed one "
+				"gets its name back. Nobody's outfits change.";
 
 			const auto& request = a_state.request;
 			const float left = ImGui::GetCursorPosX();
@@ -745,8 +729,8 @@ namespace CaptureWindow::Internal
 			return restore;
 		}
 
-		// Hands Save Changes' edits to onSituationsSave: the names and descriptions that
-		// changed, every row when any changed, and the outfit whose details show, which stays on
+		// Hands Save Changes' edits to onSituationsSave: the names that changed, every row
+		// when any changed, and the outfit whose details show, which stays on
 		// the preview. Until the handler ends with SetOutfits or SetError the page is greyed.
 		// Contract: the handler writes situations.json first and changes no row for a refused
 		// or failed write (CLAUDE.md §2.1).
@@ -758,9 +742,8 @@ namespace CaptureWindow::Internal
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				const auto& saved = request.situations[i];
 				auto        name = Trimmed(form.entries[i].name.data());
-				auto        description = Trimmed(form.entries[i].description.data());
-				if (name != saved.name || description != saved.description) {
-					save.edits.push_back({ .situation = saved.situation, .name = std::move(name), .description = std::move(description) });
+				if (name != saved.name) {
+					save.edits.push_back({ .situation = saved.situation, .name = std::move(name) });
 				}
 			}
 			if (RowsChanged(a_state)) {
@@ -845,7 +828,6 @@ namespace CaptureWindow::Internal
 			const auto& info = request.situations[i];
 			auto&       entry = entries[i];
 			CopyToField(entry.name, info.name);
-			CopyToField(entry.description, info.description);
 			entry.row = request.assigned[i].row;
 			for (std::size_t j = 0; j < a_before.size() && j < form.entries.size(); ++j) {
 				if (a_before[j].situation == info.situation) {
@@ -865,7 +847,7 @@ namespace CaptureWindow::Internal
 
 	bool HasSituationEdits(const State& a_state)
 	{
-		return WordsChanged(a_state) || RowsChanged(a_state);
+		return NamesChanged(a_state) || RowsChanged(a_state);
 	}
 
 	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label)

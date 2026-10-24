@@ -6,8 +6,8 @@ approval first, built, checked in game and committed before the next:
 
 - A. Co-save record version 4: per-row outfit lists, the random flag, the chosen outfit
   (§1). High impact (SKSE serialization).
-- B. `situations.json`: situation names and descriptions, removed situations, the
-  descriptions in sentences (§2). High impact (a new file write shared by every save).
+- B. `situations.json`: situation names, removed situations, the names in sentences
+  (§2). High impact (a new file write shared by every save).
 - C. The Manage Situations page (§3-§6), and Manage Wardrobe's unsaved-changes alert
   aligned with it.
 
@@ -98,16 +98,15 @@ situation id becomes `outfits = [id]`, `chosen = id`; random off everywhere.
 `Data/SKSE/Plugins/Livery/situations.json`, global like `outfits.json`:
 
 ```json
-{ "version": 1, "situations": [ { "key": "Town", "name": "Town", "description": "in Town", "removed": false } ] }
+{ "version": 1, "situations": [ { "key": "Town", "name": "City", "removed": false } ] }
 ```
 
 - `key` is the `Situations::Situation` it is for (`Default`, `Town`, `Home`, `Sleep`,
   `Swimming`, `Warm`), never shown or changed. The file holds only rows that differ from
   the presets; a missing or empty file (nothing but whitespace) means every preset as
-  installed and is not written at load.
-- Presets: name as the key; descriptions `in Town`, `at Home`, `ready for Sleep`,
-  `swimming`, `keeping Warm`, and an empty one for the Default (it is worn in towns without
-  a Town outfit and in fights too, so no phrase fits every place).
+  installed and is not written at load. An entry's other fields (such as a `description`)
+  are ignored, and a rewrite drops them.
+- Presets: name as the key.
 - Names: never empty; unique among the situations not removed, ASCII case ignored. The
   Default cannot be renamed or removed.
 - The same write rules as `outfits.json` (CLAUDE.md §2.1): `Load` sets the writable state
@@ -122,19 +121,19 @@ situation id becomes `outfits = [id]`, `chosen = id`; random off everywhere.
 - The names replace `Situations::Name` wherever the window and the HUD show a situation;
   logs keep the key.
 
-Descriptions in sentences: `, <description>` at the end, nothing when the description is
-empty. Only these:
+The sentences that say what is worn end in ` for <name>` (`SituationStore::Suffix`),
+nothing for the Default; the summary line names the Default too. Only these:
 
-| Where | Now | With the description |
-| --- | --- | --- |
-| Inventory summary line (`DescribeAssignment`) | `Dressed by Livery in "X" for Town.` | `Dressed by Livery in "X", in Town.` |
-| Situation change HUD (`SituationChangeText`) | `Livery: Lydia now wears "X" for Town.` | `Livery: Lydia now wears "X", in Town.` |
-| Assign HUD, nothing went on | `...; dressed for Town now.` | `...; dressed now, in Town.` |
-| Assign HUD | `Livery: Lydia now wears these for Town` | `Livery: Lydia now wears these, in Town` |
-| Change HUD, the end | `. Dressed for Town now` | `. Dressed now, in Town` |
-| Refresh HUD | `Livery: Lydia now wears "X" for Town` | `Livery: Lydia now wears "X", in Town` |
+| Where | Text |
+| --- | --- |
+| Inventory summary line (`DescribeAssignment`) | `Wearing "X" for Town.`, `Wearing "X" as Default.`; `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library |
+| Situation change HUD (`SituationChangeText`) | `Livery: Lydia now wears "X" for Town.` |
+| Assign HUD, nothing went on | `...; dressed now for Town.` |
+| Assign HUD | `Livery: Lydia now wears these for Town` |
+| Change HUD, the end | `. Dressed now for Town` |
+| Refresh HUD | `Livery: Lydia now wears "X" for Town` |
 
-The names stay in: the Apply popup's `"X" is Lydia's Town outfit.`, the star's `For Town,
+The names also show in: the Apply popup's `"X" is Lydia's Town outfit.`, the star's `For Town,
 Warm`, the Situation headings, the rows' labels and change lines (`Town: added`),
 Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Warm` and `no
 outfit for Town any more`.
@@ -234,9 +233,6 @@ The situation's details, its fields evenly spaced with no headings:
   name another situation has (ASCII case ignored), puts the previous name back; with that
   empty too, `Unnamed Situation`. The Default's is read only, greyed, and says `The Default's
   name cannot be changed.` on hover.
-- `Description`, an underlined field, empty allowed; under it, in the small heading style,
-  `Shown as: Dressed by Livery in "Outfit", <description>.` (without the comma part when
-  empty).
 - `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule in
   grey, as the README words it (Town: `A city, town, settlement, inn or other inhabited
   interior.`); the Default's `Worn where no other situation applies.`
@@ -278,9 +274,8 @@ shows the situation's.
   (`Theme::LineHelpLinkAt`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
   Its help: `Brings the preset situations back as installed: a removed one returns, empty,
-  and a renamed or redescribed one gets its words back. Nobody's outfits change.` It always
-  asks: the changes (`Town: restored`, `Home: name reset`, `Warm: name and description
-  reset`) and, with unsaved edits, `Your unsaved changes are discarded.`; `Restore` /
+  and a renamed one gets its name back. Nobody's outfits change.` It always asks: the
+  changes (`Town: restored`, `Home: name reset`) and, with unsaved edits, `Your unsaved changes are discarded.`; `Restore` /
   `Cancel`. Restore writes `situations.json` (a refused or failed write changes nothing and
   shows the error), drops the edits and keeps the selection.
 - Save Changes: greyed with `Nothing has changed.` until the edits differ from what is
@@ -305,8 +300,8 @@ shows the situation's.
 
 ## 7. Code
 
-- `src/SituationStore.cpp` / `.h` (step B): load, names, descriptions, removed, the
-  `Apply` (names and descriptions of several situations in one write) / `Remove` /
+- `src/SituationStore.cpp` / `.h` (step B): load, names, removed, the
+  `Apply` (names of several situations in one write) / `Remove` /
   `RestorePresets` writes, Restore's change lines. The rules that need no game (the presets,
   the file's parse and write, the name rules, Restore's change lines) in
   `src/SituationTable.h`, which `test/SituationStoreTests.cpp` reaches: presets, the name
@@ -326,15 +321,15 @@ shows the situation's.
   own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
   drag grip (`Theme::Grip` for `OutfitRow`), the
   details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`).
-- `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name, description,
+- `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
   `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,
   `onRestorePresets`, each writing first by §5/§6.
 - `Plugin.cpp`: the handlers, the redress queue (docs/outfit-management-ui.md §6), the
-  description sentences.
+  summary line.
 
 CLAUDE.md §2.1 gains, in step B: `situations.json` (`src/SituationStore.cpp`) is shared by
-every save too; a situation's name or description changes only through Manage Situations'
+every save too; a situation's name changes only through Manage Situations'
 Save Changes, a situation is removed only through the details' Remove popup and restored
 only through Restore Presets' popup; every write is made before any assignment changes, a
 refused or failed one changes none; the same load and write rules as the library.
@@ -347,7 +342,7 @@ refused or failed one changes none; the same load and write rules as the library
   its pieces on; `No, apply as is`; Update of an outfit an NPC wears for a situation shows at
   their next change. Unit tests cover the row rules.
 - Step B: no `situations.json` until something is written; the summary line and the HUD
-  read `, in Town`; an empty description adds nothing.
+  read ` for Town`; the summary line `as Default` for the Default.
 - Step C: each drop of §4's table; the 1 s open; Show Outfit List's scroll and open; Edit and
   a click on the selected heading with the outfit list showing; an outfit's details from
   either pane, with Back, Escape and Edit, and the preview; Save Changes greyed

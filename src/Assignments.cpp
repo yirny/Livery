@@ -182,7 +182,7 @@ namespace
 	}
 
 	// The HUD line for a redress because a situation began or ended (WearFor): what they wear
-	// now, ending in the description of the situation it is for.
+	// now, ending in the situation it is for.
 	std::string SituationChangeText(RE::Actor& a_actor, const Assignment& a_assignment)
 	{
 		const bool player = a_actor.IsPlayerRef();

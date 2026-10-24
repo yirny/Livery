@@ -25,8 +25,8 @@
 //                    window's close or, out of reach, when they load; both hand the window the
 //                    rebuilt list (CaptureWindow::SetOutfits), with the captured actor's pieces
 //                    as they are after a redress;
-//                    Manage Situations' Save Changes writes the situations' names and
-//                    descriptions (SituationStore), then the captured actor's rows
+//                    Manage Situations' Save Changes writes the situations' names
+//                    (SituationStore), then the captured actor's rows
 //                    (Assignments::SetRows) and redresses them as Update does; Remove
 //                    Situation writes situations.json, clears the situation's rows
 //                    (Assignments::ForgetSituation) and takes those wearing it out of it as
@@ -544,15 +544,14 @@ namespace
 	}
 
 	// The window's rows (Request::situations): the Default, then the situations not removed
-	// (SituationStore::Offered), each with its name, description, conditions and who has
-	// outfits on it. Contract: game thread.
+	// (SituationStore::Offered), each with its name, conditions and who has outfits on it.
+	// Contract: game thread.
 	std::vector<CaptureWindow::SituationInfo> SituationInfos()
 	{
 		std::vector<CaptureWindow::SituationInfo> infos;
 		const auto                                add = [&infos](Situations::Situation situation, std::vector<std::string> holders) {
 			infos.push_back({ .situation = situation,
 				.name = SituationStore::Name(situation),
-				.description = SituationStore::Description(situation),
 				.conditions = Situations::ConditionsText(situation),
 				.holders = std::move(holders) });
 		};
@@ -615,17 +614,21 @@ namespace
 		});
 	}
 
-	// The line under the actor's name: what Livery has on them now, ending in the description
-	// of the situation it is for: `Dressed by Livery in "X", in Town.` An outfit gone from the
-	// library (another save's) goes unnamed, as the window shows no row of it.
+	// The line under the actor's name: what Livery has on them now and what for, `Wearing "X"
+	// for Town.` or `Wearing "X" as Default.` Pieces that are not a saved outfit, or an outfit
+	// gone from the library (another save's), which the window shows no row of, go unnamed:
+	// `Dressed by Livery.`
 	std::string DescribeAssignment(const Assignments::Choices& choices)
 	{
 		if (!choices.dressed) {
 			return "Not dressed by Livery right now.";
 		}
 		const auto* stored = choices.wornOutfit ? Library::Find(choices.wornOutfit) : nullptr;
-		const auto  text = stored ? std::format("Dressed by Livery in \"{}\"", stored->name) : std::string("Dressed by Livery");
-		return text + SituationStore::Suffix(choices.worn) + ".";
+		if (!stored) {
+			return "Dressed by Livery.";
+		}
+		const auto worn = choices.worn == Situations::Situation::kDefault ? " as " + SituationStore::Name(choices.worn) : SituationStore::Suffix(choices.worn);
+		return std::format("Wearing \"{}\"{}.", stored->name, worn);
 	}
 
 	// The library outfit Livery has on them now, for the first heading of the piece list;
@@ -1101,14 +1104,14 @@ namespace
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
 			if (!save.edits.empty()) {
 				std::vector<SituationStore::Edit> edits;
-				for (const auto& [situation, name, description] : save.edits) {
-					edits.push_back({ .situation = situation, .name = name, .description = description });
+				for (const auto& [situation, name] : save.edits) {
+					edits.push_back({ .situation = situation, .name = name });
 				}
 				if (const auto error = SituationStore::Apply(edits)) {
 					CaptureWindow::SetError(*error);
 					return;
 				}
-				Notify("Livery: saved the situations' names and descriptions.");
+				Notify("Livery: saved the situations' names.");
 			}
 			const auto                                target = handle.get();
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};

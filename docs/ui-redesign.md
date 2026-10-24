@@ -158,7 +158,7 @@ in a town changes nothing visible until the NPC leaves.
 
 ## 7. Situational outfits: model and roadmap
 
-Situation data (name, description, later conditions) is global, in `situations.json`. Per
+Situation data (name, later conditions) is global, in `situations.json`. Per
 actor, per row (the Default and each situation): a list of library outfits, a random flag
 and the outfit worn with random off. Spec and steps: docs/situation-management-ui.md.
 

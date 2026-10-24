@@ -111,19 +111,17 @@ namespace CaptureWindow
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;  // its key, which the handlers take
 		std::string           name;
-		std::string           description;  // "" for none
-		std::string           conditions;   // when it applies, shown read only on Manage Situations
+		std::string           conditions;  // when it applies, shown read only on Manage Situations
 		// Who has outfits on its list in this save, one line each, for the Remove situation? popup:
 		// "Lydia: 2 outfit(s)", the actor's FormID when not in memory. Empty for the Default.
 		std::vector<std::string> holders;
 	};
 
-	// A situation's name and description as Manage Situations leaves them.
+	// A situation's name as Manage Situations leaves it.
 	struct SituationEdit
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;
-		std::string           name;         // trimmed, non-empty
-		std::string           description;  // trimmed, maybe empty
+		std::string           name;  // trimmed, non-empty
 	};
 
 	// One of the actor's rows as Manage Situations leaves it.
@@ -136,7 +134,7 @@ namespace CaptureWindow
 	// What Manage Situations' Save Changes hands over.
 	struct SituationSave
 	{
-		std::vector<SituationEdit> edits;                      // the situations whose name or description changed; empty for none
+		std::vector<SituationEdit> edits;                      // the situations whose name changed; empty for none
 		std::vector<RowEdit>       rows;                       // every row of Request::assigned when any changed, else empty
 		bool                       dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
 		// The outfit whose details show, as indices into Request::pieces: a preview begun again
