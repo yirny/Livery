@@ -60,7 +60,8 @@ namespace
 	constexpr float kMaxSpeedPercent = 200.0f;
 
 	using Key = RE::BSKeyboardDevice::Keys::Key;
-	constexpr std::uint32_t kDefaultHotkey = Key::kF10;  // keep in step with kIniKeys
+	constexpr std::uint32_t kDefaultHotkey = Key::kX;            // keep in step with kIniKeys
+	constexpr std::uint32_t kDefaultModifier = Key::kLeftShift;  // keep in step with kIniKeys
 	constexpr std::uint32_t kNoModifier = 0;
 
 	struct IniKey
@@ -95,10 +96,10 @@ namespace
 			L"1 = the window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
 			L"0 = it stays silent.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
-		{ kHotkeySection, kHotkeyKeyKey, L"68",
-			L"Key that opens Livery on the NPC under the crosshair, or on you when there is none, as a DirectInput scan code (68 = F10).\n"
+		{ kHotkeySection, kHotkeyKeyKey, L"45",
+			L"Key that opens Livery on the NPC under the crosshair, or on you when there is none, as a DirectInput scan code (45 = X).\n"
 			L"Easiest to change in game through SKSE Menu Framework. Read once when the game starts." },
-		{ kHotkeySection, kHotkeyModifierKey, L"0",
+		{ kHotkeySection, kHotkeyModifierKey, L"42",
 			L"Key that must be held together with Key: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt.\n"
 			L"Left and right keys count the same. Read once when the game starts." },
 		{ kCameraSection, kSpeedPercentKey, L"100",
@@ -166,8 +167,8 @@ namespace
 	std::atomic<bool>          g_npcReaction{ true };
 	std::atomic<bool>          g_menuSounds{ true };
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
-	std::atomic<std::uint32_t> g_modifier{ kNoModifier };  // left-hand code of a kModifiers entry, or kNoModifier
-	std::atomic<bool>          g_pickingHotkey{ false };   // the settings page waits for the next key
+	std::atomic<std::uint32_t> g_modifier{ kDefaultModifier };  // left-hand code of a kModifiers entry, or kNoModifier
+	std::atomic<bool>          g_pickingHotkey{ false };        // the settings page waits for the next key
 	std::atomic<float>         g_speedPercent{ kDefaultSpeedPercent };
 	std::atomic<bool>          g_playerAddsMissing{ false };
 	std::atomic<bool>          g_showPlayerInventory{ true };
@@ -544,6 +545,21 @@ namespace
 		return nullptr;
 	}
 
+	// Whether `a_palette`, read from the file named like `a_shipped`, differs from it in its skin
+	// or in a colour that skin reads: what Restore original palette would change.
+	bool PaletteEdited(const PaletteOption& a_palette, const ShippedPalette& a_shipped)
+	{
+		if (a_palette.skin != a_shipped.skin) {
+			return true;
+		}
+		for (const auto& entry : kPaletteKeys) {
+			if ((entry.skins & SkinBit(a_shipped.skin)) != 0 && a_palette.palette.*entry.color != a_shipped.colours.*entry.color) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	// Writes `a_shipped` to `a_path` as Livery ships it, over any file there: its skin, then the
 	// colour keys that skin reads. False (logged) when the file cannot be written.
 	bool WriteShippedPalette(const std::filesystem::path& a_path, const ShippedPalette& a_shipped)
@@ -741,6 +757,67 @@ namespace
 		return true;
 	}
 
+	// Puts every setting on the page but the palette (the player's choice of look, and the
+	// camera speed is reset with the rest) back to its default, in memory and in the INI.
+	// Contract: render thread (RenderSettings), after the player confirmed. Keep in step
+	// with Load and kIniKeys.
+	void RestoreDefaultSettings()
+	{
+		g_pickingHotkey = false;
+		g_hotkey = kDefaultHotkey;
+		g_modifier = kDefaultModifier;
+		SaveHotkey(kDefaultHotkey, kDefaultModifier);
+		g_notifySituationChanges = false;
+		SaveFlag(kSituationsSection, kNotifyChangesKey, false);
+		g_followersAndSpouseOnly = true;
+		SaveFollowersAndSpouseOnly(true);
+		g_npcReaction = true;
+		SaveFlag(kIniSection, kNpcReactionKey, true);
+		g_moveFromPlayer = true;
+		SaveFlag(kTransferSection, kMoveFromPlayerKey, true);
+		g_playerAddsMissing = false;
+		SavePlayerAddsMissing(false);
+		g_livePreview = true;
+		SaveLivePreview(true);
+		g_speedPercent = kDefaultSpeedPercent;
+		SaveSpeedPercent(kDefaultSpeedPercent);
+		g_showPlayerInventory = true;
+		SaveFlag(kWindowSection, kShowPlayerInventoryKey, true);
+		g_showPlayerWorn = false;
+		SaveFlag(kWindowSection, kShowPlayerWornKey, false);
+		g_protectFavorites = true;
+		SaveFlag(kTransferSection, kProtectFavoritesKey, true);
+		g_showSlotColumn = false;
+		SaveFlag(kWindowSection, kShowSlotColumnKey, false);
+		g_menuSounds = true;
+		SaveMenuSounds(true);
+		logger::info("Settings restored to their defaults (SKSE Menu Framework)");
+	}
+
+	// Restore default settings, asked once more in a popup.
+	// Contract: render thread (RenderSettings).
+	void RenderRestoreDefaults()
+	{
+		constexpr auto kPopup = "Restore default settings?###RestoreDefaults";
+		if (ImGuiMCP::Button("Restore default settings")) {
+			ImGuiMCP::OpenPopup(kPopup);
+		}
+		ImGuiMCP::SetItemTooltip("Puts every setting on this page back to its default. Window skin keeps your choice.");
+		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
+			return;
+		}
+		ImGuiMCP::Text("Restore every setting on this page to its default? Window skin stays as it is.");
+		if (ImGuiMCP::Button("Yes")) {
+			RestoreDefaultSettings();
+			ImGuiMCP::CloseCurrentPopup();
+		}
+		ImGuiMCP::SameLine();
+		if (ImGuiMCP::Button("No")) {
+			ImGuiMCP::CloseCurrentPopup();
+		}
+		ImGuiMCP::EndPopup();
+	}
+
 	// The uninstall step, asked once more in a popup since it undoes every assignment.
 	// Contract: render thread (RenderSettings); g_releaseEveryone only queues an SKSE task,
 	// which checks whether the release can run now.
@@ -750,6 +827,9 @@ namespace
 		if (ImGuiMCP::Button("Release everyone")) {
 			ImGuiMCP::OpenPopup(kPopup);
 		}
+		ImGuiMCP::SetItemTooltip(
+			"Takes Livery's outfits off everyone, player included, and forgets their situational outfits. "
+			"Items moved from your inventory stay with them. Do this before you uninstall Livery.");
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
@@ -768,8 +848,8 @@ namespace
 	}
 
 	// The palette dropdown, one row per palette file by its label, and Restore original palette
-	// beside it, greyed for a palette Livery does not ship. Both take effect the next time the
-	// capture window opens.
+	// beside it, shown only while the chosen palette is one Livery ships with its skin or a
+	// colour edited. Both take effect the next time the capture window opens.
 	// Contract: render thread (RenderSettings), the only one that changes g_palettes after Load.
 	void RenderWindowSkin()
 	{
@@ -780,9 +860,10 @@ namespace
 			return;
 		}
 		std::string stem;
-		bool        shipped = false;
+		bool        edited = false;
 		{
 			std::scoped_lock lock{ g_paletteMutex };
+			ImGuiMCP::AlignTextToFramePadding();
 			ImGuiMCP::Text("Window skin");
 			ImGuiMCP::SameLine();
 			ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
@@ -799,18 +880,18 @@ namespace
 				ImGuiMCP::EndCombo();
 			}
 			ImGuiMCP::SetItemTooltip("Takes effect the next time you open the window.");
-			stem = SKSE::stl::utf16_to_utf8(g_palettes[g_paletteIndex].stem).value_or("?");
-			shipped = FindShippedPalette(g_palettes[g_paletteIndex].stem) != nullptr;
+			const auto& chosen = g_palettes[g_paletteIndex];
+			stem = SKSE::stl::utf16_to_utf8(chosen.stem).value_or("?");
+			const auto* shipped = FindShippedPalette(chosen.stem);
+			edited = shipped && PaletteEdited(chosen, *shipped);
 		}
 
-		ImGuiMCP::SameLine();
-		ImGuiMCP::BeginDisabled(!shipped);
-		if (ImGuiMCP::Button("Restore original palette")) {
-			ImGuiMCP::OpenPopup(kPopup);
-		}
-		ImGuiMCP::EndDisabled();
-		if (!shipped && ImGuiMCP::IsItemHovered(ImGuiMCP::ImGuiHoveredFlags_AllowWhenDisabled)) {
-			ImGuiMCP::SetTooltip("Only the palettes Livery ships have original colours: Modern, Edge, Vanilla and Nordic.");
+		if (edited) {
+			ImGuiMCP::SameLine();
+			if (ImGuiMCP::Button("Restore original palette")) {
+				ImGuiMCP::OpenPopup(kPopup);
+			}
+			ImGuiMCP::SetItemTooltip("Writes the palette file back as Livery ships it.");
 		}
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
@@ -837,7 +918,9 @@ namespace
 	// A heading with a rule, with room above it so the sections read apart.
 	void Heading(const char* a_label)
 	{
+		constexpr float kRoomAboveInFrames = 0.75f;  // of the frame height, over the setting gap
 		SettingGap();
+		ImGuiMCP::Dummy(ImGuiMCP::ImVec2{ 0.0f, ImGuiMCP::GetFrameHeight() * kRoomAboveInFrames });
 		ImGuiMCP::SeparatorText(a_label);
 	}
 
@@ -849,6 +932,7 @@ namespace
 		ImGuiMCP::SeparatorText("General");
 
 		// The next key press is taken by OnInput; "###" keeps the button's ID while its text changes.
+		ImGuiMCP::AlignTextToFramePadding();
 		ImGuiMCP::Text("Hotkey");
 		ImGuiMCP::SameLine();
 		const bool picking = g_pickingHotkey.load();
@@ -856,7 +940,7 @@ namespace
 		if (ImGuiMCP::Button(label.c_str())) {
 			g_pickingHotkey = !picking;
 		}
-		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.");
+		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\nDefault: Shift + X");
 
 		SettingGap();
 
@@ -867,7 +951,7 @@ namespace
 			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
 			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
 		}
-		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.");
+		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\nDefault: OFF");
 
 		// Every tick here is immersive when on.
 		Heading("Immersion");
@@ -878,7 +962,7 @@ namespace
 			SaveFollowersAndSpouseOnly(followersOnly);
 			logger::info("RestrictToFollowersAndSpouse = {} (SKSE Menu Framework)", followersOnly);
 		}
-		ImGuiMCP::SetItemTooltip("Restricts the hotkey to your followers and spouse. You can always open Livery for yourself.");
+		ImGuiMCP::SetItemTooltip("Restricts the hotkey to your followers and spouse. You can always open Livery for yourself.\nDefault: ON");
 
 		SettingGap();
 
@@ -889,7 +973,7 @@ namespace
 			SaveFlag(kIniSection, kNpcReactionKey, npcReaction);
 			logger::info("NpcReaction = {} (SKSE Menu Framework)", npcReaction);
 		}
-		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.");
+		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.\nDefault: ON");
 
 		SettingGap();
 
@@ -902,7 +986,8 @@ namespace
 		}
 		ImGuiMCP::SetItemTooltip(
 			"On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n"
-			"Off: the NPC receives plain copies, and you keep yours.");
+			"Off: the NPC receives plain copies, and you keep yours.\n"
+			"Default: ON");
 
 		SettingGap();
 
@@ -915,8 +1000,9 @@ namespace
 			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", !inventoryOnly);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Dressing yourself uses only items you carry; missing ones are named in a notification. NPCs always get what they need.\n"
-			"Off: missing items are created in your inventory.");
+			"Dressing yourself uses only items you carry. NPCs always get what they need, but you can't take those items from them.\n"
+			"Off: missing items are created in your inventory for free, which can break game balance. Keeping this on is strongly recommended.\n"
+			"Default: ON");
 
 		Heading("Window");
 
@@ -927,7 +1013,7 @@ namespace
 			SaveLivePreview(livePreview);
 			logger::info("LivePreview = {} (SKSE Menu Framework)", livePreview);
 		}
-		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.");
+		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.\nDefault: ON");
 
 		SettingGap();
 
@@ -952,23 +1038,25 @@ namespace
 			SaveFlag(kWindowSection, kShowPlayerInventoryKey, showInventory);
 			logger::info("ShowPlayerInventory = {} (SKSE Menu Framework)", showInventory);
 		}
-		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".");
+		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".\nDefault: ON");
 		ImGuiMCP::Indent();
 		ImGuiMCP::BeginDisabled(!showInventory);
-		bool showWorn = g_showPlayerWorn.load();
-		if (ImGuiMCP::Checkbox("Include what you wear", &showWorn)) {
-			g_showPlayerWorn = showWorn;
-			SaveFlag(kWindowSection, kShowPlayerWornKey, showWorn);
-			logger::info("ShowPlayerWornPieces = {} (SKSE Menu Framework)", showWorn);
+		// The tick is the opposite of ShowPlayerWornPieces, so that on excludes like the tick
+		// below it; the INI key keeps its meaning.
+		bool excludeWorn = !g_showPlayerWorn.load();
+		if (ImGuiMCP::Checkbox("Exclude equipped items", &excludeWorn)) {
+			g_showPlayerWorn = !excludeWorn;
+			SaveFlag(kWindowSection, kShowPlayerWornKey, !excludeWorn);
+			logger::info("ShowPlayerWornPieces = {} (SKSE Menu Framework)", !excludeWorn);
 		}
-		ImGuiMCP::SetItemTooltip("Off: excludes items you're wearing unless you carry another copy.");
+		ImGuiMCP::SetItemTooltip("Leaves out items you're wearing unless you carry another copy.\nDefault: ON");
 		bool protectFavorites = g_protectFavorites.load();
 		if (ImGuiMCP::Checkbox("Exclude favorites", &protectFavorites)) {
 			g_protectFavorites = protectFavorites;
 			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
 			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
 		}
-		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.");
+		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.\nDefault: ON");
 		ImGuiMCP::EndDisabled();
 		ImGuiMCP::Unindent();
 
@@ -981,7 +1069,7 @@ namespace
 			SaveFlag(kWindowSection, kShowSlotColumnKey, showSlots);
 			logger::info("ShowSlotColumn = {} (SKSE Menu Framework)", showSlots);
 		}
-		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).");
+		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\nDefault: OFF");
 
 		Heading("Appearance");
 
@@ -996,8 +1084,13 @@ namespace
 			SaveMenuSounds(menuSounds);
 			logger::info("MenuSounds = {} (SKSE Menu Framework)", menuSounds);
 		}
+		ImGuiMCP::SetItemTooltip("Plays the game's menu sounds for clicks in Livery.\nDefault: ON");
 
-		Heading("Uninstall");
+		Heading("System");
+
+		RenderRestoreDefaults();
+
+		SettingGap();
 
 		RenderReleaseEveryone();
 	}
@@ -1047,13 +1140,15 @@ namespace Settings
 		g_menuSounds = std::wstring_view{ value } != L"0";
 		logger::info("MenuSounds = {}", g_menuSounds.load());
 
-		// An out-of-range key or an unknown modifier keeps the default (F10, no modifier).
+		// An out-of-range key or an unknown modifier keeps the default (Shift + X); 0 is no modifier.
 		const auto key = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyKeyKey, kDefaultHotkey, g_iniPath.c_str());
 		if (key > Key::kNone && key <= 0xFF) {
 			g_hotkey = key;
 		}
-		const auto modifier = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyModifierKey, kNoModifier, g_iniPath.c_str());
-		if (const auto* known = FindModifier(modifier)) {
+		const auto modifier = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyModifierKey, kDefaultModifier, g_iniPath.c_str());
+		if (modifier == kNoModifier) {
+			g_modifier = kNoModifier;
+		} else if (const auto* known = FindModifier(modifier)) {
 			g_modifier = known->left;
 		}
 		logger::info("Hotkey = {} ({}, modifier {})", HotkeyName(), g_hotkey.load(), g_modifier.load());
