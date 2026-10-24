@@ -29,7 +29,7 @@ namespace Theme
 	struct Palette
 	{
 		std::uint32_t window = 0x1A1B1CF0;       // the window
-		std::uint32_t surface = 0x2A2D2EFA;      // popups, dropdown lists and tooltips
+		std::uint32_t surface = 0x121516FA;      // popups, dropdown lists and tooltips
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
 		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
