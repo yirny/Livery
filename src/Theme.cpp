@@ -3125,19 +3125,26 @@ namespace Theme
 		ImGui::PopFont();
 	}
 
+	// The body font at its size. Contract: the size is the skin's, never style.FontSizeBase:
+	// ImGui writes each pushed font's size back into it, so under PushLabelFont it is the label's.
+	void PushTooltipFont()
+	{
+		ImGui::PushFont(ImGui::GetIO().FontDefault, FontFilesOf(g_skin).body.size);
+	}
+
 	// The font stack is ImGui's, not the window's: pushed before the tooltip begins, the body
 	// font draws all of it. SetTooltip, as before: it replaces a tooltip asked for earlier in
 	// the frame.
 	void Tooltip(const char* a_text)
 	{
-		ImGui::PushFont(ImGui::GetIO().FontDefault, ImGui::GetStyle().FontSizeBase);
+		PushTooltipFont();
 		ImGui::SetTooltip("%s", a_text);
 		ImGui::PopFont();
 	}
 
 	void BeginTooltip()
 	{
-		ImGui::PushFont(ImGui::GetIO().FontDefault, ImGui::GetStyle().FontSizeBase);
+		PushTooltipFont();
 		ImGui::BeginTooltip();
 	}
 
