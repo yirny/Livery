@@ -18,9 +18,11 @@ namespace OutfitIcons
 {
 	constexpr std::string_view kDefaultKey = "skyui/icons_item_psychosteve/armor_body";
 
-	// The picker's icons in order: SkyUI's by slot (helmet, circlet, body, hands, forearms,
-	// feet, calves, necklace, ring, shield), each slot heavy, light, then clothing; Jelidity's
-	// cloak and backpack; then BOOBIES' from head to feet. Only those whose PNG is loaded show.
+	// The picker's icons in order: SkyUI's by slot (helmet, circlet, body, hands, feet,
+	// necklace, ring, shield), each slot heavy, light, then clothing; Jelidity's cloak and
+	// backpack; then BOOBIES' from head to feet. Only those whose PNG is loaded show. Icons
+	// drawn the same as one listed are left out: SkyUI's forearms and calves (its hands and
+	// feet), BOOBIES' torso, ring and circlet (SkyUI's body, ring and circlet).
 	constexpr auto kKeys = std::to_array<std::string_view>({
 		"skyui/icons_item_psychosteve/armor_head",
 		"skyui/icons_item_psychosteve/lightarmor_head",
@@ -32,15 +34,9 @@ namespace OutfitIcons
 		"skyui/icons_item_psychosteve/armor_hands",
 		"skyui/icons_item_psychosteve/lightarmor_hands",
 		"skyui/icons_item_psychosteve/clothing_hands",
-		"skyui/icons_item_psychosteve/armor_forearms",
-		"skyui/icons_item_psychosteve/lightarmor_forearms",
-		"skyui/icons_item_psychosteve/clothing_forearms",
 		"skyui/icons_item_psychosteve/armor_feet",
 		"skyui/icons_item_psychosteve/lightarmor_feet",
 		"skyui/icons_item_psychosteve/clothing_feet",
-		"skyui/icons_item_psychosteve/armor_calves",
-		"skyui/icons_item_psychosteve/lightarmor_calves",
-		"skyui/icons_item_psychosteve/clothing_calves",
 		"skyui/icons_item_psychosteve/armor_amulet",
 		"skyui/icons_item_psychosteve/armor_ring",
 		"skyui/icons_item_psychosteve/armor_shield",
@@ -51,7 +47,6 @@ namespace OutfitIcons
 		"boobies immersive icons/bodyparts/armor_hat",
 		"boobies immersive icons/bodyparts/armor_horns",
 		"boobies immersive icons/bodyparts/armor_ears",
-		"boobies immersive icons/bodyparts/armor_circlet",
 		"boobies immersive icons/bodyparts/armor_dragonmask",
 		"boobies immersive icons/bodyparts/armor_fullmask",
 		"boobies immersive icons/bodyparts/armor_facemask",
@@ -63,7 +58,6 @@ namespace OutfitIcons
 		"boobies immersive icons/bodyparts/armor_shoulder",
 		"boobies immersive icons/bodyparts/armor_pauldron",
 		"boobies immersive icons/bodyparts/armor_armlets",
-		"boobies immersive icons/bodyparts/armor_torso",
 		"boobies immersive icons/bodyparts/armor_bra",
 		"boobies immersive icons/bodyparts/armor_abs",
 		"boobies immersive icons/bodyparts/armor_tattoo",
@@ -71,7 +65,6 @@ namespace OutfitIcons
 		"boobies immersive icons/bodyparts/armor_bandolier",
 		"boobies immersive icons/bodyparts/armor_pouch",
 		"boobies immersive icons/bodyparts/armor_lantern",
-		"boobies immersive icons/bodyparts/armor_ring",
 		"boobies immersive icons/bodyparts/armor_tasset",
 		"boobies immersive icons/bodyparts/armor_cuisse",
 		"boobies immersive icons/bodyparts/armor_greaves",
