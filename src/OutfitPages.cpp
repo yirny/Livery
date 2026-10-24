@@ -718,6 +718,18 @@ namespace CaptureWindow::Internal
 		return row == 0 ? std::format("Dress {} in this outfit as their Default.", name) : std::format("Dress {} in this outfit for {}.", name, RowName(a_state, row));
 	}
 
+	// Whether Apply would change nothing: no library edits, and the actor wears the selected
+	// outfit now for the Default or a situation not removed, the row Apply would give it again.
+	// Contract: an outfit is selected.
+	bool WearsManagedAsIs(const State& a_state)
+	{
+		const auto& request = a_state.request;
+		if (HasLibraryEdits(a_state) || request.wornOutfit != ManagedOutfitId(a_state)) {
+			return false;
+		}
+		return request.wornFor == Situations::Situation::kDefault || WornSituationRow(a_state).has_value();
+	}
+
 	// Why Apply to #{Name} is greyed, or nullptr. It dresses the actor in the outfit as
 	// edited: unsaved library edits are saved first, so they need a name.
 	const char* ApplyReason(const State& a_state)
@@ -729,7 +741,10 @@ namespace CaptureWindow::Internal
 		if (form.pieces.empty()) {
 			return kNoLoadedPiece;
 		}
-		return HasLibraryEdits(a_state) && Trimmed(form.name.data()).empty() ? kNeedName : nullptr;
+		if (HasLibraryEdits(a_state) && Trimmed(form.name.data()).empty()) {
+			return kNeedName;
+		}
+		return WearsManagedAsIs(a_state) ? kWornAlready : nullptr;
 	}
 
 	// Why Update is greyed, or nullptr: it needs unsaved edits and a name.

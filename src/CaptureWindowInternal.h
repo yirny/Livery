@@ -50,6 +50,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
 	constexpr const char* kNoChanges = "No changes to save.";
+	constexpr const char* kWornAlready = "Already worn as is.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.

@@ -208,8 +208,10 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
     `... as their Default.` With library edits it goes through `onManageUpdate` with
     `apply` and the row: the library write first (CLAUDE.md §2.1), a refused or failed one
     assigns nothing and shows the error; else through `Request::onManageApply` with the
-    row. Greyed with no outfit selected, with no edited piece (`kNoLoadedPiece`), and with
-    library edits and an empty name (`kNeedName`).
+    row. Greyed with no outfit selected, with no edited piece (`kNoLoadedPiece`), with
+    library edits and an empty name (`kNeedName`), and with no library edits while the actor
+    wears the outfit now for the Default or a situation not removed (`kWornAlready`), as
+    Apply would change nothing.
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
 - Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
