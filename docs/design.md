@@ -196,7 +196,7 @@ would have to be kept in step).
 - An outfit has an icon: `"icon"`, PieceIcons' key of a PNG under `icons/`
   (`skyui/icons_item_psychosteve/armor_body`), and `"color"`, its tint as `#rrggbb`. A
   missing or unreadable one is the default (`OutfitIcons::kDefaultKey`, `#eaeaea`), so an
-  older file reads as it is; `Library::Create` gives the default.
+  older file reads as it is; `Library::Create` takes the Save page's Create tab's icon.
 - `Library::Update` replaces pieces, name and icon; a name is taken when another outfit
   has it (ASCII case ignored). The Save page's Update keeps the icon.
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
@@ -430,9 +430,9 @@ Each stage ends with an in-game check before the next starts.
   `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their
   permission (`icons/ICON-CREDITS.txt`). Other icon packs' PNGs are not in the repository.
 - Outfit icons use the same PNGs (§4: an outfit's `icon` and `color`). The outfit rows, their
-  drag copies and Manage Wardrobe's icon field draw the outfit's icon tinted with its colour;
-  a key whose PNG is not loaded draws the default key's PNG in that colour. Manage
-  Wardrobe's picker offers the keys of `OutfitIcons::kKeys` whose PNG is loaded, in that
+  drag copies and the icon fields (Manage Wardrobe's, the Create tab's) draw the outfit's icon
+  tinted with its colour; a key whose PNG is not loaded draws the default key's PNG in that
+  colour. The picker offers the keys of `OutfitIcons::kKeys` whose PNG is loaded, in that
   order: SkyUI's slots (helmet, circlet, body, hands, feet, necklace, ring, shield; each
   heavy, light, clothing), Jelidity's cloak and backpack, then BOOBIES' `bodyparts` from head
   to feet. An icon drawn the same as one listed is left out (SkyUI's forearms and calves,

@@ -354,7 +354,7 @@ namespace Library
 
 	// Contract: every refusal is checked before anything changes, so no outfit is ever
 	// left without pieces.
-	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor)
+	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -365,7 +365,7 @@ namespace Library
 		if (FindByName(a_name)) {
 			return std::format("An outfit named \"{}\" already exists.", a_name);
 		}
-		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name } };
+		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .icon = a_icon };
 		if (auto problem = ToPieces(a_armor, outfit.pieces)) {
 			return problem;
 		}

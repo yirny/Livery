@@ -88,9 +88,16 @@ situation is Manage Situations' job (docs/situation-management-ui.md).
   line. Each tab keeps its name while the window is open, the Update tab its outfit.
 - Both tabs start with the name, as Manage Wardrobe's field: no label (`Outfit Name` on hover
   while not being typed in; a failed save's error instead).
-- `Create New Outfit`: the name, starting from the first free `New Outfit NNN`, then the
-  ticked pieces read only under their count line, as Manage Wardrobe shows an outfit's.
-  Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
+- `Create New Outfit`: the icon field and the name, as Manage Wardrobe's (its `Choose icon`
+  popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
+  NNN`, then the ticked pieces read only under their count line, as Manage Wardrobe shows an
+  outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
+- The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it while
+  the window is open (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
+  body slot, then head (head, hair, long hair), circlet, hands, feet, amulet, ring, then any,
+  whose key `OutfitIcons::kKeys` lists and whose PNG is loaded; else the default key. Its
+  colour is white (`#eaeaea`). Create writes it with the outfit; the Update tab keeps the
+  outfit's icon.
 - Create and Apply saves as Create does and gives the new outfit the row Manage Wardrobe's
   Apply would (docs/outfit-management-ui.md §4), through the same popup body
   (`ApplySubject`), its question starting `Create "#{Outfit}", then`:

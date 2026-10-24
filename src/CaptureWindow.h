@@ -152,7 +152,8 @@ namespace CaptureWindow
 		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
 		std::string              name;        // trimmed, non-empty
 		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
-		// Manage Wardrobe's icon for the outfit; nullopt keeps the one it has (the Save page).
+		// The outfit's icon: Manage Wardrobe's, or the Create tab's for a new outfit; nullopt
+		// keeps the one it has (the Save page's Update tab).
 		std::optional<OutfitIcons::Icon> icon;
 		// The row the outfit goes to, as Manage Wardrobe's Apply gives it (the situation the
 		// actor wears another outfit for now, after the user agreed, else the Default); nullopt

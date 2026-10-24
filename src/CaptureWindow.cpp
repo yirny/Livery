@@ -23,7 +23,8 @@
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit tabs, each with its own name:
-//                  Create shows the ticked pieces read only, Create and Apply gives the new
+//                  Create shows the ticked pieces read only and an icon they suggest until
+//                  one is chosen (CreateIcon, Choose icon), Create and Apply gives the new
 //                  outfit the row Manage Wardrobe's Apply would (its popup first when that asks);
 //                  Update shows the wardrobe's outfits, the chosen one's pieces and the ticked
 //                  ones in three columns (ChooseOutfit), its confirm popup before the write;
@@ -1461,6 +1462,22 @@ namespace CaptureWindow::Internal
 		return a_state.updateTab ? a_state.updateName : a_state.createName;
 	}
 
+	// The Create tab's icon for the ticked pieces `a_ticked`: the one chosen in Choose icon,
+	// else the one they suggest (OutfitIcons::SuggestKey) in white, which follows the ticks.
+	OutfitIcons::Icon CreateIcon(const State& a_state, const std::vector<std::size_t>& a_ticked)
+	{
+		if (a_state.createIcon) {
+			return *a_state.createIcon;
+		}
+		std::vector<OutfitIcons::PieceKey> pieces;
+		pieces.reserve(a_ticked.size());
+		for (const auto index : a_ticked) {
+			const auto& piece = a_state.request.pieces[index];
+			pieces.push_back({ .slots = piece.slots, .key = piece.icon });
+		}
+		return { .key = std::string{ OutfitIcons::SuggestKey(pieces, Theme::HasOutfitIcon) }, .rgb = OutfitIcons::kDefaultColor };
+	}
+
 	// The library outfit the Save page writes: the Update tab's, or 0 for a new one.
 	std::uint32_t TargetOutfit(const State& a_state)
 	{
@@ -1604,18 +1621,26 @@ namespace CaptureWindow::Internal
 		HoldCentre(a_state);
 	}
 
-	// The Create tab's fields: the name, then the ticked pieces read only under their count
-	// line, as Manage Wardrobe shows an outfit's. Returns true on the name field's Enter.
-	bool DrawCreateTab(State& a_state)
+	struct CreateTabInput
 	{
+		bool enter = false;        // the name field's Enter
+		bool iconClicked = false;  // the icon field, which opens Choose icon
+	};
+
+	// The Create tab's fields: the icon (CreateIcon) and name, as Manage Wardrobe's, then the
+	// ticked pieces read only under their count line, as Manage Wardrobe shows an outfit's.
+	CreateTabInput DrawCreateTab(State& a_state)
+	{
+		CreateTabInput input;
 		ImGui::PushID("create");
-		const bool enter = DrawNameField(a_state, a_state.createName);
-		Theme::AfterFieldGap();
 		const auto pieces = TickedPieces(a_state);
+		const auto icon = CreateIcon(a_state, pieces);
+		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked);
+		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(pieces.size(), 0).c_str());
 		DrawPieceNames(a_state, pieces);
 		ImGui::PopID();
-		return enter;
+		return input;
 	}
 
 	struct UpdateTabInput
@@ -1786,6 +1811,9 @@ namespace CaptureWindow::Internal
 			.name = Trimmed(ActiveName(a_state).data()),
 			.pieces = TickedPieces(a_state),
 			.applyRow = a_applyRow };
+		if (!a_state.updateTab) {
+			save.icon = CreateIcon(a_state, save.pieces);
+		}
 		if (a_applyRow) {
 			save.fromPlayer = TickedFromPlayer(a_state);
 		}
@@ -1807,17 +1835,21 @@ namespace CaptureWindow::Internal
 	}
 
 	// Reached only with at least one piece ticked, which onSave relies on; the ticks cannot
-	// change here. Each tab keeps its name while the window is open, the Update tab its outfit.
-	// Create saves at once; Update asks in its confirm popup first.
+	// change here. Each tab keeps its name while the window is open, the Update tab its outfit,
+	// the Create tab an icon chosen in Choose icon. Create saves at once; Update asks in its
+	// confirm popup first.
 	void DrawSavePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const int      tab = DrawSaveTabs(a_state);
 		UpdateTabInput input;
+		bool           iconClicked = false;
 		if (a_state.updateTab) {
 			input = DrawUpdateTab(a_state);
 		} else {
-			input.enter = DrawCreateTab(a_state);
+			const auto create = DrawCreateTab(a_state);
+			input.enter = create.enter;
+			iconClicked = create.iconClicked;
 		}
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
@@ -1832,6 +1864,9 @@ namespace CaptureWindow::Internal
 		if (DrawConfirmPopup(a_state)) {
 			RequestSave(a_state, std::nullopt);
 		}
+		if (const auto icon = DrawIconPopup(a_state, true)) {
+			a_state.createIcon = *icon;
+		}
 
 		if (tab == 0 && a_state.updateTab) {
 			QueueMenuSound(kFocusSound);
@@ -1841,6 +1876,10 @@ namespace CaptureWindow::Internal
 			ShowUpdateTab(a_state);
 		} else if (input.clicked >= 0) {
 			ChooseOutfit(a_state, input.clicked == a_state.chosenOutfit ? -1 : input.clicked);
+		} else if (iconClicked) {
+			QueueMenuSound(kOkSound);
+			a_state.iconPicker = { .pick = CreateIcon(a_state, TickedPieces(a_state)) };
+			ImGui::OpenPopup(kIconPopup);
 		} else if (action == SaveAction::kSave) {
 			QueueMenuSound(kOkSound);
 			if (a_state.updateTab) {
@@ -1880,6 +1919,7 @@ namespace CaptureWindow
 			// The Update tab's name is filled when an outfit is chosen (ChooseOutfit).
 			state.createName.fill('\0');
 			std::strncpy(state.createName.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
+			state.createIcon.reset();
 			state.updateName.fill('\0');
 			state.updateTab = false;
 			state.chosenOutfit = -1;
@@ -1950,6 +1990,7 @@ namespace CaptureWindow
 			state.status = Status::kClosed;
 			state.request = {};
 			state.createName = {};
+			state.createIcon.reset();
 			state.updateName = {};
 			state.manage = {};
 			state.situationForm = {};

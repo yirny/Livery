@@ -985,22 +985,21 @@ namespace CaptureWindow::Internal
 
 	// Choose icon: the icons whose PNG is loaded, in OutfitIcons' order, the chosen one marked;
 	// under them the colours, the chosen one marked; then OK / Cancel. A click on an icon or a
-	// colour chooses it; while the mouse is over a colour every icon shows in it. OK makes the
-	// choice the edited outfit's icon, an edit as a rename is; Cancel (or Escape) leaves it.
-	// Nothing is written here.
-	void DrawIconPopup(State& a_state)
+	// colour chooses it; while the mouse is over a colour every icon shows in it. OK hands the
+	// choice back, Cancel (or Escape) nothing. Nothing is written here.
+	std::optional<OutfitIcons::Icon> DrawIconPopup(State& a_state, bool a_keepOpen)
 	{
 		constexpr int   kColumns = 8;                // icons per row; to be tuned in game
 		constexpr float kTileGap = 2.0f;             // pixels at 1080p, between the icons and between the colours
 		constexpr float kSwatchHeightRatio = 0.75f;  // of the frame height
 
 		if (!BeginModal(kIconPopup)) {
-			return;
+			return std::nullopt;
 		}
-		if (a_state.manage.outfit < 0) {
+		if (!a_keepOpen) {
 			ImGui::CloseCurrentPopup();
 			ImGui::EndPopup();
-			return;
+			return std::nullopt;
 		}
 		auto&       pick = a_state.iconPicker.pick;
 		const float gap = kTileGap * Theme::Scale();
@@ -1054,18 +1053,19 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(ok ? kOkSound : kCancelSound);
 			ImGui::CloseCurrentPopup();
 		}
-		if (ok) {
-			a_state.manage.icon = pick;
-		}
 		ImGui::EndPopup();
+		return ok ? std::optional{ pick } : std::nullopt;
 	}
 
-	// The page's popups, each opened by the page in its own ID scope. The unsaved-changes
+	// The page's popups, each opened by the page in its own ID scope. Choose icon's OK makes
+	// the choice the edited outfit's icon, an edit as a rename is. The unsaved-changes
 	// alert's Save Changes saves through Update's popup, whose Confirm the leave follows
 	// once the save took (Draw); Discard Changes starts the edits again from the library.
 	void DrawManagePopups(State& a_state)
 	{
-		DrawIconPopup(a_state);
+		if (const auto icon = DrawIconPopup(a_state, a_state.manage.outfit >= 0)) {
+			a_state.manage.icon = *icon;
+		}
 		if (DrawManageConfirmPopup(a_state)) {
 			RequestManageUpdate(a_state, std::nullopt);
 			a_state.leaveAfterSave = a_state.leave.has_value();

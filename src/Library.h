@@ -51,10 +51,10 @@ namespace Library
 	// number of pieces whose plugin or form is not loaded.
 	std::vector<RE::TESObjectARMO*> LoadedPieces(const Outfit& a_outfit, std::size_t* a_unloaded = nullptr);
 
-	// Adds an outfit with the default icon and writes the file. Returns why it refused, having
+	// Adds an outfit with icon `a_icon` and writes the file. Returns why it refused, having
 	// changed nothing: an empty or taken name, no armor, armor created in game, or a file it
 	// cannot write.
-	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor);
+	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon);
 
 	// Replaces the outfit's loaded pieces with `a_armor` (pieces whose plugin or form is not
 	// loaded stay), its name and its icon, then writes the file. Refuses as Create does, having
