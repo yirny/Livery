@@ -375,13 +375,15 @@ namespace CaptureWindow::Internal
 	// `a_rowsHeight` pixels with the spacing under each, so it does not scroll,
 	// capped so a long list cannot push the window off screen; the cap also covers
 	// `a_reserved` pixels of other content stacked above it. It is at least
-	// `a_minHeight`: a child of height zero would fill the window.
+	// `a_minHeight`: a child of height zero would fill the window. Whole pixels, rounded up:
+	// ImGui truncates the child's inner height but not its padding, so a fractional height
+	// (Modern's row gap above 1080p) a third of a pixel short of the rows shows a scroll bar.
 	// Contract: called with the item spacing the rows will be laid out with.
 	float FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved)
 	{
 		const float fullHeight = a_rowsHeight - ImGui::GetStyle().ItemSpacing.y + Theme::ListPaddingY() * 2.0f;
 		const float cap = ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio - a_reserved;
-		return (std::max)(a_minHeight, (std::min)(fullHeight, cap));
+		return std::ceil((std::max)(a_minHeight, (std::min)(fullHeight, cap)));
 	}
 
 	// FittedListHeight for rows of one height; an empty list keeps one row.

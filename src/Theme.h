@@ -164,7 +164,10 @@ namespace Theme
 	// BeginChild / EndChild: always call EndList, before the next BeginList.
 	// Rows go through TickRow, SelectRow or TextRow. Vanilla and Nordic draw the game's scroll
 	// bar (arrows at its ends, its track, a thumb in the style's grab colours) over ImGui's,
-	// which still takes the clicks; without its textures, ImGui's own.
+	// which still takes the clicks; without its textures, ImGui's own. In every skin the bar
+	// is hidden until a wheel turn over the list, the mouse over the bar or a drag of its thumb
+	// fades it in (0.2 s); it stays while the mouse is in the list and fades out (0.8 s) once
+	// the mouse has been out of it for 0.1 s.
 	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
 	// columns clip the outer sides short of the window's edges (Vanilla, Nordic).
 	bool BeginList(const char* id, float height, bool rules = true);
@@ -421,8 +424,8 @@ namespace Theme
 	// preview. Every skin gives the popup its own padding. Modern replaces
 	// ImGui's arrow with a small chevron in the accent; Vanilla and Nordic replace it
 	// with the game's diamond stepper arrow, grey and white while hovered or open,
-	// or keep ImGui's when its texture is missing, and draw the popup's border fainter
-	// and its scroll bar as BeginList's. `flags` are ImGuiComboFlags.
+	// or keep ImGui's when its texture is missing, and draw the popup's border fainter.
+	// The popup's scroll bar is BeginList's, with its fade. `flags` are ImGuiComboFlags.
 	bool BeginCombo(const char* id, int flags, const FieldStyle& style = {});
 	void EndCombo(bool open, const char* preview, const FieldStyle& style = {});
 

@@ -22,7 +22,10 @@ knot at its left end, in the headings' grey; lists and dropdown
 popups scroll with the game's journal scroll bar, 16px wide at 1080p with 2px clear on
 either side: its arrows are the game's art, its track and thumb drawn in code with 1px lines
 at any resolution, the thumb's rim and its fill while held in the track's light grey
-(#cccccc) (Modern keeps a 1px rule and ImGui's bar). Fonts at 1080p: Modern's body 20px
+(#cccccc) (Modern keeps a 1px rule and ImGui's bar). In every skin a list's or popup's scroll
+bar is hidden until the wheel turns over the list, the mouse is over the bar or its thumb is
+dragged; it fades in over 0.2 s, stays while the mouse is in the list, and fades out over
+0.8 s once the mouse has been out of the list for 0.1 s. Fonts at 1080p: Modern's body 20px
 and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nordic's 20px and
 26px (Sovngarde). Modern takes its colours from the palette `[UI] Palette` names
 (`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by `Settings`); below,
@@ -78,7 +81,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 - `Sort by`: Name, Situation. Situation puts headings in the list: the rows holding the
   outfit joined with `, ` (`Town, Swimming`), in their order (Default, then
   `Situations::kChoosable`). Outfits on none of the rows come last under `No Situation`. Within a heading, by name.
-- A heading has a chevron at the list's left edge, pointing down while open and right while
+- A heading has a chevron at the list's left edge (in Modern 4px in from it, as much as the
+  rule leaves at the right end), pointing down while open and right while
   folded, its text after it, and a rule in the list's rule colour from 12px after its text to
   4px short of the list's right end. In a list whose rows have a drag grip (Manage
   Situations), the grip's dots start where the heading's text does. A click on the heading folds its outfits away or back (`OutfitBrowser::State::folded`,
