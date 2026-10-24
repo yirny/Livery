@@ -1274,7 +1274,7 @@ namespace
 		}
 		// The follower restriction narrows which NPCs qualify; the player always does.
 		if (!isPlayer && Settings::FollowersAndSpouseOnly() && !IsFollowerOrSpouse(*actor)) {
-			Notify("Livery: only followers and your spouse can be captured.");
+			Notify("Livery: followers and your spouse only (see Settings).");
 			return;
 		}
 

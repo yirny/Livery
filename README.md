@@ -120,7 +120,7 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 | `Hotkey`     | `Key`                          | `68`     | Capture key as a DirectInput scan code (`68` = F10). In game, click the hotkey button and press a key. |
 | `Hotkey`     | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).            |
 | `Camera`     | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).              |
-| `Player`     | `AddMissingPieces`             | `0`      | `1` lets an outfit you give yourself add the pieces you do not carry, which creates items.             |
+| `Player`     | `AddMissingPieces`             | `0`      | `1` lets an outfit you give yourself add the pieces you do not carry, which creates items; in game the tick **Dress yourself from inventory only** is its opposite. |
 | `Window`     | `ShowPlayerInventory`          | `1`      | `1` lists your armor in an NPC's capture window, under `<your name>'s Inventory`; never quest items.   |
 | `Window`     | `ShowPlayerWornPieces`         | `0`      | `1` lists the armor you wear there too; `0` leaves it out unless you carry another copy.               |
 | `Window`     | `ShowSlotColumn`               | `0`      | `1` adds a Slot column to the capture window's piece list: each piece's body slots by number.         |
