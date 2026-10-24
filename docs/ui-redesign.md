@@ -77,55 +77,58 @@ listed; the HUD counts moved pieces; the NPC keeps the piece after Restore.
 
 ## 4. Save page
 
-Reached from `Create / Update Outfit` with the ticked pieces, which both tabs save.
+Reached from `Create / Update Outfit` with the ticked pieces, which both tabs save. The page
+writes the library; only Create and Apply gives the outfit a row. Giving an outfit to a
+situation is Manage Situations' job (docs/situation-management-ui.md).
 
-- Heading: `Create New Outfit / Update Existing Outfit...` in place of the title, in the
+- Heading: `Create New Outfit / Update Existing Outfit` in place of the title, in the
   heading font, where the title goes (Nordic: centred, over its rule), separated by a greyed
   `/`, text only (no box), the unselected one half transparent (`Theme::BeginHeadingTabs`);
   no actor name or summary line. The page is widened when the tabs would not fit on one
-  line. Each tab keeps its own state while the window is open.
-- `Update Existing Outfit...`: greyed while the library is empty (`kNoOutfits`). Clicking it
-  opens the outfit selection (the Load page's browser and preview, titled `Select an Outfit
-  to Update`, no summary line, `No outfit selected` on the right while none is); Cancel
-  returns to the former tab with nothing changed. The selection opens with the outfit last
-  loaded selected and previewed, or else the library outfit Livery has on the actor;
-  clicking it again reopens it with the chosen outfit selected. Once chosen: the name fills from the
-  outfit, the `SITUATIONS (#{Name})` ticks (below) from this actor's assignments of it, and
-  the button reads
-  `Update #{Outfit}`. The name may be changed: CLAUDE.md §2.1 is rewritten (change the
-  name only through the confirmed Update path; a name must be unused, ASCII case ignored,
-  by any other outfit) and `Library::Update` takes the name.
-- `Create New Outfit`: as today; buttons `Create` and `Create and Apply`. Create and Apply
-  saves as Create does (the replace popup first) and has the actor wear the new outfit: the
-  row it would be worn for once saved (the first situation they are in, as the window
-  opened, that is ticked or holds an outfit, else the Default) gets it too. When that row is
-  not ticked, the Wear popup asks first: `Wear "#{Outfit}" for #{Row} now?`, then
-  `#{Row}: "#{Outfit}" replaces "B"` or `#{Row}: added` (`added to its list` for a random
-  row); Yes adds the row, Cancel saves nothing. The Player's Inventory pieces move first,
-  and those that do not move stay out of the one dressing (`SaveRequest::apply`,
-  `Assignments::Changes::leaveOut`).
-- Fields, as Manage Wardrobe's: the name, with no label (`Outfit Name` on hover while not
-  being typed in; a failed save's error instead), then `SITUATIONS (#{Name})`.
-- Field `SITUATIONS (#{Name})`: a multi-choice dropdown of `Default` and the situations. A tick gives
-  the saved outfit to this actor's row (docs/situation-management-ui.md §1). The label's
-  `(?)`: "Situational outfit. #{Name} changes into it whenever a ticked situation applies.
-  Default is what #{Name} wears wherever no situation applies."
-- Replace confirm: when a ticked row already wears another outfit (random off, §7), one
-  modal lists them (`Town: "B" replaces "A"`) with `Confirm` / `Cancel`; the replaced outfit
-  leaves the row's list (docs/situation-management-ui.md §1).
-- Update tab: the ticks start from this actor's assignments of the outfit; unticking removes
-  the assignment, Default included (a clear-default API: the worn default comes off, its
-  situations stay). Update always replaces the outfit's pieces with the ticks: a pure
-  assignment edit is Manage Situations' job. The confirm popup stays and adds
-  lines for a rename and the assignment changes (`Home: removed`,
-  `Default: added`).
+  line. Each tab keeps its name while the window is open, the Update tab its outfit.
+- Both tabs start with the name, as Manage Wardrobe's field: no label (`Outfit Name` on hover
+  while not being typed in; a failed save's error instead).
+- `Create New Outfit`: the name, starting from the first free `Captured Outfit NNN`, then the
+  ticked pieces read only under their count line, as Manage Wardrobe shows an outfit's.
+  Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
+- Create and Apply saves as Create does and gives the new outfit the row Manage Wardrobe's
+  Apply would (docs/outfit-management-ui.md §4), through the same popup body
+  (`ApplySubject`), its question starting `Create "#{Outfit}", then`:
+  - while the actor wears another outfit for a situation: `Lydia is wearing their Town
+    outfit, "B".`, `Create "A", then make it their new Town outfit?` (random on: `add it to
+    them and wear it now`); Yes gives it that row, Apply as Default (?) the Default;
+  - else the Default; when the Default holds an outfit or pieces it asks first: `Create "A",
+    then apply it as Lydia's Default?`, `The current Default, "B", will be replaced.`,
+    `Create and Apply` / `Cancel`; else it saves at once.
+  Cancel saves nothing. The Player's Inventory pieces move first, and those that do not move
+  stay out of the one dressing (`SaveRequest::fromPlayer`, `Assignments::Changes::leaveOut`).
+- `Update Existing Outfit`: greyed while the library is empty (`kNoOutfits`). The page widens
+  for three equal columns (`kWideWidthRatio`, 1.05 of the screen height) under the name: the
+  outfit list (docs/outfit-management-ui.md §1, with its own search and sort), `CURRENT
+  PIECES` (the chosen outfit's pieces as the library has them, its count line counting those
+  of unloaded plugins; `Select an outfit to update` while none is chosen) and `NEW PIECES`
+  (the ticked pieces). Each column's list grows with its rows up to `kMaxListHeightRatio`,
+  then scrolls. The tab opens with its outfit, or else the one last loaded, or else the
+  library outfit Livery has on the actor, chosen. A click on an outfit chooses it, fills the
+  name from it and shows it on the preview; a second click unchooses it, which greys the name
+  and shows the ticks. Choosing the outfit already chosen keeps the name typed. Create and
+  Back show the ticks again. Buttons `Update #{Outfit}` (`Update`,
+  greyed with `kNeedOutfit`, while none is chosen) and `Back`; Escape clears the search
+  first.
+- The name may be changed: a name must be unused, ASCII case ignored, by any other outfit
+  (CLAUDE.md §2.1); `Library::Update` takes the name.
+- Update's confirm popup (`Replace pieces?`): `Replace the N piece(s) of "A"` / `with the M
+  ticked piece(s)?`, a line for the pieces of unloaded plugins that stay in it and one for a
+  rename, then `Confirm` / `Cancel`. No row changes.
 - Order: the library write; on failure `SetError` and nothing assigned; on success Close (the
-  preview restores), then every assignment change in one call that redresses once; one HUD
-  message for the library and one for the assignment.
+  preview restores), then Create and Apply's row in one call that redresses once, or after
+  Update the captured actor dressed again when they wear the outfit (`RedressFor`); one HUD
+  message for the library and one for the dressing.
 
-Checks: Create with Town ticked in a town dresses at once; Update renames; replace confirm
-with Confirm and Cancel; untick Default on the Update tab leaves the situations; a failed
-write assigns nothing.
+Checks: Create saves and changes no row; Create and Apply while wearing a Town outfit asks
+(Yes, Apply as Default, Cancel saves nothing), with a Default held asks before replacing it,
+and with neither dresses at once; Update renames, changes no row and dresses the actor again
+when they wear it; a failed write assigns nothing.
 
 ## 5. Apply
 

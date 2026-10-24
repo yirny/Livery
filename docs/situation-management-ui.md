@@ -41,30 +41,26 @@ What a row wears:
   is walked as today, the first row that has one is worn, else the Default, else their own
   clothes.
 - A row *holds* an outfit when it is `chosen` (random off) or on `outfits` (random on).
-  "Holds" is what `Situations for #{Name}` ticks on the Save page, and
-  the outfit list's Situation headings and star mark, and Remove's popup show.
+  "Holds" is what the outfit list's Situation headings and star mark, and Remove's popup
+  show.
 
 Every row reads its outfit from the library each time it goes on, the Default included;
 only the Default's `pieces` are kept as given.
 
 Changes:
 
-- Giving a row an outfit (a tick on the Save page, Apply, Apply to
-  #{Name}, a drop on the page; `OutfitRows::Give`, `Place`): random on, it goes to the front
+- Giving a row an outfit (Apply, Apply to #{Name}, Create and Apply, a drop on the page; `OutfitRows::Give`, `Place`): random on, it goes to the front
   of `outfits` (a drop: the drop place), or moves there if it is on it already. Random off
   the list keeps its length: an outfit on it becomes `chosen` where it is; one not on it
   takes `chosen`'s place, and the replaced outfit leaves the list; with no `chosen` it goes
   in at the front (a drop: the drop place). Either way it is `chosen`, with no question.
-  Apply, Apply to #{Name} and the Save page then dress the actor; with random on and the row
+  Apply, Apply to #{Name} and Create and Apply then dress the actor; with random on and the row
   worn now, it is worn as the pick.
 - A library outfit made the Default's `chosen` with random off drops the Default's `pieces`.
 - Turning random off (`OutfitRows::SetRandom`) keeps `chosen` on: the last pick worn, or the
   outfit chosen before random went on; with none, the first of the list.
-- Unticking a row on the Save page takes the outfit off `outfits`;
-  `chosen` becomes 0 if it was that.
-- The Save page's taken-row line reads `Town: "B" replaces "A"` (random
-  off, another `chosen`); the buttons are `Confirm` / `Cancel`; the replaced outfit leaves
-  the list. A random-on row reads `Town: added`.
+- Taking an outfit off a row (a drag off it on the page; `OutfitRows::Take`) takes it off
+  `outfits`; `chosen` becomes 0 if it was that.
 - The Inventory page's Apply popup: `No, apply as is (?)` (was `No, just apply`). The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
   `The ticked pieces become #{Name}'s Default as they are, without being added to the
@@ -113,8 +109,8 @@ situation id becomes `outfits = [id]`, `chosen = id`; random off everywhere.
   once and never writes a file it could not read or that a newer version wrote; writes go
   through a temporary file and a rename; game thread only; only after the user's action
   (§5, §6).
-- A removed situation offers no row anywhere: not in `Situations for #{Name}` on the Save
-  page and Manage Wardrobe, the Situation category group, the sort's headings, or the page's
+- A removed situation offers no row anywhere: not in an outfit's details, the Situation
+  category group, the sort's headings, or the page's
   list; `Situations::Evaluate` still reports it and nothing wears it. Removing it clears
   its rows in this save (§5); another save's rows for it are dropped when that save loads,
   with a log line. A save not loaded between Remove and Restore Presets keeps its rows.
@@ -339,8 +335,8 @@ refused or failed one changes none; the same load and write rules as the library
 
 ## 8. Checks
 
-- Step A: a version 3 save loads with every assignment as it was; save and load again; the
-  Save page's tick of a taken row (`"B" replaces "A"`, Confirm, Cancel); Remove of a chosen
+- Step A: a version 3 save loads with every assignment as it was; save and load again; Remove
+  of a chosen
   outfit with another hidden behind it wears neither; Remove of the Default's outfit keeps
   its pieces on; `No, apply as is`; Update of an outfit an NPC wears for a situation shows at
   their next change. Unit tests cover the row rules.
@@ -350,8 +346,7 @@ refused or failed one changes none; the same load and write rules as the library
   a click on the selected heading with the outfit list showing; an outfit's details from
   either pane, with Back, Escape and Edit, and the preview; Save Changes greyed
   and saved (Live Preview on and off); Random Outfit on, picks at situation changes;
-  rename refused when empty or taken; Remove and its popup, the rows gone, the
-  Save page without it; Restore Presets brings it back empty; the
+  rename refused when empty or taken; Remove and its popup, the rows gone; Restore Presets brings it back empty; the
   unsaved alert on Exit, Escape and both tabs, on both pages; the three skins.
 
 ## 9. Later
