@@ -57,4 +57,10 @@
 [*][b]Devious Devices[/b]: not tested. Don't dress a character wearing devices.
 [/list]
 <!-- generated:end -->
+
+[line]
+
+[size=4][b][color=#B8953E]Uninstall[/color][/b][/size]
+
+Safe to uninstall at any time: Livery adds no plugin file, so removing it can't break your save. NPCs you dressed keep their outfit locked on and the items Livery gave them become lootable; press [b]Release everyone[/b] on the settings page first to undo that.
 ```
