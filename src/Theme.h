@@ -356,6 +356,11 @@ namespace Theme
 	bool  OutfitRow(const char* name, bool selected, const OutfitMarks& marks, bool striped, Grip grip = Grip::kNone);
 	float OutfitRowHeight();
 
+	// A grey line in an outfit row's place, such as an empty list's hint: OutfitRowHeight tall,
+	// the text where OutfitRow puts a name without a grip, with no fill or click.
+	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are.
+	void HintRow(const char* text);
+
 	// A see-through copy of the outfit row just drawn, shown while it is dragged: the popup
 	// background with the grip's dots and the name, no fills or marks in any skin, held where
 	// the row was grabbed and following the mouse above every window.

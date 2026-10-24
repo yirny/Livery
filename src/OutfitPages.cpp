@@ -287,7 +287,7 @@ namespace CaptureWindow::Internal
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
 			if (visible.empty()) {
-				ImGui::TextDisabled("No outfit matches.");
+				Theme::HintRow("No outfit matches.");
 			}
 			const std::string* heading = nullptr;  // the last one drawn
 			bool               folded = false;     // its outfits are folded away

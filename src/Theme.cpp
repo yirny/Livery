@@ -3455,6 +3455,15 @@ namespace Theme
 		return row.pressed;
 	}
 
+	void HintRow(const char* a_text)
+	{
+		const ImVec2 cursor = ImGui::GetCursorScreenPos();
+		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, OutfitRowHeight()));
+		const float textX = ImGui::GetWindowPos().x + g_listReach.x + RowTextInset(Grip::kNone);
+		const float textY = cursor.y + ListPaddingY() * 0.5f + kSelectRowPadY * g_scale;
+		ImGui::GetWindowDrawList()->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_TextDisabled), a_text);
+	}
+
 	// Laid out as OutfitRow lays out its row: across the fills' span, the dots and the name on
 	// the name's line. The grab point is ImGui's ActiveIdClickOffset, which the row's button set
 	// when pressed and which holds while its drag is on (the drag keeps the row active).
