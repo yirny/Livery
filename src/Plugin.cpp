@@ -616,42 +616,63 @@ namespace
 		});
 	}
 
-	// How many of the pieces Livery put on them they wear no copy of in `inventory`
-	// (CollectArmor): taken back in the trade menu, or taken off by another mod or by the
-	// player in their own inventory. 0 when Livery has nothing on them.
-	std::size_t PiecesNotWorn(const std::optional<Assignments::Choices>& choices, const std::vector<InventoryArmor>& inventory)
+	// How the armor they wear differs from what Livery put on them, by `inventory`
+	// (CollectArmor): `notWorn`, Livery's pieces they wear no copy of (taken back in the trade
+	// menu, or taken off by another mod or by the player in their own inventory); `extra`, worn
+	// armor Livery did not put on (the Inventory page's Outfit (Unmanaged)). Both 0 when Livery
+	// has nothing on them.
+	struct WornGaps
+	{
+		std::size_t notWorn = 0;
+		std::size_t extra = 0;
+	};
+
+	WornGaps GapsOf(const std::optional<Assignments::Choices>& choices, const std::vector<InventoryArmor>& inventory)
 	{
 		if (!choices || !choices->dressed) {
-			return 0;
+			return {};
 		}
-		return static_cast<std::size_t>(std::ranges::count_if(choices->wornArmor, [&inventory](RE::FormID armor) {
+		const auto& livery = choices->wornArmor;
+		const auto  notWorn = std::ranges::count_if(livery, [&inventory](RE::FormID armor) {
 			const auto found = std::ranges::find_if(inventory, [armor](const InventoryArmor& piece) { return piece.armor->GetFormID() == armor; });
 			return found == inventory.end() || !found->worn;
-		}));
+		});
+		const auto  extra = std::ranges::count_if(inventory, [&livery](const InventoryArmor& piece) {
+			return piece.worn && std::ranges::find(livery, piece.armor->GetFormID()) == livery.end();
+		});
+		return { static_cast<std::size_t>(notWorn), static_cast<std::size_t>(extra) };
 	}
 
-	// Contract: game thread. The captured actor's PiecesNotWorn, read from their inventory
-	// with no preview on: as the window opens and after each dressing with it open
-	// (DressCaptured). The window freezes the game, so what they wear holds until the next.
-	std::size_t g_capturedNotWorn = 0;
+	// Contract: game thread. The captured actor's GapsOf, read from their inventory with no
+	// preview on: as the window opens and after each dressing with it open (DressCaptured).
+	// The window freezes the game, so what they wear holds until the next.
+	WornGaps g_capturedGaps;
+
+	// `, 1 piece not worn`, `, 2 extra pieces worn`, both, or "".
+	std::string GapsText(const WornGaps& gaps)
+	{
+		const auto count = [](std::size_t n, const char* what, const char* after) {
+			return n == 0 ? std::string{} : std::format(", {} {}{} {}", n, what, n == 1 ? "" : "s", after);
+		};
+		return count(gaps.notWorn, "piece", "not worn") + count(gaps.extra, "extra piece", "worn");
+	}
 
 	// The line under the actor's name: what Livery has on them now and what for, `Wearing "X"
 	// for Town.` or `Wearing "X" as Default.` Pieces that are not a saved outfit, or an outfit
 	// gone from the library (another save's), which the window shows no row of, go unnamed:
-	// `Dressed by Livery.` With `notWorn` of the pieces off them (PiecesNotWorn), the outfit is
-	// only theirs: `Assigned "X" as Default, 1 piece not worn.`
-	std::string DescribeAssignment(const Assignments::Choices& choices, std::size_t notWorn)
+	// `Dressed by Livery.` With Livery's pieces off them the outfit is only theirs, and the
+	// differences follow: `Assigned "X" as Default, 1 piece not worn, 2 extra pieces worn.`
+	std::string DescribeAssignment(const Assignments::Choices& choices, const WornGaps& gaps)
 	{
 		if (!choices.dressed) {
 			return "Not dressed by Livery right now.";
 		}
-		const auto  missing = notWorn == 0 ? std::string{} : std::format(", {} {} not worn", notWorn, notWorn == 1 ? "piece" : "pieces");
 		const auto* stored = choices.wornOutfit ? Library::Find(choices.wornOutfit) : nullptr;
 		if (!stored) {
-			return std::format("Dressed by Livery{}.", missing);
+			return std::format("Dressed by Livery{}.", GapsText(gaps));
 		}
 		const auto worn = choices.worn == Situations::Situation::kDefault ? " as " + SituationStore::Name(choices.worn) : SituationStore::Suffix(choices.worn);
-		return std::format("{} \"{}\"{}{}.", notWorn == 0 ? "Wearing" : "Assigned", stored->name, worn, missing);
+		return std::format("{} \"{}\"{}{}.", gaps.notWorn == 0 ? "Wearing" : "Assigned", stored->name, worn, GapsText(gaps));
 	}
 
 	// The library outfit Livery has on them now, for the first heading of the piece list;
@@ -881,7 +902,7 @@ namespace
 		std::size_t skipped = 0;
 		std::size_t substituted = 0;
 		const auto  inventory = CollectArmor(actor, skipped, substituted);
-		g_capturedNotWorn = PiecesNotWorn(Assignments::ChoicesOf(actor.GetFormID()), inventory);  // before the preview begins again
+		g_capturedGaps = GapsOf(Assignments::ChoicesOf(actor.GetFormID()), inventory);  // before the preview begins again
 		if (previewing) {
 			if (const auto reason = OutfitPreview::Begin(actor, shown ? *shown : WornArmors(inventory)); !reason.empty()) {
 				PreviewCamera::End();
@@ -939,9 +960,10 @@ namespace
 			.situations = SituationInfos(),
 			.restoreChanges = SituationStore::RestoreChanges() };
 		if (choices) {
-			list.actorSummary = DescribeAssignment(*choices, g_capturedNotWorn);
+			list.actorSummary = DescribeAssignment(*choices, g_capturedGaps);
 			list.dressed = choices->dressed;
-			list.piecesNotWorn = choices->dressed ? g_capturedNotWorn : 0;
+			list.piecesNotWorn = choices->dressed ? g_capturedGaps.notWorn : 0;
+			list.extraWorn = choices->dressed ? g_capturedGaps.extra : 0;
 		}
 		return list;
 	}
@@ -1004,9 +1026,10 @@ namespace
 			}
 		};
 		if (choices) {
-			request.actorSummary = DescribeAssignment(*choices, g_capturedNotWorn);
+			request.actorSummary = DescribeAssignment(*choices, g_capturedGaps);
 			request.dressed = choices->dressed;
-			request.piecesNotWorn = choices->dressed ? g_capturedNotWorn : 0;
+			request.piecesNotWorn = choices->dressed ? g_capturedGaps.notWorn : 0;
+			request.extraWorn = choices->dressed ? g_capturedGaps.extra : 0;
 		}
 	}
 
@@ -1231,7 +1254,7 @@ namespace
 				request.wornSituation = SituationStore::Name(choices->worn);
 			}
 		}
-		g_capturedNotWorn = PiecesNotWorn(choices, inventory);  // read before the preview begins
+		g_capturedGaps = GapsOf(choices, inventory);  // read before the preview begins
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& piece : inventory) {
