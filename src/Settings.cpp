@@ -389,7 +389,7 @@ namespace
 		const wchar_t*                  comment;
 		const wchar_t*                  squareComment = nullptr;
 	};
-	constexpr std::array<PaletteKey, 10> kPaletteKeys{ {
+	constexpr std::array<PaletteKey, 11> kPaletteKeys{ {
 		{ L"Window", &Theme::Palette::window, kAllSkins, L"The window." },
 		{ L"Surface", &Theme::Palette::surface, kAllSkins, L"Popups, dropdown lists and tooltips." },
 		{ L"Text", &Theme::Palette::text, kAllSkins, L"Text, and faint, the fills of fields, buttons and the scroll bar.",
@@ -405,6 +405,7 @@ namespace
 		{ L"Selected", &Theme::Palette::selected, kNotNordic,
 			L"A selected row (fading out towards its right end), the selected tab, the fill of a field that narrows a list.",
 			L"The bar over a selected row, fading in from its left end to this opacity." },
+		{ L"Stripe", &Theme::Palette::stripe, kAllSkins, L"Every second outfit row, laid over it." },
 		{ L"Error", &Theme::Palette::error, kAllSkins, L"Error text and fields." },
 	} };
 
@@ -430,6 +431,7 @@ namespace
 		.rule = 0xFFFFFF46,
 		.hover = 0xFFFFFF40,
 		.selected = 0xFFFFFF46,
+		.stripe = 0xFFFFFF10,
 		.error = 0xFF6666FF,
 	};
 	constexpr Theme::Palette kNordicColours{
@@ -440,6 +442,7 @@ namespace
 		.accent = 0xDEDEDEFF,
 		.rule = 0xC8C8C85A,
 		.hover = 0xE5E5E565,
+		.stripe = 0xFFFFFF10,
 		.error = 0xFF6666FF,
 	};
 	constexpr Theme::Palette kEdgeColours{
@@ -452,6 +455,7 @@ namespace
 		.rule = 0x4A4639FF,
 		.hover = 0x423F35FF,
 		.selected = 0x3C3931FF,
+		.stripe = 0x00000010,
 		.error = 0xFF6666FF,
 	};
 
