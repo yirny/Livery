@@ -2796,7 +2796,8 @@ namespace Theme
 		constexpr float kUnsortedAlpha = 0.5f;  // of an unnamed column's arrow pair while another column sorts
 
 		SectionGap();
-		PushLabelSpacing();  // the gap below is LabelText's
+		const float iconSide = OutfitIconSide();  // in the body font, as an outfit row's icon
+		PushLabelSpacing();                       // the gap below is LabelText's
 		PushLabelFont();
 		const auto&  style = ImGui::GetStyle();
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
@@ -2810,14 +2811,14 @@ namespace Theme
 			const bool   unnamed = std::string_view(a_labels[i]).starts_with("##");
 			const Caps   label(unnamed ? "" : a_labels[i]);  // shown; the ImGui ID stays a_labels[i]
 			const ImVec2 text = unnamed ? ImVec2(0.0f, lineHeight) : ImGui::CalcTextSize(label.c_str());
-			// An unnamed column's click area is a square of the line height.
-			const float width = unnamed ? lineHeight : text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f);
+			// An unnamed column's click area is an outfit row icon's square, centred on its x and
+			// on the labels' line; a label's starts there.
+			const ImVec2 area = unnamed ? ImVec2(iconSide, iconSide) : ImVec2(text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f), text.y);
 			if (i > 0) {
 				ImGui::SameLine();
 			}
-			// An unnamed column's arrows are centred on its x, a label starts there.
-			ImGui::SetCursorScreenPos(ImVec2(textX + a_columnX[i] - (unnamed ? width * 0.5f : 0.0f), origin.y));
-			if (ImGui::InvisibleButton(a_labels[i], ImVec2((std::max)(1.0f, width), (std::max)(1.0f, text.y)))) {
+			ImGui::SetCursorScreenPos(unnamed ? ImVec2(textX + a_columnX[i] - area.x * 0.5f, origin.y + (lineHeight - area.y) * 0.5f) : ImVec2(textX + a_columnX[i], origin.y));
+			if (ImGui::InvisibleButton(a_labels[i], ImVec2((std::max)(1.0f, area.x), (std::max)(1.0f, area.y)))) {
 				clicked = static_cast<int>(i);
 			}
 			const bool   hovered = ImGui::IsItemHovered();
@@ -2829,8 +2830,8 @@ namespace Theme
 			if (!unnamed) {
 				draw->AddText(pos, color, label.c_str());
 			}
-			const float left = unnamed ? pos.x + (width - arrow) * 0.5f : pos.x + text.x + style.ItemInnerSpacing.x;
-			const float midY = pos.y + text.y * 0.5f;
+			const float left = unnamed ? pos.x + (area.x - arrow) * 0.5f : pos.x + text.x + style.ItemInnerSpacing.x;
+			const float midY = origin.y + lineHeight * 0.5f;
 			const float half = arrow * 0.5f;
 			if (sorted) {
 				const float  tip = a_descending ? half * 0.6f : -half * 0.6f;  // the point's offset from midY
@@ -2851,6 +2852,8 @@ namespace Theme
 				draw->AddConvexPolyFilled(points, 4, diamond);
 			}
 		}
+		// Below the labels' line, as before an unnamed column's taller click area: the list does not move.
+		ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + lineHeight + style.ItemSpacing.y));
 		ImGui::PopFont();
 		ImGui::PopStyleVar();
 		return clicked;
