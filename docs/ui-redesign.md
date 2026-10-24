@@ -34,7 +34,7 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview stays as it is.
 - Assign for and `Situations...` go, with the Situations page (§4 covers assignment).
 - Buttons: `Save` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
-  `Exit`. `Restore Outfit` at the right end of the button row: a borderless text
+  `Exit`. `Restore` at the right end of the button row: a borderless text
   button lit on hover, with a `(?)`, shown only while Livery dresses the actor. It ends
   Livery's dressing of them. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
   situational outfits. Items moved from your inventory stay with them."

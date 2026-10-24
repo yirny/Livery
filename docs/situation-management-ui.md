@@ -268,7 +268,7 @@ shows the situation's.
 ## 6. Buttons and leaving
 
 - `Save Changes` and `Exit` where the other pages put their buttons, and at the row's right
-  end `Restore Presets (?)`, a link drawn as the details' Remove and Restore Outfit are, its
+  end `Restore Presets (?)`, a link drawn as the details' Remove and Restore are, its
   `(?)` inside its click area, its text centred on the buttons' height
   (`Theme::LineHelpLink`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.

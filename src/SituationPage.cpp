@@ -624,7 +624,7 @@ namespace CaptureWindow::Internal
 
 		// Save Changes, greyed until something changed, and Exit, centred as the other pages'
 		// buttons, then Restore Presets (?) at the row's right end, a link as the details' Remove
-		// and Restore Outfit are, greyed while every preset is as installed. a_escapeTaken: the
+		// and Restore are, greyed while every preset is as installed. a_escapeTaken: the
 		// browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
