@@ -370,7 +370,7 @@ Each stage ends with an in-game check before the next starts.
 2. Library: capture the worn pieces into an outfit, JSON storage, the ImGui window,
    outfit list and preview from the add-on's code; the preview dresses everyone through
    the inventory; the window's Assign and Release replace the stage-1 keys, and the
-   capture hotkey defaults to F10. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
+   capture hotkey defaults to Shift + X. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
    the mod's own data. Done.
 3. The trade-menu filter hook (§3). Done.
 4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown, the
