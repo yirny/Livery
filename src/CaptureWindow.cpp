@@ -1524,10 +1524,22 @@ namespace CaptureWindow::Internal
 	// An outfit's name field (a Save page tab's, Manage Wardrobe'), with no label: hovered while
 	// not being typed in, it says `Outfit Name`. Returns true when the user pressed Enter with a
 	// name typed. The empty field shows kNeedName; a failed save turns it red with the message
-	// on hover instead, until the name is edited.
-	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name)
+	// on hover instead, until the name is edited. With `a_icon` (Manage Wardrobe), its icon
+	// field comes first on the line, saying `Outfit Icon` on hover; `*a_iconClicked` says
+	// whether it was clicked.
+	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked)
 	{
 		Theme::SectionGap();  // a field with no label
+		if (a_icon) {
+			const bool clicked = Theme::IconField("##icon", *a_icon);
+			if (ImGui::IsItemHovered()) {
+				ImGui::SetTooltip("Outfit Icon");
+			}
+			if (a_iconClicked) {
+				*a_iconClicked = clicked;
+			}
+			ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		}
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (a_state.focusNameField) {
 			ImGui::SetKeyboardFocusHere();

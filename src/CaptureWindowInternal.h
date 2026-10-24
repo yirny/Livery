@@ -39,6 +39,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kManageConfirmPopup = "Save changes?";
 	constexpr const char* kManageApplyPopup = "Apply outfit?";
 	constexpr const char* kRemovePopup = "Remove outfit?";
+	constexpr const char* kIconPopup = "Choose icon";
 	constexpr const char* kRestorePopup = "Restore original outfit?";
 	// The unsaved-changes alert of Manage Wardrobe and Manage Situations (DrawLeavePopup).
 	constexpr const char* kLeavePopup = "Unsaved changes";
@@ -57,17 +58,6 @@ namespace CaptureWindow::Internal
 	// One heading per CaptureWindow::PieceGroup.
 	constexpr std::size_t kPieceGroupCount = static_cast<std::size_t>(CaptureWindow::PieceGroup::kNotCarried) + 1;
 	using GroupHeadings = std::array<std::string, kPieceGroupCount>;
-
-	// The outfit lists' Sort dropdown, in its order.
-	struct SortOption
-	{
-		const char*            label;
-		OutfitBrowser::SortKey key;
-	};
-	constexpr std::array<SortOption, 2> kSortOptions{ {
-		{ "Name", OutfitBrowser::SortKey::kName },
-		{ CaptureWindow::kSituationGroup, OutfitBrowser::SortKey::kSituation },
-	} };
 
 	// The outfit browser's Filter dropdown, hidden for now; its code stays, as it is likely
 	// to return (docs/outfit-management-ui.md §1).
@@ -132,8 +122,16 @@ namespace CaptureWindow::Internal
 	struct ManageForm
 	{
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
+		OutfitIcons::Icon               icon;
 		std::array<char, kNameCapacity> name{};
 		std::vector<std::size_t>        pieces;  // its loaded pieces as edited: indices into request.pieces, ascending
+	};
+
+	// Manage Wardrobe's Choose icon popup while it is open.
+	struct IconPicker
+	{
+		OutfitIcons::Icon            pick;        // the choice, from ManageForm::icon as it opens; OK makes it that icon
+		std::optional<std::uint32_t> hoverColor;  // the colour the mouse was over last frame, which every icon shows
 	};
 
 	// One situation of Manage Situations as edited, in request.situations' order.
@@ -200,6 +198,7 @@ namespace CaptureWindow::Internal
 		OutfitBrowser::State     updateBrowser;         // the Save page's Update tab's
 		OutfitBrowser::State     manageBrowser;         // Manage Wardrobe'
 		ManageForm               manage;
+		IconPicker               iconPicker;
 		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
 		std::string              manageApplyLabel;  // "Apply to #{Name}"
 		std::string              manageApplyTip;    // its tooltip, what it dresses them for (FillManageForm); "" with no outfit selected
@@ -252,7 +251,8 @@ namespace CaptureWindow::Internal
 	std::string              Trimmed(const char* a_text);
 	void                     DrawError(const std::string& a_message);
 	void                     RequestCancel();
-	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name);
+	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
+		bool* a_iconClicked = nullptr);
 	bool                     BeginModal(const char* a_id);
 	void                     SetGroupHeadings(State& a_state);
 
@@ -404,6 +404,7 @@ namespace CaptureWindow::Internal
 	bool HasSituationEdits(const State& a_state);
 
 	// Drags the outfit row just laid out, carrying `a_payload`, shown as a see-through copy of
-	// the row (Theme::OutfitDragGhost) named `a_label`, with its `a_grip`.
-	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip);
+	// the row (Theme::OutfitDragGhost) named `a_label`, with its `a_grip` and `a_icon` (nullptr
+	// for none).
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon);
 }

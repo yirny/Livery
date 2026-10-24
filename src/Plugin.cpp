@@ -131,9 +131,10 @@ namespace
 	// Contract: game thread; the user confirmed this outfit's update in the Save page's or
 	// Manage Wardrobe's popup.
 	// Its pieces whose plugin is not loaded stay in it; the HUD message says how many, and its
-	// old name when it is renamed.
+	// old name when it is renamed. Without `icon` it keeps its own.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, const std::vector<RE::TESObjectARMO*>& armors)
+	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::optional<OutfitIcons::Icon>& icon = std::nullopt)
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
@@ -142,7 +143,7 @@ namespace
 		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
 		Library::LoadedPieces(*outfit, &unloaded);
-		if (auto error = Library::Update(id, name, armors)) {
+		if (auto error = Library::Update(id, name, armors, icon.value_or(outfit->icon))) {
 			return error;
 		}
 		auto text = name == oldName ? std::format("Livery: updated {} ({} items)", name, armors.size()) :
@@ -580,6 +581,7 @@ namespace
 		for (const auto* stored : library) {
 			CaptureWindow::ExistingOutfit outfit{
 				.name = stored->name,
+				.icon = stored->icon,
 				.id = stored->id,
 				.users = UserLines(stored->id)
 			};
@@ -761,7 +763,7 @@ namespace
 		request.assigned = AssignedRows(choices);
 		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
 			const auto picked = PickPieces(armors, save.pieces);
-			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked) : SaveOutfit(save.name, picked);
+			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked, save.icon) : SaveOutfit(save.name, picked);
 			if (error) {
 				CaptureWindow::SetError(*error);
 				return;
@@ -1048,7 +1050,7 @@ namespace
 		// as Apply does (ApplyOutfit).
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
-			if (const auto error = UpdateOutfit(edit.outfit, edit.name, picked)) {
+			if (const auto error = UpdateOutfit(edit.outfit, edit.name, picked, edit.icon)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}

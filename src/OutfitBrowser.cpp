@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Helpers   - name matching and ordering, the categories an outfit is in, filter rows,
-//               group keys and headings
-//   Browser   - Reset / Rebuild / Refresh / SetSort, the folded headings, and the
-//               search and filter accessors
+//   Helpers   - name matching and ordering, the icon order, the categories an outfit is in,
+//               filter rows
+//   Browser   - Reset / Rebuild / Refresh / SetSort, and the search and filter accessors
 #include "OutfitBrowser.h"
 
 #include <algorithm>
@@ -34,16 +33,13 @@ namespace
 		return std::lexicographical_compare_three_way(a_left.begin(), a_left.end(), a_right.begin(), a_right.end(), compare);
 	}
 
-	// The group a sort key lists the outfits by; "" for kName.
-	std::string_view GroupOf(OutfitBrowser::SortKey a_key)
+	// In OutfitIcons' tables: the icon's key, then its colour.
+	std::weak_ordering CompareIcons(const OutfitIcons::Icon& a_left, const OutfitIcons::Icon& a_right)
 	{
-		switch (a_key) {
-		case OutfitBrowser::SortKey::kSituation:
-			return CaptureWindow::kSituationGroup;
-		case OutfitBrowser::SortKey::kName:
-			break;
+		if (const auto order = OutfitIcons::KeyOrder(a_left.key) <=> OutfitIcons::KeyOrder(a_right.key); order != 0) {
+			return order;
 		}
-		return {};
+		return OutfitIcons::ColorOrder(a_left.rgb) <=> OutfitIcons::ColorOrder(a_right.rgb);
 	}
 
 	// Contract: the situation group's n-th category is row n of Request::assigned
@@ -91,40 +87,6 @@ namespace
 			}
 		}
 		return key;
-	}
-
-	// In Request::categories' order, so Default before Town, and Default + Town before
-	// Default + Sleep; an outfit in none of the group's categories goes last.
-	std::weak_ordering CompareGroupKeys(const std::vector<int>& a_left, const std::vector<int>& a_right)
-	{
-		if (a_left.empty() != a_right.empty()) {
-			return a_left.empty() ? std::weak_ordering::greater : std::weak_ordering::less;
-		}
-		return std::lexicographical_compare_three_way(a_left.begin(), a_left.end(), a_right.begin(), a_right.end());
-	}
-
-	// A group sort's heading: the outfit's categories in the group joined with ", ", or
-	// "No <group>".
-	std::string GroupHeading(const std::vector<int>& a_key, const CaptureWindow::Request& a_request, std::string_view a_group)
-	{
-		if (a_key.empty()) {
-			return "No " + std::string{ a_group };
-		}
-		std::string heading;
-		for (const int index : a_key) {
-			heading += heading.empty() ? "" : ", ";
-			heading += a_request.categories[static_cast<std::size_t>(index)].name;
-		}
-		return heading;
-	}
-
-	std::size_t CountHeadings(const std::vector<std::string>& a_headings)
-	{
-		std::vector<std::string_view> distinct(a_headings.begin(), a_headings.end());
-		std::erase(distinct, std::string_view{});
-		std::ranges::sort(distinct);
-		distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
-		return distinct.size();
 	}
 
 	bool MatchesRow(const OutfitBrowser::FilterOption& a_row, const std::vector<int>& a_categories, const CaptureWindow::Request& a_request)
@@ -182,7 +144,7 @@ namespace OutfitBrowser
 	{
 		a_state.search.fill('\0');
 		a_state.sort = SortKey::kName;
-		a_state.folded.clear();
+		a_state.descending = false;
 		Rebuild(a_state, a_request);
 	}
 
@@ -211,52 +173,27 @@ namespace OutfitBrowser
 			}
 		}
 
-		// Every outfit's heading, the hidden ones' too, so headingCount does not follow the search.
-		const auto                    group = GroupOf(a_state.sort);
-		std::vector<std::vector<int>> keys(outfits.size());
-		a_state.headings.assign(outfits.size(), std::string{});
-		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			if (!group.empty()) {
-				keys[i] = GroupKey(a_state.categories[i], a_request, group);
-				a_state.headings[i] = GroupHeading(keys[i], a_request, group);
-			}
-		}
-		a_state.headingCount = CountHeadings(a_state.headings);
-
+		const bool byIcon = a_state.sort == SortKey::kIcon;
 		const auto before = [&](int a, int b) {
-			const auto left = static_cast<std::size_t>(a);
-			const auto right = static_cast<std::size_t>(b);
-			auto       order = std::weak_ordering::equivalent;
-			if (!group.empty()) {
-				order = CompareGroupKeys(keys[left], keys[right]);
+			const auto& left = outfits[static_cast<std::size_t>(a)];
+			const auto& right = outfits[static_cast<std::size_t>(b)];
+			auto        order = byIcon ? CompareIcons(left.icon, right.icon) : std::weak_ordering::equivalent;
+			if (order == 0) {
+				order = CompareNames(left.name, right.name);
 			}
 			if (order == 0) {
-				order = CompareNames(outfits[left].name, outfits[right].name);
+				return a_state.descending ? a > b : a < b;
 			}
-			return order == 0 ? a < b : order < 0;
+			return a_state.descending ? order > 0 : order < 0;
 		};
 		std::ranges::sort(a_state.visible, before);
 	}
 
-	void SetSort(State& a_state, const CaptureWindow::Request& a_request, SortKey a_key)
+	void SetSort(State& a_state, const CaptureWindow::Request& a_request, SortKey a_key, bool a_descending)
 	{
 		a_state.sort = a_key;
-		a_state.folded.clear();
+		a_state.descending = a_descending;
 		Refresh(a_state, a_request);
-	}
-
-	bool IsFolded(const State& a_state, const std::string& a_heading)
-	{
-		return std::ranges::find(a_state.folded, a_heading) != a_state.folded.end();
-	}
-
-	void ToggleFolded(State& a_state, const std::string& a_heading)
-	{
-		if (const auto found = std::ranges::find(a_state.folded, a_heading); found != a_state.folded.end()) {
-			a_state.folded.erase(found);
-		} else {
-			a_state.folded.push_back(a_heading);
-		}
 	}
 
 	bool IsSearching(const State& a_state)

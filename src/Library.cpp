@@ -9,8 +9,11 @@
 //
 // outfits.json, version 1:
 //   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard",
+//     "icon": "skyui/icons_item_psychosteve/armor_body", "color": "#eaeaea",
 //     "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
 //     "name": "Imperial Light Armor" } ] } ] }
+// An outfit with no "icon" or "color", or one that is not a string ("color": "#rrggbb"), gets
+// the default (OutfitIcons), so files older versions wrote read as they are.
 // An outfit's "categories" and "gender" in a file older versions wrote are read past and gone
 // at the next write.
 #include "PCH.h"
@@ -158,6 +161,21 @@ namespace
 		return std::nullopt;
 	}
 
+	// The outfit's icon key and colour; each that is missing or unreadable stays as `a_icon` has it.
+	void ReadIcon(const nlohmann::json& a_json, OutfitIcons::Icon& a_icon)
+	{
+		if (std::string key; ReadString(Field(a_json, "icon"), key)) {
+			// PieceIcons' keys are in ASCII lower case.
+			std::ranges::transform(key, key.begin(), [](unsigned char a_c) { return static_cast<char>(a_c >= 'A' && a_c <= 'Z' ? a_c - 'A' + 'a' : a_c); });
+			a_icon.key = std::move(key);
+		}
+		if (const auto* color = Field(a_json, "color"); color && color->is_string()) {
+			if (const auto rgb = OutfitIcons::FromHex(color->get<std::string>())) {
+				a_icon.rgb = *rgb;
+			}
+		}
+	}
+
 	std::optional<std::string> ParseOutfit(const nlohmann::json& a_json, Library::Outfit& a_outfit)
 	{
 		if (!a_json.is_object()) {
@@ -169,6 +187,7 @@ namespace
 		if (!ReadString(Field(a_json, "name"), a_outfit.name)) {
 			return "no name";
 		}
+		ReadIcon(a_json, a_outfit.icon);
 		const auto* pieces = Field(a_json, "pieces");
 		if (!pieces || !pieces->is_array() || pieces->empty()) {
 			return "no pieces";
@@ -219,7 +238,8 @@ namespace
 			for (const auto& piece : outfit.pieces) {
 				pieces.push_back({ { "plugin", piece.plugin }, { "formId", std::format("0x{:06X}", piece.localID) }, { "name", piece.name } });
 			}
-			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "pieces", std::move(pieces) } });
+			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "icon", outfit.icon.key }, { "color", OutfitIcons::ToHex(outfit.icon.rgb) },
+				{ "pieces", std::move(pieces) } });
 		}
 		return { { "version", kLibraryVersion }, { "nextId", a_nextId }, { "outfits", std::move(list) } };
 	}
@@ -360,7 +380,7 @@ namespace Library
 	}
 
 	// Contract: as Create; the new pieces and the name are checked before anything changes.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor)
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -382,6 +402,7 @@ namespace Library
 		}
 		Outfit updated = *found;
 		updated.name = std::string{ a_name };
+		updated.icon = a_icon;
 		// This load order cannot tell what a piece of a missing plugin was, so it stays.
 		std::erase_if(updated.pieces, [](const PieceRef& piece) { return ArmorOf(piece) != nullptr; });
 		updated.pieces.insert(updated.pieces.begin(), pieces.begin(), pieces.end());

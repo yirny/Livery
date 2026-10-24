@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "OutfitIcons.h"
 #include "OutfitRows.h"
 
 #include <cstdint>
@@ -87,6 +88,7 @@ namespace CaptureWindow
 	struct ExistingOutfit
 	{
 		std::string              name;
+		OutfitIcons::Icon        icon;
 		std::vector<std::size_t> pieces;  // indices into Request::pieces of its loaded pieces, ascending, no repeats
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
@@ -150,6 +152,8 @@ namespace CaptureWindow
 		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
 		std::string              name;        // trimmed, non-empty
 		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
+		// Manage Wardrobe's icon for the outfit; nullopt keeps the one it has (the Save page).
+		std::optional<OutfitIcons::Icon> icon;
 		// The row the outfit goes to, as Manage Wardrobe's Apply gives it (the situation the
 		// actor wears another outfit for now, after the user agreed, else the Default); nullopt
 		// for a save that changes no row.

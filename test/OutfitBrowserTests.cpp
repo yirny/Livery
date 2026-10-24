@@ -73,18 +73,14 @@ namespace
 		return names;
 	}
 
-	std::vector<std::string> VisibleHeadings(const OutfitBrowser::State& state)
+	void Sort(OutfitBrowser::State& state, const CaptureWindow::Request& request, OutfitBrowser::SortKey key, bool descending = false)
 	{
-		std::vector<std::string> headings;
-		for (const int index : state.visible) {
-			headings.push_back(state.headings[static_cast<std::size_t>(index)]);
-		}
-		return headings;
+		OutfitBrowser::SetSort(state, request, key, descending);
 	}
 
-	void Sort(OutfitBrowser::State& state, const CaptureWindow::Request& request, OutfitBrowser::SortKey key)
+	OutfitIcons::Icon IconOf(std::size_t key, std::size_t color)
 	{
-		OutfitBrowser::SetSort(state, request, key);
+		return { std::string{ OutfitIcons::kKeys[key] }, OutfitIcons::kColors[color] };
 	}
 
 	void Tick(OutfitBrowser::State& state, const std::string& group, const std::string& label)
@@ -111,8 +107,8 @@ TEST_CASE("Reset lists every outfit by name, ignoring case", "[browser]")
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare", "Guard Uniform", "iron set", "Scout", "Town Dress" });
-	CHECK(VisibleHeadings(state) == std::vector<std::string>(5));
-	CHECK(state.headingCount == 0);
+	CHECK(state.sort == OutfitBrowser::SortKey::kName);
+	CHECK_FALSE(state.descending);
 	CHECK_FALSE(OutfitBrowser::IsSearching(state));
 	CHECK_FALSE(OutfitBrowser::IsFiltering(state));
 	CHECK(OutfitBrowser::FilterPreview(state) == "Any category");
@@ -217,15 +213,29 @@ TEST_CASE("Search and filter combine", "[browser]")
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "iron set" });
 }
 
-TEST_CASE("Situation sort: Default, then the situations' order", "[browser]")
+TEST_CASE("Name sort descending reverses the order", "[browser]")
 {
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	Sort(state, request, OutfitBrowser::SortKey::kSituation);
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Scout", "Guard Uniform", "Bare", "iron set" });
-	CHECK(VisibleHeadings(state) == std::vector<std::string>{ "Default, Sleep", "Town", "Swimming", "No Situation", "No Situation" });
-	CHECK(state.headingCount == 4);
+	Sort(state, request, OutfitBrowser::SortKey::kName, true);
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Scout", "iron set", "Guard Uniform", "Bare" });
+}
+
+TEST_CASE("Icon sort: the icon's order, then its colour's, then the name", "[browser]")
+{
+	auto request = MakeRequest();
+	request.existingOutfits[0].icon = IconOf(4, 2);                  // iron set: body, purple
+	request.existingOutfits[1].icon = IconOf(0, 0);                  // Guard Uniform: helmet, white
+	request.existingOutfits[2].icon = IconOf(4, 0);                  // Town Dress: body, white
+	request.existingOutfits[3].icon = { "unknown/icon", 0x123456 };  // Bare: an icon not in the table
+	// Scout keeps the default: body, white, as Town Dress has.
+	OutfitBrowser::State state;
+	OutfitBrowser::Reset(state, request);
+	Sort(state, request, OutfitBrowser::SortKey::kIcon);
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Guard Uniform", "Scout", "Town Dress", "iron set", "Bare" });
+	Sort(state, request, OutfitBrowser::SortKey::kIcon, true);
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare", "iron set", "Town Dress", "Scout", "Guard Uniform" });
 }
 
 TEST_CASE("Rebuild keeps the search and sort for changed outfits and rows", "[browser]")
@@ -235,53 +245,27 @@ TEST_CASE("Rebuild keeps the search and sort for changed outfits and rows", "[br
 	OutfitBrowser::Reset(state, request);
 	Search(state, "s");
 	Tick(state, kSituationGroup, "Town");
-	Sort(state, request, OutfitBrowser::SortKey::kSituation);
+	Sort(state, request, OutfitBrowser::SortKey::kName, true);
 
 	request.existingOutfits[0].name = "Steel Set";  // iron set, renamed and chosen for Town in Scout's place
 	request.assigned[1].row.chosen = 1;
 	OutfitBrowser::Rebuild(state, request);
 	CHECK(OutfitBrowser::IsSearching(state));
 	CHECK_FALSE(OutfitBrowser::IsFiltering(state));
-	CHECK(state.sort == OutfitBrowser::SortKey::kSituation);
+	CHECK(state.sort == OutfitBrowser::SortKey::kName);
+	CHECK(state.descending);
 	CHECK(RowNames(state, request, 0) == std::vector<std::string>{ "Town" });
 	CHECK(state.categories[4].empty());  // Scout
-	// "s" matches Steel Set, Scout and Town Dress: Default + Sleep, then Town, then no row.
+	// "s" matches Steel Set, Scout and Town Dress, by name descending.
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Steel Set", "Scout" });
 }
 
-TEST_CASE("Folded headings: toggled one by one, kept by Rebuild, cleared by SetSort and Reset", "[browser]")
+TEST_CASE("Outfit colours read and write as #rrggbb", "[icons]")
 {
-	const auto           request = MakeRequest();
-	OutfitBrowser::State state;
-	OutfitBrowser::Reset(state, request);
-	Sort(state, request, OutfitBrowser::SortKey::kSituation);
-	OutfitBrowser::ToggleFolded(state, "Town");
-	OutfitBrowser::ToggleFolded(state, "Swimming");
-	OutfitBrowser::ToggleFolded(state, "Swimming");
-	CHECK(OutfitBrowser::IsFolded(state, "Town"));
-	CHECK_FALSE(OutfitBrowser::IsFolded(state, "Swimming"));
-	CHECK_FALSE(OutfitBrowser::IsFolded(state, "Default, Sleep"));
-
-	OutfitBrowser::Rebuild(state, request);
-	CHECK(OutfitBrowser::IsFolded(state, "Town"));
-	// The list skips folded outfits as it draws them; the browser still lists every one.
-	CHECK(state.visible.size() == request.existingOutfits.size());
-
-	Sort(state, request, OutfitBrowser::SortKey::kName);
-	CHECK(state.folded.empty());
-	Sort(state, request, OutfitBrowser::SortKey::kSituation);
-	OutfitBrowser::ToggleFolded(state, "No Situation");
-	OutfitBrowser::Reset(state, request);
-	CHECK(state.folded.empty());
-}
-
-TEST_CASE("The heading count covers the outfits the search hides", "[browser]")
-{
-	const auto           request = MakeRequest();
-	OutfitBrowser::State state;
-	OutfitBrowser::Reset(state, request);
-	Search(state, "iron");
-	Sort(state, request, OutfitBrowser::SortKey::kSituation);
-	CHECK(VisibleHeadings(state) == std::vector<std::string>{ "No Situation" });
-	CHECK(state.headingCount == 4);
+	CHECK(OutfitIcons::ToHex(0xEAEAEA) == "#eaeaea");
+	CHECK(OutfitIcons::FromHex("#AEA5e8") == 0xAEA5E8u);
+	CHECK_FALSE(OutfitIcons::FromHex("eaeaea").has_value());
+	CHECK_FALSE(OutfitIcons::FromHex("#eaeae").has_value());
+	CHECK_FALSE(OutfitIcons::FromHex("#eaeaeg").has_value());
+	CHECK(OutfitIcons::kKeys[OutfitIcons::KeyOrder(OutfitIcons::kDefaultKey)] == OutfitIcons::kDefaultKey);
 }
