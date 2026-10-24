@@ -59,7 +59,7 @@ a piece that did not arrive is left out of that dressing and counted on the HUD,
 replaced by a copy. A moved instance is the NPC's own: step 1 picks it, it is not recorded
 as added, and Unassign leaves it with them. Quest items (`InventoryEntryData::IsQuestObject`)
 are never offered, favorites (`IsFavorited`) not while `ProtectFavorites` is on. The
-preview and the Save page move nothing.
+preview and the Save page move nothing, but Create and Apply, which moves them as Apply does.
 
 The outfit the window's Apply gives (`Assignments::Assign`) is the actor's default. An outfit chosen for a situation (§7)
 replaces it while the situation lasts, by the same steps: the worn pieces are released
@@ -289,8 +289,8 @@ goes on and kept until it changes, a forced redress keeping it while it is on th
 and recorded as `chosen`, so turning random off keeps the last pick on. Giving a row an
 outfit (`OutfitRows::Give`) with random on puts it at the front of the list; with random
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
-the list keeps its length. The Save page's `Situations for
-#{Name}` rows give and take the outfit for the captured actor in one `Assignments::Change`, after
+the list keeps its length. The Save page changes no row but by Create and Apply, which gives
+the new outfit the row Manage Wardrobe's Apply would (below) in one `Assignments::Change`, after
 the library write, with one forced redress. Manage Wardrobe's Update changes no row; its `Apply to #{Name}` changes
 what the actor wears now: while they wear another outfit for a situation, its popup gives
 the outfit that row (Yes, `OutfitRows::Give`, worn now) or the Default (Apply as Default,
