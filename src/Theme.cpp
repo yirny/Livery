@@ -231,7 +231,6 @@ namespace
 	float       g_scale = 1.0f;                 // its resolution scale, for hand-drawn ornaments
 	float       g_itemSpacingY = 0.0f;          // its item spacing on the back buffer, before any push
 	ImVec2      g_listReach{};                  // how far the open BeginList list runs past the content, left and right
-	bool        g_listRules = true;             // the open BeginList list has its rules
 	Ornament    g_cornerKnot{ nullptr, ImVec2(25.0f, 25.0f) };
 	Ornament    g_headingRope{ nullptr, ImVec2(169.0f, 7.0f) };
 	Ornament    g_tabRope{ nullptr, ImVec2(7.0f, 48.0f) };           // one repeat of NORDIC UI's level-up rope, tiled down the tab rule
@@ -3165,9 +3164,8 @@ namespace Theme
 		return g_skin == Skin::kModern ? kModernListRowGap * g_scale : a_fallback;
 	}
 
-	bool BeginList(const char* a_id, float a_height, bool a_rules)
+	bool BeginList(const char* a_id, float a_height)
 	{
-		g_listRules = a_rules;
 		// Vanilla and Nordic: past the content across the window's padding to its
 		// edges, Vanilla's right one only to its frame's band (DrawVanillaFrame), which a
 		// scrollbar drawn after it would cover; in a table, only on the table's outer sides,
@@ -3204,9 +3202,6 @@ namespace Theme
 	{
 		DrawSkinScrollbar(UpdateScrollbarFade(g_listFadeId));
 		ImGui::EndChild();
-		if (!g_listRules) {
-			return;
-		}
 		// The rules span the content only, as the rows' fills do (LayOutListRow).
 		const ImVec2 min = ImGui::GetItemRectMin();
 		const ImVec2 max = ImGui::GetItemRectMax();
