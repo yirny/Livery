@@ -394,6 +394,7 @@ namespace CaptureWindow::Internal
 	// A situation's name differs from situations.json, or a row from the actor's.
 	bool HasSituationEdits(const State& a_state);
 
-	// Drags the outfit row just laid out, carrying `a_payload`, with `a_label` beside the cursor.
-	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label);
+	// Drags the outfit row just laid out, carrying `a_payload`, shown as a see-through copy of
+	// the row (Theme::OutfitDragGhost) named `a_label`, with its `a_grip`.
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip);
 }
