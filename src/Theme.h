@@ -194,7 +194,9 @@ namespace Theme
 	// column `sorted` has a small arrow after it, pointing up unless
 	// `descending`. A label starting with "##" is an unnamed column: its arrow alone, centred
 	// on its x, or while unsorted the up and down arrows base to base, a diamond, faded until
-	// hovered, with `unnamedTip` (if any) as its tooltip. Opens a field as LabelText does.
+	// hovered, with `unnamedTip` (if any) as its tooltip; its click area is an outfit row
+	// icon's square (the body text's height), centred on the labels' line, which does not grow
+	// for it. Opens a field as LabelText does.
 	// Returns the index of the column clicked, or -1. Faded and inert inside BeginDisabled.
 	// Contract: right above BeginList, one label per column; the labels are shown
 	// as is and are ImGui IDs.
