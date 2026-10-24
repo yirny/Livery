@@ -433,7 +433,8 @@ Each stage ends with an in-game check before the next starts.
   drag copies and Manage Wardrobe's icon field draw the outfit's icon tinted with its colour;
   a key whose PNG is not loaded draws the default key's PNG in that colour. Manage
   Wardrobe's picker offers the keys of `OutfitIcons::kKeys` whose PNG is loaded, in that
-  order: SkyUI's slots (helmet, circlet, body, hands, forearms, feet, calves, necklace, ring,
-  shield; each heavy, light, clothing), Jelidity's cloak and backpack, then BOOBIES'
-  `bodyparts` from head to feet. The colours are `OutfitIcons::kColors`: `#eaeaea`, then
+  order: SkyUI's slots (helmet, circlet, body, hands, feet, necklace, ring, shield; each
+  heavy, light, clothing), Jelidity's cloak and backpack, then BOOBIES' `bodyparts` from head
+  to feet. An icon drawn the same as one listed is left out (SkyUI's forearms and calves,
+  BOOBIES' torso, ring and circlet). The colours are `OutfitIcons::kColors`: `#eaeaea`, then
   pale tints (HSL about 60% saturation, 78% lightness) from blue violet to blue.
