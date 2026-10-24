@@ -149,7 +149,6 @@ namespace CaptureWindow::Internal
 	struct SituationEntry
 	{
 		std::array<char, kNameCapacity> name{};
-		std::array<char, kNameCapacity> description{};
 		std::string                     nameBefore;      // its name as its field's edit began, put back for an empty or taken one
 		OutfitRows::Row                 row;             // the actor's row for it
 		bool                            folded = false;  // its heading in the Situation List is folded
@@ -385,13 +384,13 @@ namespace CaptureWindow::Internal
 
 	void DrawSituationPage(State& a_state);
 
-	// Starts Manage Situations' edits from the request: each situation's name, description
-	// and row, and the Default's pieces. The selected situation and the folded headings follow
+	// Starts Manage Situations' edits from the request: each situation's name and row, and
+	// the Default's pieces. The selected situation and the folded headings follow
 	// their situations from `a_before`, the request's situations the edits were made for;
 	// none for a situation gone.
 	void FillSituationForm(State& a_state, const std::vector<CaptureWindow::SituationInfo>& a_before);
 
-	// A situation's name or description differs from situations.json, or a row from the actor's.
+	// A situation's name differs from situations.json, or a row from the actor's.
 	bool HasSituationEdits(const State& a_state);
 
 	// Drags the outfit row just laid out, carrying `a_payload`, with `a_label` beside the cursor.

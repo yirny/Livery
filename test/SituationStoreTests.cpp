@@ -18,23 +18,16 @@ namespace
 	}
 }
 
-TEST_CASE("Presets are named by their keys and described for the sentences", "[situations]")
+TEST_CASE("Presets are named by their keys", "[situations]")
 {
 	auto table = SituationTable::Presets();
 	CHECK(At(table, Situation::kDefault).name == "Default");
-	CHECK(At(table, Situation::kDefault).description.empty());
 	CHECK(At(table, Situation::kTown).name == "Town");
-	CHECK(At(table, Situation::kTown).description == "in Town");
-	CHECK(At(table, Situation::kHome).description == "at Home");
-	CHECK(At(table, Situation::kSleep).description == "ready for Sleep");
-	CHECK(At(table, Situation::kSwimming).description == "swimming");
-	CHECK(At(table, Situation::kWarm).description == "keeping Warm");
+	CHECK(At(table, Situation::kWarm).name == "Warm");
 	for (const auto& entry : table) {
 		CHECK_FALSE(entry.removed);
 	}
 
-	CHECK(SituationTable::Suffix(At(table, Situation::kTown)) == ", in Town");
-	CHECK(SituationTable::Suffix(At(table, Situation::kDefault)).empty());
 	CHECK_FALSE(SituationTable::CheckNames(table));
 	CHECK(SituationTable::RestoreChanges(table).empty());
 }
@@ -62,23 +55,19 @@ TEST_CASE("Names need text, are unique among the situations not removed, and the
 	table = SituationTable::Presets();
 	At(table, Situation::kDefault).removed = true;
 	CHECK(SituationTable::CheckNames(table));
-
-	table = SituationTable::Presets();
-	At(table, Situation::kDefault).description = "as usual";  // the Default's description may change
-	CHECK_FALSE(SituationTable::CheckNames(table));
 }
 
-TEST_CASE("Parse replaces the presets' fields an entry has", "[situations]")
+TEST_CASE("Parse replaces the presets' fields an entry has and ignores the others", "[situations]")
 {
 	SituationTable::Table table;
 	const auto            problem = SituationTable::Parse(R"({ "version": 1, "situations": [
 		{ "key": "Town", "name": "City", "description": "in the city", "removed": false },
 		{ "key": "Home", "removed": true },
-		{ "key": "Default", "description": "" } ] })",
+		{ "key": "Default", "description": 3 } ] })",
 		table);
 	REQUIRE_FALSE(problem);
-	CHECK(At(table, Situation::kTown) == SituationTable::Entry{ .name = "City", .description = "in the city" });
-	CHECK(At(table, Situation::kHome) == SituationTable::Entry{ .name = "Home", .description = "at Home", .removed = true });
+	CHECK(At(table, Situation::kTown) == SituationTable::Entry{ .name = "City" });
+	CHECK(At(table, Situation::kHome) == SituationTable::Entry{ .name = "Home", .removed = true });
 	CHECK(At(table, Situation::kSleep) == SituationTable::Preset(Situation::kSleep));
 	CHECK(At(table, Situation::kDefault) == SituationTable::Preset(Situation::kDefault));
 
@@ -126,6 +115,7 @@ TEST_CASE("Serialize writes only what differs from the presets, and Parse reads 
 	CHECK(text.find("\"Warm\"") != std::string::npos);
 	CHECK(text.find("\"Swimming\"") != std::string::npos);
 	CHECK(text.find("\"Town\"") == std::string::npos);
+	CHECK(text.find("description") == std::string::npos);
 	REQUIRE_FALSE(SituationTable::Parse(text, read));
 	CHECK(read == table);
 }
@@ -136,8 +126,5 @@ TEST_CASE("RestoreChanges names each situation that differs, under its name now"
 	At(table, Situation::kTown).removed = true;
 	At(table, Situation::kHome).name = "Cottage";
 	At(table, Situation::kWarm).name = "Cold";
-	At(table, Situation::kWarm).description = "in the cold";
-	At(table, Situation::kSleep).description = "";
-	CHECK(SituationTable::RestoreChanges(table) ==
-		  Lines{ "Town: restored", "Cottage: name reset", "Sleep: description reset", "Cold: name and description reset" });
+	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Town: restored", "Cottage: name reset", "Cold: name reset" });
 }
