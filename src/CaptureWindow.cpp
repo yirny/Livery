@@ -18,8 +18,8 @@
 //                  onPieceToggled; under the list the count line, ending in Add pieces from
 //                  Wardrobe... (the Load page; greyed while the library has no outfits); the
 //                  Live Preview tick, handed to onPreviewOn / onPreviewOff in an SKSE task that
-//                  also freezes or unfreezes the game, with Restore Outfit at its line's right
-//                  end while Livery dresses the actor; Save / Apply / Exit; Apply asks first
+//                  also freezes or unfreezes the game; Save / Apply / Exit, with Restore Outfit
+//                  at the row's right end while Livery dresses the actor; Apply asks first
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit... tabs, each with its own
@@ -1047,9 +1047,9 @@ namespace CaptureWindow::Internal
 		return add;
 	}
 
-	// Restore Outfit and its "(?)" at the right end of the Live Preview line, while Livery
-	// dresses the character (Request::dressed, Request::onRestore). Returns true when it is clicked.
-	// Contract: right after DrawPreviewToggle, on its line.
+	// Restore Outfit and its "(?)" at the right end of the button row, while Livery dresses
+	// the character (Request::dressed, Request::onRestore). Returns true when it is clicked.
+	// Contract: right after the row's last button, on its line.
 	bool DrawRestoreLink(const State& a_state)
 	{
 		if (!a_state.request.onRestore || !a_state.request.dressed) {
@@ -1201,10 +1201,10 @@ namespace CaptureWindow::Internal
 		kExit
 	};
 
-	// Save / Apply / Exit centred below a gap. Save and Apply act on the ticked pieces, so
-	// they need at least one. `a_load`: Add pieces from Wardrobe... was clicked on the count
-	// line; `a_restore`: Restore Outfit on the Live Preview line.
-	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load, bool a_restore)
+	// Save / Apply / Exit centred below a gap, then Restore Outfit at the row's right end.
+	// Save and Apply act on the ticked pieces, so they need at least one. `a_load`: Add
+	// pieces from Wardrobe... was clicked on the count line.
+	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load)
 	{
 		constexpr const char* kSaveTooltip = "Save the ticked pieces as a new outfit, or into an existing one.";
 
@@ -1216,6 +1216,7 @@ namespace CaptureWindow::Internal
 		ImGui::SameLine();
 		// While the Apply or Restore popup is open, Escape is its own Cancel.
 		const bool exitPressed = Theme::Button("Exit") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		const bool restore = DrawRestoreLink(a_state);
 
 		if (a_state.status != Status::kEditing) {
 			ImGui::TextDisabled("Applying...");
@@ -1230,7 +1231,7 @@ namespace CaptureWindow::Internal
 		if (apply) {
 			return CaptureAction::kApply;
 		}
-		if (a_restore) {
+		if (restore) {
 			return CaptureAction::kRestore;
 		}
 		return exitPressed ? CaptureAction::kExit : CaptureAction::kNone;
@@ -1382,8 +1383,7 @@ namespace CaptureWindow::Internal
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state, list);
-		const bool restore = DrawRestoreLink(a_state);
-		const auto action = DrawCaptureButtons(a_state, load, restore);
+		const auto action = DrawCaptureButtons(a_state, load);
 		EndButtonRow();
 		ImGui::EndDisabled();
 

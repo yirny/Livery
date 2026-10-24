@@ -104,8 +104,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   - Save: `Save the ticked pieces as a new outfit, or into an existing one.`
   - Apply: `Dress #{Name} in the ticked pieces.`
   - Exit: none.
-- `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the Live
-  Preview line (`Theme::LineHelpLink`), its text centred on the line's height, in the count
+- `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the button
+  row (`Theme::LineHelpLink`), its text centred on the buttons' height, in the count
   line's font and colour, lit on hover; the `(?)` is inside its click area and hovering it
   shows the help. A click asks `Restore #{Name}'s original outfit?` / `This takes Livery's
   outfit off #{Name} and forgets every situational outfit chosen for them.` with `Restore` /
@@ -171,7 +171,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited; with none selected, the Inventory page's
   ticks.
-- Buttons `Update`, `Remove` (step 3), `Apply to #{Name}`, `Exit`.
+- Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (step 3) at the row's right
+  end, a link drawn as Restore Outfit is, without the `(?)` (`Theme::LineLink`).
   - Update: greyed until the outfit differs from the library (trimmed name, pieces), and
     with an empty name (`kNeedName`). A popup (`Save changes?`) lists
     what changes (pieces, rename), as the Save page's Update tab does; the
@@ -240,7 +241,8 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
 
 ## 5. Remove (step 3)
 
-- `Remove` on Manage Wardrobe, enabled with an outfit selected. A popup names the outfit and
+- `Remove` on Manage Wardrobe, enabled with an outfit selected (greyed with `kNeedOutfit` on
+  hover without one). A popup names the outfit and
   lists who uses it among Livery's assignments in this save: each actor (their FormID when
   not in memory) with the rows that hold it (`Lydia: Default, Town`), then `Remove` /
   `Cancel`.

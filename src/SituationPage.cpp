@@ -16,7 +16,7 @@
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Edit and Back
-//   Buttons, popups - Restore Presets (?), Save Changes, Exit; Remove's and Restore Presets'
+//   Buttons, popups - Save Changes, Exit, Restore Presets (?); Remove's and Restore Presets'
 //                     popups and the unsaved-changes alert, each handing its write to the
 //                     Request's handler
 #include "PCH.h"
@@ -623,7 +623,7 @@ namespace CaptureWindow::Internal
 		};
 
 		// Save Changes, greyed until something changed, and Exit, centred as the other pages'
-		// buttons, then Restore Presets (?) at the row's left end, a link as the details' Remove
+		// buttons, then Restore Presets (?) at the row's right end, a link as the details' Remove
 		// and Restore Outfit are, greyed while every preset is as installed. a_escapeTaken: the
 		// browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
@@ -633,7 +633,6 @@ namespace CaptureWindow::Internal
 				"gets its name back. Nobody's outfits change.";
 
 			const auto& request = a_state.request;
-			const float left = ImGui::GetCursorPosX();
 			BeginButtonRow({ "Save Changes", "Exit" });
 			ImGui::BeginDisabled(!request.onSituationsSave);
 			const bool save = ReasonButton("Save Changes", HasSituationEdits(a_state) ? nullptr : kNothingChanged);
@@ -645,7 +644,7 @@ namespace CaptureWindow::Internal
 			const bool installed = request.restoreChanges.empty();
 			ImGui::BeginDisabled(installed || !request.onRestorePresets);
 			bool       helpHovered = false;
-			const bool restore = Theme::LineHelpLinkAt("Restore Presets", left, &helpHovered);
+			const bool restore = Theme::LineHelpLink("Restore Presets", &helpHovered);
 			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			ImGui::EndDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
