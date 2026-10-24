@@ -455,7 +455,7 @@ namespace
 		.rule = 0x4A4639FF,
 		.hover = 0x423F35FF,
 		.selected = 0x3C3931FF,
-		.stripe = 0x00000010,
+		.stripe = 0x00000020,
 		.error = 0xFF6666FF,
 	};
 
