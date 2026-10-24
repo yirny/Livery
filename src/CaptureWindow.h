@@ -165,6 +165,7 @@ namespace CaptureWindow
 		std::string        playerName;         // PieceGroup::kPlayer's heading names them; "" for "Player"
 		std::string        actorSummary;       // shown greyed under the title line; "" for none
 		bool               dressed = false;    // Livery has pieces on the character, which shows Restore
+		std::size_t        piecesNotWorn = 0;  // of those, the ones they wear no copy of now (taken back in the trade menu, taken off)
 		std::string        outfitName;         // the library outfit of PieceGroup::kLiveryOutfit's heading
 		std::uint32_t      wornOutfit = 0;     // that outfit's library id, which the Apply popup offers to update; 0 for none
 		std::string        wornSituation;      // what it is worn for: a situation's name, "" for the default
@@ -297,7 +298,8 @@ namespace CaptureWindow
 		std::vector<SituationInfo>  situations;
 		std::vector<std::string>    restoreChanges;
 		std::string                 actorSummary;
-		bool                        dressed = false;  // as Request::dressed
+		bool                        dressed = false;    // as Request::dressed
+		std::size_t                 piecesNotWorn = 0;  // as Request::piecesNotWorn
 		// Set when the change redressed the captured actor (with Live Preview on, the handler
 		// began the preview again); the Inventory page then follows what they wear.
 		std::optional<ActorPieces> actorPieces;

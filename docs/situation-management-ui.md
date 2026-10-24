@@ -122,7 +122,7 @@ nothing for the Default; the summary line names the Default too. Only these:
 
 | Where | Text |
 | --- | --- |
-| Inventory summary line (`DescribeAssignment`) | `Wearing "X" for Town.`, `Wearing "X" as Default.`; `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library |
+| Inventory summary line (`DescribeAssignment`) | `Wearing "X" for Town.`, `Wearing "X" as Default.`; `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library; with pieces Livery put on no longer worn (`PiecesNotWorn`), `Assigned "X" as Default, 1 piece not worn.`, `Dressed by Livery, 2 pieces not worn.` |
 | Situation change HUD (`SituationChangeText`) | `Livery: Lydia now wears "X" for Town.` |
 | Assign HUD, nothing went on | `...; dressed now for Town.` |
 | Assign HUD | `Livery: Lydia now wears these for Town` |

@@ -86,7 +86,12 @@ says so), so a lock would be needed anyway.
   copies are created here. The sink only checks a mutex-guarded id list and queues an
   SKSE task, since the event's thread is not documented.
 - A locked piece the player takes back in the trade menu stays taken: the slot is left
-  to the vanilla picker until the player assigns again.
+  to the vanilla picker until the player assigns again. The window counts the pieces Livery
+  put on that the actor wears no copy of (`PiecesNotWorn` in `Plugin.cpp`, read as it opens
+  and after each dressing with it open, no preview on): the summary line then says the
+  outfit is only assigned, `Assigned "X" as Default, 1 piece not worn.`, and Manage
+  Wardrobe's Apply is not greyed as worn already; it dresses them again, a copy added for a
+  piece they no longer carry (§2 step 2).
 - Unassign (the window's Restore): release the mod's locks, remove the mod's copies
   still present (by co-save key; never a player-given instance), put the actor's own
   pieces it took off back on (those still carried, unworn and unlocked, without a lock),
