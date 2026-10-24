@@ -76,27 +76,27 @@ namespace
 	// appended to the player's file, so an update never resets their settings.
 	constexpr std::array<IniKey, 15> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
-			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
-			L"0 = the hotkey captures any adult NPC.\n"
+			L"1 = the hotkey works only on followers and your spouse; anyone else shows an error message.\n"
+			L"0 = the hotkey works on any adult NPC.\n"
 			L"Read once when the game starts." },
 		{ kIniSection, kLivePreviewKey, L"1",
-			L"1 = the capture window opens with Live Preview on: the game keeps running and the character wears the ticked pieces.\n"
+			L"1 = the window opens with Live Preview on: the game keeps running and the character wears the ticked items.\n"
 			L"0 = it opens with Live Preview off and the game paused; tick Live Preview in the window to turn it on.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kIniSection, kNpcReactionKey, L"1",
-			L"1 = an NPC you capture turns their head to you and says a greeting, when the window opens with Live Preview on.\n"
+			L"1 = the NPC turns their head to you and says a greeting, when the window opens with Live Preview on.\n"
 			L"0 = they do neither.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kUiSection, kPaletteKey, L"Modern",
-			L"Look of the capture window: a palette file in Data/SKSE/Plugins/Livery/palettes, named without .ini (Modern, Edge, Vanilla, Nordic,\n"
+			L"Look of the window: a palette file in Data/SKSE/Plugins/Livery/palettes, named without .ini (Modern, Edge, Vanilla, Nordic,\n"
 			L"or your own copy of one), which sets the skin and its colours.\n"
 			L"Easiest to change in game through SKSE Menu Framework. The palette files are read once when the game starts." },
 		{ kUiSection, kMenuSoundsKey, L"1",
-			L"1 = the capture window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
+			L"1 = the window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
 			L"0 = it stays silent.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kHotkeySection, kHotkeyKeyKey, L"68",
-			L"Key that captures the NPC under the crosshair, or you when there is none, as a DirectInput scan code (68 = F10).\n"
+			L"Key that opens Livery on the NPC under the crosshair, or on you when there is none, as a DirectInput scan code (68 = F10).\n"
 			L"Easiest to change in game through SKSE Menu Framework. Read once when the game starts." },
 		{ kHotkeySection, kHotkeyModifierKey, L"0",
 			L"Key that must be held together with Key: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt.\n"
@@ -105,24 +105,24 @@ namespace
 			L"Speed of the preview camera: W / A / S / D movement, mouse drags and wheel zoom, as a percentage (10 to 200, 100 = normal).\n"
 			L"Shift halves the movement while held. Easiest to change in game through SKSE Menu Framework." },
 		{ kPlayerSection, kAddMissingKey, L"0",
-			L"1 = an outfit you give yourself adds the pieces you do not carry. Warning: this creates new items in your inventory.\n"
-			L"0 = those pieces are left out, and the message on screen names them.\n"
+			L"1 = an outfit you give yourself adds the items you do not carry. Warning: this creates new items in your inventory.\n"
+			L"0 = those items are left out, and the message on screen names them.\n"
 			L"In game the tick Dress yourself from inventory only is the opposite of this value.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kWindowSection, kShowPlayerInventoryKey, L"1",
-			L"1 = the capture window of an NPC also lists your armor, under Player's Inventory.\n"
-			L"0 = it lists only the NPC's own pieces and those of the loaded outfit.\n"
+			L"1 = the window of an NPC also lists your armor, under Player's Inventory.\n"
+			L"0 = it lists only the NPC's own items and those of the loaded outfit.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kWindowSection, kShowPlayerWornKey, L"0",
 			L"1 = that list includes the armor you wear.\n"
 			L"0 = it leaves out what you wear, unless you carry another copy.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kWindowSection, kShowSlotColumnKey, L"0",
-			L"1 = the capture window's piece list has a Slot column: each piece's body slots by number (32, 34).\n"
+			L"1 = the window's item list has a Slot column: each item's body slots by number (32, 34).\n"
 			L"0 = it shows the Name and Type columns only.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kTransferSection, kMoveFromPlayerKey, L"1",
-			L"1 = Apply in an NPC's capture window moves the ticked pieces from your inventory to them, enchantments and tempering included.\n"
+			L"1 = Apply in an NPC's window moves the ticked items from your inventory to them, enchantments and tempering included.\n"
 			L"0 = the NPC gets a new plain copy of each and yours stay with you.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kTransferSection, kProtectFavoritesKey, L"1",
@@ -484,7 +484,7 @@ namespace
 	// What every shipped palette file says after its first lines.
 	constexpr auto kPaletteHelp =
 		L";\n"
-		L"; A palette sets the look of Livery's capture window: the skin it is drawn in and that skin's\n"
+		L"; A palette sets the look of Livery's window: the skin it is drawn in and that skin's\n"
 		L"; colours. Pick one in SKSE Menu Framework's Livery page, or in Livery.ini's [UI] Palette by\n"
 		L"; its file name without .ini.\n"
 		L";\n"

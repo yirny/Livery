@@ -343,7 +343,7 @@ namespace CaptureWindow::Internal
 	std::string PieceCountText(std::size_t a_loaded, std::size_t a_unloaded)
 	{
 		const auto total = a_loaded + a_unloaded;
-		return a_unloaded ? std::format("{} piece(s), {} not loaded", total, a_unloaded) : std::format("{} piece(s)", total);
+		return a_unloaded ? std::format("{} item(s), {} not loaded", total, a_unloaded) : std::format("{} item(s)", total);
 	}
 
 	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces, float a_bottom)
@@ -754,13 +754,13 @@ namespace CaptureWindow::Internal
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		if (form.pieces != outfit.pieces) {
-			ImGui::TextUnformatted(std::format("Its {} piece(s) become the {} edited piece(s).", outfit.pieces.size(), form.pieces.size()).c_str());
+			ImGui::TextUnformatted(std::format("Its {} item(s) become the {} edited item(s).", outfit.pieces.size(), form.pieces.size()).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
 		}
 		if (outfit.unloadedPieces) {
-			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+			ImGui::TextDisabled("%s", std::format("{} item(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 	}
 
@@ -989,7 +989,7 @@ namespace CaptureWindow::Internal
 			for (const auto& user : outfit.users) {
 				ImGui::BulletText("%s", user.c_str());
 			}
-			ImGui::TextDisabled("Their situations without it fall back to the default; a default from it keeps its pieces.");
+			ImGui::TextDisabled("Their situations without it fall back to the default; a default from it keeps its items.");
 		}
 		BeginButtonRow({ "Remove", "Cancel" });
 		const bool remove = Theme::Button("Remove");
@@ -1215,9 +1215,9 @@ namespace CaptureWindow::Internal
 		DrawPieceRows(a_state, list);
 		const bool load = DrawPieceCount(a_state, list, true);
 		DrawPreviewToggle(a_state, list);
-		BeginButtonRow({ "Use Ticked Pieces", "Back" });
+		BeginButtonRow({ "Use Ticked Items", "Back" });
 		const auto ticked = Ticked(a_state, list);
-		const bool use = ReasonButton("Use Ticked Pieces", ticked.empty() ? kNeedPiece : nullptr);
+		const bool use = ReasonButton("Use Ticked Items", ticked.empty() ? kNeedPiece : nullptr);
 		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 		EndButtonRow();

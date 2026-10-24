@@ -30,7 +30,7 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   slots; a longer list ends in an ellipsis. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
   come first; Name ascending to start.
-- The count line `x of y piece(s) selected` moves under the list, ending in `Add pieces from
+- The count line `x of y item(s) selected` moves under the list, ending in `Add items from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview stays as it is.
 - Assign for and `Situations...` go, with the Situations page (§4 covers assignment).
 - Buttons: `Save` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
@@ -88,7 +88,7 @@ situation is Manage Situations' job (docs/situation-management-ui.md).
   line. Each tab keeps its name while the window is open, the Update tab its outfit.
 - Both tabs start with the name, as Manage Wardrobe's field: no label (`Outfit Name` on hover
   while not being typed in; a failed save's error instead).
-- `Create New Outfit`: the name, starting from the first free `Captured Outfit NNN`, then the
+- `Create New Outfit`: the name, starting from the first free `New Outfit NNN`, then the
   ticked pieces read only under their count line, as Manage Wardrobe shows an outfit's.
   Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
 - Create and Apply saves as Create does and gives the new outfit the row Manage Wardrobe's
@@ -117,8 +117,8 @@ situation is Manage Situations' job (docs/situation-management-ui.md).
   first.
 - The name may be changed: a name must be unused, ASCII case ignored, by any other outfit
   (CLAUDE.md §2.1); `Library::Update` takes the name.
-- Update's confirm popup (`Replace pieces?`): `Replace the N piece(s) of "A"` / `with the M
-  ticked piece(s)?`, a line for the pieces of unloaded plugins that stay in it and one for a
+- Update's confirm popup (`Replace items?`): `Replace the N item(s) of "A"` / `with the M
+  ticked item(s)?`, a line for the pieces of unloaded plugins that stay in it and one for a
   rename, then `Confirm` / `Cancel`. No row changes.
 - Order: the library write; on failure `SetError` and nothing assigned; on success Close (the
   preview restores), then Create and Apply's row in one call that redresses once, or after
@@ -133,7 +133,7 @@ when they wear it; a failed write assigns nothing.
 ## 5. Apply
 
 - Apply assigns the ticks as the default, after the transfer (§3).
-- Modal `Update "X" with the ticked pieces?` when Livery dresses the actor, the outfit worn
+- Modal `Update "X" with the ticked items?` when Livery dresses the actor, the outfit worn
   now is a library outfit (the default's id when the default is worn, else the worn
   situation's) and the ticks differ from its loaded pieces. For a situation it adds `"X" is
   #{Name}'s Town outfit.`

@@ -81,12 +81,12 @@ namespace
 
 	// --- Library writes -------------------------------------------------------
 
-	// First "Captured Outfit NNN" the library does not have yet, or "" when it
+	// First "New Outfit NNN" the library does not have yet, or "" when it
 	// has all of them.
 	std::string NextAutomaticName()
 	{
 		for (int index = 1; index <= 99999; ++index) {
-			auto name = std::format("Captured Outfit {:03}", index);
+			auto name = std::format("New Outfit {:03}", index);
 			if (!Library::FindByName(name)) {
 				return name;
 			}
@@ -114,7 +114,7 @@ namespace
 		if (auto error = Library::Create(name, armors)) {
 			return error;
 		}
-		Notify(std::format("Livery: saved {} ({} pieces).", name, armors.size()));
+		Notify(std::format("Livery: saved {} ({} items).", name, armors.size()));
 		return std::nullopt;
 	}
 
@@ -145,10 +145,10 @@ namespace
 		if (auto error = Library::Update(id, name, armors)) {
 			return error;
 		}
-		auto text = name == oldName ? std::format("Livery: updated {} ({} pieces)", name, armors.size()) :
-		                              std::format("Livery: updated {}, renamed from {} ({} pieces)", name, oldName, armors.size());
+		auto text = name == oldName ? std::format("Livery: updated {} ({} items)", name, armors.size()) :
+		                              std::format("Livery: updated {}, renamed from {} ({} items)", name, oldName, armors.size());
 		if (unloaded) {
-			text += std::format("; {} piece(s) from plugins that are not loaded stay in it", unloaded);
+			text += std::format("; {} item(s) from plugins that are not loaded stay in it", unloaded);
 		}
 		Notify(text + ".");
 		return std::nullopt;
@@ -648,17 +648,17 @@ namespace
 	// The window freezes the game, so what they wear holds until the next.
 	WornGaps g_capturedGaps;
 
-	// `, 1 piece not worn`, `, 2 extra pieces worn`, both, or "".
+	// `, 1 item not worn`, `, 2 extra items worn`, both, or "".
 	std::string GapsText(const WornGaps& gaps)
 	{
 		const auto count = [](std::size_t n, const char* what, const char* after) {
 			return n == 0 ? std::string{} : std::format(", {} {}{} {}", n, what, n == 1 ? "" : "s", after);
 		};
-		return count(gaps.notWorn, "piece", "not worn") + count(gaps.extra, "extra piece", "worn");
+		return count(gaps.notWorn, "item", "not worn") + count(gaps.extra, "extra item", "worn");
 	}
 
 	// The line under the actor's name: what Livery has on them now and what for, `Wearing "X"
-	// for Town.` or `Wearing "X" as Default.` Pieces that are not a saved outfit, or an outfit
+	// for Town.` or `Wearing "X" as Default.` Items that are not a saved outfit, or an outfit
 	// gone from the library (another save's), which the window shows no row of, go unnamed:
 	// `Dressed by Livery.` With Livery's pieces off them the outfit is only theirs, and the
 	// differences follow: `Assigned "X" as Default, 1 piece not worn, 2 extra pieces worn.`
@@ -708,7 +708,7 @@ namespace
 		}
 		auto        notMoved = Dressing::MoveFromPlayer(*player, npc, moving, Settings::ShowPlayerWornPieces());
 		const auto* name = npc.GetDisplayFullName();
-		auto        text = std::format("Livery: moved {} of {} piece(s) from you to {}", moving.size() - notMoved.size(), moving.size(), name && *name ? name : "them");
+		auto        text = std::format("Livery: moved {} of {} item(s) from you to {}", moving.size() - notMoved.size(), moving.size(), name && *name ? name : "them");
 		for (std::size_t i = 0; i < notMoved.size(); ++i) {
 			text += (i == 0 ? "; not moved: " : ", ") + DisplayName(*notMoved[i]);
 		}
@@ -1107,7 +1107,7 @@ namespace
 			}
 			const auto pieces = Library::LoadedPieces(*stored);
 			if (pieces.empty()) {
-				CaptureWindow::SetError("None of its pieces is loaded.");
+				CaptureWindow::SetError("None of its items is loaded.");
 				return;
 			}
 			auto dressed = ApplyOutfit(*target, outfit, row, armors, offered, pieces);
@@ -1317,7 +1317,7 @@ namespace
 		const bool isPlayer = actor == player;
 		// Livery never dresses children (Assignments refuses them too).
 		if (actor->IsChild()) {
-			Notify("Livery: children's outfits cannot be captured.");
+			Notify("Livery: children are not supported.");
 			return;
 		}
 		// The follower restriction narrows which NPCs qualify; the player always does.
@@ -1340,7 +1340,7 @@ namespace
 	{
 		SKSE::GetTaskInterface()->AddTask([] {
 			if (!g_ready || CaptureWindow::IsOpen()) {
-				Notify("Livery: load a save and close the capture window first.");
+				Notify("Livery: load a save and close the window first.");
 				return;
 			}
 			Assignments::ReleaseEveryone();
