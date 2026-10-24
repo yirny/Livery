@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants  - font files per skin, Nordic's palette
+//   Constants  - font files per skin
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
-//   Styles     - one ImGuiStyle per skin (Modern's from its palette) and its resolution scale
+//   Styles     - one ImGuiStyle per skin, in its palette's colours, and its resolution scale
 //   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow and SkyUI's
 //                MCM header rule (white alpha masks), the game's and NORDIC UI's
 //                equipped-item marks, the game's checkbox, dropdown arrow and scroll
@@ -29,7 +29,8 @@
 // TailorScreen.cpp; its spacing, Windows font fallback and resolution curve are still
 // Tailor's. Its colours come from a palette (Theme::Palette; the Modern one, a dark grey, by
 // default) and its font is Jost, standing in for Edge UI's Futura. The Vanilla and
-// Nordic skins approximate the game's menus and NORDIC UI. Every skin's fonts ship with
+// Nordic skins approximate the game's menus and NORDIC UI, in their own palettes' colours
+// (the game's art keeps its own: scroll bar, checkbox, equipped marks). Every skin's fonts ship with
 // this plugin (OFL): Jost, Oswald and Sovngarde.
 // Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
 // author's open permission, see textures/NORDIC-UI-CREDITS.txt); Vanilla's
@@ -107,9 +108,6 @@ namespace
 	// rule beside them (pixels at 1080p).
 	constexpr float kTabSide = 34.0f;
 	constexpr float kTabRuleGap = 8.0f;
-	// Vanilla's selection bar, white fading in from the left (a ticked piece row, a selected
-	// row): the alpha of its right end, out of 255.
-	constexpr int kSelectBarAlpha = 70;
 	// The help mark a button, link or label carries for its tooltip.
 	constexpr const char* kHelpMark = "(?)";
 	// Between the tabs of a page heading made of tabs (BeginHeadingTabs).
@@ -180,14 +178,6 @@ namespace
 	constexpr SkinFonts kNordicFonts{ "Nordic",
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
 		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" } };
-
-	constexpr ImU32 kErrorText = IM_COL32(255, 102, 102, 255);  // the error red of Vanilla and Nordic (Modern's is its palette's)
-
-	// NORDIC UI's palette: white on smoked black, grey labels, rules and highlights.
-	constexpr ImU32 kNordicText = IM_COL32(240, 240, 240, 255);
-	constexpr ImU32 kNordicLabel = IM_COL32(165, 165, 165, 255);
-	constexpr ImU32 kNordicRule = IM_COL32(200, 200, 200, 90);
-	constexpr ImU32 kNordicOrnament = IM_COL32(222, 222, 222, 255);  // NORDIC UI's #dedede
 
 	// The light grey of the game's scroll bar (#cccccc): its track's inner lines, and in Vanilla and
 	// Nordic the thumb's rim and its fill while held (DrawSkinScrollbar).
@@ -622,16 +612,22 @@ namespace
 		return IM_COL32((a_rgba >> 24) & 0xFF, (a_rgba >> 16) & 0xFF, (a_rgba >> 8) & 0xFF, a_rgba & 0xFF);
 	}
 
-	// Field labels' grey: the palette's label colour in Modern, NORDIC UI's in Vanilla and Nordic.
+	// Field labels' grey: the palette's label colour.
 	ImU32 LabelGrey()
 	{
-		return g_skin == Theme::Skin::kModern ? PaletteColor(g_palette.label) : kNordicLabel;
+		return PaletteColor(g_palette.label);
 	}
 
-	// The red of error text and fields: the palette's in Modern.
+	// The red of error text and fields: the palette's.
 	ImU32 ErrorRed()
 	{
-		return g_skin == Theme::Skin::kModern ? PaletteColor(g_palette.error) : kErrorText;
+		return PaletteColor(g_palette.error);
+	}
+
+	// Vanilla's and Nordic's ornaments and select arrow: the palette's accent.
+	ImU32 OrnamentColor()
+	{
+		return PaletteColor(g_palette.accent);
 	}
 
 	// Modern: Tailor 3.0's spacing with Edge UI's nearly square frames, in the palette's colours.
@@ -732,89 +728,67 @@ namespace
 		a_style.DisabledAlpha = 0.45f;
 	}
 
-	// The game's own menus: square black glass, white text, thin grey rules,
-	// buttons that are only text until hovered.
-	void SetVanillaStyle(ImGuiStyle& a_style)
+	// Vanilla's and Nordic's colours, from the palette: the text colour, faint, for the fills
+	// of fields, buttons, rows and the scroll bar. Colours the palette of either skin has no
+	// key for (the dimming behind a popup, the clear fills) stay fixed.
+	void SetSquareColors(ImGuiStyle& a_style, const Theme::Palette& a_palette)
 	{
-		constexpr ImU32 kWhite = IM_COL32(255, 255, 255, 255);
-		constexpr ImU32 kDim = IM_COL32(150, 150, 150, 255);
-		constexpr ImU32 kRule = IM_COL32(255, 255, 255, 70);
-		constexpr ImU32 kTint1 = IM_COL32(255, 255, 255, 15);
-		constexpr ImU32 kTint2 = IM_COL32(255, 255, 255, 35);
-		constexpr ImU32 kTint3 = IM_COL32(255, 255, 255, 60);
-		constexpr ImU32 kGlass = IM_COL32(0, 0, 0, 220);
+		// Alphas of the text colour, out of 255.
+		constexpr unsigned kTint1 = 15;
+		constexpr unsigned kTint2 = 35;
+		constexpr unsigned kTint3 = 60;
 
-		SetSquareFrames(a_style);
-		a_style.WindowBorderSize = 0.0f;  // DecorateWindow draws the main window's frame
-		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
-		set(ImGuiCol_Text, kWhite);
-		set(ImGuiCol_TextDisabled, kDim);
-		set(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 204));  // 0.8 opaque
+		const ImU32 text = PaletteColor(a_palette.text);
+		const ImU32 rule = PaletteColor(a_palette.rule);
+		auto        set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
+		set(ImGuiCol_Text, text);
+		set(ImGuiCol_TextDisabled, PaletteColor(a_palette.label));
+		set(ImGuiCol_WindowBg, PaletteColor(a_palette.window));
 		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_PopupBg, IM_COL32(0, 0, 0, 235));
+		set(ImGuiCol_PopupBg, PaletteColor(a_palette.surface));
 		set(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 51));  // a faint black (0.2) behind a popup
-		set(ImGuiCol_TitleBg, kGlass);
-		set(ImGuiCol_TitleBgActive, kGlass);
-		set(ImGuiCol_TitleBgCollapsed, kGlass);
-		set(ImGuiCol_Border, kRule);
-		set(ImGuiCol_FrameBg, kTint1);
-		set(ImGuiCol_FrameBgHovered, kTint2);
-		set(ImGuiCol_FrameBgActive, kTint3);
+		set(ImGuiCol_Border, rule);
+		set(ImGuiCol_FrameBg, WithAlpha(text, kTint1));
+		set(ImGuiCol_FrameBgHovered, WithAlpha(text, kTint2));
+		set(ImGuiCol_FrameBgActive, WithAlpha(text, kTint3));
 		set(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_ButtonHovered, kTint2);
-		set(ImGuiCol_ButtonActive, kTint3);
-		set(ImGuiCol_Header, kTint2);
-		set(ImGuiCol_HeaderHovered, kTint2);
-		set(ImGuiCol_HeaderActive, kTint3);
-		set(ImGuiCol_CheckMark, kWhite);
-		set(ImGuiCol_Separator, kRule);
-		set(ImGuiCol_NavCursor, kWhite);
-		set(ImGuiCol_InputTextCursor, kWhite);
+		set(ImGuiCol_ButtonHovered, WithAlpha(text, kTint2));
+		set(ImGuiCol_ButtonActive, WithAlpha(text, kTint3));
+		set(ImGuiCol_Header, WithAlpha(text, kTint2));
+		set(ImGuiCol_HeaderHovered, WithAlpha(text, kTint2));
+		set(ImGuiCol_HeaderActive, WithAlpha(text, kTint3));
+		set(ImGuiCol_CheckMark, PaletteColor(a_palette.accent));
+		set(ImGuiCol_Separator, rule);
+		set(ImGuiCol_NavCursor, text);
+		set(ImGuiCol_InputTextCursor, text);
 		set(ImGuiCol_ScrollbarBg, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_ScrollbarGrab, kTint3);
-		set(ImGuiCol_ScrollbarGrabHovered, kRule);
-		set(ImGuiCol_ScrollbarGrabActive, kWhite);
-		set(ImGuiCol_TextSelectedBg, kTint3);
+		set(ImGuiCol_ScrollbarGrab, WithAlpha(text, kTint3));
+		set(ImGuiCol_ScrollbarGrabHovered, rule);
+		set(ImGuiCol_ScrollbarGrabActive, text);
+		set(ImGuiCol_TextSelectedBg, WithAlpha(text, kTint3));
 	}
 
-	// NORDIC UI: smoked black panel with no outline (corner ornaments instead),
-	// white text, grey labels, grey highlights.
-	void SetNordicStyle(ImGuiStyle& a_style)
+	// The game's own menus: square black glass, white text, thin grey rules,
+	// buttons that are only text until hovered.
+	void SetVanillaStyle(ImGuiStyle& a_style, const Theme::Palette& a_palette)
 	{
-		constexpr ImU32 kGrey1 = IM_COL32(255, 255, 255, 15);
-		constexpr ImU32 kGrey2 = IM_COL32(255, 255, 255, 35);
-		constexpr ImU32 kGrey3 = IM_COL32(255, 255, 255, 60);
+		SetSquareFrames(a_style);
+		a_style.WindowBorderSize = 0.0f;  // DecorateWindow draws the main window's frame
+		SetSquareColors(a_style, a_palette);
+		const ImU32 titleBar = PaletteColor(a_palette.titleBar);  // a popup's; the main window has none
+		a_style.Colors[ImGuiCol_TitleBg] = ImGui::ColorConvertU32ToFloat4(titleBar);
+		a_style.Colors[ImGuiCol_TitleBgActive] = ImGui::ColorConvertU32ToFloat4(titleBar);
+		a_style.Colors[ImGuiCol_TitleBgCollapsed] = ImGui::ColorConvertU32ToFloat4(titleBar);
+	}
 
+	// NORDIC UI: smoked black panel with no outline (corner ornaments instead) and no title
+	// bars, white text, grey labels, grey highlights.
+	void SetNordicStyle(ImGuiStyle& a_style, const Theme::Palette& a_palette)
+	{
 		SetSquareFrames(a_style);
 		a_style.WindowBorderSize = 0.0f;
 		a_style.WindowPadding = ImVec2(32.0f, 22.0f);  // room for the corner ornaments and the larger select arrow (SelectArrowSize)
-
-		auto set = [&](ImGuiCol a_index, ImU32 a_color) { a_style.Colors[a_index] = ImGui::ColorConvertU32ToFloat4(a_color); };
-		set(ImGuiCol_Text, kNordicText);
-		set(ImGuiCol_TextDisabled, kNordicLabel);
-		set(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 204));  // 0.8 opaque
-		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_PopupBg, IM_COL32(10, 10, 10, 235));
-		set(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 51));  // a faint black (0.2) behind a popup
-		set(ImGuiCol_Border, kNordicRule);
-		set(ImGuiCol_FrameBg, kGrey1);
-		set(ImGuiCol_FrameBgHovered, kGrey2);
-		set(ImGuiCol_FrameBgActive, kGrey3);
-		set(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_ButtonHovered, kGrey2);
-		set(ImGuiCol_ButtonActive, kGrey3);
-		set(ImGuiCol_Header, kGrey2);
-		set(ImGuiCol_HeaderHovered, kGrey2);
-		set(ImGuiCol_HeaderActive, kGrey3);
-		set(ImGuiCol_CheckMark, kNordicText);
-		set(ImGuiCol_Separator, kNordicRule);
-		set(ImGuiCol_NavCursor, kNordicText);
-		set(ImGuiCol_InputTextCursor, kNordicText);
-		set(ImGuiCol_ScrollbarBg, IM_COL32(0, 0, 0, 0));
-		set(ImGuiCol_ScrollbarGrab, kGrey3);
-		set(ImGuiCol_ScrollbarGrabHovered, kNordicRule);
-		set(ImGuiCol_ScrollbarGrabActive, kNordicText);
-		set(ImGuiCol_TextSelectedBg, kGrey3);
+		SetSquareColors(a_style, a_palette);
 	}
 
 	// --- Ornaments ------------------------------------------------------------
@@ -828,7 +802,7 @@ namespace
 			const float  inset = 3.0f * g_scale;
 			const ImVec2 start(a_corner.x + a_x * inset, a_corner.y + a_y * inset);
 			const ImVec2 end(start.x + a_x * g_cornerKnot.size.x * g_scale, start.y + a_y * g_cornerKnot.size.y * g_scale);
-			a_draw->AddImage(g_cornerKnot.Id(), start, end, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(kNordicOrnament));
+			a_draw->AddImage(g_cornerKnot.Id(), start, end, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(OrnamentColor()));
 			return;
 		}
 		const float inset = 6.0f * g_scale;
@@ -837,7 +811,7 @@ namespace
 		const float gap = 4.0f * g_scale;
 		const float box = 3.0f * g_scale;
 		const float thick = (std::max)(1.0f, g_scale);
-		const auto  color = ImGui::GetColorU32(kNordicOrnament);
+		const auto  color = ImGui::GetColorU32(OrnamentColor());
 		const auto  at = [&](float a_dx, float a_dy) { return ImVec2(a_corner.x + a_x * a_dx, a_corner.y + a_y * a_dy); };
 
 		const ImVec2 outerL[] = { at(inset + outer, inset), at(inset, inset), at(inset, inset + outer) };
@@ -865,15 +839,15 @@ namespace
 		if (g_headingRope.view) {
 			const ImVec2 halfSize(g_headingRope.size.x * g_scale * 0.5f, g_headingRope.size.y * g_scale * 0.5f);
 			draw->AddImage(g_headingRope.Id(), ImVec2(centreX - halfSize.x, y - halfSize.y), ImVec2(centreX + halfSize.x, y + halfSize.y),
-				ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(kNordicOrnament));
+				ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(OrnamentColor()));
 			ImGui::Dummy(ImVec2(0.0f, height));
 			return;
 		}
 
-		draw->AddLine(ImVec2(centreX - half, y), ImVec2(centreX - diamond * 2.0f, y), ImGui::GetColorU32(kNordicRule));
-		draw->AddLine(ImVec2(centreX + diamond * 2.0f, y), ImVec2(centreX + half, y), ImGui::GetColorU32(kNordicRule));
+		draw->AddLine(ImVec2(centreX - half, y), ImVec2(centreX - diamond * 2.0f, y), ImGui::GetColorU32(ImGuiCol_Border));
+		draw->AddLine(ImVec2(centreX + diamond * 2.0f, y), ImVec2(centreX + half, y), ImGui::GetColorU32(ImGuiCol_Border));
 		draw->AddQuadFilled(ImVec2(centreX, y - diamond), ImVec2(centreX + diamond, y), ImVec2(centreX, y + diamond),
-			ImVec2(centreX - diamond, y), ImGui::GetColorU32(kNordicOrnament));
+			ImVec2(centreX - diamond, y), ImGui::GetColorU32(OrnamentColor()));
 		ImGui::Dummy(ImVec2(0.0f, height));
 	}
 
@@ -1132,10 +1106,10 @@ namespace
 			{ bottomRight.x - tip, bottomRight.y }, { topLeft.x + tip, bottomRight.y } };
 		auto*        draw = ImGui::GetWindowDrawList();
 		if (hovered || held) {
-			draw->AddConvexPolyFilled(frame, 6, ImGui::GetColorU32(IM_COL32(255, 255, 255, held ? 60 : 30)));
+			draw->AddConvexPolyFilled(frame, 6, ImGui::GetColorU32(WithAlpha(PaletteColor(g_palette.text), held ? 60 : 30)));
 		}
 		const float thick = (std::max)(1.0f, g_scale) * (hovered ? 1.5f : 1.0f);
-		draw->AddPolyline(frame, 6, ImGui::GetColorU32(hovered ? kNordicText : kNordicOrnament), ImDrawFlags_Closed, thick);
+		draw->AddPolyline(frame, 6, ImGui::GetColorU32(hovered ? PaletteColor(g_palette.text) : OrnamentColor()), ImDrawFlags_Closed, thick);
 		DrawButtonText(draw, topLeft, bottomRight, a_label, a_help);
 		return pressed;
 	}
@@ -1177,7 +1151,7 @@ namespace
 			// LabelText's grey, white while hovered or held, as the links light; no fill.
 			const bool lit = hovered || held;
 			if (!lit) {
-				ImGui::PushStyleColor(ImGuiCol_Text, kNordicLabel);
+				ImGui::PushStyleColor(ImGuiCol_Text, LabelGrey());
 			}
 			DrawButtonText(ImGui::GetWindowDrawList(), frame.Min, frame.Max, a_label, a_help);
 			if (!lit) {
@@ -1295,9 +1269,9 @@ namespace
 
 	// NORDIC UI's list selection line (skyui/inventorylists.swf: ItemsListEntry's
 	// selectIndicator, shape 1) along the bottom of the row from `a_min` to `a_max` (screen
-	// pixels): a thin wedge, pointed at its left end, #e5e5e5 fading from 0.4 at the left to
-	// nothing at the right. The points are the shape's, in the units of the 28-unit entry it
-	// underlines, which the frame height stands for here. Across, the shape stretches to the
+	// pixels): a thin wedge, pointed at its left end, in the palette's hover colour (NORDIC UI's
+	// #e5e5e5 at 0.4) at the left, fading to nothing at the right. The points are the shape's,
+	// in the units of the 28-unit entry it underlines, which the frame height stands for here. Across, the shape stretches to the
 	// row's width, as its scaling grid stretches it; its thickness stays.
 	void DrawNordicLine(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
 	{
@@ -1310,16 +1284,15 @@ namespace
 		constexpr float kRightX = 525.5f;
 		constexpr float kRightTop = 24.05f;
 		constexpr float kBottom = 26.6f;
-		constexpr float kPeakAlpha = 0.396f;      // at the left end, from the sprite's colour transform
-		constexpr float kGrey = 229.0f / 255.0f;  // #e5e5e5
 
+		const ImVec4 peak = ImGui::ColorConvertU32ToFloat4(PaletteColor(g_palette.hover));  // at the left end
 		const float  unit = ImGui::GetFrameHeight() / kEntryHeight;
 		const float  across = (a_max.x - a_min.x) / kEntryWidth;
 		const float  top = a_max.y - kEntryHeight * unit;  // the entry's top, its bottom on the row's
 		const ImVec2 uv = ImGui::GetFontTexUvWhitePixel();
 		const auto   vertex = [&](float a_x, float a_y) {
 			const float fade = std::clamp((a_x - kTipX) / (kRightX - kTipX), 0.0f, 1.0f);
-			const ImU32 color = ImGui::GetColorU32(ImVec4(kGrey, kGrey, kGrey, kPeakAlpha * (1.0f - fade)));
+			const ImU32 color = ImGui::GetColorU32(ImVec4(peak.x, peak.y, peak.z, peak.w * (1.0f - fade)));
 			a_draw->PrimWriteVtx(ImVec2(a_min.x + a_x * across, top + a_y * unit), uv, color);
 		};
 		a_draw->PrimReserve(9, 5);
@@ -1335,12 +1308,11 @@ namespace
 	}
 
 	// The fill of a hovered row from `a_min` to `a_max` (screen pixels): Modern's hover
-	// colour; Vanilla's hover glow stretched over it, a soft white ellipse brightest at the
-	// row's centre (a flat tint without the texture); Nordic's selection line under it.
+	// colour; Vanilla's hover glow stretched over it, a soft ellipse in the hover colour (a
+	// white at 64/255) brightest at the row's centre (a flat tint without the texture); Nordic's
+	// selection line under it.
 	void DrawRowHover(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_rounding)
 	{
-		constexpr int kGlowAlpha = 64;  // of the glow's centre, out of 255
-
 		if (g_skin == Theme::Skin::kNordic) {
 			DrawNordicLine(a_draw, a_min, a_max);
 			return;
@@ -1349,10 +1321,11 @@ namespace
 			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_HeaderHovered), a_rounding);
 			return;
 		}
-		a_draw->AddImage(g_hoverGlow.Id(), a_min, a_max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(IM_COL32(255, 255, 255, kGlowAlpha)));
+		a_draw->AddImage(g_hoverGlow.Id(), a_min, a_max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImGui::GetColorU32(PaletteColor(g_palette.hover)));
 	}
 
-	// Vanilla's selection bar: white fading in from the left edge to the right, as SkyUI's
+	// Vanilla's selection bar: the selected colour (a white at 70/255) fading in from the left
+	// edge to the right, as SkyUI's
 	// inventory marks a row, its right end a point as NORDIC UI's inventory bar's.
 	// One shape, so no seam shows where the point meets the bar: its vertices' alpha is then set by
 	// their x, keeping the anti-aliased fringe's fade (as ImGui::ShadeVertsLinearColorGradientKeepAlpha
@@ -1365,10 +1338,11 @@ namespace
 		const float  base = a_max.x - point;
 		const ImVec2 outline[] = { a_min, ImVec2(base, a_min.y), ImVec2(a_max.x, (a_min.y + a_max.y) * 0.5f), ImVec2(base, a_max.y),
 			ImVec2(a_min.x, a_max.y) };  // clockwise on screen, as ImGui's anti-aliased fill needs
+		const ImU32  selected = PaletteColor(g_palette.selected);
 		const int    first = a_draw->VtxBuffer.Size;
-		a_draw->AddConvexPolyFilled(outline, static_cast<int>(std::size(outline)), IM_COL32_WHITE);  // opaque, so its alpha is the fringe's alone
+		a_draw->AddConvexPolyFilled(outline, static_cast<int>(std::size(outline)), WithAlpha(selected, 255));  // opaque, so its alpha is the fringe's alone
 		const float span = (std::max)(1.0f, base - a_min.x);
-		const float alpha = ImGui::GetStyle().Alpha * static_cast<float>(kSelectBarAlpha);  // the bar's right end, as GetColorU32 would fade it
+		const float alpha = ImGui::GetStyle().Alpha * static_cast<float>((selected >> IM_COL32_A_SHIFT) & 0xFF);  // the bar's right end, as GetColorU32 would fade it
 		for (int i = first; i < a_draw->VtxBuffer.Size; ++i) {
 			auto&       vertex = a_draw->VtxBuffer[i];
 			const float fringe = static_cast<float>((vertex.col >> IM_COL32_A_SHIFT) & 0xFF) / 255.0f;  // 0 on the fringe's outer edge
@@ -1378,11 +1352,11 @@ namespace
 	}
 
 	// Modern's fill of a selected row from `a_min` to `a_max` (screen pixels): the selected
-	// colour, full at the row's centre, a little fainter at its left end and fading to nothing
+	// colour, full at the row's centre, 0.6 of it at its left end and fading to nothing
 	// at its right end. Square-cornered: ImGui's gradient fill has no rounding.
 	void DrawSelectedFill(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
 	{
-		constexpr float kLeftAlpha = 0.8f;  // of the selected colour's alpha, at the left end
+		constexpr float kLeftAlpha = 0.6f;  // of the selected colour's alpha, at the left end
 
 		const ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Header);
 		const ImU32  left = ImGui::GetColorU32(ImVec4(color.x, color.y, color.z, color.w * kLeftAlpha));
@@ -1422,7 +1396,7 @@ namespace
 	// without the texture.
 	void DrawSelectArrow(ImDrawList* a_draw, ImVec2 a_centre, ImVec2 a_size = SelectArrowSize())
 	{
-		const ImU32  tint = ImGui::GetColorU32(g_skin == Theme::Skin::kNordic ? kNordicOrnament : IM_COL32_WHITE);
+		const ImU32  tint = ImGui::GetColorU32(OrnamentColor());
 		const ImVec2 size = a_size;
 		const ImVec2 topLeft(a_centre.x - size.x * 0.5f, a_centre.y - size.y * 0.5f);
 		if (g_selectArrow.view) {
@@ -1526,7 +1500,7 @@ namespace
 		}
 		const float half = a_side * 0.3f;
 		a_draw->AddTriangleFilled(ImVec2(a_centre.x - half * 0.6f, a_centre.y - half), ImVec2(a_centre.x + half * 0.8f, a_centre.y),
-			ImVec2(a_centre.x - half * 0.6f, a_centre.y + half), ImGui::GetColorU32(nordic ? kNordicOrnament : kVanillaMark));
+			ImVec2(a_centre.x - half * 0.6f, a_centre.y + half), ImGui::GetColorU32(nordic ? OrnamentColor() : kVanillaMark));
 	}
 
 	// A SkyUI-style inventory row: while ticked, the skin's equipped mark at the left, and in
@@ -2388,10 +2362,10 @@ namespace Theme
 		ImGuiStyle style;
 		switch (a_skin) {
 		case Skin::kVanilla:
-			SetVanillaStyle(style);
+			SetVanillaStyle(style, a_palette);
 			break;
 		case Skin::kNordic:
-			SetNordicStyle(style);
+			SetNordicStyle(style, a_palette);
 			break;
 		default:
 			SetModernStyle(style, a_palette);
@@ -2893,7 +2867,7 @@ namespace Theme
 		draw->PushClipRect(topLeft, bottomRight, false);
 		if (g_skin == Skin::kNordic && g_tabRope.view) {
 			const float tile = g_tabRope.size.y * g_scale;
-			const ImU32 tint = ImGui::GetColorU32(kNordicOrnament);
+			const ImU32 tint = ImGui::GetColorU32(OrnamentColor());
 			for (float y = a_top; y < a_bottom; y += tile) {
 				const float end = (std::min)(y + tile, a_bottom);
 				draw->AddImage(g_tabRope.Id(), ImVec2(x, y), ImVec2(x + width, end), ImVec2(0.0f, 0.0f), ImVec2(1.0f, (end - y) / tile), tint);

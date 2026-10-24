@@ -27,8 +27,8 @@ bar is hidden until the wheel turns over the list, the mouse is over the bar or 
 dragged; it fades in over 0.2 s, stays while the mouse is in the list, and fades out over
 0.8 s once the mouse has been out of the list for 0.1 s. Fonts at 1080p: Modern's body 20px
 and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nordic's 20px and
-26px (Sovngarde). The palette `[UI] Palette` names picks the skin, and Modern takes its colours
-from it (`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by `Settings`); below,
+26px (Sovngarde). The palette `[UI] Palette` names picks the skin and its colours
+(`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by `Settings`); below,
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add pieces from Wardrobe...`,
@@ -54,7 +54,7 @@ page. Each page keeps its own search and sort.
   to nothing), from the shape's points in code, stretched across the row, as thick as the
   shape is in a 28-unit entry of the frame height.
 - Selected (a single-choice row, a ticked piece, a ticked dropdown row): Modern fills it in
-  the selected colour, 0.8 of it at the left end, full at the centre and fading to nothing at the
+  the selected colour, 0.6 of it at the left end, full at the centre and fading to nothing at the
   right end, with a 2px rule in the accent on its left edge; Vanilla lays the piece list's white bar fading in from the left over it,
   its right end a point 0.4 times the row's height long, as NORDIC UI's inventory bar's;
   Nordic shows no fill. In Vanilla and Nordic a list's fills (hover and selected) stop 6px
