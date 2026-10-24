@@ -254,7 +254,7 @@ namespace Theme
 
 	// ListHeading (in capitals) with a greyed "(?)" after the text, the rule after the mark; returns
 	// true while the mouse is over that mark alone, for the caller's tooltip. `situationIndent`: the
-	// text starts where a SituationHeading's name does, as over Manage Situations' headings, with
+	// text starts where a SituationHeading's star does, as over Manage Situations' headings, with
 	// no rule.
 	// Contract: inside BeginList.
 	bool ListHeadingHelp(const char* text, bool situationIndent = false, HeadingIcon icon = HeadingIcon::kNone);
@@ -309,8 +309,9 @@ namespace Theme
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
-	// `name` 14px in from its left edge, level with the rows' grip dots under it (Grip::kName),
-	// the select mark left of it; with `random` a die after it, a square
+	// the situation star (the Situations tab's), a square 4px short of the name's line height in
+	// the name's colour, 14px in from its left edge, level with the rows' grip dots under it
+	// (Grip::kName), the select mark left of it; `name` 6px after the star; with `random` a die after it, a square
 	// 4px short of its line height, greyed, the die's outline ItemInnerSpacing.x from the name and from the
 	// count; its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
 	// lit while hovered, then, 12px on, a list heading rule, and 12px on `Edit` at
@@ -341,13 +342,14 @@ namespace Theme
 		const char* situations = nullptr;
 	};
 
-	// A SelectRow with the outfit's name, ending in an ellipsis short of `marks`.
-	// The name starts 22px in from the row's left edge in every skin, and a `striped`
+	// A SelectRow with the outfit's name, ending in an ellipsis short of `marks`, after SkyUI's
+	// body armor icon in white, a square of the text height, and 6px (none without its PNG).
+	// The icon starts 22px in from the row's left edge in every skin, and a `striped`
 	// row (every other one) has the palette's stripe colour under its fills. With `grip`, a drag grip where
 	// it says, in LabelText's grey at low alpha, and
-	// the name starts 12px past its dots instead. Selected, Vanilla marks it with the equipped
+	// the icon starts 12px past its dots instead. Selected, Vanilla marks it with the equipped
 	// mark of a ticked piece and Nordic with the select arrow, 2px right of the
-	// centre of the room left of the name, or centred left of the dots with Grip::kName; with Grip::kEdge in the dots' place,
+	// centre of the room left of the icon, or centred left of the dots with Grip::kName; with Grip::kEdge in the dots' place,
 	// the dots hidden, shrunk to leave 2px on either side.
 	// OutfitRowHeight is its height, which holds the row gap: lay rows out with
 	// no item spacing, so the stripes meet.
@@ -357,12 +359,12 @@ namespace Theme
 	float OutfitRowHeight();
 
 	// A grey line in an outfit row's place, such as an empty list's hint: OutfitRowHeight tall,
-	// the text where OutfitRow puts a name without a grip, with no fill or click.
+	// the text where OutfitRow puts the icon without a grip, with no fill or click.
 	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are.
 	void HintRow(const char* text);
 
 	// A see-through copy of the outfit row just drawn, shown while it is dragged: the popup
-	// background with the grip's dots and the name, no fills or marks in any skin, held where
+	// background with the grip's dots, the icon and the name, no fills or marks in any skin, held where
 	// the row was grabbed and following the mouse above every window.
 	// Contract: right after the OutfitRow it copies, inside that row's BeginDragDropSource opened
 	// with ImGuiDragDropFlags_SourceNoPreviewTooltip, so its list is still the current window.
