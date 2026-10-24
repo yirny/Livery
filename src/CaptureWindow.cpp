@@ -739,10 +739,7 @@ namespace CaptureWindow::Internal
 	{
 		const auto& io = ImGui::GetIO();
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
-		if (!Theme::HasPopupTitleBar()) {
-			flags |= ImGuiWindowFlags_NoTitleBar;
-		}
+		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar;
 		if (!ImGui::BeginPopupModal(a_id, nullptr, flags)) {
 			return false;
 		}
@@ -2141,10 +2138,8 @@ namespace CaptureWindow
 		// Width is fixed every frame; the height follows the content (a zero
 		// axis is left to AlwaysAutoResize), so the window never needs to scroll.
 		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
-		auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
-		if (!Theme::HasTitleBar()) {
-			flags |= ImGuiWindowFlags_NoTitleBar;
-		}
+		constexpr auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize |
+		                       ImGuiWindowFlags_NoTitleBar;
 		if (!ImGui::Begin("Livery", nullptr, flags)) {
 			ImGui::End();
 			return;

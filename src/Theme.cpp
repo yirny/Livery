@@ -668,7 +668,6 @@ namespace
 		a_style.SelectableTextAlign = ImVec2(0.0f, 0.5f);
 
 		const ImU32 text = PaletteColor(a_palette.text);
-		const ImU32 titleBar = PaletteColor(a_palette.titleBar);
 		const ImU32 accent = PaletteColor(a_palette.accent);
 		const ImU32 accentLight = PaletteColor(a_palette.accentLight);
 		const ImU32 rule = PaletteColor(a_palette.rule);
@@ -678,9 +677,6 @@ namespace
 		set(ImGuiCol_WindowBg, PaletteColor(a_palette.window));
 		set(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, kListBackdrop));
 		set(ImGuiCol_PopupBg, PaletteColor(a_palette.surface));
-		set(ImGuiCol_TitleBg, titleBar);
-		set(ImGuiCol_TitleBgActive, titleBar);
-		set(ImGuiCol_TitleBgCollapsed, titleBar);
 		set(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, kModalDim));
 		set(ImGuiCol_Border, rule);
 		set(ImGuiCol_FrameBg, WithAlpha(text, kFrameFill));
@@ -775,14 +771,10 @@ namespace
 		SetSquareFrames(a_style);
 		a_style.WindowBorderSize = 0.0f;  // DecorateWindow draws the main window's frame
 		SetSquareColors(a_style, a_palette);
-		const ImU32 titleBar = PaletteColor(a_palette.titleBar);  // a popup's; the main window has none
-		a_style.Colors[ImGuiCol_TitleBg] = ImGui::ColorConvertU32ToFloat4(titleBar);
-		a_style.Colors[ImGuiCol_TitleBgActive] = ImGui::ColorConvertU32ToFloat4(titleBar);
-		a_style.Colors[ImGuiCol_TitleBgCollapsed] = ImGui::ColorConvertU32ToFloat4(titleBar);
 	}
 
-	// NORDIC UI: smoked black panel with no outline (corner ornaments instead) and no title
-	// bars, white text, grey labels, grey highlights.
+	// NORDIC UI: smoked black panel with no outline (corner ornaments instead), white text,
+	// grey labels, grey highlights.
 	void SetNordicStyle(ImGuiStyle& a_style, const Theme::Palette& a_palette)
 	{
 		SetSquareFrames(a_style);
@@ -2393,16 +2385,6 @@ namespace Theme
 		ImGui::GetIO().FontDefault = loaded.body ? loaded.body : g_defaultFont;
 	}
 
-	bool HasTitleBar()
-	{
-		return g_skin == Skin::kModern;
-	}
-
-	bool HasPopupTitleBar()
-	{
-		return g_skin != Skin::kNordic;
-	}
-
 	void DecorateWindow(bool a_popup)
 	{
 		if (g_skin == Skin::kVanilla && !a_popup) {
@@ -3390,7 +3372,7 @@ namespace Theme
 	bool OutfitRow(const char* a_name, bool a_selected, const OutfitMarks& a_marks, bool a_striped, Grip a_grip)
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
-		constexpr int   kStripeAlpha = 16;      // of the white over a striped row, out of 255
+		constexpr int   kStripeAlpha = 8;       // of the white over a striped row, out of 255
 		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of the select mark in an edge grip's room
 		constexpr float kMarkShift = 2.0f;      // pixels at 1080p, the select mark right of its room's centre on a row without a grip
 
