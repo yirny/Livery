@@ -665,7 +665,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// Update / Apply to #{Name} / Exit centred below a gap, then Remove at the row's right
-	// end, a link as Restore Outfit is. Update needs Request::onManageUpdate (UpdateReason);
+	// end, a link as Restore is. Update needs Request::onManageUpdate (UpdateReason);
 	// Remove needs Request::onManageRemove and a selected outfit; Apply needs
 	// Request::onManageApply (ApplyReason), and says what it dresses the actor for on hover.
 	// a_escapeTaken: the browser used this frame's Escape, which is otherwise Exit.

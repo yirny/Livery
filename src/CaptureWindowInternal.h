@@ -97,7 +97,7 @@ namespace CaptureWindow::Internal
 	{
 		kClosed,
 		kEditing,
-		kSaving  // Create, Confirm, Apply or Restore Outfit pressed; waiting for the handler to Close(), SetOutfits() or SetError()
+		kSaving  // Create, Confirm, Apply or Restore pressed; waiting for the handler to Close(), SetOutfits() or SetError()
 	};
 
 	enum class Page

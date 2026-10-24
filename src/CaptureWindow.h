@@ -25,7 +25,7 @@ namespace RE
 // Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
 // Manage Situations' Save Changes, Remove (a situation) and Restore Presets go to
 // Request::onSituationsSave, onSituationRemove and onRestorePresets,
-// Apply and Restore Outfit go to
+// Apply and Restore go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
 // Request::onPreviewPieces and the Live Preview tick to Request::onPreviewOn /
@@ -164,7 +164,7 @@ namespace CaptureWindow
 		std::string        actorName;          // the title line names them
 		std::string        playerName;         // PieceGroup::kPlayer's heading names them; "" for "Player"
 		std::string        actorSummary;       // shown greyed under the title line; "" for none
-		bool               dressed = false;    // Livery has pieces on the character, which shows Restore Outfit
+		bool               dressed = false;    // Livery has pieces on the character, which shows Restore
 		std::string        outfitName;         // the library outfit of PieceGroup::kLiveryOutfit's heading
 		std::uint32_t      wornOutfit = 0;     // that outfit's library id, which the Apply popup offers to update; 0 for none
 		std::string        wornSituation;      // what it is worn for: a situation's name, "" for the default
@@ -204,7 +204,7 @@ namespace CaptureWindow
 		std::function<void(const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn)>
 			onApply;
 
-		// Runs on the game thread when the user presses Restore Outfit, shown while
+		// Runs on the game thread when the user presses Restore, shown while
 		// `dressed`. Empty hides it. It must end by calling Close() or SetError().
 		std::function<void()> onRestore;
 
@@ -310,7 +310,7 @@ namespace CaptureWindow
 
 	// Ends an Apply, or a Manage Wardrobe or Manage Situations change the library,
 	// situations.json or the actor's rows took: the window shows `list` and lets the user
-	// edit again, Restore Outfit shown while `list.dressed`. The pages'
+	// edit again, Restore shown while `list.dressed`. The pages'
 	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
 	// when gone; the Update tab is left when the wardrobe is empty), each
 	// list keeps its search, sort and folded headings, the Inventory page drops ticks on

@@ -18,7 +18,7 @@
 //                    and Update dresses the actor again when they wear it; Apply moves
 //                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
 //                    and dresses them (Assignments) with the window open (DressCaptured), as
-//                    Manage Wardrobe's Apply does; Restore Outfit goes to Assignments;
+//                    Manage Wardrobe's Apply does; Restore goes to Assignments;
 //                    Manage Wardrobe' Update writes the library and redresses the actor when they
 //                    wear the outfit; its Remove writes the library, clears the outfit from the
 //                    assignments (Assignments::ForgetOutfit) and takes those wearing it for a
@@ -923,7 +923,7 @@ namespace
 		return list;
 	}
 
-	// The window's Apply and Restore Outfit, and the line under the actor's name.
+	// The window's Apply and Restore, and the line under the actor's name.
 	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
 	// those the window lists under Player's Inventory moved to an NPC first (a piece
 	// Livery put on them while the window was open is listed as theirs); with Yes in its
