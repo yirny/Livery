@@ -209,6 +209,9 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
   over its lower half after it. With random off a drop on a situation shows only `chosen`.
   While a drop would land, a line in the accent colour shows where, across the pane; over
   the right pane, a frame in that colour around it.
+- While dragged, a see-through copy of the row (`Theme::OutfitDragGhost`) follows the mouse,
+  held where the row was grabbed: the popup background, the grip's dots and the name, no
+  fills or marks in any skin; the pieces line's copy is greyed as the line is. No tooltip.
 - A folded heading opens after the drag hovers it for `kDragExpandDelay` (1 s, an
   anonymous-namespace constant in the page's file); a drop before that acts the same.
 - While a drag from the left pane is on, the right pane shows the outfit list; when it

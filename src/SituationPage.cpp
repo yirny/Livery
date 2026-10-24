@@ -287,7 +287,10 @@ namespace CaptureWindow::Internal
 				}
 				const float top = ImGui::GetCursorScreenPos().y;
 				DrawLineRow(kPiecesLine, Theme::Grip::kNone);
-				OfferOutfitDrag({ .from = 0 }, kPiecesLine);
+				// The copy greyed as the line is.
+				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+				OfferOutfitDrag({ .from = 0 }, kPiecesLine, Theme::Grip::kNone);
+				ImGui::PopStyleColor();
 				if (ImGui::BeginDragDropTarget()) {
 					if (const auto dropped = AcceptOnSituation(top)) {
 						DropOnSituation(form, a_entry, 0, *dropped);
@@ -311,7 +314,7 @@ namespace CaptureWindow::Internal
 					ViewOutfit(a_state, index);
 				}
 				const float bottom = ImGui::GetItemRectMax().y;
-				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, OutfitAt(a_state, index).name.c_str());
+				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, OutfitAt(a_state, index).name.c_str(), Theme::Grip::kName);
 				if (ImGui::BeginDragDropTarget()) {
 					const bool after = random && ImGui::GetMousePos().y >= (top + bottom) * 0.5f;
 					if (const auto dropped = AcceptOnSituation(after ? bottom : top)) {
@@ -850,13 +853,13 @@ namespace CaptureWindow::Internal
 		return NamesChanged(a_state) || RowsChanged(a_state);
 	}
 
-	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label)
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip)
 	{
-		if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
+		if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoPreviewTooltip)) {
 			return;
 		}
 		ImGui::SetDragDropPayload(kOutfitPayload, &a_payload, sizeof(a_payload));
-		ImGui::TextUnformatted(a_label);
+		Theme::OutfitDragGhost(a_label, a_grip);
 		ImGui::EndDragDropSource();
 	}
 

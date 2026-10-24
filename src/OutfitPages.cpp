@@ -313,7 +313,7 @@ namespace CaptureWindow::Internal
 				}
 				if (a_draggable) {
 					const auto& outfit = OutfitAt(a_state, index);
-					OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str());
+					OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), grip);
 				}
 				ImGui::PopID();
 			}
