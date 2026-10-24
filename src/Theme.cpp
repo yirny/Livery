@@ -27,8 +27,8 @@
 //
 // The Modern skin began as a copy of Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and
 // TailorScreen.cpp; its spacing, Windows font fallback and resolution curve are still
-// Tailor's. Its colours come from a palette (Theme::Palette; the Edge one, after Edge UI,
-// by default) and its font is Jost, standing in for Edge UI's Futura. The Vanilla and
+// Tailor's. Its colours come from a palette (Theme::Palette; the Modern one, a dark grey, by
+// default) and its font is Jost, standing in for Edge UI's Futura. The Vanilla and
 // Nordic skins approximate the game's menus and NORDIC UI. Every skin's fonts ship with
 // this plugin (OFL): Jost, Oswald and Sovngarde.
 // Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
@@ -1377,13 +1377,29 @@ namespace
 		}
 	}
 
-	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Modern's selected colour,
-	// Vanilla's selection bar, none in Nordic, whose arrow alone tells it. Hovered: the hover
-	// fill over an unselected row, and Nordic's line under any row.
+	// Modern's fill of a selected row from `a_min` to `a_max` (screen pixels): the selected
+	// colour, full at the row's centre, a little fainter at its left end and fading to nothing
+	// at its right end. Square-cornered: ImGui's gradient fill has no rounding.
+	void DrawSelectedFill(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
+	{
+		constexpr float kLeftAlpha = 0.8f;  // of the selected colour's alpha, at the left end
+
+		const ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Header);
+		const ImU32  left = ImGui::GetColorU32(ImVec4(color.x, color.y, color.z, color.w * kLeftAlpha));
+		const ImU32  centre = ImGui::GetColorU32(color);
+		const ImU32  right = ImGui::GetColorU32(ImVec4(color.x, color.y, color.z, 0.0f));
+		const float  midX = std::round((a_min.x + a_max.x) * 0.5f);
+		a_draw->AddRectFilledMultiColor(a_min, ImVec2(midX, a_max.y), left, centre, centre, left);
+		a_draw->AddRectFilledMultiColor(ImVec2(midX, a_min.y), a_max, centre, right, right, centre);
+	}
+
+	// A row's fills from `a_min` to `a_max` (screen pixels). Selected: Modern's selected fill
+	// (DrawSelectedFill), Vanilla's selection bar, none in Nordic, whose arrow alone tells it.
+	// Hovered: the hover fill over an unselected row, and Nordic's line under any row.
 	void DrawRowFills(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, bool a_selected, bool a_hovered, float a_rounding)
 	{
 		if (a_selected && g_skin == Theme::Skin::kModern) {
-			a_draw->AddRectFilled(a_min, a_max, ImGui::GetColorU32(ImGuiCol_Header), a_rounding);
+			DrawSelectedFill(a_draw, a_min, a_max);
 		} else if (a_selected && g_skin == Theme::Skin::kVanilla) {
 			DrawSelectBar(a_draw, a_min, a_max);
 		}
@@ -1457,9 +1473,9 @@ namespace
 		a_draw->AddImage(found->second.Id(side), topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
 	}
 
-	// Modern's tick row, marked as Tailor 3.0 marks a selected row: while ticked, the row's
-	// fill in the selected colour with an accent rule down its left edge; the hover colour
-	// while hovered. The text sits clear of the rule.
+	// Modern's tick row, marked as Tailor 3.0 marks a selected row: while ticked, the selected
+	// fill (DrawSelectedFill) with an accent rule down its left edge; the hover colour while
+	// hovered. The text sits clear of the rule.
 	bool ModernRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
 	{
 		const float   height = ImGui::GetFrameHeight();
@@ -1470,7 +1486,7 @@ namespace
 
 		auto* draw = ImGui::GetWindowDrawList();
 		if (*a_ticked) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(ImGuiCol_Header));
+			DrawSelectedFill(draw, row.fillMin, row.fillMax);
 		}
 		if (row.hovered) {
 			DrawRowHover(draw, row.fillMin, row.fillMax, 0.0f);

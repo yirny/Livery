@@ -205,7 +205,9 @@ else()
     # No INI is deployed: the plugin creates Livery.ini with defaults on
     # first start and adds missing keys afterwards, so the player's settings survive updates.
 
-    # The skins' fonts (with their OFL licences), textures and palettes (src/Theme.cpp, src/Settings.cpp).
+    # The skins' fonts (with their OFL licences) and textures (src/Theme.cpp). The palettes are not
+    # installed: the plugin writes those missing on start (src/Settings.cpp), so a deploy never
+    # overwrites the player's edits.
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/Livery"
             DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
 

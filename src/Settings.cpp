@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -30,7 +31,6 @@ namespace
 	constexpr auto kLivePreviewKey = L"LivePreview";
 	constexpr auto kNpcReactionKey = L"NpcReaction";
 	constexpr auto kUiSection = L"UI";
-	constexpr auto kSkinKey = L"Skin";
 	constexpr auto kPaletteKey = L"Palette";
 	constexpr auto kMenuSoundsKey = L"MenuSounds";
 	constexpr auto kHotkeySection = L"Hotkey";
@@ -51,8 +51,9 @@ namespace
 	constexpr auto kNotifyChangesKey = L"NotifyChanges";
 
 	constexpr auto kPaletteDir = L"Data/SKSE/Plugins/Livery/palettes";
-	constexpr auto kPaletteSection = L"Palette";  // the section of a palette file that holds its colours
-	constexpr auto kDefaultPalette = L"Edge";     // keep in step with kIniKeys
+	constexpr auto kPaletteSection = L"Palette";  // the section of a palette file that holds its skin and colours
+	constexpr auto kPaletteSkinKey = L"Skin";     // the skin a palette file is for; Modern when left out
+	constexpr auto kDefaultPalette = L"Modern";   // keep in step with kIniKeys
 
 	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
 	constexpr float kMinSpeedPercent = 10.0f;
@@ -73,7 +74,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 16> kIniKeys{ {
+	constexpr std::array<IniKey, 15> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey captures only followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey captures any adult NPC.\n"
@@ -86,11 +87,9 @@ namespace
 			L"1 = an NPC you capture turns their head to you and says a greeting, when the window opens with Live Preview on.\n"
 			L"0 = they do neither.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
-		{ kUiSection, kSkinKey, L"Modern",
-			L"Skin of the capture window: Modern, Vanilla or Nordic. Tailor, from earlier versions, reads as Modern.\n"
-			L"Read once when the game starts." },
-		{ kUiSection, kPaletteKey, L"Edge",
-			L"Colours of the Modern skin: a file in Data/SKSE/Plugins/Livery/palettes, named without .ini (Edge, Norden, or your own copy of one).\n"
+		{ kUiSection, kPaletteKey, L"Modern",
+			L"Look of the capture window: a palette file in Data/SKSE/Plugins/Livery/palettes, named without .ini (Modern, Edge, Vanilla, Nordic,\n"
+			L"or your own copy of one), which sets the skin and its colours.\n"
 			L"Easiest to change in game through SKSE Menu Framework. The palette files are read once when the game starts." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = the capture window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
@@ -150,11 +149,11 @@ namespace
 	struct SkinOption
 	{
 		Theme::Skin    skin;
-		const char*    label;    // SKSE Menu Framework and the log
-		const wchar_t* iniName;  // [UI] Skin value
+		const char*    label;  // SKSE Menu Framework and the log
+		const wchar_t* name;   // a palette file's Skin value, and the file name of the skin's own palette
 	};
 
-	// In SKSE Menu Framework order; the first is the default.
+	// The first is the default.
 	constexpr std::array<SkinOption, 3> kSkinOptions{ {
 		{ Theme::Skin::kModern, "Modern", L"Modern" },
 		{ Theme::Skin::kVanilla, "Vanilla", L"Vanilla" },
@@ -164,7 +163,6 @@ namespace
 	std::atomic<bool>          g_followersAndSpouseOnly{ true };
 	std::atomic<bool>          g_livePreview{ true };
 	std::atomic<bool>          g_npcReaction{ true };
-	std::atomic<Theme::Skin>   g_skin{ kSkinOptions[0].skin };
 	std::atomic<bool>          g_menuSounds{ true };
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
 	std::atomic<std::uint32_t> g_modifier{ kNoModifier };  // left-hand code of a kModifiers entry, or kNoModifier
@@ -180,18 +178,23 @@ namespace
 	std::filesystem::path      g_iniPath;   // set once by Load, read-only afterwards
 	void (*g_releaseEveryone)() = nullptr;  // set once by RegisterMenu, before the page can render
 
-	// A palette file of the Modern skin.
+	// A palette file: the skin it is for and that skin's colours.
 	struct PaletteOption
 	{
-		std::wstring   stem;  // the file name without .ini, as [UI] Palette holds it
-		std::string    name;  // the same in UTF-8, for SKSE Menu Framework and the log
+		std::wstring   stem;   // the file name without .ini, as [UI] Palette holds it
+		std::string    label;  // the skin's name, then " - " and the stem unless the stem is the skin's name; SKSE Menu Framework and the log
+		Theme::Skin    skin = Theme::Skin::kModern;
 		Theme::Palette palette;
 	};
 
-	// Contract: filled once by Load, before the render thread or SKSE Menu Framework reads
-	// it, and never changed afterwards, so any thread may read it; the choice is atomic.
-	std::vector<PaletteOption> g_palettes;           // sorted by name
-	std::atomic<std::size_t>   g_paletteIndex{ 0 };  // into g_palettes
+	// Contract: filled once by Load, before the render thread or SKSE Menu Framework reads it;
+	// no palette is added or removed afterwards, so the size and each stem are fixed. Restore
+	// original palette changes a palette's label, skin and colours and the settings page the
+	// choice, only on SKSE Menu Framework's render thread and under g_paletteMutex, which any
+	// other thread holds to read them.
+	std::vector<PaletteOption> g_palettes;          // sorted by label
+	std::size_t                g_paletteIndex = 0;  // into g_palettes
+	std::mutex                 g_paletteMutex;
 
 	const SkinOption& OptionOf(Theme::Skin a_skin)
 	{
@@ -345,13 +348,6 @@ namespace
 		}
 	}
 
-	void SaveSkin(Theme::Skin a_skin)
-	{
-		if (!::WritePrivateProfileStringW(kUiSection, kSkinKey, OptionOf(a_skin).iniName, g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
-	}
-
 	void SavePalette(const std::wstring& a_stem)
 	{
 		if (!::WritePrivateProfileStringW(kUiSection, kPaletteKey, a_stem.c_str(), g_iniPath.c_str())) {
@@ -371,25 +367,84 @@ namespace
 
 	// --- Palettes -------------------------------------------------------------
 
-	// A palette file's keys, each a colour of Theme::Palette.
+	// A palette file's colour keys, each a colour of Theme::Palette, with the comment a shipped
+	// file has above it.
 	struct PaletteKey
 	{
 		const wchar_t* key;
 		std::uint32_t Theme::Palette::* color;
+		const wchar_t*                  comment;
 	};
 	constexpr std::array<PaletteKey, 11> kPaletteKeys{ {
-		{ L"Window", &Theme::Palette::window },
-		{ L"Surface", &Theme::Palette::surface },
-		{ L"TitleBar", &Theme::Palette::titleBar },
-		{ L"Text", &Theme::Palette::text },
-		{ L"Label", &Theme::Palette::label },
-		{ L"Accent", &Theme::Palette::accent },
-		{ L"AccentLight", &Theme::Palette::accentLight },
-		{ L"Rule", &Theme::Palette::rule },
-		{ L"Hover", &Theme::Palette::hover },
-		{ L"Selected", &Theme::Palette::selected },
-		{ L"Error", &Theme::Palette::error },
+		{ L"Window", &Theme::Palette::window, L"The window." },
+		{ L"Surface", &Theme::Palette::surface, L"Popups, dropdown lists and tooltips." },
+		{ L"TitleBar", &Theme::Palette::titleBar, L"The title bars of the window and its popups." },
+		{ L"Text", &Theme::Palette::text, L"Text." },
+		{ L"Label", &Theme::Palette::label, L"Field and column labels, list headings, links and greyed text." },
+		{ L"Accent", &Theme::Palette::accent,
+			L"Ticks, a selected row's rule, a link or label under the mouse, the dropdown arrow, the frame of a field that narrows a list." },
+		{ L"AccentLight", &Theme::Palette::accentLight, L"The text cursor, a scroll bar or slider held." },
+		{ L"Rule", &Theme::Palette::rule, L"The rules and frames of the window, its fields and lists." },
+		{ L"Hover", &Theme::Palette::hover, L"A row under the mouse." },
+		{ L"Selected", &Theme::Palette::selected,
+			L"A selected row (fading out towards its right end), the selected tab, the fill of a field that narrows a list." },
+		{ L"Error", &Theme::Palette::error, L"Error text and fields." },
 	} };
+
+	// The palettes Livery ships. They are written by the plugin, never installed, so a player's
+	// edits survive an update (WriteMissingPalettes); Restore original palette writes one back.
+	struct ShippedPalette
+	{
+		const wchar_t*        stem;
+		Theme::Skin           skin;
+		const wchar_t*        about;    // the file's first comment lines, each ending in '\n'
+		const Theme::Palette* colours;  // nullptr: the file holds no colours
+	};
+
+	constexpr Theme::Palette kModernColours{};  // Theme::Palette's defaults
+	constexpr Theme::Palette kEdgeColours{
+		.window = 0x1E1E1CF0,
+		.surface = 0x262522FA,
+		.titleBar = 0x403C2EFF,
+		.text = 0xDCD6C2FF,
+		.label = 0x8C8A7CFF,
+		.accent = 0xD2BC72FF,
+		.accentLight = 0xF0DBA4FF,
+		.rule = 0x4A4639FF,
+		.hover = 0x423F35FF,
+		.selected = 0x3C3931FF,
+		.error = 0xFF6666FF,
+	};
+
+	constexpr std::array<ShippedPalette, 4> kShippedPalettes{ {
+		{ L"Modern", Theme::Skin::kModern, L"; Livery palette: Modern, a general-purpose dark grey that suits Untarnished UI and Norden UI.\n", &kModernColours },
+		{ L"Edge", Theme::Skin::kModern, L"; Livery palette: Edge, after Edge UI (a SkyUI interface by EugeneUI): dark panels with a muted gold accent.\n",
+			&kEdgeColours },
+		{ L"Vanilla", Theme::Skin::kVanilla,
+			L"; Livery palette: Vanilla, after the game's own menus.\n"
+			L"; The Vanilla skin takes no colours from its palette yet.\n",
+			nullptr },
+		{ L"Nordic", Theme::Skin::kNordic,
+			L"; Livery palette: Nordic, after NORDIC UI.\n"
+			L"; The Nordic skin takes no colours from its palette yet.\n",
+			nullptr },
+	} };
+
+	// What every shipped palette file says after its first lines.
+	constexpr auto kPaletteHelp =
+		L";\n"
+		L"; A palette sets the look of Livery's capture window: the skin it is drawn in and that skin's\n"
+		L"; colours. Pick one in SKSE Menu Framework's Livery page, or in Livery.ini's [UI] Palette by\n"
+		L"; its file name without .ini.\n"
+		L";\n"
+		L"; To make your own, copy this file in this folder under a new name and change its colours;\n"
+		L"; it is listed the next time the game starts by its skin and file name (\"Modern - Mine\").\n"
+		L"; Each colour is #RRGGBB or #RRGGBBAA, where AA is the opacity (00 clear, FF opaque). A\n"
+		L"; colour left out or written otherwise keeps the skin's own.\n"
+		L";\n"
+		L"; Livery writes this file only when it is missing, so an update never undoes your edits;\n"
+		L"; Restore original palette on the Livery page writes it back as Livery ships it.\n";
+	constexpr auto kPaletteSkinComment = L"; The skin these colours are for: Modern, Vanilla or Nordic. Modern when left out.\n";
 
 	// "#RRGGBB" or "#RRGGBBAA" as 0xRRGGBBAA, opaque when AA is left out; nullopt for anything else.
 	std::optional<std::uint32_t> ParseColor(std::wstring_view a_text)
@@ -417,25 +472,110 @@ namespace
 		return a_text.size() == kRgbLength ? (value << 8) | 0xFF : value;
 	}
 
-	// A palette file's colours; a key left out, or one that is not a colour (logged), keeps
-	// the Edge palette's colour (Theme::Palette's defaults).
-	Theme::Palette ReadPalette(const std::filesystem::path& a_path, std::string_view a_name)
+	std::filesystem::path PaletteFolder()
 	{
-		Theme::Palette palette;
-		wchar_t        value[32]{};
+		return std::filesystem::current_path() / kPaletteDir;
+	}
+
+	std::filesystem::path PalettePath(std::wstring_view a_stem)
+	{
+		return PaletteFolder() / (std::wstring{ a_stem } + L".ini");
+	}
+
+	// The palette Livery ships under the file name `a_stem` (ASCII case ignored), or nullptr.
+	const ShippedPalette* FindShippedPalette(std::wstring_view a_stem)
+	{
+		for (const auto& shipped : kShippedPalettes) {
+			if (::_wcsicmp(shipped.stem, std::wstring{ a_stem }.c_str()) == 0) {
+				return &shipped;
+			}
+		}
+		return nullptr;
+	}
+
+	// Writes `a_shipped` to `a_path` as Livery ships it, over any file there. False (logged) when
+	// the file cannot be written.
+	bool WriteShippedPalette(const std::filesystem::path& a_path, const ShippedPalette& a_shipped)
+	{
+		std::wofstream file{ a_path };
+		if (file) {
+			file << a_shipped.about << kPaletteHelp << L"\n[" << kPaletteSection << L"]\n";
+			file << kPaletteSkinComment << kPaletteSkinKey << L'=' << OptionOf(a_shipped.skin).name << L'\n';
+			for (const auto& entry : kPaletteKeys) {
+				if (!a_shipped.colours) {
+					break;
+				}
+				file << L"; " << entry.comment << L'\n' << entry.key << L'=' << std::format(L"#{:08X}", a_shipped.colours->*entry.color) << L'\n';
+			}
+			file.flush();
+		}
+		if (!file) {
+			logger::warn("Could not write {}", a_path.string());
+			return false;
+		}
+		return true;
+	}
+
+	// Writes each palette Livery ships whose file is missing; a file already there, the player's
+	// edits included, stays as it is.
+	// Contract: called once by Settings::Load, before LoadPalettes.
+	void WriteMissingPalettes()
+	{
+		std::error_code ec;
+		std::filesystem::create_directories(PaletteFolder(), ec);
+		for (const auto& shipped : kShippedPalettes) {
+			const auto path = PalettePath(shipped.stem);
+			if (std::filesystem::exists(path, ec) || ec) {
+				continue;
+			}
+			if (WriteShippedPalette(path, shipped)) {
+				logger::info("Wrote the missing palette {}", path.filename().string());
+			}
+		}
+	}
+
+	// A palette file's Skin; left out, Modern; anything else, Modern (logged).
+	Theme::Skin ReadPaletteSkin(const std::filesystem::path& a_path, std::string_view a_name)
+	{
+		wchar_t    value[32]{};
+		const auto length = ::GetPrivateProfileStringW(kPaletteSection, kPaletteSkinKey, L"", value, static_cast<DWORD>(std::size(value)), a_path.c_str());
+		if (length == 0) {
+			return Theme::Skin::kModern;
+		}
+		for (const auto& option : kSkinOptions) {
+			if (::_wcsicmp(value, option.name) == 0) {
+				return option.skin;
+			}
+		}
+		logger::warn("Palette {}: Skin = {} is not Modern, Vanilla or Nordic; it is drawn in Modern", a_name, SKSE::stl::utf16_to_utf8(value).value_or(""));
+		return Theme::Skin::kModern;
+	}
+
+	// A palette file's skin and colours, and its label; a colour key left out, or one that is not
+	// a colour (logged), keeps the Modern palette's colour (Theme::Palette's defaults).
+	PaletteOption ReadPalette(const std::filesystem::path& a_path)
+	{
+		PaletteOption option;
+		option.stem = a_path.stem().wstring();
+		const auto name = SKSE::stl::utf16_to_utf8(option.stem).value_or("?");
+		option.skin = ReadPaletteSkin(a_path, name);
+		const auto& skin = OptionOf(option.skin);
+		option.label = ::_wcsicmp(option.stem.c_str(), skin.name) == 0 ? std::string{ skin.label } : std::format("{} - {}", skin.label, name);
+
+		wchar_t value[32]{};
 		for (const auto& entry : kPaletteKeys) {
 			const auto length = ::GetPrivateProfileStringW(kPaletteSection, entry.key, L"", value, static_cast<DWORD>(std::size(value)), a_path.c_str());
 			if (length == 0) {
 				continue;
 			}
 			if (const auto color = ParseColor(std::wstring_view{ value, length })) {
-				palette.*entry.color = *color;
+				option.palette.*entry.color = *color;
 			} else {
-				logger::warn("Palette {}: {} = {} is not #RRGGBB or #RRGGBBAA; it keeps Edge's colour", a_name,
+				logger::warn("Palette {}: {} = {} is not #RRGGBB or #RRGGBBAA; it keeps the Modern palette's colour", name,
 					SKSE::stl::utf16_to_utf8(entry.key).value_or(""), SKSE::stl::utf16_to_utf8(value).value_or(""));
 			}
 		}
-		return palette;
+		return option;
 	}
 
 	// The palette whose file is named `a_stem` (ASCII case ignored), if any.
@@ -450,28 +590,25 @@ namespace
 	}
 
 	// Reads every .ini in the palettes folder, then picks the one [UI] Palette names, else
-	// Edge, else the first. With no palette file, Settings::Palette is Edge's built-in colours.
-	// Contract: called once by Settings::Load (see g_palettes).
+	// Modern, else the first. With no palette file, Settings::Skin and Palette are Modern's.
+	// Contract: called once by Settings::Load, before any other thread reads g_palettes.
 	void LoadPalettes()
 	{
-		const auto      folder = std::filesystem::current_path() / kPaletteDir;
+		const auto      folder = PaletteFolder();
 		std::error_code ec;
 		for (std::filesystem::directory_iterator it{ folder, ec }, end; !ec && it != end; it.increment(ec)) {
 			const auto& path = it->path();
 			if (!it->is_regular_file(ec) || ::_wcsicmp(path.extension().c_str(), L".ini") != 0) {
 				continue;
 			}
-			auto stem = path.stem().wstring();
-			auto name = SKSE::stl::utf16_to_utf8(stem).value_or("?");
-			auto palette = ReadPalette(path, name);
-			g_palettes.push_back({ std::move(stem), std::move(name), palette });
+			g_palettes.push_back(ReadPalette(path));
 		}
 		std::ranges::sort(g_palettes, [](const PaletteOption& a_left, const PaletteOption& a_right) {
-			return ::_wcsicmp(a_left.stem.c_str(), a_right.stem.c_str()) < 0;
+			return ::_stricmp(a_left.label.c_str(), a_right.label.c_str()) < 0;
 		});
 		logger::info("Loaded {} palette(s) from {}", g_palettes.size(), folder.string());
 		if (g_palettes.empty()) {
-			logger::info("Palette = Edge (built in)");
+			logger::info("Palette = Modern (built in)");
 			return;
 		}
 
@@ -480,10 +617,31 @@ namespace
 		auto index = FindPalette(chosen);
 		if (!index) {
 			index = FindPalette(kDefaultPalette);
-			logger::warn("No palette file named {}; using {}", SKSE::stl::utf16_to_utf8(chosen).value_or("?"), g_palettes[index.value_or(0)].name);
+			logger::warn("No palette file named {}; using {}", SKSE::stl::utf16_to_utf8(chosen).value_or("?"), g_palettes[index.value_or(0)].label);
 		}
 		g_paletteIndex = index.value_or(0);
-		logger::info("Palette = {}", g_palettes[g_paletteIndex.load()].name);
+		logger::info("Palette = {}", g_palettes[g_paletteIndex].label);
+	}
+
+	// Writes the chosen palette's file back as Livery ships it and rereads it; the capture
+	// window takes it the next time it opens. A file that cannot be written changes nothing.
+	// Contract: SKSE Menu Framework's render thread (RenderSettings), not holding g_paletteMutex.
+	void RestoreChosenPalette()
+	{
+		std::wstring stem;
+		{
+			std::scoped_lock lock{ g_paletteMutex };
+			stem = g_palettes[g_paletteIndex].stem;
+		}
+		const auto* shipped = FindShippedPalette(stem);
+		const auto  path = PalettePath(stem);
+		if (!shipped || !WriteShippedPalette(path, *shipped)) {
+			return;
+		}
+		auto restored = ReadPalette(path);
+		logger::info("Restored palette {} as shipped (SKSE Menu Framework)", restored.label);
+		std::scoped_lock lock{ g_paletteMutex };
+		g_palettes[g_paletteIndex] = std::move(restored);
 	}
 
 	// --- SKSE Menu Framework page ---------------------------------------------
@@ -552,6 +710,65 @@ namespace
 		ImGuiMCP::EndPopup();
 	}
 
+	// The palette dropdown, one row per palette file by its label, and Restore original palette
+	// beside it, greyed for a palette Livery does not ship. Both take effect the next time the
+	// capture window opens.
+	// Contract: render thread (RenderSettings), the only one that changes g_palettes after Load.
+	void RenderWindowSkin()
+	{
+		constexpr float kComboWidthEms = 14.0f;  // the dropdown's width, of the font size
+		constexpr auto  kPopup = "Restore original palette?###RestorePalette";
+
+		if (g_palettes.empty()) {
+			return;
+		}
+		std::string stem;
+		bool        shipped = false;
+		{
+			std::scoped_lock lock{ g_paletteMutex };
+			ImGuiMCP::Text("Window skin");
+			ImGuiMCP::SameLine();
+			ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
+			if (ImGuiMCP::BeginCombo("##WindowSkin", g_palettes[g_paletteIndex].label.c_str())) {
+				for (std::size_t i = 0; i < g_palettes.size(); ++i) {
+					ImGuiMCP::PushID(static_cast<int>(i));
+					if (ImGuiMCP::Selectable(g_palettes[i].label.c_str(), i == g_paletteIndex) && i != g_paletteIndex) {
+						g_paletteIndex = i;
+						SavePalette(g_palettes[i].stem);
+						logger::info("Palette = {} (SKSE Menu Framework)", g_palettes[i].label);
+					}
+					ImGuiMCP::PopID();
+				}
+				ImGuiMCP::EndCombo();
+			}
+			stem = SKSE::stl::utf16_to_utf8(g_palettes[g_paletteIndex].stem).value_or("?");
+			shipped = FindShippedPalette(g_palettes[g_paletteIndex].stem) != nullptr;
+		}
+
+		ImGuiMCP::SameLine();
+		ImGuiMCP::BeginDisabled(!shipped);
+		if (ImGuiMCP::Button("Restore original palette")) {
+			ImGuiMCP::OpenPopup(kPopup);
+		}
+		ImGuiMCP::EndDisabled();
+		if (!shipped && ImGuiMCP::IsItemHovered(ImGuiMCP::ImGuiHoveredFlags_AllowWhenDisabled)) {
+			ImGuiMCP::SetTooltip("Only the palettes Livery ships have original colours: Modern, Edge, Vanilla and Nordic.");
+		}
+		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
+			return;
+		}
+		ImGuiMCP::Text("Restore %s.ini as Livery ships it? Your changes to it will be lost.", stem.c_str());
+		if (ImGuiMCP::Button("Yes")) {
+			RestoreChosenPalette();
+			ImGuiMCP::CloseCurrentPopup();
+		}
+		ImGuiMCP::SameLine();
+		if (ImGuiMCP::Button("No")) {
+			ImGuiMCP::CloseCurrentPopup();
+		}
+		ImGuiMCP::EndPopup();
+	}
+
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
 	// the page is shown. The INI is written only when the player clicks.
 	void __stdcall RenderSettings()
@@ -589,39 +806,7 @@ namespace
 		ImGuiMCP::Spacing();
 		ImGuiMCP::Spacing();
 
-		// Takes effect the next time the capture window opens.
-		ImGuiMCP::Text("Window skin");
-		const auto skin = g_skin.load();
-		for (const auto& option : kSkinOptions) {
-			if (&option != &kSkinOptions[0]) {
-				ImGuiMCP::SameLine();
-			}
-			if (ImGuiMCP::RadioButton(option.label, skin == option.skin) && skin != option.skin) {
-				g_skin = option.skin;
-				SaveSkin(option.skin);
-				logger::info("Skin = {} (SKSE Menu Framework)", option.label);
-			}
-		}
-
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
-
-		// Takes effect the next time the capture window opens, in the Modern skin.
-		if (!g_palettes.empty()) {
-			const auto current = g_paletteIndex.load();
-			if (ImGuiMCP::BeginCombo("Modern skin palette", g_palettes[current].name.c_str())) {
-				for (std::size_t i = 0; i < g_palettes.size(); ++i) {
-					ImGuiMCP::PushID(static_cast<int>(i));
-					if (ImGuiMCP::Selectable(g_palettes[i].name.c_str(), i == current) && i != current) {
-						g_paletteIndex = i;
-						SavePalette(g_palettes[i].stem);
-						logger::info("Palette = {} (SKSE Menu Framework)", g_palettes[i].name);
-					}
-					ImGuiMCP::PopID();
-				}
-				ImGuiMCP::EndCombo();
-			}
-		}
+		RenderWindowSkin();
 
 		ImGuiMCP::Spacing();
 		ImGuiMCP::Spacing();
@@ -767,15 +952,8 @@ namespace Settings
 		g_npcReaction = std::wstring_view{ value } != L"0";
 		logger::info("NpcReaction = {}", g_npcReaction.load());
 
-		// A missing or unknown value keeps the default (Modern), as Tailor does: the skin Modern replaced.
-		wchar_t skin[16]{};
-		::GetPrivateProfileStringW(kUiSection, kSkinKey, L"", skin, static_cast<DWORD>(std::size(skin)), g_iniPath.c_str());
-		for (const auto& option : kSkinOptions) {
-			if (::_wcsicmp(skin, option.iniName) == 0) {
-				g_skin = option.skin;
-			}
-		}
-		logger::info("Skin = {}", OptionOf(g_skin.load()).label);
+		// The palette picks the skin; [UI] Skin of earlier versions is no longer read.
+		WriteMissingPalettes();
 		LoadPalettes();
 
 		// A missing key keeps the default (on).
@@ -883,14 +1061,14 @@ namespace Settings
 
 	Theme::Skin Skin()
 	{
-		return g_skin.load();
+		std::scoped_lock lock{ g_paletteMutex };
+		return g_palettes.empty() ? Theme::Skin::kModern : g_palettes[g_paletteIndex].skin;
 	}
 
-	const Theme::Palette& Palette()
+	Theme::Palette Palette()
 	{
-		static const Theme::Palette builtIn;  // Edge's colours, when no palette file was found
-		const auto                  index = g_paletteIndex.load();
-		return index < g_palettes.size() ? g_palettes[index].palette : builtIn;
+		std::scoped_lock lock{ g_paletteMutex };
+		return g_palettes.empty() ? Theme::Palette{} : g_palettes[g_paletteIndex].palette;  // no file: Modern's colours
 	}
 
 	bool MenuSounds()

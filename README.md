@@ -28,7 +28,7 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 **Manual:**
 
 1. Install the requirements above.
-2. Copy the `SKSE` folder from the archive into `Data\` (it holds `livery.dll` and the fonts, textures and palettes of the window skins).
+2. Copy the `SKSE` folder from the archive into `Data\` (it holds `livery.dll` and the fonts and textures of the window skins; Livery writes the palettes on first start).
 3. Launch Skyrim via SKSE.
 
 ## Compatibility
@@ -116,8 +116,7 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 | `General`    | `RestrictToFollowersAndSpouse` | `1`      | `1` captures only followers and your spouse; `0` captures any adult NPC.                               |
 | `General`    | `LivePreview`                  | `1`      | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.     |
 | `General`    | `NpcReaction`                  | `1`      | `1` has a captured NPC turn to you and say a greeting when the window opens with Live Preview on.      |
-| `UI`         | `Skin`                         | `Modern` | Look of the capture window: `Modern`, `Vanilla` or `Nordic` (an old `Tailor` reads as Modern).         |
-| `UI`         | `Palette`                      | `Edge`   | Colours of the Modern skin: a file in `Livery\palettes\`, named without `.ini` (see Palettes).         |
+| `UI`         | `Palette`                      | `Modern` | Look of the capture window: a file in `Livery\palettes\`, named without `.ini` (see Palettes).         |
 | `Hotkey`     | `Key`                          | `68`     | Capture key as a DirectInput scan code (`68` = F10). In game, click the hotkey button and press a key. |
 | `Hotkey`     | `Modifier`                     | `0`      | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).            |
 | `Camera`     | `SpeedPercent`                 | `100`    | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).              |
@@ -131,9 +130,9 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, which the plugin creates with d
 
 The wardrobe, Livery's outfit library, is `Data\SKSE\Plugins\Livery\outfits.json`, shared by every save and character; each piece is stored as its plugin name and FormID, so an outfit survives a load order change. `situations.json` beside it (see [Situations](#situations)) is shared the same way. Back them up with your saves. The outfit categories older versions wrote to `outfits.json` are ignored and gone at the next save. An empty file counts as no file; one that cannot be read leaves the wardrobe empty and is never overwritten, and `Livery.log` says why.
 
-Skins: **Modern**, the default, draws dark panels with nearly square frames after [Edge UI](https://www.nexusmods.com/skyrimspecialedition/mods/130983), in the Jost font, its labels grey and a selected row marked by a rule in the accent colour at its left edge; its colours come from a palette. **Vanilla** mimics the game's menus, with no title bar, a light band round the window and grey text buttons that turn white when you point at them; **Nordic** mimics NORDIC UI, with its corner knot and heading rope, and marks a hovered row with NORDIC UI's list line. Both mark the selected outfit with the equipped mark of a ticked piece, draw the rule after a list heading as SkyUI's MCM header rule with its knot and lists' scroll bars as the game's journal scroll bar, and draw text fields and dropdowns as a rule under the text: a text field has a pen at its right end, and a dropdown's arrow is grey until you point at it. The skins' fonts, textures and palettes ship in `Data\SKSE\Plugins\Livery\`, with the licences of the fonts and textures.
+Skins: the palette (see Palettes) picks the skin. **Modern**, the default, draws dark panels with nearly square frames after [Edge UI](https://www.nexusmods.com/skyrimspecialedition/mods/130983), in the Jost font, its labels grey and a selected row filled in the selected colour, fading out towards its right end, with a rule in the accent colour at its left edge; its colours come from the palette. **Vanilla** mimics the game's menus, with no title bar, a light band round the window and grey text buttons that turn white when you point at them; **Nordic** mimics NORDIC UI, with its corner knot and heading rope, and marks a hovered row with NORDIC UI's list line. Both mark the selected outfit with the equipped mark of a ticked piece, draw the rule after a list heading as SkyUI's MCM header rule with its knot and lists' scroll bars as the game's journal scroll bar, and draw text fields and dropdowns as a rule under the text: a text field has a pen at its right end, and a dropdown's arrow is grey until you point at it. The skins' fonts and textures ship in `Data\SKSE\Plugins\Livery\`, with the licences of the fonts and textures.
 
-Palettes: each `.ini` in `Data\SKSE\Plugins\Livery\palettes\` is a set of the Modern skin's colours, picked by its file name in `Palette` or on the SKSE Menu Framework page. Livery ships **Edge** (dark, with a muted gold accent, after Edge UI) and **Norden** (a muted monochrome on grey panels, after [Norden UI](https://www.nexusmods.com/skyrimspecialedition/mods/166086)). To make your own, copy one under a new name in that folder and change its colours, each `#RRGGBB` or `#RRGGBBAA` (`AA` the opacity) with a comment saying what it colours; it is listed the next time the game starts, and the file can be shared as it is. A colour left out or written otherwise keeps Edge's, and `Livery.log` names it.
+Palettes: each `.ini` in `Data\SKSE\Plugins\Livery\palettes\` sets the window's look: its `Skin` (`Modern`, `Vanilla` or `Nordic`; Modern when left out) and that skin's colours. Pick one in `Palette` or in the **Window skin** dropdown on the SKSE Menu Framework page, which lists each by its skin and file name (`Modern - Edge`), or by the skin alone for the skin's own palette; it takes effect the next time the capture window opens. Livery ships **Modern** (a general-purpose dark grey that suits Untarnished UI and [Norden UI](https://www.nexusmods.com/skyrimspecialedition/mods/166086)), **Modern - Edge** (dark, with a muted gold accent, after Edge UI), **Vanilla** and **Nordic**; the Vanilla and Nordic skins take no colours from their palettes yet. Livery writes each of these files only when it is missing, so an update never undoes your edits; **Restore original palette** beside the dropdown writes the chosen one back as shipped, after asking, and is greyed for a palette of your own. To make your own, copy one under a new name in that folder and change its colours, each `#RRGGBB` or `#RRGGBBAA` (`AA` the opacity) with a comment saying what it colours; it is listed the next time the game starts, and the file can be shared as it is. A colour left out or written otherwise keeps the Modern palette's, and `Livery.log` names it.
 
 ### Limits
 
@@ -221,7 +220,7 @@ The DLL lands in `build/release-linux/livery.dll`.
 
 #### Deploy to a mod manager
 
-The `deploy` target copies `livery.dll`, its PDB and the `Data/SKSE/Plugins/Livery` folder (skin fonts, textures and palettes) into `<deploy dir>/SKSE/Plugins/`. No INI is deployed; the plugin creates it on first start.
+The `deploy` target copies `livery.dll`, its PDB and the `Data/SKSE/Plugins/Livery` folder (skin fonts and textures) into `<deploy dir>/SKSE/Plugins/`. No INI or palette is deployed; the plugin creates them on first start.
 
 The deploy directory is, in order: `-DDEPLOY_DIR_OVERRIDE=<path>` given at configure time; `$SKYRIM_MODS_FOLDER/livery` (your mod manager's staging folder); `$SKYRIM_FOLDER/Data`; else `build/<preset>/deploy/`. Copy `.env.example` to `.env` to set the environment variables.
 
