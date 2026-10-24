@@ -156,7 +156,7 @@ outfit for Town any more`.
   `Situations::Evaluate`'s order.)
 - The list has no rules above and below it.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
-  order. Each: the name in the outfit list's row style, 14px in from the row's left edge,
+  order. Each: the star of the Situations tab, a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
   random on, a die (a hexagon split into three faces with one, three and two pips, a square 4px
   short of the name's line height, grey) and `(n)`, the length of `outfits`, in the small heading style,

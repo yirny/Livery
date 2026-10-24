@@ -154,6 +154,8 @@ namespace
 	// it and the row's first column (pixels at 1080p).
 	constexpr float kRowIconRatio = 0.8f;
 	constexpr float kRowIconGap = 6.0f;
+	// The icon before an outfit row's name, SkyUI's body armor (PieceIcons' key), drawn white.
+	constexpr std::string_view kOutfitIconKey = "skyui/icons_item_psychosteve/armor_body";
 
 	struct FontFile
 	{
@@ -2007,14 +2009,17 @@ namespace
 	}
 
 	// A five-pointed star, point down, split into five faces by lines from its centre to its
-	// inner corners. Its points alternate tip and inner corner, from the upper left tip.
+	// inner corners, the upper left face filled. Its points alternate tip and inner corner,
+	// from the upper left tip.
 	void DrawStarIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
 		const std::array<ImVec2, 10> star{ a_frame.At(0.25f, 0.12f), a_frame.At(0.50f, 0.26f), a_frame.At(0.75f, 0.12f), a_frame.At(0.70f, 0.39f),
 			a_frame.At(0.90f, 0.59f), a_frame.At(0.62f, 0.62f), a_frame.At(0.50f, 0.88f), a_frame.At(0.38f, 0.62f), a_frame.At(0.10f, 0.59f),
 			a_frame.At(0.30f, 0.39f) };
+		const ImVec2                 centre = a_frame.At(0.50f, 0.46f);
+		const std::array<ImVec2, 4>  face{ centre, star[9], star[0], star[1] };  // clockwise, as ImGui's anti-aliased fill needs
+		a_draw->AddConvexPolyFilled(face.data(), static_cast<int>(face.size()), a_color);
 		a_draw->AddPolyline(star.data(), static_cast<int>(star.size()), a_color, ImDrawFlags_Closed, a_thick);
-		const ImVec2 centre = a_frame.At(0.50f, 0.46f);
 		for (std::size_t i = 1; i < star.size(); i += 2) {
 			a_draw->AddLine(centre, star[i], a_color, a_thick);
 		}
@@ -2167,6 +2172,22 @@ namespace
 	{
 		const int count = (HasFormMark(a_marks) ? 1 : 0) + (a_marks.situations ? 1 : 0);
 		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
+	}
+
+	// The white body armor icon (kOutfitIconKey) before an outfit's name, a square of the text
+	// height, its left edge at `a_left` and centred on `a_midY`, tinted through the style alpha.
+	// Returns the room it takes before the name, the gap included; 0 without its texture.
+	float DrawOutfitIcon(ImDrawList* a_draw, float a_left, float a_midY)
+	{
+		const auto found = g_rowIcons.find(kOutfitIconKey);
+		if (found == g_rowIcons.end()) {
+			return 0.0f;
+		}
+		const float  side = std::round(ImGui::GetTextLineHeight());
+		const ImVec2 topLeft(std::round(a_left), std::round(a_midY - side * 0.5f));
+		a_draw->AddImage(found->second.Id(side), topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
+			ImGui::GetColorU32(IM_COL32_WHITE));
+		return side + kRowIconGap * g_scale;
 	}
 
 	// A list heading's icon (Theme::HeadingIcon), an 18px square in every skin, its left edge at
@@ -3177,11 +3198,13 @@ namespace Theme
 		const float  right = cursor.x + ImGui::GetContentRegionAvail().x;
 		const ImVec2 fillMin(left + g_listReach.x, cursor.y);
 		const ImVec2 fillMax(RowFillRight(left, right), cursor.y + height);
-		const float  textX = fillMin.x + SituationNameInset();
+		const float  starX = fillMin.x + SituationNameInset();
 		const float  textY = cursor.y + gap * 0.5f + kSelectRowPadY * g_scale;
 		const float  midY = textY + ImGui::GetTextLineHeight() * 0.5f;
 		const float  pad = kPad * g_scale;
 		const auto   count = a_look.count >= 0 ? std::format("({})", a_look.count) : std::string{};
+		const float  iconSide = ImGui::GetTextLineHeight() - kDiceShrink * g_scale;  // the star's and the die's square
+		const float  textX = starX + iconSide + kRowIconGap * g_scale;
 
 		PushSmallFont();
 		const ImVec2 countSize = count.empty() ? ImVec2(0.0f, 0.0f) : ImGui::CalcTextSize(count.c_str());
@@ -3191,7 +3214,7 @@ namespace Theme
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
 		const float gapX = ImGui::GetStyle().ItemInnerSpacing.x;
 		// The die's outline, not its square, sits gapX from the name and from the count.
-		const float diceSide = ImGui::GetTextLineHeight() - kDiceShrink * g_scale;
+		const float diceSide = iconSide;
 		const float diceLeft = nameRight + gapX - diceSide * kDiceInset;  // its square's
 		const float afterName = a_look.random ? nameRight + gapX + diceSide * (1.0f - kDiceInset * 2.0f) : nameRight;
 		const float countX = afterName + gapX;
@@ -3219,12 +3242,14 @@ namespace Theme
 		DrawRowFills(draw, fillMin, fillMax, a_look.selected, selectHovered, 0.0f);
 		if (a_look.selected) {
 			const ListRow nameLine{ ImVec2(left, cursor.y + gap * 0.5f), ImVec2(right, cursor.y + gap * 0.5f + SelectRowHeight()), fillMin, fillMax,
-				textX - left, false, false };
-			DrawSelectMark(draw, nameLine, textX);
+				starX - left, false, false };
+			DrawSelectMark(draw, nameLine, starX);
 		}
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+		const ImU32 nameColor = a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text);
 		const float thick = (std::max)(1.0f, 1.5f * g_scale);
-		draw->AddText(ImVec2(textX, textY), a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		DrawStarIcon(draw, IconFrame{ ImVec2(starX, midY - iconSide * 0.5f), iconSide }, nameColor, thick);
+		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
 		if (a_look.random) {
 			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, grey, thick);
 		}
@@ -3421,11 +3446,12 @@ namespace Theme
 		const ImVec2 markCentre(marksRight, textY + side * 0.5f);
 		const int    marks = DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
 		const float  nameRight = marksRight - OutfitMarksWidth(a_marks);
+		const float  nameX = textX + DrawOutfitIcon(draw, textX, nameMidY);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
-		if (textX + nameSize.x <= nameRight) {
-			draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
-		} else if (nameRight > textX) {
-			ImGui::RenderTextEllipsis(draw, ImVec2(textX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
+		if (nameX + nameSize.x <= nameRight) {
+			draw->AddText(ImVec2(nameX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		} else if (nameRight > nameX) {
+			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
 		for (int i = 0; i < marks; ++i) {
 			const float right = marksRight - static_cast<float>(i) * (side + kOutfitMarkGap * g_scale);
@@ -3472,15 +3498,17 @@ namespace Theme
 		if (style.PopupBorderSize > 0.0f) {
 			draw->AddRect(ghostMin, ghostMax, ImGui::GetColorU32(ImGuiCol_Border), style.PopupRounding, 0, style.PopupBorderSize);
 		}
+		const float midY = textY + ImGui::GetTextLineHeight() * 0.5f;
 		if (a_grip != Grip::kNone) {
-			DrawGrip(draw, ghostMin.x, textY + ImGui::GetTextLineHeight() * 0.5f, a_grip);
+			DrawGrip(draw, ghostMin.x, midY, a_grip);
 		}
 		const float  nameRight = ghostMax.x - style.FramePadding.x;
+		const float  nameX = textX + DrawOutfitIcon(draw, textX, midY);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
-		if (textX + nameSize.x <= nameRight) {
-			draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
-		} else if (nameRight > textX) {
-			ImGui::RenderTextEllipsis(draw, ImVec2(textX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
+		if (nameX + nameSize.x <= nameRight) {
+			draw->AddText(ImVec2(nameX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		} else if (nameRight > nameX) {
+			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
 		ImGui::PopStyleVar();
 	}
