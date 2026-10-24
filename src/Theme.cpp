@@ -2794,6 +2794,7 @@ namespace Theme
 	{
 		constexpr float kArrowRatio = 0.4f;     // the sort arrow's width, of the font size
 		constexpr float kUnsortedAlpha = 0.5f;  // of an unnamed column's arrow pair while another column sorts
+		constexpr float kPairGap = 2.0f;        // pixels at 1080p, between that pair's bases
 
 		SectionGap();
 		const float iconSide = OutfitIconSide();  // in the body font, as an outfit row's icon
@@ -2811,9 +2812,11 @@ namespace Theme
 			const bool   unnamed = std::string_view(a_labels[i]).starts_with("##");
 			const Caps   label(unnamed ? "" : a_labels[i]);  // shown; the ImGui ID stays a_labels[i]
 			const ImVec2 text = unnamed ? ImVec2(0.0f, lineHeight) : ImGui::CalcTextSize(label.c_str());
-			// An unnamed column's click area is an outfit row icon's square, centred on its x and
-			// on the labels' line; a label's starts there.
-			const ImVec2 area = unnamed ? ImVec2(iconSide, iconSide) : ImVec2(text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f), text.y);
+			// An unnamed column's click area is centred on its x and on the labels' line, an outfit
+			// row icon's height, reaching on either side to where the next column starts (an icon's
+			// square when it is the last); a label's starts there.
+			const float  reach = i + 1 < a_labels.size() ? a_columnX[i + 1] - a_columnX[i] : iconSide * 0.5f;
+			const ImVec2 area = unnamed ? ImVec2(reach * 2.0f, iconSide) : ImVec2(text.x + (sorted ? style.ItemInnerSpacing.x + arrow : 0.0f), text.y);
 			if (i > 0) {
 				ImGui::SameLine();
 			}
@@ -2844,12 +2847,14 @@ namespace Theme
 					draw->AddTriangleFilled(baseR, baseL, point, color);
 				}
 			} else if (unnamed) {
-				// The up and down arrows base to base, a diamond, faded until hovered. Clockwise, as
-				// ImGui's anti-aliased fill needs.
-				const ImU32  diamond = hovered ? color : ImGui::GetColorU32(LabelGrey(), kUnsortedAlpha);
-				const float  tall = half * 1.2f;  // each arrow's height, as the sorted one's
-				const ImVec2 points[] = { { left + half, midY - tall }, { left + arrow, midY }, { left + half, midY + tall }, { left, midY } };
-				draw->AddConvexPolyFilled(points, 4, diamond);
+				// The up arrow over the down one, each as the sorted one, kPairGap between their
+				// bases, faded until hovered. Listed clockwise, as the sorted arrow's.
+				const ImU32 pair = hovered ? color : ImGui::GetColorU32(LabelGrey(), kUnsortedAlpha);
+				const float tall = half * 1.2f;  // each arrow's height, as the sorted one's
+				const float upBase = midY - kPairGap * 0.5f * g_scale;
+				const float downBase = midY + kPairGap * 0.5f * g_scale;
+				draw->AddTriangleFilled(ImVec2(left + arrow, upBase), ImVec2(left, upBase), ImVec2(left + half, upBase - tall), pair);
+				draw->AddTriangleFilled(ImVec2(left, downBase), ImVec2(left + arrow, downBase), ImVec2(left + half, downBase + tall), pair);
 			}
 		}
 		// Below the labels' line, as before an unnamed column's taller click area: the list does not move.
