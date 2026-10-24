@@ -830,7 +830,7 @@ namespace
 		}
 		ImGuiMCP::SetItemTooltip(
 			"Takes Livery's outfits off everyone, player included, and forgets their situational outfits. "
-			"Items moved from your inventory stay with them. Do this before you uninstall Livery.");
+			"Do this before you uninstall Livery.");
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
