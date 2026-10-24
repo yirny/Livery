@@ -389,10 +389,9 @@ namespace
 		const wchar_t*                  comment;
 		const wchar_t*                  squareComment = nullptr;
 	};
-	constexpr std::array<PaletteKey, 11> kPaletteKeys{ {
+	constexpr std::array<PaletteKey, 10> kPaletteKeys{ {
 		{ L"Window", &Theme::Palette::window, kAllSkins, L"The window." },
 		{ L"Surface", &Theme::Palette::surface, kAllSkins, L"Popups, dropdown lists and tooltips." },
-		{ L"TitleBar", &Theme::Palette::titleBar, kNotNordic, L"The title bars of the window and its popups.", L"The title bars of popups." },
 		{ L"Text", &Theme::Palette::text, kAllSkins, L"Text, and faint, the fills of fields, buttons and the scroll bar.",
 			L"Text, a link or label under the mouse, and faint, the fills of fields, buttons and the scroll bar." },
 		{ L"Label", &Theme::Palette::label, kAllSkins, L"Field and column labels, list headings, links and greyed text." },
@@ -425,7 +424,6 @@ namespace
 	constexpr Theme::Palette kVanillaColours{
 		.window = 0x000000CC,
 		.surface = 0x000000EB,
-		.titleBar = 0x000000DC,
 		.text = 0xFFFFFFFF,
 		.label = 0xA5A5A5FF,
 		.accent = 0xFFFFFFFF,
@@ -447,7 +445,6 @@ namespace
 	constexpr Theme::Palette kEdgeColours{
 		.window = 0x1E1E1CF0,
 		.surface = 0x262522FA,
-		.titleBar = 0x403C2EFF,
 		.text = 0xDCD6C2FF,
 		.label = 0x8C8A7CFF,
 		.accent = 0xD2BC72FF,
