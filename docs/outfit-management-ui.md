@@ -68,7 +68,7 @@ page. Each page keeps its own search and sort.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
   of them: a dressed form (a gown on the stand) for the outfit the actor wears now
   (`Request::wornOutfit`), else a bare form (Manage Wardrobe's tab icon) for one their
-  Default holds; a star (point down, lines from its centre to its inner corners) for an outfit the
+  Default holds; a star (point down, lines from its centre to its inner corners, the upper left face filled) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
   it), `Default Outfit` on the bare form, `For Town, Warm` (`OutfitBrowser::State::situations`,
@@ -78,7 +78,7 @@ page. Each page keeps its own search and sort.
   holds the former gap, half above and half below), and every second row under a heading
   has the palette's Stripe colour under its fills (Vanilla and Nordic white at 16/255,
   Modern black at 32/255), as Tailor 3.0's outfit list
-  alternates its rows. Names start 22px in from the row's left edge.
+  alternates its rows. Each name follows SkyUI's body armor icon in white (`skyui/icons_item_psychosteve/armor_body`), a square of the text height, 6px before it; the icon starts 22px in from the row's left edge.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
 - `Sort by`: Name, Situation. Situation puts headings in the list: the rows holding the
   outfit joined with `, ` (`Town, Swimming`), in their order (Default, then
