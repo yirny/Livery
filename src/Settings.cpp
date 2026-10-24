@@ -107,6 +107,7 @@ namespace
 		{ kPlayerSection, kAddMissingKey, L"0",
 			L"1 = an outfit you give yourself adds the pieces you do not carry. Warning: this creates new items in your inventory.\n"
 			L"0 = those pieces are left out, and the message on screen names them.\n"
+			L"In game the tick Dress yourself from inventory only is the opposite of this value.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
 		{ kWindowSection, kShowPlayerInventoryKey, L"1",
 			L"1 = the capture window of an NPC also lists your armor, under Player's Inventory.\n"
@@ -797,6 +798,7 @@ namespace
 				}
 				ImGuiMCP::EndCombo();
 			}
+			ImGuiMCP::SetItemTooltip("Takes effect the next time you open the window.");
 			stem = SKSE::stl::utf16_to_utf8(g_palettes[g_paletteIndex].stem).value_or("?");
 			shipped = FindShippedPalette(g_palettes[g_paletteIndex].stem) != nullptr;
 		}
@@ -825,70 +827,109 @@ namespace
 		ImGuiMCP::EndPopup();
 	}
 
+	// The gap between two settings under one heading; it scales with the framework's font.
+	void SettingGap()
+	{
+		ImGuiMCP::Spacing();
+		ImGuiMCP::Spacing();
+	}
+
+	// A heading with a rule, with room above it so the sections read apart.
+	void Heading(const char* a_label)
+	{
+		SettingGap();
+		ImGuiMCP::SeparatorText(a_label);
+	}
+
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
 	// the page is shown. The INI is written only when the player clicks.
+	// Labels are short; each setting explains itself in a tooltip (CLAUDE.md, player-facing English).
 	void __stdcall RenderSettings()
 	{
-		bool value = g_followersAndSpouseOnly.load();
-		if (ImGuiMCP::Checkbox("Only followers and your spouse can be captured", &value)) {
-			g_followersAndSpouseOnly = value;
-			SaveFollowersAndSpouseOnly(value);
-			logger::info("RestrictToFollowersAndSpouse = {} (SKSE Menu Framework)", value);
-		}
-
-		// Two Spacing() calls separate the settings; they scale with the framework's font.
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
-
-		// Takes effect the next time the capture window opens.
-		bool livePreview = g_livePreview.load();
-		if (ImGuiMCP::Checkbox("Live Preview on when the capture window opens", &livePreview)) {
-			g_livePreview = livePreview;
-			SaveLivePreview(livePreview);
-			logger::info("LivePreview = {} (SKSE Menu Framework)", livePreview);
-		}
-
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
-
-		// Takes effect the next time the capture window opens.
-		bool npcReaction = g_npcReaction.load();
-		if (ImGuiMCP::Checkbox("NPC Reaction: a captured NPC turns to you and says a greeting (with Live Preview on)", &npcReaction)) {
-			g_npcReaction = npcReaction;
-			SaveFlag(kIniSection, kNpcReactionKey, npcReaction);
-			logger::info("NpcReaction = {} (SKSE Menu Framework)", npcReaction);
-		}
-
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
-
-		RenderWindowSkin();
-
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
-
-		// Applies at once.
-		bool menuSounds = g_menuSounds.load();
-		if (ImGuiMCP::Checkbox("Play menu sounds", &menuSounds)) {
-			g_menuSounds = menuSounds;
-			SaveMenuSounds(menuSounds);
-			logger::info("MenuSounds = {} (SKSE Menu Framework)", menuSounds);
-		}
-
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
+		ImGuiMCP::SeparatorText("General");
 
 		// The next key press is taken by OnInput; "###" keeps the button's ID while its text changes.
-		ImGuiMCP::Text("Capture hotkey");
+		ImGuiMCP::Text("Hotkey");
 		ImGuiMCP::SameLine();
 		const bool picking = g_pickingHotkey.load();
 		const auto label = picking ? std::string{ "Press a key (Esc cancels)###Hotkey" } : HotkeyName() + "###Hotkey";
 		if (ImGuiMCP::Button(label.c_str())) {
 			g_pickingHotkey = !picking;
 		}
+		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.");
 
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
+		SettingGap();
+
+		// Applies at once.
+		bool notifyChanges = g_notifySituationChanges.load();
+		if (ImGuiMCP::Checkbox("Outfit change notifications", &notifyChanges)) {
+			g_notifySituationChanges = notifyChanges;
+			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
+			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
+		}
+		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.");
+
+		// Every tick here is immersive when on.
+		Heading("Immersion");
+
+		bool followersOnly = g_followersAndSpouseOnly.load();
+		if (ImGuiMCP::Checkbox("Followers and spouse only", &followersOnly)) {
+			g_followersAndSpouseOnly = followersOnly;
+			SaveFollowersAndSpouseOnly(followersOnly);
+			logger::info("RestrictToFollowersAndSpouse = {} (SKSE Menu Framework)", followersOnly);
+		}
+		ImGuiMCP::SetItemTooltip("Restricts the hotkey to your followers and spouse. You can always open Livery for yourself.");
+
+		SettingGap();
+
+		// Takes effect the next time the window opens.
+		bool npcReaction = g_npcReaction.load();
+		if (ImGuiMCP::Checkbox("NPC reaction", &npcReaction)) {
+			g_npcReaction = npcReaction;
+			SaveFlag(kIniSection, kNpcReactionKey, npcReaction);
+			logger::info("NpcReaction = {} (SKSE Menu Framework)", npcReaction);
+		}
+		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.");
+
+		SettingGap();
+
+		// Takes effect at the next Apply.
+		bool moveFromPlayer = g_moveFromPlayer.load();
+		if (ImGuiMCP::Checkbox("Transfer items to NPCs", &moveFromPlayer)) {
+			g_moveFromPlayer = moveFromPlayer;
+			SaveFlag(kTransferSection, kMoveFromPlayerKey, moveFromPlayer);
+			logger::info("MoveFromPlayer = {} (SKSE Menu Framework)", moveFromPlayer);
+		}
+		ImGuiMCP::SetItemTooltip(
+			"On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n"
+			"Off: the NPC receives plain copies, and you keep yours.");
+
+		SettingGap();
+
+		// Takes effect the next time you dress yourself. The tick is the opposite of AddMissingPieces,
+		// so that on means immersive like the rest of the section; the INI key keeps its meaning.
+		bool inventoryOnly = !g_playerAddsMissing.load();
+		if (ImGuiMCP::Checkbox("Dress yourself from inventory only", &inventoryOnly)) {
+			g_playerAddsMissing = !inventoryOnly;
+			SavePlayerAddsMissing(!inventoryOnly);
+			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", !inventoryOnly);
+		}
+		ImGuiMCP::SetItemTooltip(
+			"Dressing yourself uses only items you carry; missing ones are named in a notification. NPCs always get what they need.\n"
+			"Off: missing items are created in your inventory.");
+
+		Heading("Window");
+
+		// Takes effect the next time the window opens.
+		bool livePreview = g_livePreview.load();
+		if (ImGuiMCP::Checkbox("Live Preview on open", &livePreview)) {
+			g_livePreview = livePreview;
+			SaveLivePreview(livePreview);
+			logger::info("LivePreview = {} (SKSE Menu Framework)", livePreview);
+		}
+		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.");
+
+		SettingGap();
 
 		// Applies at once; the INI is written when the slider is let go.
 		float percent = g_speedPercent.load();
@@ -899,76 +940,64 @@ namespace
 			SaveSpeedPercent(g_speedPercent.load());
 			logger::info("SpeedPercent = {:.0f} (SKSE Menu Framework)", g_speedPercent.load());
 		}
+		ImGuiMCP::SetItemTooltip("Adjusts camera movement speed. Use WASD, mouse drag, and scroll wheel to control the camera.");
 
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
+		SettingGap();
 
-		// Takes effect the next time you dress yourself.
-		bool addMissing = g_playerAddsMissing.load();
-		if (ImGuiMCP::Checkbox("Dressing yourself adds the pieces you do not carry (creates new items)", &addMissing)) {
-			g_playerAddsMissing = addMissing;
-			SavePlayerAddsMissing(addMissing);
-			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", addMissing);
-		}
-
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
-
-		// The three below take effect the next time the capture window opens.
+		// The three below take effect the next time the window opens. The two under the first
+		// only matter while it is on, so they are greyed otherwise.
 		bool showInventory = g_showPlayerInventory.load();
-		if (ImGuiMCP::Checkbox("An NPC's capture window lists your armor too", &showInventory)) {
+		if (ImGuiMCP::Checkbox("List your inventory for NPCs", &showInventory)) {
 			g_showPlayerInventory = showInventory;
 			SaveFlag(kWindowSection, kShowPlayerInventoryKey, showInventory);
 			logger::info("ShowPlayerInventory = {} (SKSE Menu Framework)", showInventory);
 		}
+		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".");
+		ImGuiMCP::Indent();
+		ImGuiMCP::BeginDisabled(!showInventory);
 		bool showWorn = g_showPlayerWorn.load();
-		if (ImGuiMCP::Checkbox("... including the armor you wear", &showWorn)) {
+		if (ImGuiMCP::Checkbox("Include what you wear", &showWorn)) {
 			g_showPlayerWorn = showWorn;
 			SaveFlag(kWindowSection, kShowPlayerWornKey, showWorn);
 			logger::info("ShowPlayerWornPieces = {} (SKSE Menu Framework)", showWorn);
 		}
+		ImGuiMCP::SetItemTooltip("Off: excludes items you're wearing unless you carry another copy.");
 		bool protectFavorites = g_protectFavorites.load();
-		if (ImGuiMCP::Checkbox("... leaving out your favorites", &protectFavorites)) {
+		if (ImGuiMCP::Checkbox("Exclude favorites", &protectFavorites)) {
 			g_protectFavorites = protectFavorites;
 			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
 			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
 		}
+		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.");
+		ImGuiMCP::EndDisabled();
+		ImGuiMCP::Unindent();
 
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
+		SettingGap();
 
-		// Takes effect the next time the capture window opens.
+		// Takes effect the next time the window opens.
 		bool showSlots = g_showSlotColumn.load();
-		if (ImGuiMCP::Checkbox("The capture window's piece list shows a Slot column", &showSlots)) {
+		if (ImGuiMCP::Checkbox("Show Slot column", &showSlots)) {
 			g_showSlotColumn = showSlots;
 			SaveFlag(kWindowSection, kShowSlotColumnKey, showSlots);
 			logger::info("ShowSlotColumn = {} (SKSE Menu Framework)", showSlots);
 		}
+		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).");
 
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
+		Heading("Appearance");
 
-		// Takes effect at the next Apply.
-		bool moveFromPlayer = g_moveFromPlayer.load();
-		if (ImGuiMCP::Checkbox("Apply moves your pieces to the NPC (off: the NPC gets new copies)", &moveFromPlayer)) {
-			g_moveFromPlayer = moveFromPlayer;
-			SaveFlag(kTransferSection, kMoveFromPlayerKey, moveFromPlayer);
-			logger::info("MoveFromPlayer = {} (SKSE Menu Framework)", moveFromPlayer);
-		}
+		RenderWindowSkin();
 
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
+		SettingGap();
 
 		// Applies at once.
-		bool notifyChanges = g_notifySituationChanges.load();
-		if (ImGuiMCP::Checkbox("Show a message when a character changes outfit for a situation", &notifyChanges)) {
-			g_notifySituationChanges = notifyChanges;
-			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
-			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
+		bool menuSounds = g_menuSounds.load();
+		if (ImGuiMCP::Checkbox("Play menu sounds", &menuSounds)) {
+			g_menuSounds = menuSounds;
+			SaveMenuSounds(menuSounds);
+			logger::info("MenuSounds = {} (SKSE Menu Framework)", menuSounds);
 		}
 
-		ImGuiMCP::Spacing();
-		ImGuiMCP::Spacing();
+		Heading("Uninstall");
 
 		RenderReleaseEveryone();
 	}
