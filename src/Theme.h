@@ -261,11 +261,9 @@ namespace Theme
 	float ListHeadingHeight();
 
 	// ListHeading (in capitals) with a greyed "(?)" after the text, the rule after the mark; returns
-	// true while the mouse is over that mark alone, for the caller's tooltip. `situationIndent`: the
-	// text starts where a SituationHeading's star does, as over Manage Situations' headings, with
-	// no rule.
+	// true while the mouse is over that mark alone, for the caller's tooltip.
 	// Contract: inside BeginList.
-	bool ListHeadingHelp(const char* text, bool situationIndent = false, HeadingIcon icon = HeadingIcon::kNone);
+	bool ListHeadingHelp(const char* text, HeadingIcon icon = HeadingIcon::kNone);
 
 	// Extra room under a field whose next line is a label (a dropdown, then a list's count
 	// line), on top of the label's own SectionGap.

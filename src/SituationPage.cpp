@@ -256,13 +256,14 @@ namespace CaptureWindow::Internal
 		}
 
 		// The Situation List's height with every heading open, capped as ListHeight caps it, and
-		// at least the right pane's with the outfit list, so neither folding nor the right pane
-		// moves the buttons. An outfit's details may be taller, moving them (DrawOutfitView).
+		// at least to the bottom of the right pane with the outfit list, `a_top` (pixels) below
+		// the pane's top, so neither folding nor the right pane moves the buttons. An outfit's
+		// details may be taller, moving them (DrawOutfitView).
 		// Contract: with no item spacing pushed.
-		float SituationListHeight(const State& a_state)
+		float SituationListHeight(const State& a_state, float a_top)
 		{
 			const auto& form = a_state.situationForm;
-			float       rows = Theme::ListHeadingHeight();
+			float       rows = 0.0f;
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				rows += Theme::SituationHeadingHeight();
 				if (ShowsPieces(form, i)) {
@@ -270,7 +271,7 @@ namespace CaptureWindow::Internal
 				}
 				rows += static_cast<float>(ShownOutfits(form.entries[i].row).size()) * Theme::OutfitRowHeight();
 			}
-			return (std::max)(FittedListHeight(rows, Theme::ListHeadingHeight()), form.outfitPaneHeight);
+			return (std::max)(FittedListHeight(rows, Theme::SituationHeadingHeight()), form.outfitPaneHeight - a_top);
 		}
 
 		// The outfits situation `a_entry` shows, each with a grip, dragged to move it, and a drop
@@ -388,23 +389,26 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// The left pane: Situation List (?) over a heading per situation, the Default first.
+		// The left pane: the Situation List (?) label over a heading per situation, the Default
+		// first.
 		void DrawSituationList(State& a_state)
 		{
-			auto& form = a_state.situationForm;
+			auto&       form = a_state.situationForm;
+			const float paneTop = ImGui::GetCursorPosY();
+			Theme::LabelText("Situation List");
+			if (Theme::LabelHelpMark()) {
+				DrawHelpTooltip(std::format(
+					"Each situation lists the outfits {} can wear there. When several apply, the most specific one with an "
+					"outfit is worn; otherwise, and in combat, the Default. Drag an outfit onto a situation to add it, between "
+					"its outfits to place it, onto another situation to move it, or back to the outfit list to take it off.",
+					a_state.request.actorName));
+			}
+			const float top = ImGui::GetCursorPosY() - paneTop;
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
 			// Popped before EndList, as the outfit list's spacing is.
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 			int dragHovered = -1;
-			if (Theme::BeginList("situations", SituationListHeight(a_state), false)) {
-				// Its text starts where the situations' names do, clear of a selected one's mark.
-				if (Theme::ListHeadingHelp("Situation List", true)) {
-					DrawHelpTooltip(std::format(
-						"Each situation lists the outfits {} can wear there. When several apply, the most specific one with an "
-						"outfit is worn; otherwise, and in combat, the Default. Drag an outfit onto a situation to add it, between "
-						"its outfits to place it, onto another situation to move it, or back to the outfit list to take it off.",
-						a_state.request.actorName));
-				}
+			if (Theme::BeginList("situations", SituationListHeight(a_state, top))) {
 				for (std::size_t i = 0; i < form.entries.size(); ++i) {
 					ImGui::PushID(static_cast<int>(i));
 					DrawSituationEntry(a_state, i, dragHovered);
