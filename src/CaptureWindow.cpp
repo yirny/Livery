@@ -1174,10 +1174,13 @@ namespace CaptureWindow::Internal
 		return 0;
 	}
 
-	// The widest button row of the Capture page, which sets the page's least width.
+	// The widest button row of the Capture page, which sets the page's least width: the row
+	// is centred, so Restore Outfit at the line's right end needs its width and an item
+	// spacing on either side of it, whatever the font or screen.
 	float CaptureButtonsWidth()
 	{
-		return ButtonRowWidth({ "Create / Update Outfit", "Apply", "Exit" });
+		const float restore = Theme::LineHelpLinkWidth("Restore Outfit") + ImGui::GetStyle().ItemSpacing.x;
+		return ButtonRowWidth({ "Create / Update Outfit", "Apply", "Exit" }) + restore * 2.0f;
 	}
 
 	enum class CaptureAction
