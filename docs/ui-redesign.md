@@ -70,14 +70,14 @@ INI + SKSE Menu Framework, nothing in the window. Names provisional.
 - The NPC's inventory is read again after the moves. A piece that did not move is dropped
   from Dress's list and counted in the HUD message; never a silent copy.
 - A moved instance is not `added`: Restore leaves it with the NPC, as a traded item.
-- The preview and Save move nothing.
+- The preview and Create / Update Outfit move nothing.
 
 Checks: an enchanted piece moves with its enchantment; a quest item and a favorite are not
 listed; the HUD counts moved pieces; the NPC keeps the piece after Restore.
 
 ## 4. Save page
 
-Reached from `Save` with the ticked pieces, which both tabs save.
+Reached from `Create / Update Outfit` with the ticked pieces, which both tabs save.
 
 - Heading: `Create New Outfit / Update Existing Outfit...` in place of the title, in the
   heading font, where the title goes (Nordic: centred, over its rule), separated by a greyed

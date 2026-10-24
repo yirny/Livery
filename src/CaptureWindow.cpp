@@ -1188,7 +1188,7 @@ namespace CaptureWindow::Internal
 	// The widest button row of the Capture page, which sets the page's least width.
 	float CaptureButtonsWidth()
 	{
-		return ButtonRowWidth({ "Save", "Apply", "Exit" });
+		return ButtonRowWidth({ "Create / Update Outfit", "Apply", "Exit" });
 	}
 
 	enum class CaptureAction
@@ -1201,16 +1201,16 @@ namespace CaptureWindow::Internal
 		kExit
 	};
 
-	// Save / Apply / Exit centred below a gap, then Restore Outfit at the row's right end.
-	// Save and Apply act on the ticked pieces, so they need at least one. `a_load`: Add
+	// Create / Update Outfit, Apply and Exit centred below a gap, then Restore Outfit at the
+	// row's right end. Create / Update Outfit and Apply act on the ticked pieces, so they need at least one. `a_load`: Add
 	// pieces from Wardrobe... was clicked on the count line.
 	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load)
 	{
 		constexpr const char* kSaveTooltip = "Save the ticked pieces as a new outfit, or into an existing one.";
 
-		BeginButtonRow({ "Save", "Apply", "Exit" });
+		BeginButtonRow({ "Create / Update Outfit", "Apply", "Exit" });
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
-		const bool  save = ReasonButton("Save", noPiece, kSaveTooltip);
+		const bool  save = ReasonButton("Create / Update Outfit", noPiece, kSaveTooltip);
 		ImGui::SameLine();
 		const bool apply = ReasonButton("Apply", noPiece, a_state.applyTooltip.c_str());
 		ImGui::SameLine();

@@ -99,9 +99,9 @@ and the Manage Wardrobe page. Each page keeps its own search and sort.
   three `Outfit (...)` headings, the bare form over the loaded outfit's.
 - The count line ends in `Add pieces from Wardrobe...` (`Theme::LabelLink`, its plus mark
   first), which opens the Load page; greyed while the library is empty, showing
-  `kNoOutfits` on hover. The buttons are `Save`, `Apply`, `Exit`.
+  `kNoOutfits` on hover. The buttons are `Create / Update Outfit`, `Apply`, `Exit`.
 - Tooltips on hover while enabled; a greyed button shows its reason instead:
-  - Save: `Save the ticked pieces as a new outfit, or into an existing one.`
+  - Create / Update Outfit: `Save the ticked pieces as a new outfit, or into an existing one.`
   - Apply: `Dress #{Name} in the ticked pieces.`
   - Exit: none.
 - `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the button
