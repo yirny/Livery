@@ -123,11 +123,6 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineHelpLink(const char* label, bool* hovered);
 
-	// LineHelpLink with its left edge at cursor X `x` (as SetCursorPosX takes it) instead of
-	// the line's right end, as at the start of a row of buttons laid out before it.
-	// Contract: the label is shown as is and is the ImGui ID.
-	bool LineHelpLinkAt(const char* label, float x, bool* hovered);
-
 	// LineHelpLink without the "(?)": `label` alone at the line's right end, lit while hovered.
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineLink(const char* label);

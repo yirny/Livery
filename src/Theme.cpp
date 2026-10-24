@@ -64,7 +64,6 @@
 #include <initializer_list>
 #include <iterator>
 #include <map>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -2612,9 +2611,9 @@ namespace Theme
 
 	// LabelLink's place and lighting with no plus mark, the help mark inside the click area:
 	// on a label's line (`a_labelLine`) at its top, keeping its gap below; on a control's
-	// line centred on the line's height, keeping the control's gap. At the line's right end,
-	// or with `a_x` at that cursor X. With `a_hovered` null, no help mark.
-	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine, std::optional<float> a_x = std::nullopt)
+	// line centred on the line's height, keeping the control's gap. At the line's right end.
+	// With `a_hovered` null, no help mark.
+	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine)
 	{
 		PushSmallFont();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -2623,7 +2622,7 @@ namespace Theme
 		const float  width = help ? markX + ImGui::CalcTextSize(kHelpMark).x : text.x;
 
 		ImGui::SameLine();
-		ImGui::SetCursorPosX(a_x ? *a_x : ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
 		if (!a_labelLine) {
 			// After SameLine the current line's size is the size of what is on it so far.
 			const float lineHeight = ImGui::GetCurrentWindow()->DC.CurrLineSize.y;
@@ -2652,11 +2651,6 @@ namespace Theme
 	bool LineHelpLink(const char* a_label, bool* a_hovered)
 	{
 		return RightEndHelpLink(a_label, a_hovered, false);
-	}
-
-	bool LineHelpLinkAt(const char* a_label, float a_x, bool* a_hovered)
-	{
-		return RightEndHelpLink(a_label, a_hovered, false, a_x);
 	}
 
 	bool LineLink(const char* a_label)

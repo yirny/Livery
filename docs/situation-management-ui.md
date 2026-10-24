@@ -271,10 +271,10 @@ shows the situation's.
 
 ## 6. Buttons and leaving
 
-- `Save Changes` and `Exit` where the other pages put their buttons, and at the row's left
+- `Save Changes` and `Exit` where the other pages put their buttons, and at the row's right
   end `Restore Presets (?)`, a link drawn as the details' Remove and Restore Outfit are, its
   `(?)` inside its click area, its text centred on the buttons' height
-  (`Theme::LineHelpLinkAt`).
+  (`Theme::LineHelpLink`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
   Its help: `Brings the preset situations back as installed: a removed one returns, empty,
   and a renamed one gets its name back. Nobody's outfits change.` It always asks: the
@@ -323,7 +323,7 @@ shows the situation's.
   (`SituationHeading` with its `SituationHeadingLook`, the die of random on, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`), the list without rules (`BeginList`'s `rules`), the
   drag grip (`Theme::Grip` for `OutfitRow`), the
-  details' Remove link (`LineLink`), Restore Presets' (`LineHelpLinkAt`).
+  details' Remove link (`LineLink`), Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
   `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,
