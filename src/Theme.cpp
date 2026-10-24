@@ -11,7 +11,7 @@
 //                each with its halvings
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame; Vanilla's
 //                text buttons and window frame; the list headings' rule and the game's
-//                scroll bar (Vanilla and Nordic);
+//                scroll bar (Vanilla and Nordic) and every skin's scroll bar fade;
 //                list rows (Modern's tick row, the SkyUI-style tick row of the
 //                Vanilla and Nordic skins) and their hover fill (Vanilla's and
 //                Nordic's soft ellipse); the dropdown arrows; the game's
@@ -136,6 +136,12 @@ namespace
 	constexpr float kTextRuleGap = 12.0f;
 	// From a list heading's rule to the list's right end (pixels at 1080p).
 	constexpr float kRuleEndPad = 4.0f;
+	// A list's or dropdown's scroll bar shows on a wheel turn, the mouse over the bar or a drag
+	// of its thumb, stays while the mouse is in the list, and hides once the mouse has been out
+	// of it this long; its alpha takes these times to come and go (seconds; UpdateScrollbarFade).
+	constexpr float kScrollbarHideDelay = 0.1f;
+	constexpr float kScrollbarFadeIn = 0.2f;
+	constexpr float kScrollbarFadeOut = 0.8f;
 	// Extra room between a field and the label under it, beyond SectionGap (pixels at 1080p).
 	constexpr float kAfterFieldGap = 4.0f;
 	// Room between a right-aligned preview's text and the dropdown arrow (pixels at 1080p).
@@ -247,6 +253,18 @@ namespace
 	Ornament    g_headingKnot{ nullptr, ImVec2(339.0f, 22.0f) };     // SkyUI's MCM header rule, a white mask tinted on draw; sized by DrawTextRule
 	Ornament    g_scrollArrow{ nullptr, ImVec2(18.0f, 25.5f) };      // the game's scroll arrow, pointing up, in its own colours; as wide as the bar
 	Ornament    g_hoverGlow{ nullptr, ImVec2(0.0f, 0.0f) };          // a white ellipse fading out to its edges (MakeHoverGlow), stretched over a hovered row
+
+	// A list's or dropdown's scroll bar fade (UpdateScrollbarFade), by the ImGui ID its
+	// BeginList or BeginCombo was given.
+	struct ScrollbarFade
+	{
+		float  alpha = 0.0f;
+		bool   shown = false;  // alpha heads for 1 while set, else for 0
+		double keptAt = 0.0;   // ImGui time the bar was last asked for, or the mouse last in the list
+	};
+	std::map<ImGuiID, ScrollbarFade> g_scrollbarFades;
+	ImGuiID                          g_listFadeId = 0;   // the open BeginList list's entry
+	ImGuiID                          g_comboFadeId = 0;  // the open BeginCombo dropdown's entry
 
 	// Modern's colours in the frame being built. Render thread only.
 	Theme::Palette g_palette;
@@ -897,54 +915,107 @@ namespace
 		return g_skin != Theme::Skin::kModern && g_scrollArrow.view;
 	}
 
+	// `a_color` with its alpha scaled by `a_alpha` (0 to 1), through the style alpha as
+	// ImGui::GetColorU32 applies it.
+	ImU32 FadedColor(ImU32 a_color, float a_alpha)
+	{
+		const auto alpha = static_cast<unsigned>(std::lround((a_color >> IM_COL32_A_SHIFT) * a_alpha));
+		return ImGui::GetColorU32(WithAlpha(a_color, alpha));
+	}
+
 	// The game's scroll bar track from `a_min` to `a_max` (whole pixels), laid out as its art but
 	// with every line 1px at any resolution: down each side a dark line, then a light one, and a
-	// faint white between them.
-	void DrawScrollTrack(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max)
+	// faint white between them; all at `a_alpha` of their colours.
+	void DrawScrollTrack(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_alpha)
 	{
 		constexpr ImU32 kDark = IM_COL32(51, 51, 51, 255);    // #333333
 		constexpr ImU32 kFill = IM_COL32(255, 255, 255, 51);  // white at 0.2
 
-		const ImU32 dark = ImGui::GetColorU32(kDark);
-		const ImU32 light = ImGui::GetColorU32(kScrollLight);
+		const ImU32 dark = FadedColor(kDark, a_alpha);
+		const ImU32 light = FadedColor(kScrollLight, a_alpha);
 		const float top = a_min.y;
 		const float bottom = a_max.y;
 		a_draw->AddRectFilled(ImVec2(a_min.x, top), ImVec2(a_min.x + 1.0f, bottom), dark);
 		a_draw->AddRectFilled(ImVec2(a_min.x + 1.0f, top), ImVec2(a_min.x + kScrollTrackEdge, bottom), light);
-		a_draw->AddRectFilled(ImVec2(a_min.x + kScrollTrackEdge, top), ImVec2(a_max.x - kScrollTrackEdge, bottom), ImGui::GetColorU32(kFill));
+		a_draw->AddRectFilled(ImVec2(a_min.x + kScrollTrackEdge, top), ImVec2(a_max.x - kScrollTrackEdge, bottom), FadedColor(kFill, a_alpha));
 		a_draw->AddRectFilled(ImVec2(a_max.x - kScrollTrackEdge, top), ImVec2(a_max.x - 1.0f, bottom), light);
 		a_draw->AddRectFilled(ImVec2(a_max.x - 1.0f, top), ImVec2(a_max.x, bottom), dark);
 	}
 
-	// Makes ImGui's scroll bar grab clear for the window the next Begin opens, when the skin draws
-	// its own (DrawSkinScrollbar); ImGui still handles the bar's clicks and drags. Returns how
-	// many colours it pushed, for ImGui::PopStyleColor right after that Begin.
-	int HideImGuiScrollbar()
+	// Where the scroll bar fade of the list or dropdown `a_id` stands, 0 (hidden) to 1.
+	float ScrollbarFadeAlpha(ImGuiID a_id)
 	{
-		if (!HasSkinScrollbar()) {
-			return 0;
+		const auto it = g_scrollbarFades.find(a_id);
+		return it == g_scrollbarFades.end() ? 0.0f : it->second.alpha;
+	}
+
+	// Pushes the scroll bar colours for the window the next Begin opens: clear when the skin
+	// draws its own bar over ImGui's (DrawSkinScrollbar), else ImGui's own at the fade of the
+	// list or dropdown `a_id` (UpdateScrollbarFade). ImGui still handles the bar's clicks and
+	// drags at any alpha, so the mouse over the hidden bar can bring it back. Returns how many
+	// colours it pushed, for ImGui::PopStyleColor right after that Begin.
+	int PushScrollbarColors(ImGuiID a_id)
+	{
+		constexpr ImGuiCol kColors[] = { ImGuiCol_ScrollbarBg, ImGuiCol_ScrollbarGrab, ImGuiCol_ScrollbarGrabHovered, ImGuiCol_ScrollbarGrabActive };
+
+		const float alpha = HasSkinScrollbar() ? 0.0f : ScrollbarFadeAlpha(a_id);
+		for (const ImGuiCol color : kColors) {
+			ImVec4 faded = ImGui::GetStyleColorVec4(color);
+			faded.w *= alpha;
+			ImGui::PushStyleColor(color, faded);
 		}
-		constexpr ImVec4 kClear(0.0f, 0.0f, 0.0f, 0.0f);
-		ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, kClear);
-		ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, kClear);
-		ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, kClear);
-		return 3;
+		return static_cast<int>(std::size(kColors));
+	}
+
+	// Moves the scroll bar fade of the current window, the list or dropdown `a_id`, one frame on
+	// and returns its alpha. The bar is asked for by a wheel turn over the window, the mouse over
+	// the bar or a drag of its thumb; once shown it stays while the mouse is in the window and
+	// hides kScrollbarHideDelay after the mouse left, or at once when the window stops scrolling.
+	// A window appearing starts hidden.
+	// Contract: inside the window, before its End; render thread. Modern's bar, ImGui's own,
+	// takes the alpha at the window's next Begin (PushScrollbarColors), a frame later.
+	float UpdateScrollbarFade(ImGuiID a_id)
+	{
+		const ImGuiContext& g = *ImGui::GetCurrentContext();
+		ImGuiWindow*        window = ImGui::GetCurrentWindow();
+		ScrollbarFade&      fade = g_scrollbarFades[a_id];
+		if (window->Appearing) {
+			fade = {};
+		}
+		const double now = ImGui::GetTime();
+		const bool   hovered = g.HoveredWindow == window;  // the mouse in the window, nothing over it
+		if (!window->ScrollbarY) {
+			fade.shown = false;
+		} else if ((hovered && (g.IO.MouseWheel != 0.0f || ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y).Contains(g.IO.MousePos))) ||
+				   g.ActiveId == ImGui::GetWindowScrollbarID(window, ImGuiAxis_Y)) {
+			fade.shown = true;
+			fade.keptAt = now;
+		} else if (fade.shown && hovered) {
+			fade.keptAt = now;
+		} else if (fade.shown && now - fade.keptAt >= kScrollbarHideDelay) {
+			fade.shown = false;
+		}
+		const float target = fade.shown ? 1.0f : 0.0f;
+		const float step = g.IO.DeltaTime / (fade.shown ? kScrollbarFadeIn : kScrollbarFadeOut);
+		fade.alpha = fade.alpha < target ? (std::min)(target, fade.alpha + step) : (std::max)(target, fade.alpha - step);
+		return fade.alpha;
 	}
 
 	// The game's scroll bar over the current window's vertical one, a margin in from its sides,
 	// on whole pixels: an up arrow at its top, a down arrow (the same art flipped) at its bottom,
 	// the track between them (DrawScrollTrack), and a thumb with a 1px rim in the track's light
-	// grey, filled in the style's scroll bar grab colours, in that grey while held.
+	// grey, filled in the style's scroll bar grab colours, in that grey while held; the whole at
+	// `a_alpha` (UpdateScrollbarFade), nothing at 0.
 	// Contract: inside the window, before its End (EndChild, ImGui::EndCombo); render thread. It
 	// mirrors ImGui 1.92.7's internals: GetWindowScrollbarRect for the bar, and ScrollbarEx's
 	// grab arithmetic for the thumb, laid between the arrows, so near the ends the thumb drawn
 	// sits up to an arrow's height off ImGui's unseen one.
-	void DrawSkinScrollbar()
+	void DrawSkinScrollbar(float a_alpha)
 	{
 		constexpr float kSideMargin = 2.0f;  // left and right of the art, inside ImGui's bar (pixels at 1080p)
 
 		ImGuiWindow* window = ImGui::GetCurrentWindow();
-		if (!HasSkinScrollbar() || !window || !window->ScrollbarY) {
+		if (!HasSkinScrollbar() || !window || !window->ScrollbarY || a_alpha <= 0.0f) {
 			return;
 		}
 		const ImRect imguiBar = ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y);
@@ -959,9 +1030,10 @@ namespace
 		const float trackBottom = bar.Max.y - arrowHeight;
 		auto*       draw = window->DrawList;
 		draw->PushClipRect(window->OuterRectClipped.Min, window->OuterRectClipped.Max, false);  // the bar lies outside the content's clip
-		DrawScrollTrack(draw, ImVec2(bar.Min.x, trackTop), ImVec2(bar.Max.x, trackBottom));
-		draw->AddImage(g_scrollArrow.Id(), bar.Min, ImVec2(bar.Max.x, trackTop));
-		draw->AddImage(g_scrollArrow.Id(), ImVec2(bar.Min.x, trackBottom), bar.Max, ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
+		DrawScrollTrack(draw, ImVec2(bar.Min.x, trackTop), ImVec2(bar.Max.x, trackBottom), a_alpha);
+		const ImU32 tint = FadedColor(IM_COL32_WHITE, a_alpha);
+		draw->AddImage(g_scrollArrow.Id(), bar.Min, ImVec2(bar.Max.x, trackTop), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+		draw->AddImage(g_scrollArrow.Id(), ImVec2(bar.Min.x, trackBottom), bar.Max, ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f), tint);
 
 		const ImGuiContext& g = *ImGui::GetCurrentContext();
 		const float         visible = window->InnerRect.GetHeight();
@@ -972,12 +1044,12 @@ namespace
 			const float   ratio = std::clamp(window->Scroll.y / (std::max)(1.0f, contents - visible), 0.0f, 1.0f);
 			const float   top = std::floor(trackTop + ratio * (trackHeight - thumbHeight));
 			const ImGuiID id = ImGui::GetWindowScrollbarID(window, ImGuiAxis_Y);
-			const ImU32   light = ImGui::GetColorU32(kScrollLight);
-			ImU32         fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrab);
+			const ImU32   light = FadedColor(kScrollLight, a_alpha);
+			ImU32         fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrab, a_alpha);
 			if (g.ActiveId == id) {
 				fill = light;
 			} else if (g.HoveredId == id) {
-				fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrabHovered);
+				fill = ImGui::GetColorU32(ImGuiCol_ScrollbarGrabHovered, a_alpha);
 			}
 			const ImVec2 thumbMin(bar.Min.x + kScrollTrackEdge, top);
 			const ImVec2 thumbMax(bar.Max.x - kScrollTrackEdge, top + thumbHeight);
@@ -1736,10 +1808,11 @@ namespace
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 		}
 		if (ImGui::BeginComboPreview()) {
-			ImGui::PushClipRect(frameMin, ImVec2(textRight, frameMax.y), true);
+			// A right-aligned text ends kAlignedArrowGap short of the arrow, whatever the frame's
+			// width, and is clipped there: the inner spacing's edge would cut its last pixels.
+			const float end = a_style.alignRight && ownArrow ? arrowLeft - kAlignedArrowGap * g_scale : textRight;
+			ImGui::PushClipRect(frameMin, ImVec2(end, frameMax.y), true);
 			if (a_style.alignRight) {
-				// The text ends kAlignedArrowGap short of the arrow, whatever the frame's width.
-				const float end = ownArrow ? arrowLeft - kAlignedArrowGap * g_scale : textRight;
 				ImGui::SetCursorScreenPos(ImVec2((std::max)(ImGui::GetCursorScreenPos().x, end - ImGui::CalcTextSize(a_preview).x), ImGui::GetCursorScreenPos().y));
 			}
 			ImGui::TextUnformatted(a_preview);
@@ -1997,9 +2070,17 @@ namespace
 		return (std::max)(1.0f, kFoldChevronStroke * g_scale);
 	}
 
-	// From a fold heading's left edge to its text (pixels on the back buffer): half the
-	// chevron's stroke, its box and the inner spacing after it (FoldHeading). Measured once a
-	// frame: every draggable outfit row asks for it twice (DrawGrip, RowTextInset).
+	// From a fold heading's left edge to its chevron (pixels on the back buffer): in Modern
+	// kRuleEndPad, as much as the rule leaves at the right end, since the list's backdrop starts
+	// at that edge; nothing in Vanilla and Nordic, whose rows run on past the content.
+	float FoldChevronPad()
+	{
+		return g_skin == Theme::Skin::kModern ? kRuleEndPad * g_scale : 0.0f;
+	}
+
+	// From a fold heading's left edge to its text (pixels on the back buffer): the chevron's
+	// pad, half its stroke, its box and the inner spacing after it (FoldHeading). Measured once
+	// a frame: every draggable outfit row asks for it twice (DrawGrip, RowTextInset).
 	// Contract: ImGui's thread, inside a frame.
 	float FoldTextInset()
 	{
@@ -2007,7 +2088,7 @@ namespace
 		static float inset = 0.0f;
 		if (const int frame = ImGui::GetFrameCount(); frame != measuredFrame) {
 			PushLabelFont();
-			inset = FoldChevronThickness() * 0.5f + ImGui::GetFontSize() * kFoldChevronRatio + ImGui::GetStyle().ItemInnerSpacing.x;
+			inset = FoldChevronPad() + FoldChevronThickness() * 0.5f + ImGui::GetFontSize() * kFoldChevronRatio + ImGui::GetStyle().ItemInnerSpacing.x;
 			ImGui::PopFont();
 			measuredFrame = frame;
 		}
@@ -2893,10 +2974,11 @@ namespace Theme
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding.x * g_scale, padding.y * g_scale));
 		const auto pushed = PushFieldStyle(SkinnedStyle(a_style));
 		// ImGui requires an empty preview with CustomPreview; EndCombo draws it.
+		g_comboFadeId = ImGui::GetID(a_id);
 		const int  flags = a_flags | ImGuiComboFlags_CustomPreview | (HasCustomDropdownArrow() ? ImGuiComboFlags_NoArrowButton : 0);
-		const int  hidden = HideImGuiScrollbar();
+		const int  colors = PushScrollbarColors(g_comboFadeId);
 		const bool open = ImGui::BeginCombo(a_id, "", flags);
-		ImGui::PopStyleColor(hidden);
+		ImGui::PopStyleColor(colors);
 		PopFieldStyle(pushed);
 		ImGui::PopStyleVar();
 		return open;
@@ -2905,7 +2987,7 @@ namespace Theme
 	void EndCombo(bool a_open, const char* a_preview, const FieldStyle& a_style)
 	{
 		if (a_open) {
-			DrawSkinScrollbar();
+			DrawSkinScrollbar(UpdateScrollbarFade(g_comboFadeId));
 			ImGui::EndCombo();
 		}
 		DrawComboPreview(a_preview, SkinnedStyle(a_style), a_open);
@@ -2985,9 +3067,10 @@ namespace Theme
 		// Square corners: the rules and the first and last rows' fills are square.
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, ListPaddingY()));
 		ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-		const int  hidden = HideImGuiScrollbar();
+		g_listFadeId = ImGui::GetID(a_id);
+		const int  colors = PushScrollbarColors(g_listFadeId);
 		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, a_height), ImGuiChildFlags_AlwaysUseWindowPadding);
-		ImGui::PopStyleColor(hidden);
+		ImGui::PopStyleColor(colors);
 		ImGui::PopStyleVar(2);
 		if (visible && left > 0.0f) {
 			ImGui::Indent(left);  // the rows' text lines up with the content around the list (0 would mean the default indent)
@@ -2997,7 +3080,7 @@ namespace Theme
 
 	void EndList()
 	{
-		DrawSkinScrollbar();
+		DrawSkinScrollbar(UpdateScrollbarFade(g_listFadeId));
 		ImGui::EndChild();
 		if (!g_listRules) {
 			return;
@@ -3078,9 +3161,9 @@ namespace Theme
 		const float   midY = (row.min.y + row.max.y) * 0.5f;
 		const ImU32   color = row.hovered ? LinkColor(true) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float   thick = FoldChevronThickness();
-		// Half the stroke in, so its outer edge sits on the list's edge; in Modern that edge is
-		// the list's clip, which would cut the stroke.
-		const float left = row.fillMin.x + thick * 0.5f;
+		// Its pad, then half the stroke in, so its outer edge sits on the list's edge in Vanilla
+		// and Nordic, where that edge is the list's clip, which would cut the stroke.
+		const float left = row.fillMin.x + FoldChevronPad() + thick * 0.5f;
 		auto*       draw = ImGui::GetWindowDrawList();
 		if (a_open) {
 			const ImVec2 points[] = { { left, midY - side * 0.25f }, { left + side * 0.5f, midY + side * 0.25f }, { left + side, midY - side * 0.25f } };
