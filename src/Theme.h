@@ -15,25 +15,26 @@ namespace Theme
 {
 	enum class Skin
 	{
-		kModern,   // dark panels in a palette's colours, after Edge UI (it began as Tailor 3.0's look)
+		kModern,   // dark panels in a palette's colours, nearly square frames after Edge UI (it began as Tailor 3.0's look)
 		kVanilla,  // the game's own menus
 		kNordic    // NORDIC UI
 	};
 
 	// The Modern skin's colours, each 0xRRGGBBAA (AA: opacity, FF opaque). The defaults are the
-	// Edge palette, after Edge UI; Settings reads the others from palette files.
+	// Modern palette's, a dark grey; Settings reads the others from palette files, a colour a
+	// file leaves out keeping these.
 	struct Palette
 	{
-		std::uint32_t window = 0x1E1E1CF0;       // the window
-		std::uint32_t surface = 0x262522FA;      // popups, dropdown lists and tooltips
-		std::uint32_t titleBar = 0x403C2EFF;     // the title bars of the window and its popups
-		std::uint32_t text = 0xDCD6C2FF;         // text
-		std::uint32_t label = 0x8C8A7CFF;        // field and column labels, list headings, links, greyed text
-		std::uint32_t accent = 0xD2BC72FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
-		std::uint32_t accentLight = 0xF0DBA4FF;  // the text cursor, a scroll bar or slider held
-		std::uint32_t rule = 0x4A4639FF;         // the rules and frames of the window, its fields and lists
-		std::uint32_t hover = 0x423F35FF;        // a hovered row
-		std::uint32_t selected = 0x3C3931FF;     // a selected row, the selected tab, a narrowing field's fill
+		std::uint32_t window = 0x1A1B1CF0;       // the window
+		std::uint32_t surface = 0x3A3A3AFA;      // popups, dropdown lists and tooltips
+		std::uint32_t titleBar = 0x0A0B0CFF;     // the title bars of the window and its popups
+		std::uint32_t text = 0xE4E7E8FF;         // text
+		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
+		std::uint32_t accent = 0x79845AFF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
+		std::uint32_t accentLight = 0x59845AFF;  // the text cursor, a scroll bar or slider held
+		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
+		std::uint32_t hover = 0x4B4E4FFF;        // a hovered row
+		std::uint32_t selected = 0x2A2D2EFF;     // a selected row, the selected tab, a narrowing field's fill
 		std::uint32_t error = 0xFF6666FF;        // error text and fields
 	};
 
@@ -200,7 +201,8 @@ namespace Theme
 	int HeaderRow(std::span<const char* const> labels, std::span<const float> columnX, int sorted, bool descending);
 
 	// A row the user ticks on and off, one text per column; returns true when
-	// toggled. While ticked, Modern fills it in the palette's selected colour with an
+	// toggled. While ticked, Modern fills it in the palette's selected colour, full at the
+	// row's centre, 0.8 of it at the left end and fading to nothing at the right end, with an
 	// accent rule on its left edge, as Tailor 3.0 marks a selected row; Vanilla and Nordic
 	// draw it like a SkyUI inventory row: the skin's equipped mark, and in Vanilla a white
 	// bar fading in from the left. Hovered: Modern's hover colour, Vanilla's soft white
@@ -224,8 +226,8 @@ namespace Theme
 	// A row of a single-choice list, SelectRowHeight tall, its text a little right of the
 	// list's indent; returns true when clicked. A selected row is marked left of its text:
 	// NORDIC UI's MCM page arrow in Vanilla and Nordic, Modern's accent rule on its left edge;
-	// Modern also fills it, Vanilla lays the tick row's white bar over it, Nordic shows the
-	// arrow alone. A hovered row gets the tick row's hover fill.
+	// Modern also fills it as a ticked row, Vanilla lays the tick row's white bar over it,
+	// Nordic shows the arrow alone. A hovered row gets the tick row's hover fill.
 	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's
 	// ImGui ID, so PushID around rows whose labels may repeat.
