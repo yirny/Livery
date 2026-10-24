@@ -946,8 +946,8 @@ namespace CaptureWindow::Internal
 			return;
 		}
 		const auto& name = a_state.request.actorName;
-		const auto  apply = a_state.request.movesFromPlayer ? std::format("\"Apply\" moves the ticked pieces from your inventory to {}.", name) :
-		                                                      std::format("\"Apply\" gives {} a new copy of each ticked piece; yours stay with you.", name);
+		const auto  apply = a_state.request.movesFromPlayer ? std::format("\"Apply\" moves the ticked items from your inventory to {}.", name) :
+		                                                      std::format("\"Apply\" gives {} a new copy of each ticked item; yours stay with you.", name);
 		DrawHelpTooltip(apply + (a_state.request.protectsFavorites ? " Quest items and your favorites are not listed." : " Quest items are not listed."));
 	}
 
@@ -1017,12 +1017,12 @@ namespace CaptureWindow::Internal
 	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
-		Theme::CountText(std::format("{} of {} piece(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
+		Theme::CountText(std::format("{} of {} item(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		bool add = false;
 		if (a_withWardrobeLink) {
 			const bool empty = a_state.request.existingOutfits.empty();
 			ImGui::BeginDisabled(empty);
-			add = Theme::LabelLink("Add pieces from Wardrobe...");
+			add = Theme::LabelLink("Add items from Wardrobe...");
 			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			ImGui::EndDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
@@ -1099,7 +1099,7 @@ namespace CaptureWindow::Internal
 	// set: a newline inside one text keeps the font's own line height.
 	void DrawPreviewHelpTooltip()
 	{
-		constexpr const char*                kSummary = "Keeps the game running and dresses the character in the ticked pieces.";
+		constexpr const char*                kSummary = "Keeps the game running and dresses the character in the ticked items.";
 		constexpr std::array<const char*, 5> kControls{
 			"With the cursor over the game:",
 			"Left drag - turns around the character",
@@ -1198,7 +1198,7 @@ namespace CaptureWindow::Internal
 	// pieces from Wardrobe... was clicked on the count line.
 	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load)
 	{
-		constexpr const char* kSaveTooltip = "Save the ticked pieces as a new outfit, or into an existing one.";
+		constexpr const char* kSaveTooltip = "Save the ticked items as a new outfit, or into an existing one.";
 
 		BeginButtonRow({ "Create / Update Outfit", "Apply", "Exit" });
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
@@ -1299,7 +1299,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto& request = a_state.request;
 		const auto& outfit = OutfitAt(a_state, worn);
-		ImGui::TextUnformatted(std::format("Update \"{}\" with the ticked pieces?", outfit.name).c_str());
+		ImGui::TextUnformatted(std::format("Update \"{}\" with the ticked items?", outfit.name).c_str());
 		if (!request.wornSituation.empty()) {
 			ImGui::TextUnformatted(std::format("\"{}\" is {}'s {} outfit.", outfit.name, request.actorName, request.wornSituation).c_str());
 		}
@@ -1309,7 +1309,7 @@ namespace CaptureWindow::Internal
 		bool       helpHovered = false;
 		const bool justApply = Theme::HelpButton(kJustApply, &helpHovered);
 		if (helpHovered) {
-			auto help = std::format("The ticked pieces become {}'s Default as they are, without being added to the wardrobe.", request.actorName);
+			auto help = std::format("The ticked items become {}'s Default as they are, without being added to the wardrobe.", request.actorName);
 			if (HasSituationalOutfits(a_state)) {
 				help += " While a situational outfit is worn, the new Default shows only when that situation ends.";
 			}
@@ -1497,7 +1497,7 @@ namespace CaptureWindow::Internal
 	std::string HeldOutfitName(const State& a_state, std::size_t a_row)
 	{
 		const auto outfit = a_state.request.assigned[a_row].row.chosen;
-		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("pieces that are not a saved outfit");
+		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("items that are not a saved outfit");
 	}
 
 	// "Create New Outfit / Update Existing Outfit" as the page's heading, in the heading
@@ -1652,13 +1652,13 @@ namespace CaptureWindow::Internal
 			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit, controls.height);
 			if (chosen) {
 				const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-				DrawPieceColumn(a_state, "Current Pieces", outfit.pieces, outfit.unloadedPieces);
+				DrawPieceColumn(a_state, "Current Items", outfit.pieces, outfit.unloadedPieces);
 			} else {
 				ImGui::TableNextColumn();
 				ResetCellBaseline();
 				Theme::LabelText("Select an outfit to update");
 			}
-			DrawPieceColumn(a_state, "New Pieces", TickedPieces(a_state), 0);
+			DrawPieceColumn(a_state, "New Items", TickedPieces(a_state), 0);
 			EndColumns(3);
 		}
 		ImGui::PopID();
@@ -1744,10 +1744,10 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-		ImGui::TextUnformatted(std::format("Replace the {} piece(s) of \"{}\"", outfit.pieces.size(), outfit.name).c_str());
-		ImGui::TextUnformatted(std::format("with the {} ticked piece(s)?", CountTickedPieces(a_state)).c_str());
+		ImGui::TextUnformatted(std::format("Replace the {} item(s) of \"{}\"", outfit.pieces.size(), outfit.name).c_str());
+		ImGui::TextUnformatted(std::format("with the {} ticked item(s)?", CountTickedPieces(a_state)).c_str());
 		if (outfit.unloadedPieces) {
-			ImGui::TextDisabled("%s", std::format("{} piece(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+			ImGui::TextDisabled("%s", std::format("{} item(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
@@ -1882,7 +1882,7 @@ namespace CaptureWindow
 			state.resetImGui = true;
 			state.page = Page::kCapture;
 			state.captureTitle = std::format("{}'s Inventory", state.request.actorName);
-			state.applyTooltip = std::format("Dress {} in the ticked pieces.", state.request.actorName);
+			state.applyTooltip = std::format("Dress {} in the ticked items.", state.request.actorName);
 			SetGroupHeadings(state);
 			state.sortColumn = kNameColumn;
 			state.sortDescending = false;

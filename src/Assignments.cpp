@@ -873,7 +873,7 @@ namespace Assignments
 		}
 		SyncManaged();
 		Notify(released == total ? std::format("Livery: released {} character(s).", total) :
-								   std::format("Livery: released {} of {} character(s); the others are out of reach and keep their pieces.", released, total));
+								   std::format("Livery: released {} of {} character(s); the others are out of reach and keep their items.", released, total));
 	}
 
 	void Assign(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_armor, std::uint32_t a_outfit)
@@ -996,7 +996,7 @@ namespace Assignments
 		const auto pieces = assignment->pieces.size();
 		DropIfEmpty(id);
 		SyncManaged();
-		auto text = pieces > 0 ? std::format("Livery: {} now wears {}{}", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default pieces",
+		auto text = pieces > 0 ? std::format("Livery: {} now wears {}{}", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default items",
 									 SituationStore::Suffix(worn)) :
 		                         std::format("Livery: {}: own clothes now", NameOf(a_actor));
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");

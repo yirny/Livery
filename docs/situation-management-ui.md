@@ -122,7 +122,7 @@ nothing for the Default; the summary line names the Default too. Only these:
 
 | Where | Text |
 | --- | --- |
-| Inventory summary line (`DescribeAssignment`) | `Wearing "X" for Town.`, `Wearing "X" as Default.`; `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library; with pieces Livery put on no longer worn (`PiecesNotWorn`), `Assigned "X" as Default, 1 piece not worn.`, `Dressed by Livery, 2 pieces not worn.`; with worn armor Livery did not put on, `, 1 extra piece worn` after them (`GapsOf`) |
+| Inventory summary line (`DescribeAssignment`) | `Wearing "X" for Town.`, `Wearing "X" as Default.`; `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library; with pieces Livery put on no longer worn (`PiecesNotWorn`), `Assigned "X" as Default, 1 item not worn.`, `Dressed by Livery, 2 items not worn.`; with worn armor Livery did not put on, `, 1 extra item worn` after them (`GapsOf`) |
 | Situation change HUD (`SituationChangeText`) | `Livery: Lydia now wears "X" for Town.` |
 | Assign HUD, nothing went on | `...; dressed now for Town.` |
 | Assign HUD | `Livery: Lydia now wears these for Town` |
@@ -179,7 +179,7 @@ outfit for Town any more`.
   outfit list where its fold headings' text starts, after the chevron (`kEdge`); the name
   starts 12px past the dots. Random on: every outfit on the list. Random off: `chosen`
   only. A row that wears nothing shows nothing under its heading; the Default wearing its
-  `pieces` shows a `Pieces not in the wardrobe` line with no grip; an id the library no longer
+  `pieces` shows a `Items not in the wardrobe` line with no grip; an id the library no longer
   has (another save's) shows nothing (§1).
 - A click on an outfit row, here or in the right pane's outfit list, shows the outfit's
   details in the right pane (§5) and puts it on the preview; a click on the outfit whose
@@ -192,11 +192,11 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 
 | From | Dropped on | Result |
 | --- | --- | --- |
-| an outfit list row (right) | a heading, its rule, its `Pieces...` line | added at the front (§1) |
+| an outfit list row (right) | a heading, its rule, its `Items...` line | added at the front (§1) |
 | an outfit list row (right) | between two outfit rows of a situation | added there |
 | a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target |
 | a situation's outfit row | its own situation | reordered |
-| a situation's outfit row, or `Pieces not in the wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
+| a situation's outfit row, or `Items not in the wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
 
 - Random on: an outfit the target already holds moves to the drop position instead of being
   added twice. Random off: the outfit dropped becomes `chosen` by §1's rule, the one it
