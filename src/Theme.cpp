@@ -2828,7 +2828,7 @@ namespace Theme
 			const ImU32  color = LinkColor(hovered);
 			const ImVec2 pos = ImGui::GetItemRectMin();
 			if (unnamed && hovered && a_unnamedTip) {
-				ImGui::SetTooltip("%s", a_unnamedTip);
+				Theme::Tooltip(a_unnamedTip);
 			}
 			if (!unnamed) {
 				draw->AddText(pos, color, label.c_str());
@@ -2923,7 +2923,7 @@ namespace Theme
 			break;
 		}
 		if (hovered) {
-			ImGui::SetTooltip("%s", a_name);
+			Theme::Tooltip(a_name);
 		}
 		return clicked;
 	}
@@ -3122,6 +3122,28 @@ namespace Theme
 
 	void PopSmallFont()
 	{
+		ImGui::PopFont();
+	}
+
+	// The font stack is ImGui's, not the window's: pushed before the tooltip begins, the body
+	// font draws all of it. SetTooltip, as before: it replaces a tooltip asked for earlier in
+	// the frame.
+	void Tooltip(const char* a_text)
+	{
+		ImGui::PushFont(ImGui::GetIO().FontDefault, ImGui::GetStyle().FontSizeBase);
+		ImGui::SetTooltip("%s", a_text);
+		ImGui::PopFont();
+	}
+
+	void BeginTooltip()
+	{
+		ImGui::PushFont(ImGui::GetIO().FontDefault, ImGui::GetStyle().FontSizeBase);
+		ImGui::BeginTooltip();
+	}
+
+	void EndTooltip()
+	{
+		ImGui::EndTooltip();
 		ImGui::PopFont();
 	}
 
@@ -3514,7 +3536,7 @@ namespace Theme
 			if (ImGui::IsMouseHoveringRect(ImVec2(right - side, textY), ImVec2(right, textY + side))) {
 				// From the right: the star first when both are drawn, the form mark last.
 				const bool star = a_marks.situations && i == 0;
-				ImGui::SetTooltip("%s", star ? a_marks.situations : FormMarkTooltip(a_marks));
+				Theme::Tooltip(star ? a_marks.situations : FormMarkTooltip(a_marks));
 			}
 		}
 		return row.pressed;

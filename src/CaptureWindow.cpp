@@ -409,7 +409,7 @@ namespace CaptureWindow::Internal
 		// After EndDisabled, so the tooltip is not drawn faded.
 		const char* tooltip = a_reason ? a_reason : a_tooltip;
 		if (tooltip && hovered) {
-			ImGui::SetTooltip("%s", tooltip);
+			Theme::Tooltip(tooltip);
 		}
 		return clicked && !a_reason;
 	}
@@ -725,11 +725,11 @@ namespace CaptureWindow::Internal
 	{
 		constexpr float kWrapEms = 28.0f;  // the tooltip's text width, in font sizes
 
-		ImGui::BeginTooltip();
+		Theme::BeginTooltip();
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * kWrapEms);
 		ImGui::TextUnformatted(a_text.c_str());
 		ImGui::PopTextWrapPos();
-		ImGui::EndTooltip();
+		Theme::EndTooltip();
 	}
 
 	// Opens a modal popup centred on the screen, in the skin; when it returns true, fill it
@@ -1025,7 +1025,7 @@ namespace CaptureWindow::Internal
 			ImGui::EndDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (empty && hovered) {
-				ImGui::SetTooltip("%s", kNoOutfits);
+				Theme::Tooltip(kNoOutfits);
 			}
 		}
 		if (ticked == 0) {
@@ -1108,7 +1108,7 @@ namespace CaptureWindow::Internal
 		constexpr float kLineGap = 2.0f;     // pixels at 1080p, between lines
 		constexpr float kSummaryGap = 8.0f;  // pixels at 1080p, between the summary and the controls
 
-		ImGui::BeginTooltip();
+		Theme::BeginTooltip();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, kLineGap * Theme::Scale()));
 		ImGui::TextUnformatted(kSummary);
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (kSummaryGap - kLineGap) * Theme::Scale());
@@ -1116,7 +1116,7 @@ namespace CaptureWindow::Internal
 			ImGui::TextUnformatted(line);
 		}
 		ImGui::PopStyleVar();
-		ImGui::EndTooltip();
+		Theme::EndTooltip();
 	}
 
 	// The Live Preview tick: greyed, with the reason on hover, when the preview
@@ -1135,7 +1135,7 @@ namespace CaptureWindow::Internal
 		ImGui::EndDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
 		if (hovered && !note.empty()) {
-			ImGui::SetTooltip("%s", note.c_str());
+			Theme::Tooltip(note.c_str());
 		}
 		// Outside BeginDisabled, so the help stays readable while the tick is greyed.
 		ImGui::SameLine();
@@ -1533,7 +1533,7 @@ namespace CaptureWindow::Internal
 		// After EndDisabled and EndHeadingTabs, so the tooltip is neither faded nor in the
 		// heading font.
 		if (noOutfits && hovered) {
-			ImGui::SetTooltip("%s", kNoOutfits);
+			Theme::Tooltip(kNoOutfits);
 		}
 		return clicked;
 	}
@@ -1550,7 +1550,7 @@ namespace CaptureWindow::Internal
 		if (a_icon) {
 			const bool clicked = Theme::IconField("##outfitIcon", *a_icon);
 			if (ImGui::IsItemHovered()) {
-				ImGui::SetTooltip("Outfit Icon");
+				Theme::Tooltip("Outfit Icon");
 			}
 			if (a_iconClicked) {
 				*a_iconClicked = clicked;
@@ -1569,10 +1569,10 @@ namespace CaptureWindow::Internal
 			if (ImGui::IsItemEdited()) {
 				a_state.error.clear();
 			} else if (ImGui::IsItemHovered()) {
-				ImGui::SetTooltip("%s", a_state.error.c_str());
+				Theme::Tooltip(a_state.error.c_str());
 			}
 		} else if (ImGui::IsItemHovered() && !ImGui::IsItemActive()) {
-			ImGui::SetTooltip("Outfit Name");
+			Theme::Tooltip("Outfit Name");
 		}
 		return enter && !Trimmed(a_name.data()).empty();
 	}
