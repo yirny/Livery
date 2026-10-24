@@ -32,7 +32,7 @@ and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nord
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add pieces from Wardrobe...`,
-`Edit`, `Restore Outfit`, `Remove`, `Restore Presets`) and `Sort by` take the
+`Edit`, `Restore`, `Remove`, `Restore Presets`) and `Sort by` take the
 small font in every skin.
 
 ## 1. Outfit list (step 1)
@@ -105,7 +105,7 @@ page. Each page keeps its own search and sort.
   - Create / Update Outfit: `Save the ticked pieces as a new outfit, or into an existing one.`
   - Apply: `Dress #{Name} in the ticked pieces.`
   - Exit: none.
-- `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the button
+- `Restore (?)`, while Livery dresses the actor, sits at the right end of the button
   row (`Theme::LineHelpLink`), its text centred on the buttons' height, in the count
   line's font and colour, lit on hover; the `(?)` is inside its click area and hovering it
   shows the help. A click asks `Restore #{Name}'s original outfit?` / `This takes Livery's
@@ -173,7 +173,7 @@ page. Each page keeps its own search and sort.
 - The preview shows the selected outfit as edited; with none selected, the Inventory page's
   ticks.
 - Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (step 3) at the row's right
-  end, a link drawn as Restore Outfit is, without the `(?)` (`Theme::LineLink`).
+  end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`).
   - Update: greyed until the outfit differs from the library (trimmed name, pieces), and
     with an empty name (`kNeedName`). A popup (`Save changes?`) lists
     what changes (pieces, rename), as the Save page's Update tab does; the
@@ -293,8 +293,8 @@ An Apply (the Inventory page's, Apply to #{Name}, Update and Apply) dresses the 
 actor at once, Live Preview on or off, as above, and the window stays on its page; with
 Live Preview on the preview begins again on what they wear now (the Inventory page) or the
 outfit Manage Wardrobe has selected. The Inventory page follows what they wear
-(`actorPieces`), and `Restore Outfit` shows while Livery dresses them
-(`OutfitList::dressed`). The Save page's Create and Apply and Restore Outfit close the window
+(`actorPieces`), and `Restore` shows while Livery dresses them
+(`OutfitList::dressed`). The Save page's Create and Apply and Restore close the window
 first.
 
 ## 7. Code

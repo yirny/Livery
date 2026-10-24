@@ -18,7 +18,7 @@
 //                  onPieceToggled; under the list the count line, ending in Add pieces from
 //                  Wardrobe... (the Load page; greyed while the library has no outfits); the
 //                  Live Preview tick, handed to onPreviewOn / onPreviewOff in an SKSE task that
-//                  also freezes or unfreezes the game; Save / Apply / Exit, with Restore Outfit
+//                  also freezes or unfreezes the game; Save / Apply / Exit, with Restore
 //                  at the row's right end while Livery dresses the actor; Apply asks first
 //                  when the ticks differ from the library outfit Livery has on the actor (Yes
 //                  updates it); Apply and Restore hand over to onApply / onRestore
@@ -1036,7 +1036,7 @@ namespace CaptureWindow::Internal
 		return add;
 	}
 
-	// Restore Outfit and its "(?)" at the right end of the button row, while Livery dresses
+	// Restore and its "(?)" at the right end of the button row, while Livery dresses
 	// the character (Request::dressed, Request::onRestore). Returns true when it is clicked.
 	// Contract: right after the row's last button, on its line.
 	bool DrawRestoreLink(const State& a_state)
@@ -1045,7 +1045,7 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		bool       hovered = false;
-		const bool restore = Theme::LineHelpLink("Restore Outfit", &hovered);
+		const bool restore = Theme::LineHelpLink("Restore", &hovered);
 		if (hovered) {
 			DrawHelpTooltip(std::format(
 				"Takes Livery's outfit off {} and forgets their situational outfits. Items moved from your inventory stay with them.",
@@ -1175,11 +1175,11 @@ namespace CaptureWindow::Internal
 	}
 
 	// The widest button row of the Capture page, which sets the page's least width: the row
-	// is centred, so Restore Outfit at the line's right end needs its width and an item
+	// is centred, so Restore at the line's right end needs its width and an item
 	// spacing on either side of it, whatever the font or screen.
 	float CaptureButtonsWidth()
 	{
-		const float restore = Theme::LineHelpLinkWidth("Restore Outfit") + ImGui::GetStyle().ItemSpacing.x;
+		const float restore = Theme::LineHelpLinkWidth("Restore") + ImGui::GetStyle().ItemSpacing.x;
 		return ButtonRowWidth({ "Create / Update Outfit", "Apply", "Exit" }) + restore * 2.0f;
 	}
 
@@ -1193,7 +1193,7 @@ namespace CaptureWindow::Internal
 		kExit
 	};
 
-	// Create / Update Outfit, Apply and Exit centred below a gap, then Restore Outfit at the
+	// Create / Update Outfit, Apply and Exit centred below a gap, then Restore at the
 	// row's right end. Create / Update Outfit and Apply act on the ticked pieces, so they need at least one. `a_load`: Add
 	// pieces from Wardrobe... was clicked on the count line.
 	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load)
