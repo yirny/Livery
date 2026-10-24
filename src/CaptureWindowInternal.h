@@ -127,10 +127,10 @@ namespace CaptureWindow::Internal
 		std::vector<std::size_t>        pieces;  // its loaded pieces as edited: indices into request.pieces, ascending
 	};
 
-	// Manage Wardrobe's Choose icon popup while it is open.
+	// The Choose icon popup (Manage Wardrobe's and the Save page's Create tab's) while it is open.
 	struct IconPicker
 	{
-		OutfitIcons::Icon            pick;        // the choice, from ManageForm::icon as it opens; OK makes it that icon
+		OutfitIcons::Icon            pick;        // the choice, from the edited icon as it opens; OK hands it back
 		std::optional<std::uint32_t> hoverColor;  // the colour the mouse was over last frame, which every icon shows
 	};
 
@@ -229,6 +229,8 @@ namespace CaptureWindow::Internal
 		// The Save page's tabs' names, each kept while the window is open.
 		std::array<char, kNameCapacity> createName{};
 		std::array<char, kNameCapacity> updateName{};
+		// The Create tab's icon as chosen in Choose icon; nullopt follows the ticks (CreateIcon).
+		std::optional<OutfitIcons::Icon> createIcon;
 	};
 
 	// The piece list a page shows (DrawPieceRows): the Inventory page's ticks with the
@@ -255,6 +257,10 @@ namespace CaptureWindow::Internal
 		bool* a_iconClicked = nullptr);
 	bool                     BeginModal(const char* a_id);
 	void                     SetGroupHeadings(State& a_state);
+
+	// Choose icon (OutfitPages.cpp), opened as kIconPopup with State::iconPicker set: returns
+	// the choice on OK, else nullopt. `a_keepOpen` false closes it (its outfit is gone).
+	std::optional<OutfitIcons::Icon> DrawIconPopup(State& a_state, bool a_keepOpen);
 
 	void                                 QueueMenuSound(RE::FormID a_sound);
 	void                                 GoToPage(State& a_state, Page a_page);

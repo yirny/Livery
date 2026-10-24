@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "OutfitBrowser.h"
@@ -268,4 +270,32 @@ TEST_CASE("Outfit colours read and write as #rrggbb", "[icons]")
 	CHECK_FALSE(OutfitIcons::FromHex("#eaeae").has_value());
 	CHECK_FALSE(OutfitIcons::FromHex("#eaeaeg").has_value());
 	CHECK(OutfitIcons::kKeys[OutfitIcons::KeyOrder(OutfitIcons::kDefaultKey)] == OutfitIcons::kDefaultKey);
+}
+
+TEST_CASE("A new outfit's icon: body first, then head, circlet, hands, feet, amulet, ring, any", "[icons]")
+{
+	constexpr std::uint32_t    kHair = 1u << 1;
+	constexpr std::uint32_t    kBody = 1u << 2;
+	constexpr std::uint32_t    kHands = 1u << 3;
+	constexpr std::uint32_t    kRing = 1u << 6;
+	constexpr std::uint32_t    kTail = 1u << 10;
+	constexpr std::string_view kHood = "skyui/icons_item_psychosteve/clothing_head";
+	constexpr std::string_view kGloves = "skyui/icons_item_psychosteve/lightarmor_hands";
+	constexpr std::string_view kRingKey = "skyui/icons_item_psychosteve/armor_ring";
+	constexpr std::string_view kCloak = "i4iconaddon/icons/clothing_cloak";
+	constexpr std::string_view kRobe = "skyui/icons_item_psychosteve/clothing_body";
+	const auto                 all = [](std::string_view) { return true; };
+
+	// Head before hands and ring, whatever the order of the pieces.
+	CHECK(OutfitIcons::SuggestKey({ { kRing, kRingKey }, { kHands, kGloves }, { kHair, kHood } }, all) == kHood);
+	// Body first; a piece on several slots counts for each.
+	CHECK(OutfitIcons::SuggestKey({ { kHair, kHood }, { kBody | kHands, kRobe } }, all) == kRobe);
+	// A key the picker does not list, and one whose PNG is not loaded, are passed over.
+	CHECK(OutfitIcons::SuggestKey({ { kBody, "skyui/icons_item_psychosteve/default_armor" }, { kHands, kGloves } }, all) == kGloves);
+	CHECK(OutfitIcons::SuggestKey({ { kBody, kRobe }, { kHands, kGloves } }, [&](std::string_view key) { return key != kRobe; }) == kGloves);
+	// A piece on no listed slot comes last.
+	CHECK(OutfitIcons::SuggestKey({ { kTail, kCloak }, { kRing, kRingKey } }, all) == kRingKey);
+	CHECK(OutfitIcons::SuggestKey({ { kTail, kCloak } }, all) == kCloak);
+	CHECK(OutfitIcons::SuggestKey({ { 0, "" } }, all) == OutfitIcons::kDefaultKey);
+	CHECK(OutfitIcons::SuggestKey({}, all) == OutfitIcons::kDefaultKey);
 }

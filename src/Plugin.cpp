@@ -109,9 +109,9 @@ namespace
 	// Contract: game thread. Library::Create checks every refusal before it changes
 	// anything, so a refusal never leaves an empty outfit.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors)
+	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors, const OutfitIcons::Icon& icon)
 	{
-		if (auto error = Library::Create(name, armors)) {
+		if (auto error = Library::Create(name, armors, icon)) {
 			return error;
 		}
 		Notify(std::format("Livery: saved {} ({} items).", name, armors.size()));
@@ -763,7 +763,8 @@ namespace
 		request.assigned = AssignedRows(choices);
 		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
 			const auto picked = PickPieces(armors, save.pieces);
-			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked, save.icon) : SaveOutfit(save.name, picked);
+			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked, save.icon) :
+			                                 SaveOutfit(save.name, picked, save.icon.value_or(OutfitIcons::Icon{}));
 			if (error) {
 				CaptureWindow::SetError(*error);
 				return;
