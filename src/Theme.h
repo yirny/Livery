@@ -150,8 +150,8 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool HelpButton(const char* label, bool* hovered);
 
-	// A square-cornered list of rows between a rule above and a rule below (none with
-	// `rules` false). The rules and the rows' fills span the content. In Modern the whole list keeps
+	// A square-cornered list of rows between a rule above and a rule below. The rules and
+	// the rows' fills span the content. In Modern the whole list keeps
 	// to the content, its backdrop ending at the window's padding as the other
 	// controls do; in Vanilla and Nordic the rows' click areas run on past the
 	// window's padding to its edges (Vanilla's right one to its frame's band, so a
@@ -167,7 +167,7 @@ namespace Theme
 	// the mouse has been out of it for 0.1 s.
 	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
 	// columns clip the outer sides short of the window's edges (Vanilla, Nordic).
-	bool BeginList(const char* id, float height, bool rules = true);
+	bool BeginList(const char* id, float height);
 	void EndList();
 
 	// Pixels on the back buffer: the padding between a list's rules and its
