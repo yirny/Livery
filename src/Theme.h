@@ -34,6 +34,7 @@ namespace Theme
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
 		std::uint32_t hover = 0x4B4E4FFF;        // a hovered row
 		std::uint32_t selected = 0x2A2D2EFF;     // a selected row, the selected tab, a narrowing field's fill
+		std::uint32_t stripe = 0x00000010;       // every second outfit row, laid over it
 		std::uint32_t error = 0xFF6666FF;        // error text and fields
 	};
 
@@ -342,7 +343,7 @@ namespace Theme
 
 	// A SelectRow with the outfit's name, ending in an ellipsis short of `marks`.
 	// The name starts 22px in from the row's left edge in every skin, and a `striped`
-	// row (every other one) has a faint white under its fills. With `grip`, a drag grip where
+	// row (every other one) has the palette's stripe colour under its fills. With `grip`, a drag grip where
 	// it says, in LabelText's grey at low alpha, and
 	// the name starts 12px past its dots instead. Selected, Vanilla marks it with the equipped
 	// mark of a ticked piece and Nordic with the select arrow, 2px right of the

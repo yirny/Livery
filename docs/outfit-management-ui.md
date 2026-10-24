@@ -76,7 +76,8 @@ page. Each page keeps its own search and sort.
 - `Sort by`'s text is right-aligned, ending 6px short of its arrow.
 - Rows meet with no gap (the list lays them out with no item spacing; each row and heading
   holds the former gap, half above and half below), and every second row under a heading
-  has a faint white (16/255) under its fills, in every skin, as Tailor 3.0's outfit list
+  has the palette's Stripe colour under its fills (Vanilla and Nordic white, Modern black,
+  both at 16/255), as Tailor 3.0's outfit list
   alternates its rows. Names start 22px in from the row's left edge.
 - The Filter dropdown is hidden behind a constant, its code kept: it is likely to return.
 - `Sort by`: Name, Situation. Situation puts headings in the list: the rows holding the
