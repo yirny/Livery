@@ -31,7 +31,7 @@ and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nord
 (`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by `Settings`); below,
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
-in Nordic 0.7 of the body (14px). Count lines, the links (`Add pieces from Wardrobe...`,
+in Nordic 0.7 of the body (14px). Count lines, the links (`Add items from Wardrobe...`,
 `Edit`, `Restore`, `Remove`, `Restore Presets`) and `Sort by` take the
 small font in every skin.
 
@@ -98,12 +98,12 @@ page. Each page keeps its own search and sort.
   backpack over `Inventory` and
   `#{Player}'s Inventory`, the dressed form of an outfit row's current-outfit mark over the
   three `Outfit (...)` headings, the bare form over the loaded outfit's.
-- The count line ends in `Add pieces from Wardrobe...` (`Theme::LabelLink`, its plus mark
+- The count line ends in `Add items from Wardrobe...` (`Theme::LabelLink`, its plus mark
   first), which opens the Load page; greyed while the library is empty, showing
   `kNoOutfits` on hover. The buttons are `Create / Update Outfit`, `Apply`, `Exit`.
 - Tooltips on hover while enabled; a greyed button shows its reason instead:
-  - Create / Update Outfit: `Save the ticked pieces as a new outfit, or into an existing one.`
-  - Apply: `Dress #{Name} in the ticked pieces.`
+  - Create / Update Outfit: `Save the ticked items as a new outfit, or into an existing one.`
+  - Apply: `Dress #{Name} in the ticked items.`
   - Exit: none.
 - `Restore (?)`, while Livery dresses the actor, sits at the right end of the button
   row (`Theme::LineHelpLink`), its text centred on the buttons' height, in the count
@@ -112,8 +112,8 @@ page. Each page keeps its own search and sort.
   outfit off #{Name} and forgets every situational outfit chosen for them.` with `Restore` /
   `Cancel`.
 - The `Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
-  is over that mark alone: `"Apply" moves the ticked pieces from your inventory to #{Name}.`
-  (or `"Apply" gives #{Name} a new copy of each ticked piece; yours stay with you.`), then
+  is over that mark alone: `"Apply" moves the ticked items from your inventory to #{Name}.`
+  (or `"Apply" gives #{Name} a new copy of each ticked item; yours stay with you.`), then
   `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
   are not listed.`
 - The Apply popup's `No, apply as is (?)` help: `The ticked pieces become #{Name}'s Default
@@ -230,14 +230,14 @@ page. Each page keeps its own search and sort.
   heading, as after Load. Its ticks are its own; the Inventory page's stay as they were.
 - Title `Edit "#{Outfit}"`, no summary line, no tab column. It has the window's Live Preview
   tick; the preview shows this page's ticks.
-- The count line ends in `Add pieces from Wardrobe...`, as on the Inventory page (§2): the
+- The count line ends in `Add items from Wardrobe...`, as on the Inventory page (§2): the
   Load page opens, and Load adds the selected outfit's pieces to this page's ticks instead
   of replacing them: a ticked piece sharing a body slot with one of them is unticked, as a
   tick would untick it. Its pieces nobody carries stay listed, and their heading names every
   outfit they come from (`"A", "B"`). While the Load page is open the
   preview shows this page's ticks with the selected outfit added; Load and Back return to
   this page, nothing written.
-- `Use Ticked Pieces` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
+- `Use Ticked Items` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
   pieces and the page returns to Manage Wardrobe; nothing is written. `Back` and Escape
   return with the edited pieces as they were.
 
@@ -328,7 +328,7 @@ first.
 
 - Step 1: each sort's headings, folded and unfolded; Load from its button; the three skins.
 - Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
-  rebuilt list; a taken name refused; Edit, Use Ticked Pieces and Back; the three warnings;
+  rebuilt list; a taken name refused; Edit, Use Ticked Items and Back; the three warnings;
   Update of the outfit the captured actor wears, at once with Live Preview on and off (the
   frozen game showing the new outfit, no empty torso); the three skins.
 - Step 3: Remove of an outfit in use lists its users; the captured actor wearing it for a

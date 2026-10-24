@@ -61,7 +61,7 @@ namespace CaptureWindow::Internal
 		constexpr const char* kUnnamed = "Unnamed Situation";
 		constexpr const char* kDiscardNote = "Your unsaved changes are discarded.";
 		// A line in an outfit row's place under a heading.
-		constexpr const char* kPiecesLine = "Pieces not in the wardrobe";
+		constexpr const char* kPiecesLine = "Items not in the wardrobe";
 
 		// --- Edits ------------------------------------------------------------
 

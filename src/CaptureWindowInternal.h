@@ -29,9 +29,9 @@
 
 namespace CaptureWindow::Internal
 {
-	constexpr std::size_t kNameCapacity = 64;                 // bytes, UTF-8, including the terminator
-	constexpr float       kMaxListHeightRatio = 0.6f;         // of the screen height, for every scrolling list
-	constexpr const char* kConfirmPopup = "Replace pieces?";  // IDs shared by OpenPopup and BeginPopupModal
+	constexpr std::size_t kNameCapacity = 64;                // bytes, UTF-8, including the terminator
+	constexpr float       kMaxListHeightRatio = 0.6f;        // of the screen height, for every scrolling list
+	constexpr const char* kConfirmPopup = "Replace items?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kCreateApplyPopup = "Apply outfit?###createAndApply";
 	constexpr const char* kApplyPopup = "Update the outfit?";
 	// Manage Wardrobe' popups.
@@ -44,10 +44,10 @@ namespace CaptureWindow::Internal
 	constexpr const char* kLeavePopup = "Unsaved changes";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
-	constexpr const char* kNeedPiece = "Tick at least one piece.";
+	constexpr const char* kNeedPiece = "Tick at least one item.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
-	constexpr const char* kNoLoadedPiece = "None of its pieces is loaded.";
+	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
 	constexpr const char* kNoChanges = "No changes to save.";
 	constexpr const char* kWornAlready = "Already worn as is.";
 	// Frames the window's place is pinned after Open or a page change: an
@@ -187,7 +187,7 @@ namespace CaptureWindow::Internal
 		bool                     resetImGui = false;  // set by Open, handled on the next frame
 		Page                     page = Page::kCapture;
 		std::string              captureTitle;       // the Capture page's title line
-		std::string              applyTooltip;       // "Dress #{Name} in the ticked pieces."
+		std::string              applyTooltip;       // "Dress #{Name} in the ticked items."
 		GroupHeadings            headings;           // over each group's pieces (CaptureWindow::PieceGroup)
 		std::vector<std::size_t> pieceOrder;         // indices into request.pieces as the list shows them (SortPieces)
 		int                      sortColumn = 0;     // the piece list's sorted column: Name, Type or Slot

@@ -95,7 +95,7 @@ namespace Theme
 	// it, 6px. CountText is LabelText with the text kept as written and in the small font in
 	// every skin, for count lines; the links take the small font too.
 	// Contract: every field label goes through LabelText, and every count line
-	// ("2 of 5 piece(s) selected", "12 outfit(s) in the wardrobe") through CountText.
+	// ("2 of 5 item(s) selected", "12 outfit(s) in the wardrobe") through CountText.
 	void LabelText(const char* text, bool opensField = true);
 	void CountText(const char* text, bool opensField = true);
 
