@@ -1993,6 +1993,7 @@ namespace CaptureWindow
 		request.categories = std::move(a_list.categories);
 		request.actorSummary = std::move(a_list.actorSummary);
 		request.dressed = a_list.dressed;
+		request.piecesNotWorn = a_list.piecesNotWorn;
 
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
 		state.loadedOutfit = IndexOfOutfit(state, loaded);

@@ -627,12 +627,14 @@ namespace CaptureWindow::Internal
 	}
 
 	// Whether Apply would change nothing: no library edits, and the actor wears the selected
-	// outfit now for the Default or a situation not removed, the row Apply would give it again.
+	// outfit now, every piece Livery put on still on them (a piece taken back in the trade menu
+	// is not: Apply puts a copy on), for the Default or a situation not removed, the row Apply
+	// would give it again.
 	// Contract: an outfit is selected.
 	bool WearsManagedAsIs(const State& a_state)
 	{
 		const auto& request = a_state.request;
-		if (HasLibraryEdits(a_state) || request.wornOutfit != ManagedOutfitId(a_state)) {
+		if (HasLibraryEdits(a_state) || request.wornOutfit != ManagedOutfitId(a_state) || request.piecesNotWorn > 0) {
 			return false;
 		}
 		return request.wornFor == Situations::Situation::kDefault || WornSituationRow(a_state).has_value();
