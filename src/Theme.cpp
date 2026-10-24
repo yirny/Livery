@@ -3372,7 +3372,6 @@ namespace Theme
 	bool OutfitRow(const char* a_name, bool a_selected, const OutfitMarks& a_marks, bool a_striped, Grip a_grip)
 	{
 		constexpr float kMarkLineWidth = 1.2f;  // pixels at 1080p
-		constexpr int   kStripeAlpha = 8;       // of the white over a striped row, out of 255
 		constexpr float kEdgeMarkPad = 2.0f;    // pixels at 1080p, clear on either side of the select mark in an edge grip's room
 		constexpr float kMarkShift = 2.0f;      // pixels at 1080p, the select mark right of its room's centre on a row without a grip
 
@@ -3382,7 +3381,7 @@ namespace Theme
 		const float   textY = row.min.y + gap * 0.5f + kSelectRowPadY * g_scale;
 		auto*         draw = ImGui::GetWindowDrawList();
 		if (a_striped) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(IM_COL32(255, 255, 255, kStripeAlpha)));
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(PaletteColor(g_palette.stripe)));
 		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		// Selected: Modern's rule on the row's edge (DrawSelectMark), which leaves the grip room;
