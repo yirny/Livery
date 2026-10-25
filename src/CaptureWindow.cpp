@@ -7,8 +7,8 @@
 //   Input        - QueueInput translates engine events and moves the game's cursor;
 //                  FeedInput hands them and the cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers; the tab column
-//                  (Inventory, Manage Wardrobe, Manage Situations) and its rule beside those
-//                  pages; leaving a page with unsaved edits through the unsaved-changes alert
+//                  (Inventory, Manage Wardrobe, Manage Situations, Appearance) and its rule beside
+//                  those pages; leaving a page with unsaved edits through the unsaved-changes alert
 //                  (Save Changes, Discard Changes, Back); mouse and key input over the game
 //                  goes to onViewInput
 //   Capture page - the Inventory page: the actor's pieces under a heading per group (their
@@ -29,6 +29,8 @@
 //                  Update shows the wardrobe's outfits, the chosen one's pieces and the ticked
 //                  ones in three columns (ChooseOutfit), its confirm popup before the write;
 //                  both tabs hand over to onSave
+//   Appearance   - Window skin, Restore original palette and Play menu sounds, written to the
+//                  INI at once (Settings); the window is drawn in a new skin from the next frame
 //   Outfit pages - the outfit browser and lists, the Load, Manage Wardrobe and Edit pages:
 //                  OutfitPages.cpp; the Manage Situations page: SituationPage.cpp
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
@@ -494,15 +496,15 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
 	}
 
-	// The Inventory page, Manage Wardrobe and Manage Situations have the tab column at the
-	// window's left edge; the pages they lead to do not.
+	// The Inventory page, Manage Wardrobe, Manage Situations and Appearance have the tab column
+	// at the window's left edge; the pages they lead to do not.
 	bool HasTabs(Page a_page)
 	{
-		return a_page == Page::kCapture || a_page == Page::kManage || a_page == Page::kSituations;
+		return a_page == Page::kCapture || a_page == Page::kManage || a_page == Page::kSituations || a_page == Page::kAppearance;
 	}
 
-	// Inventory, Manage Wardrobe, then Manage Situations, each centred between the window's
-	// left edge and the rule. A click on another tab leaves the page for it (RequestLeave).
+	// Inventory, Manage Wardrobe, Manage Situations, then Appearance, each centred between the
+	// window's left edge and the rule. A click on another tab leaves the page for it (RequestLeave).
 	void DrawTabColumn(State& a_state)
 	{
 		struct TabOption
@@ -511,10 +513,11 @@ namespace CaptureWindow::Internal
 			const char*    name;
 			Page           page;
 		};
-		constexpr std::array<TabOption, 3> kTabs{ {
+		constexpr std::array<TabOption, 4> kTabs{ {
 			{ Theme::TabIcon::kInventory, "Inventory", Page::kCapture },
 			{ Theme::TabIcon::kOutfits, "Manage Wardrobe", Page::kManage },
 			{ Theme::TabIcon::kSituations, "Manage Situations", Page::kSituations },
+			{ Theme::TabIcon::kAppearance, "Appearance", Page::kAppearance },
 		} };
 
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
@@ -645,8 +648,8 @@ namespace CaptureWindow::Internal
 	}
 
 	// The page's heading: the Inventory page's own title over the summary line; Manage
-	// Wardrobe's, Manage Situations' and the Edit page's with no summary line; the Load page's the actor's name over the summary line. The Save page's tabs are
-	// its heading (DrawSaveTabs).
+	// Wardrobe's, Manage Situations' and the Edit page's with no summary line; the Load page's the actor's name over the summary line;
+	// Appearance's over where the other settings are. The Save page's tabs are its heading (DrawSaveTabs).
 	void DrawTitle(const State& a_state)
 	{
 		switch (a_state.page) {
@@ -664,6 +667,9 @@ namespace CaptureWindow::Internal
 			break;
 		case Page::kLoad:
 			Theme::HeadingText(a_state.request.actorName.c_str(), a_state.request.actorSummary.c_str());
+			break;
+		case Page::kAppearance:
+			Theme::HeadingText("Appearance", "Other settings are in Livery.ini or on the SKSE Menu Framework page.");
 			break;
 		case Page::kSave:
 			break;
@@ -1898,6 +1904,101 @@ namespace CaptureWindow::Internal
 			GoToPage(a_state, Page::kCapture);
 		}
 	}
+
+	// --- Appearance page ------------------------------------------------------
+
+	// The Window skin dropdown, wide enough for its longest palette name, one row per palette;
+	// a choice closes it.
+	void DrawWindowSkin(const Settings::PaletteChoices& a_palettes, const char* a_source)
+	{
+		const Theme::FieldStyle style{};
+		float                   width = 0.0f;
+		for (const auto& label : a_palettes.labels) {
+			width = (std::max)(width, Theme::DropdownWidth(label.c_str(), style));
+		}
+		Theme::LabelText("Window skin");
+		ImGui::SetNextItemWidth((std::min)(width, ImGui::GetContentRegionAvail().x));
+		const bool open = Theme::BeginCombo("##windowSkin", ImGuiComboFlags_None, style);
+		if (open) {
+			for (std::size_t i = 0; i < a_palettes.labels.size(); ++i) {
+				bool chosen = i == a_palettes.chosen;
+				if (Theme::DropdownRow(a_palettes.labels[i].c_str(), &chosen, false)) {
+					QueueMenuSound(kFocusSound);
+					Settings::ChoosePalette(i, a_source);
+					ImGui::CloseCurrentPopup();
+				}
+			}
+		}
+		Theme::EndCombo(open, a_palettes.labels[a_palettes.chosen].c_str(), style);
+	}
+
+	// `Restore Edge.ini as Livery ships it?`, then Restore / Cancel. Returns true on Restore.
+	bool DrawRestorePalettePopup(const char* a_id, const std::string& a_file)
+	{
+		if (!BeginModal(a_id)) {
+			return false;
+		}
+		ImGui::TextUnformatted(std::format("Restore {}.ini as Livery ships it? Your changes to it will be lost.", a_file).c_str());
+		BeginButtonRow({ "Restore", "Cancel" });
+		const bool restore = Theme::Button("Restore");
+		ImGui::SameLine();
+		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		if (restore || cancel) {
+			QueueMenuSound(restore ? kOkSound : kCancelSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return restore;
+	}
+
+	// The settings page's Appearance section (Settings): Window skin, with Restore original
+	// palette at the line's right end while the chosen shipped palette is edited, and Play menu
+	// sounds; then Exit, which Escape also is. Nothing here is an edit to save: a choice is
+	// written at once, and the next frame's Theme::Apply builds the window in it.
+	void DrawAppearancePage(State& a_state)
+	{
+		constexpr auto kSource = "window";  // as the log names this page
+		constexpr auto kRestorePalettePopup = "Restore original palette?###restorePalette";
+
+		const auto palettes = Settings::ListPalettes();
+		bool       restore = false;
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		if (!palettes.labels.empty()) {
+			DrawWindowSkin(palettes, kSource);
+			if (palettes.edited) {
+				restore = Theme::LineLink("Restore original palette");
+				if (ImGui::IsItemHovered()) {
+					Theme::Tooltip("Writes the palette file back as Livery ships it.");
+				}
+			}
+		}
+		Theme::SectionGap();  // a field of its own, with no label
+		bool sounds = Settings::MenuSounds();
+		if (Theme::Checkbox("Play menu sounds", &sounds)) {
+			Settings::SetMenuSounds(sounds, kSource);
+			QueueMenuSound(kFocusSound);
+		}
+		if (ImGui::IsItemHovered()) {
+			Theme::Tooltip("Plays the game's menu sounds for clicks in Livery.");
+		}
+		BeginButtonRow({ "Exit" });
+		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+		const bool exit = Theme::Button("Exit") || escape;
+		EndButtonRow();
+		ImGui::EndDisabled();
+
+		if (restore) {
+			QueueMenuSound(kOkSound);
+			ImGui::OpenPopup(kRestorePalettePopup);
+		}
+		if (DrawRestorePalettePopup(kRestorePalettePopup, palettes.file)) {
+			Settings::RestoreChosenPalette(kSource);
+		}
+		if (exit && a_state.status == Status::kEditing) {
+			RequestLeave(a_state, { .exit = true });
+		}
+	}
 }
 
 namespace CaptureWindow
@@ -2233,6 +2334,9 @@ namespace CaptureWindow
 			break;
 		case Page::kSituations:
 			DrawSituationPage(state);
+			break;
+		case Page::kAppearance:
+			DrawAppearancePage(state);
 			break;
 		}
 		if (tabs) {

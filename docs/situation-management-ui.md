@@ -138,7 +138,7 @@ outfit for Town any more`.
 
 - The third tab of the tab column (docs/outfit-management-ui.md §3): the star, point down,
   that marks a situational outfit in the outfit list, tooltip `Manage Situations`. The tab
-  column shows on the Inventory, Manage Wardrobe and Manage Situations pages.
+  column shows on the Inventory, Manage Wardrobe, Manage Situations and Appearance pages.
 - Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on Manage Wardrobe:
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
@@ -310,7 +310,7 @@ shows the situation's.
   front, move, `chosen` on remove, resolve) in a header the unit tests reach.
 - `src/SituationPage.cpp` (step C): the page, its drag and drop, popups and buttons;
   `CaptureWindowInternal.h` gains the page and its state; `CMakeLists.txt` gains the files
-  (CLAUDE.md §1, build system). `CaptureWindow.cpp` has the tab column's three tabs and the
+  (CLAUDE.md §1, build system). `CaptureWindow.cpp` has the tab column's tabs and the
   unsaved-changes alert both pages share (`RequestLeave`, `DrawLeavePopup`).
 - `src/OutfitRows.h`: `Place`, a drop at a place in a row's list (`Give` is a drop at the
   front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick.

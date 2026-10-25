@@ -95,9 +95,10 @@ namespace CaptureWindow::Internal
 		kCapture,  // the Inventory page
 		kSave,
 		kLoad,
-		kManage,     // Manage Wardrobe
-		kEdit,       // Manage Wardrobe' piece editor
-		kSituations  // Manage Situations
+		kManage,      // Manage Wardrobe
+		kEdit,        // Manage Wardrobe' piece editor
+		kSituations,  // Manage Situations
+		kAppearance   // the window's skin and menu sounds (Settings)
 	};
 
 	struct InputRecord

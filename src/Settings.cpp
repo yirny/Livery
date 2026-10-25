@@ -55,6 +55,8 @@ namespace
 	constexpr auto kPaletteSkinKey = L"Skin";     // the skin a palette file is for; Modern when left out
 	constexpr auto kDefaultPalette = L"Modern";   // keep in step with kIniKeys
 
+	constexpr auto kMenuSource = "SKSE Menu Framework";  // the settings page, as the log names it
+
 	constexpr float kDefaultSpeedPercent = 100.0f;  // keep in step with kIniKeys
 	constexpr float kMinSpeedPercent = 10.0f;
 	constexpr float kMaxSpeedPercent = 200.0f;
@@ -191,9 +193,9 @@ namespace
 
 	// Contract: filled once by Load, before the render thread or SKSE Menu Framework reads it;
 	// no palette is added or removed afterwards, so the size and each stem are fixed. Restore
-	// original palette changes a palette's label, skin and colours and the settings page the
-	// choice, only on SKSE Menu Framework's render thread and under g_paletteMutex, which any
-	// other thread holds to read them.
+	// original palette changes a palette's label, skin and colours and a Window skin dropdown
+	// the choice (Settings::RestoreChosenPalette, ChoosePalette), under g_paletteMutex, which
+	// any other thread holds to read them.
 	std::vector<PaletteOption> g_palettes;          // sorted by label
 	std::size_t                g_paletteIndex = 0;  // into g_palettes
 	std::mutex                 g_paletteMutex;
@@ -697,27 +699,6 @@ namespace
 		logger::info("Palette = {}", g_palettes[g_paletteIndex].label);
 	}
 
-	// Writes the chosen palette's file back as Livery ships it and rereads it; the capture
-	// window takes it the next time it opens. A file that cannot be written changes nothing.
-	// Contract: SKSE Menu Framework's render thread (RenderSettings), not holding g_paletteMutex.
-	void RestoreChosenPalette()
-	{
-		std::wstring stem;
-		{
-			std::scoped_lock lock{ g_paletteMutex };
-			stem = g_palettes[g_paletteIndex].stem;
-		}
-		const auto* shipped = FindShippedPalette(stem);
-		const auto  path = PalettePath(stem);
-		if (!shipped || !WriteShippedPalette(path, *shipped)) {
-			return;
-		}
-		auto restored = ReadPalette(path);
-		logger::info("Restored palette {} as shipped (SKSE Menu Framework)", restored.label);
-		std::scoped_lock lock{ g_paletteMutex };
-		g_palettes[g_paletteIndex] = std::move(restored);
-	}
-
 	// --- SKSE Menu Framework page ---------------------------------------------
 
 	// Contract: SKSE Menu Framework calls this on the game's input path for every event,
@@ -851,43 +832,33 @@ namespace
 	// The palette dropdown, one row per palette file by its label, and Restore original palette
 	// beside it, shown only while the chosen palette is one Livery ships with its skin or a
 	// colour edited. Both take effect the next time the capture window opens.
-	// Contract: render thread (RenderSettings), the only one that changes g_palettes after Load.
+	// Contract: render thread (RenderSettings).
 	void RenderWindowSkin()
 	{
 		constexpr float kComboWidthEms = 14.0f;  // the dropdown's width, of the font size
 		constexpr auto  kPopup = "Restore original palette?###RestorePalette";
 
-		if (g_palettes.empty()) {
+		const auto palettes = Settings::ListPalettes();
+		if (palettes.labels.empty()) {
 			return;
 		}
-		std::string stem;
-		bool        edited = false;
-		{
-			std::scoped_lock lock{ g_paletteMutex };
-			ImGuiMCP::AlignTextToFramePadding();
-			ImGuiMCP::Text("Window skin");
-			ImGuiMCP::SameLine();
-			ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
-			if (ImGuiMCP::BeginCombo("##WindowSkin", g_palettes[g_paletteIndex].label.c_str())) {
-				for (std::size_t i = 0; i < g_palettes.size(); ++i) {
-					ImGuiMCP::PushID(static_cast<int>(i));
-					if (ImGuiMCP::Selectable(g_palettes[i].label.c_str(), i == g_paletteIndex) && i != g_paletteIndex) {
-						g_paletteIndex = i;
-						SavePalette(g_palettes[i].stem);
-						logger::info("Palette = {} (SKSE Menu Framework)", g_palettes[i].label);
-					}
-					ImGuiMCP::PopID();
+		ImGuiMCP::AlignTextToFramePadding();
+		ImGuiMCP::Text("Window skin");
+		ImGuiMCP::SameLine();
+		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
+		if (ImGuiMCP::BeginCombo("##WindowSkin", palettes.labels[palettes.chosen].c_str())) {
+			for (std::size_t i = 0; i < palettes.labels.size(); ++i) {
+				ImGuiMCP::PushID(static_cast<int>(i));
+				if (ImGuiMCP::Selectable(palettes.labels[i].c_str(), i == palettes.chosen)) {
+					Settings::ChoosePalette(i, kMenuSource);
 				}
-				ImGuiMCP::EndCombo();
+				ImGuiMCP::PopID();
 			}
-			ImGuiMCP::SetItemTooltip("Takes effect the next time you open the window.");
-			const auto& chosen = g_palettes[g_paletteIndex];
-			stem = SKSE::stl::utf16_to_utf8(chosen.stem).value_or("?");
-			const auto* shipped = FindShippedPalette(chosen.stem);
-			edited = shipped && PaletteEdited(chosen, *shipped);
+			ImGuiMCP::EndCombo();
 		}
+		ImGuiMCP::SetItemTooltip("Takes effect the next time you open the window.");
 
-		if (edited) {
+		if (palettes.edited) {
 			ImGuiMCP::SameLine();
 			if (ImGuiMCP::Button("Restore original palette")) {
 				ImGuiMCP::OpenPopup(kPopup);
@@ -897,9 +868,9 @@ namespace
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
-		ImGuiMCP::Text("Restore %s.ini as Livery ships it? Your changes to it will be lost.", stem.c_str());
+		ImGuiMCP::Text("Restore %s.ini as Livery ships it? Your changes to it will be lost.", palettes.file.c_str());
 		if (ImGuiMCP::Button("Yes")) {
-			RestoreChosenPalette();
+			Settings::RestoreChosenPalette(kMenuSource);
 			ImGuiMCP::CloseCurrentPopup();
 		}
 		ImGuiMCP::SameLine();
@@ -1081,9 +1052,7 @@ namespace
 		// Applies at once.
 		bool menuSounds = g_menuSounds.load();
 		if (ImGuiMCP::Checkbox("Play menu sounds", &menuSounds)) {
-			g_menuSounds = menuSounds;
-			SaveMenuSounds(menuSounds);
-			logger::info("MenuSounds = {} (SKSE Menu Framework)", menuSounds);
+			Settings::SetMenuSounds(menuSounds, kMenuSource);
 		}
 		ImGuiMCP::SetItemTooltip("Plays the game's menu sounds for clicks in Livery.\nDefault: ON");
 
@@ -1252,9 +1221,75 @@ namespace Settings
 		return g_palettes.empty() ? Theme::Palette{} : g_palettes[g_paletteIndex].palette;  // no file: Modern's colours
 	}
 
+	PaletteChoices ListPalettes()
+	{
+		PaletteChoices   choices;
+		std::scoped_lock lock{ g_paletteMutex };
+		if (g_palettes.empty()) {
+			return choices;
+		}
+		choices.labels.reserve(g_palettes.size());
+		for (const auto& palette : g_palettes) {
+			choices.labels.push_back(palette.label);
+		}
+		const auto& chosen = g_palettes[g_paletteIndex];
+		choices.chosen = g_paletteIndex;
+		choices.file = SKSE::stl::utf16_to_utf8(chosen.stem).value_or("?");
+		const auto* shipped = FindShippedPalette(chosen.stem);
+		choices.edited = shipped && PaletteEdited(chosen, *shipped);
+		return choices;
+	}
+
+	void ChoosePalette(std::size_t a_index, const char* a_source)
+	{
+		std::wstring stem;
+		std::string  label;
+		{
+			std::scoped_lock lock{ g_paletteMutex };
+			if (a_index >= g_palettes.size() || a_index == g_paletteIndex) {
+				return;
+			}
+			g_paletteIndex = a_index;
+			stem = g_palettes[a_index].stem;
+			label = g_palettes[a_index].label;
+		}
+		SavePalette(stem);
+		logger::info("Palette = {} ({})", label, a_source);
+	}
+
+	void RestoreChosenPalette(const char* a_source)
+	{
+		std::size_t  index = 0;
+		std::wstring stem;
+		{
+			std::scoped_lock lock{ g_paletteMutex };
+			if (g_palettes.empty()) {
+				return;
+			}
+			index = g_paletteIndex;
+			stem = g_palettes[index].stem;
+		}
+		const auto* shipped = FindShippedPalette(stem);
+		const auto  path = PalettePath(stem);
+		if (!shipped || !WriteShippedPalette(path, *shipped)) {
+			return;
+		}
+		auto restored = ReadPalette(path);
+		logger::info("Restored palette {} as shipped ({})", restored.label, a_source);
+		std::scoped_lock lock{ g_paletteMutex };
+		g_palettes[index] = std::move(restored);
+	}
+
 	bool MenuSounds()
 	{
 		return g_menuSounds.load();
+	}
+
+	void SetMenuSounds(bool a_on, const char* a_source)
+	{
+		g_menuSounds = a_on;
+		SaveMenuSounds(a_on);
+		logger::info("MenuSounds = {} ({})", a_on, a_source);
 	}
 
 	float CameraSpeedScale()

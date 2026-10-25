@@ -2024,6 +2024,39 @@ namespace
 		}
 	}
 
+	// A painter's palette: a round board with a bite out of its lower right for the thumb, and
+	// three dabs of paint along the rim across from the bite, smaller towards the upper right,
+	// each as far from the rim and from the next.
+	void DrawPaletteIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		constexpr float kRadius = 0.368f;                      // the board's, of the side
+		constexpr float kBiteTop = 18.0f * IM_PI / 180.0f;     // where the bite leaves the rim, clockwise from the right
+		constexpr float kBiteBottom = 82.0f * IM_PI / 180.0f;  // and where it meets it again
+		constexpr int   kBiteSegments = 8;
+		struct Dab
+		{
+			float x, y, radius;  // of the side
+		};
+		constexpr std::array<Dab, 3> kDabs{ { { 0.319f, 0.605f, 0.079f }, { 0.329f, 0.368f, 0.072f }, { 0.531f, 0.278f, 0.064f } } };
+
+		const ImVec2 centre = a_frame.At(0.50f, 0.50f);
+		const float  radius = kRadius * a_frame.side;
+		const auto   rim = [&](float a_angle) { return ImVec2(centre.x + std::cos(a_angle) * radius, centre.y + std::sin(a_angle) * radius); };
+		const ImVec2 top = rim(kBiteTop);
+		const ImVec2 bottom = rim(kBiteBottom);
+		const ImVec2 control = a_frame.At(0.642f, 0.669f);
+		// Round from the bite's bottom to its top, then the bite's curve back, without its ends:
+		// a point twice over would thicken the closed outline's join.
+		a_draw->PathArcTo(centre, radius, kBiteBottom, kBiteTop + 2.0f * IM_PI);
+		for (int i = 1; i < kBiteSegments; ++i) {
+			a_draw->PathLineTo(ImBezierQuadraticCalc(top, control, bottom, static_cast<float>(i) / kBiteSegments));
+		}
+		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
+		for (const auto& dab : kDabs) {
+			a_draw->AddCircleFilled(a_frame.At(dab.x, dab.y), dab.radius * a_frame.side, a_color);
+		}
+	}
+
 	// A die seen from above a corner: a hexagon, its corners kDiceInset in from the sides,
 	// split into its three faces by lines from the centre; one pip on the top face, three on
 	// the left one and two on the right one, each run of pips across its face's diagonal.
@@ -2920,6 +2953,9 @@ namespace Theme
 		case TabIcon::kSituations:
 			DrawStarIcon(draw, frame, color, thick);
 			break;
+		case TabIcon::kAppearance:
+			DrawPaletteIcon(draw, frame, color, thick);
+			break;
 		}
 		if (hovered) {
 			Theme::Tooltip(a_name);
@@ -3095,6 +3131,14 @@ namespace Theme
 		}
 		const float right = field.shape == FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
 		return text + style.ItemInnerSpacing.x + DropdownArrowSize().x + right;
+	}
+
+	// The popup takes the field's width as its least (ImGui::BeginCombo), so a row wider than
+	// that, as Nordic's with its select arrow, needs the field widened.
+	float DropdownWidth(const char* a_label, const FieldStyle& a_style)
+	{
+		const float padding = (g_skin == Skin::kModern ? kModernDropdownPadding : kSquareDropdownPadding).x * g_scale;
+		return (std::max)(ComboWidth(a_label, a_style), DropdownRowWidth(a_label, false) + padding * 2.0f);
 	}
 
 	bool ClearButton(const char* a_id, float a_side)

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "Theme.h"
 
@@ -29,14 +32,39 @@ namespace Settings
 	// when the window opens with Live Preview on. Safe from any thread.
 	bool NpcReaction();
 
-	// The skin and colours of the palette [UI] Palette or SKSE Menu Framework chose, from the
+	// The skin and colours of the palette [UI] Palette or a Window skin dropdown chose, from the
 	// files in Data/SKSE/Plugins/Livery/palettes, which Load writes when missing and reads once;
 	// Restore original palette rewrites and rereads one. Safe from any thread.
 	Theme::Skin    Skin();
 	Theme::Palette Palette();
 
+	// What the Window skin dropdowns (the settings page's and the window's Appearance page) show:
+	// every palette's label, sorted, the chosen one, its file name without .ini, and whether
+	// Restore original palette would change it (a shipped palette whose file differs from what
+	// Livery ships). No labels with no palette file. Safe from any thread.
+	struct PaletteChoices
+	{
+		std::vector<std::string> labels;
+		std::size_t              chosen = 0;  // into labels
+		std::string              file;
+		bool                     edited = false;
+	};
+	PaletteChoices ListPalettes();
+
+	// ChoosePalette chooses the palette at `a_index` into ListPalettes().labels and writes it to
+	// [UI] Palette; RestoreChosenPalette writes the chosen shipped palette's file back as Livery
+	// ships it and rereads it (a file that cannot be written changes nothing). The capture window
+	// draws in the result from its next frame. `a_source` names the page in the log.
+	// Contract: a render thread (the settings page's or the window's).
+	void ChoosePalette(std::size_t a_index, const char* a_source);
+	void RestoreChosenPalette(const char* a_source);
+
 	// Whether the capture window plays the game's menu sounds. Safe from any thread.
 	bool MenuSounds();
+
+	// Turns the window's menu sounds on or off and writes [UI] MenuSounds; `a_source` names the
+	// page in the log. Safe from any thread.
+	void SetMenuSounds(bool a_on, const char* a_source);
 
 	// Multiplier on the preview camera's movement, mouse drags and wheel zoom; 1 is normal. Safe from any thread.
 	float CameraSpeedScale();

@@ -461,6 +461,10 @@ namespace Theme
 	// Width a dropdown of this style needs to show `preview` whole, in the current font.
 	float ComboWidth(const char* preview, const FieldStyle& style);
 
+	// Width a dropdown of this style needs to show `label` whole both as its preview and as a
+	// single-choice row of its popup (DropdownRow, inside the popup's padding), in the current font.
+	float DropdownWidth(const char* label, const FieldStyle& style);
+
 	// A square button `side` pixels across drawn as a cross, grey until
 	// hovered; returns true when clicked. Faded and inert inside BeginDisabled.
 	// Lay it over the right end of a field submitted with
@@ -478,9 +482,10 @@ namespace Theme
 	// the skin's colours.
 	enum class TabIcon
 	{
-		kInventory,  // a backpack
-		kOutfits,    // a bare dress form: a padded torso on a stand
-		kSituations  // the star, point down, that marks an outfit chosen for a situation (OutfitMarks)
+		kInventory,   // a backpack
+		kOutfits,     // a bare dress form: a padded torso on a stand
+		kSituations,  // the star, point down, that marks an outfit chosen for a situation (OutfitMarks)
+		kAppearance   // a painter's palette
 	};
 
 	// One tab of the column at the window's left edge, a square: the icon in the text colour
