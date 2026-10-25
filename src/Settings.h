@@ -90,6 +90,11 @@ namespace Settings
 	// message. Safe from any thread.
 	bool NotifySituationChanges();
 
+	// Whether every save load releases everyone Livery dresses ([Uninstall] ReleaseEveryone), the
+	// uninstall path without SKSE Menu Framework. Read once at Load, never written back by Livery.
+	// Safe from any thread.
+	bool ReleaseEveryoneOnLoad();
+
 	// Whether a keyboard key going down (DirectInput scan code) is the capture hotkey:
 	// the configured key, with its modifier held when one is configured.
 	// Contract: call from the input path while handling that key's event, since the
