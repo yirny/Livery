@@ -144,16 +144,18 @@ page. Each page keeps its own search and sort.
 
 - A column of icon tabs at the window's left edge, a rule between it and the page:
   Inventory (a backpack), Manage Wardrobe (a bare dress form: a padded torso on a stand,
-  each shoulder one arc) and Manage Situations (the star, point down, of the outfit rows'
-  situation mark; docs/situation-management-ui.md §3).
+  each shoulder one arc), Manage Situations (the star, point down, of the outfit rows'
+  situation mark; docs/situation-management-ui.md §3) and Appearance (a painter's palette: a
+  round board with a bite out of its lower right, three dabs of paint across from it, smaller
+  towards the upper right, each as far from the rim and from the next).
 - Icons only, drawn as ImDrawList lines, so they scale with the resolution and take the
   skin's colours: the selected tab in the text colour on the selected row's fill (its corners
   rounded 2px), the others in
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
 - Each tab is centred between the window's left edge and the rule. Nordic's start 8px
   lower, clear of the corner knot.
-- Shown on the Inventory, Manage Wardrobe and Manage Situations pages only; the Load, Save,
-  Select and Edit pages have none.
+- Shown on the Inventory, Manage Wardrobe, Manage Situations and Appearance pages only; the
+  Load, Save, Select and Edit pages have none.
 - Switching tabs keeps the Inventory page's ticks until the window closes. Leaving Manage
   Wardrobe or Manage Situations with unsaved edits asks first (§4,
   docs/situation-management-ui.md §6).
@@ -162,6 +164,25 @@ page. Each page keeps its own search and sort.
   menu's `Select an attribute to increase`, taken from its .swf with JPEXS and credited in
   `NORDIC-UI-CREDITS.txt`; without the texture, 1px in its rule colour.
 - Nordic's corner knots frame the whole window, tab column included.
+
+### Appearance page
+
+- The SKSE Menu Framework page's Appearance section inside the window, so the look can be
+  changed without that framework and seen at once. One column, as wide as the Inventory page.
+- Heading `Appearance`, its summary line `Other settings are in Livery.ini or on the SKSE
+  Menu Framework page.`
+- `Window skin`: a dropdown of the palettes, as wide as its longest name, as the settings
+  page's dropdown lists them. A choice is written to `[UI] Palette` at once and the window is
+  drawn in it from the next frame (`Theme::Apply` runs every frame from `Settings::Skin` and
+  `Palette`; every skin's fonts and textures are loaded at start). Restore original palette
+  at the line's right end while the chosen shipped palette's file differs from what Livery
+  ships: its popup `Restore Edge.ini as Livery ships it? Your changes to it will be lost.`,
+  Restore / Cancel.
+- `Play menu sounds`, a tick written to `[UI] MenuSounds` at once.
+- Exit, which Escape also is. Nothing here is an unsaved edit, so leaving never asks.
+- The settings page's dropdown and tick show the same state (`Settings::ListPalettes`,
+  `ChoosePalette`, `RestoreChosenPalette`, `SetMenuSounds`); the log names the page a change
+  came from.
 
 ## 4. Manage Wardrobe page (step 2)
 
@@ -337,7 +358,7 @@ first.
   list (`FoldHeading`), the rows' fills and NORDIC UI's line, the dropdown rows
   (`DropdownRow`), a label's `(?)` (`LabelHelpMark`), a list heading's (`ListHeadingHelp`),
   a link with its `(?)` (`LabelHelpLink`), a button with one (`HelpButton`), the underlined
-  fields with the pen, the icons (bare and dressed form, star), `AfterFieldGap`.
+  fields with the pen, the icons (bare and dressed form, star, palette), `AfterFieldGap`.
 - `Plugin.cpp`: the Situation group for `Request::categories` and each outfit's rows, the
   Manage Wardrobe handlers, the redress queue (§6).
 
