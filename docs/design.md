@@ -103,7 +103,10 @@ says so), so a lock would be needed anyway.
   back on.
 - Release everything (for uninstall): Release everyone at the end of the SKSE Menu
   Framework settings page, confirmed in a popup, refused without a loaded save or while
-  the capture window is open; no key does it. Unassign every managed actor. Actors not
+  the capture window is open; no key does it. Without SKSE Menu Framework, `[Uninstall]
+  ReleaseEveryone=1` in the INI (read once at start) queues the same release as an SKSE
+  task at every `kPostLoadGame` (not `kNewGame`), after a HUD message that the mode is on;
+  Livery never resets the key. Unassign every managed actor. Actors not
   in memory (non-persistent NPCs whose cell is not loaded) cannot be reached and keep
   their locks and copies. Locks and copies are otherwise the only residue after removal;
   they do not break a save.
