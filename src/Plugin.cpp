@@ -1350,6 +1350,18 @@ namespace
 		});
 	}
 
+	// [Uninstall] ReleaseEveryone: every save load releases everyone, announced each time so the
+	// player knows the mode is still on; Livery never turns it off by itself.
+	// Contract: queued at kPostLoadGame, after the co-save was read; the window is closed then
+	// (kPreLoadGame closed it) and the release runs as an SKSE task, as the settings page's does.
+	void QueueUninstallRelease()
+	{
+		SKSE::GetTaskInterface()->AddTask([] {
+			Notify("Livery: uninstall mode is on (Livery.ini: [Uninstall] ReleaseEveryone=1).");
+			Assignments::ReleaseEveryone();
+		});
+	}
+
 	// --- Event sinks ----------------------------------------------------------
 
 	class CrosshairSink final : public RE::BSTEventSink<SKSE::CrosshairRefEvent>
@@ -1438,6 +1450,10 @@ namespace
 			g_ready = true;
 			g_target = {};
 			Situations::Start();
+			// A new game has no one to release.
+			if (message->type == SKSE::MessagingInterface::kPostLoadGame && Settings::ReleaseEveryoneOnLoad()) {
+				QueueUninstallRelease();
+			}
 			break;
 
 		default:

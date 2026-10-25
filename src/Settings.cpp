@@ -49,6 +49,8 @@ namespace
 	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
 	constexpr auto kSituationsSection = L"Situations";
 	constexpr auto kNotifyChangesKey = L"NotifyChanges";
+	constexpr auto kUninstallSection = L"Uninstall";
+	constexpr auto kReleaseEveryoneKey = L"ReleaseEveryone";
 
 	constexpr auto kPaletteDir = L"Data/SKSE/Plugins/Livery/palettes";
 	constexpr auto kPaletteSection = L"Palette";  // the section of a palette file that holds its skin and colours
@@ -77,7 +79,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 15> kIniKeys{ {
+	constexpr std::array<IniKey, 16> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
 			L"1 = the hotkey works only on followers and your spouse; anyone else shows an error message.\n"
 			L"0 = the hotkey works on any adult NPC.\n"
@@ -136,6 +138,10 @@ namespace
 			L"1 = a message on screen tells you when a character changes outfit because a situation (Town, Warm, ...) began or ended.\n"
 			L"0 = they change without a message.\n"
 			L"Easiest to change in game through SKSE Menu Framework." },
+		{ kUninstallSection, kReleaseEveryoneKey, L"0",
+			L"1 = every time a save loads, Livery releases everyone it dresses and tells you on screen, until you set this back to 0.\n"
+			L"Use it before you uninstall Livery when you do not have SKSE Menu Framework, whose Livery page has a Release everyone button.\n"
+			L"0 = normal play. Read once when the game starts." },
 	} };
 
 	// A modifier is named by its left-hand code in the INI and the picker; either side counts.
@@ -179,6 +185,7 @@ namespace
 	std::atomic<bool>          g_protectFavorites{ true };
 	std::atomic<bool>          g_moveFromPlayer{ true };
 	std::atomic<bool>          g_notifySituationChanges{ false };
+	std::atomic<bool>          g_releaseEveryoneOnLoad{ false };
 	std::filesystem::path      g_iniPath;   // set once by Load, read-only afterwards
 	void (*g_releaseEveryone)() = nullptr;  // set once by RegisterMenu, before the page can render
 
@@ -1164,6 +1171,11 @@ namespace Settings
 		::GetPrivateProfileStringW(kSituationsSection, kNotifyChangesKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
 		g_notifySituationChanges = std::wstring_view{ value } == L"1";
 		logger::info("NotifyChanges = {}", g_notifySituationChanges.load());
+
+		// A missing key keeps the default (off).
+		::GetPrivateProfileStringW(kUninstallSection, kReleaseEveryoneKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		g_releaseEveryoneOnLoad = std::wstring_view{ value } == L"1";
+		logger::info("ReleaseEveryoneOnLoad = {}", g_releaseEveryoneOnLoad.load());
 	}
 
 	void RegisterMenu(void (*a_releaseEveryone)())
@@ -1330,5 +1342,10 @@ namespace Settings
 	bool NotifySituationChanges()
 	{
 		return g_notifySituationChanges.load();
+	}
+
+	bool ReleaseEveryoneOnLoad()
+	{
+		return g_releaseEveryoneOnLoad.load();
 	}
 }
