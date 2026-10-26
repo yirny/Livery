@@ -28,7 +28,7 @@ dragged; it fades in over 0.2 s, stays while the mouse is in the list, and fades
 0.8 s once the mouse has been out of the list for 0.1 s. Fonts at 1080p: Modern's body 20px
 and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nordic's 20px and
 26px (Sovngarde). The palette `[UI] Palette` names picks the skin and its colours
-(`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by `Settings`); below,
+(`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by sarrai-common's `Palettes`); below,
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add items from Wardrobe...`,
