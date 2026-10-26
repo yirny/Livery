@@ -3,9 +3,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
-#include <vector>
 
+#include "sarrai/Palettes.h"
 #include "sarrai/Theme.h"
 
 // User settings from Data/SKSE/Plugins/Livery.ini, editable in game
@@ -33,22 +32,15 @@ namespace Settings
 	bool NpcReaction();
 
 	// The skin and colours of the palette [UI] Palette or a Window skin dropdown chose, from the
-	// files in Data/SKSE/Plugins/Livery/palettes, which Load writes when missing and reads once;
-	// Restore original palette rewrites and rereads one. Safe from any thread.
+	// files in Data/SKSE/Plugins/Livery/palettes (sarrai-common's Palettes), which Load writes
+	// when missing and reads once; Restore original palette rewrites and rereads one. Safe from
+	// any thread.
 	Theme::Skin    Skin();
 	Theme::Palette Palette();
 
-	// What the Window skin dropdowns (the settings page's and the window's Appearance page) show:
-	// every palette's label, sorted, the chosen one, its file name without .ini, and whether
-	// Restore original palette would change it (a shipped palette whose file differs from what
-	// Livery ships). No labels with no palette file. Safe from any thread.
-	struct PaletteChoices
-	{
-		std::vector<std::string> labels;
-		std::size_t              chosen = 0;  // into labels
-		std::string              file;
-		bool                     edited = false;
-	};
+	// What the Window skin dropdowns (the settings page's and the window's Appearance page) show.
+	// Safe from any thread.
+	using PaletteChoices = Palettes::Choices;
 	PaletteChoices ListPalettes();
 
 	// ChoosePalette chooses the palette at `a_index` into ListPalettes().labels and writes it to

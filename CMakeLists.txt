@@ -212,8 +212,8 @@ else()
     # first start and adds missing keys afterwards, so the player's settings survive updates.
 
     # The piece icons, and sarrai-common's skin fonts (with their OFL licences) and textures. The
-    # palettes are not installed: the plugin writes those missing on start (src/Settings.cpp), so
-    # a deploy never overwrites the player's edits.
+    # palettes are not installed: the plugin writes those missing on start (sarrai-common's
+    # Palettes, called from src/Settings.cpp), so a deploy never overwrites the player's edits.
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/Livery"
             DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
     sarrai_install_assets("${DEPLOY_DIR}/SKSE/Plugins/Livery")
