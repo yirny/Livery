@@ -39,10 +39,10 @@
 #include "CaptureWindow.h"
 
 #include "CaptureWindowInternal.h"
-#include "Hooks.h"
 #include "OutfitBrowser.h"
 #include "Settings.h"
-#include "Theme.h"
+#include "sarrai/Overlay.h"
+#include "sarrai/Theme.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>  // ClosePopupsExceptModals
@@ -1554,7 +1554,7 @@ namespace CaptureWindow::Internal
 	{
 		Theme::SectionGap();  // a field with no label
 		if (a_icon) {
-			const bool clicked = Theme::IconField("##outfitIcon", *a_icon);
+			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon));
 			if (ImGui::IsItemHovered()) {
 				Theme::Tooltip("Outfit Icon");
 			}
@@ -2072,7 +2072,7 @@ namespace CaptureWindow
 		if (state.frozeGame) {
 			SetGameFrozen(true);
 		}
-		Hooks::ShowMenu();
+		Overlay::ShowMenu();
 		QueueMenuSound(kOpenSound);
 	}
 
@@ -2101,7 +2101,7 @@ namespace CaptureWindow
 		if (frozeGame) {
 			SetGameFrozen(false);
 		}
-		Hooks::HideMenu();
+		Overlay::HideMenu();
 		if (onClose) {
 			onClose();  // outside the lock: it dresses the actor again
 		}

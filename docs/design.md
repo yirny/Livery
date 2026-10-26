@@ -169,7 +169,7 @@ copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list sho
 trade menu shows.
 
 Call sites, Address Library IDs (the 1.6.1170, 1.6.1179 and 1.7.104 tables hold them all, the
-overlay's callees in `src/Hooks.cpp` included), with SPID's offsets: AE from 1.6.1130, 1.7.x included,
+overlay's callees in sarrai-common's `src/Overlay.cpp` included), with SPID's offsets: AE from 1.6.1130, 1.7.x included,
 `51145+0xEB`, `51146+0x15B`, `51144+0x10F` (an AE function inlines the caller of the first); AE
 up to 1.6.629 `51145+0xBE`, `51146+0x12E`; AE 1.6.640 `51144+0xE2`; SE 1.5.97 `50216+0xED`,
 `50217+0x152`. The Steam executable is DRM-wrapped, so the bytes are checked at install instead:
@@ -177,7 +177,7 @@ a site is hooked where SPID's signature, the `call` and the instructions after i
 (`E8 ?? ?? ?? ?? 90 48 85 DB` for the list fill), matches, at SPID's offset or else at the one
 place in the function's first `kScanBytes` (0x400) where it does, which the log reports; a
 signature found nowhere, or twice, leaves the site alone with a warning. Skyrim VR is not
-covered. Checked in game on 1.6.1170 only; the overlay's own two hooks (`src/Hooks.cpp`) check
+covered. Checked in game on 1.6.1170 only; the overlay's own two hooks (sarrai-common, `src/Overlay.cpp`) check
 at install that their sites hold a `call` reaching the callee dMenu NG verified on 1.6.1170,
 1.7.99 and 1.7.104, or code outside the game's `.text` (another plugin hooked the call first, as
 HotkeyAtlas does the input dispatch; Livery's hook then calls that one in turn, and the log says

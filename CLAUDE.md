@@ -38,7 +38,8 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 - **Never edit:** `lib/commonlibsse-ng`, `lib/vcpkg` (submodules; bump only via `scripts/update.sh` on request); `build/`; `docs/archive/` (the user's raw drafts, kept for people: do not read them either; `.claude/settings.json` denies Read there).
 - **Ask first:** `.github/`, `scripts/`, `lefthook.yml`, lint configs (`.clang-format`, `.clang-tidy`, `.vale*`, `dprint.json`).
 - **Never touch outside the repo:** the Skyrim install, MO2 mods / profiles / overwrite, other mods' data files — give the user steps instead. Deploy only to `build/msvc/deploy/` unless the user set `DEPLOY_DIR_OVERRIDE`.
-- `lib/commonlibsse-ng/CLAUDE.md` and `AGENTS.md` describe upstream library development; they do not apply here. Read `lib/` only as reference.
+- `lib/commonlibsse-ng/CLAUDE.md` and `AGENTS.md` describe upstream library development; they do not apply here. Read the rest of `lib/` only as reference.
+- `lib/sarrai-common` is the user's own library (overlay hooks, window skins, free camera, skin fonts and textures), shared with Tableau. Change it in its own repo (`../sarrai-common`, whose `CLAUDE.md` applies), then pull it into the submodule here and commit the bump on a branch. A fresh clone of it needs `git -c protocol.file.allow=always submodule update --init lib/sarrai-common`.
 
 ### 2.1 Outfit library safety
 
@@ -56,7 +57,7 @@ The library (`outfits.json`, `src/Library.cpp`) is shared by every save and char
 ### 2.2 Engine integration and API facts
 
 - Prefer SKSE events / sinks over hooks. A hook needs approval (§1) and must use Address Library IDs via CommonLibSSE-NG (`REL::RelocationID`); never hard-code addresses or guess offsets / IDs.
-- **Never guess an API's behavior.** Sources of truth: CommonLibSSE-NG headers and sources in `lib/`; `docs/design.md` for Livery's own contracts and the facts verified in game. Unspecified → say so, then verify or ask.
+- **Never guess an API's behavior.** Sources of truth: CommonLibSSE-NG headers and sources in `lib/`; `lib/sarrai-common` for the overlay, skins and free camera; `docs/design.md` for Livery's own contracts and the facts verified in game. Unspecified → say so, then verify or ask.
 
 ## 3. Development policy
 
@@ -99,6 +100,6 @@ Only when asked (引き継ぎ / handoff / session-end). Never auto. Read `.claud
 
 Report in **Japanese** plain text, never JSON: 要約 / 良い点 / 🔴🟡🟢 findings (`番号. 深刻度 — file:line — 一文要約`, next line 再現/影響) / 確認したいこと / テスト手順. If a tool such as `ReportFindings` is required, every field is Japanese.
 
-- **🔴 always:** edits to `lib/` submodules; library writes or actor calls off the game thread; a write that can change or remove an existing outfit outside the confirmed update paths, or assign it to a row the user did not tick; a path that can write an empty outfit or an unreadable file; a close path that leaves the preview on, or a preview path that writes the library; hard-coded addresses / offsets; a hook added without approval.
+- **🔴 always:** edits to `lib/` submodules (`lib/sarrai-common` only through its own repo); library writes or actor calls off the game thread; a write that can change or remove an existing outfit outside the confirmed update paths, or assign it to a row the user did not tick; a path that can write an empty outfit or an unreadable file; a close path that leaves the preview on, or a preview path that writes the library; hard-coded addresses / offsets; a hook added without approval.
 - **🟡:** allocation, library scans or info-level logging on per-frame / per-input paths; raw `RE::` pointers kept across frames (use handles) or inventory pointers kept across a native call; unchecked engine singletons; changes to message-handler order.
 - **Test steps to require:** build passes and `dumpbin /exports` shows `SKSEPlugin_Load` / `SKSEPlugin_Query` / `SKSEPlugin_Version`; in game — log shows `Livery loaded` and `Loaded N outfit(s) from outfits.json`; the capture hotkey on an adult NPC → HUD result, the outfit on the window's Load Outfit page; loading a save, and New Game only when the change touches what a new game runs differently (kNewGame / init order, co-save revert, the situation poll's start).
