@@ -81,67 +81,47 @@ namespace
 	// appended to the player's file, so an update never resets their settings.
 	constexpr std::array<IniKey, 16> kIniKeys{ {
 		{ kIniSection, kRestrictKey, L"1",
-			L"1 = the hotkey works only on followers and your spouse; anyone else shows an error message.\n"
-			L"0 = the hotkey works on any adult NPC.\n"
-			L"Read once when the game starts." },
+			L"1 = the hotkey works only on your followers and spouse. 0 = it works on any adult NPC.\n"
+			L"You can always open Livery for yourself." },
 		{ kIniSection, kLivePreviewKey, L"1",
-			L"1 = the window opens with Live Preview on: the game keeps running and the character wears the ticked items.\n"
-			L"0 = it opens with Live Preview off and the game paused; tick Live Preview in the window to turn it on.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = Livery opens with Live Preview on: the game keeps running and the character wears the ticked items.\n"
+			L"0 = it opens with Live Preview off and the game paused." },
 		{ kIniSection, kNpcReactionKey, L"1",
-			L"1 = the NPC turns their head to you and says a greeting, when the window opens with Live Preview on.\n"
-			L"0 = they do neither.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = with Live Preview on, the NPC turns toward you and greets you when Livery opens." },
 		{ kUiSection, kPaletteKey, L"Modern",
-			L"Look of the window: a palette file in Data/SKSE/Plugins/Livery/palettes, named without .ini (Modern, Edge, Vanilla, Nordic,\n"
-			L"or your own copy of one), which sets the skin and its colours.\n"
-			L"Easiest to change in game through SKSE Menu Framework. The palette files are read once when the game starts." },
+			L"Window skin: a palette file in Data/SKSE/Plugins/Livery/palettes, named without .ini\n"
+			L"(Modern, Edge, Vanilla, Nordic, or your own copy of one)." },
 		{ kUiSection, kMenuSoundsKey, L"1",
-			L"1 = the window plays the game's menu sounds when it opens and when you click its buttons, ticks and lists.\n"
-			L"0 = it stays silent.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = Livery plays the game's menu sounds as it opens and as you click in it." },
 		{ kHotkeySection, kHotkeyKeyKey, L"45",
-			L"Key that opens Livery on the NPC under the crosshair, or on you when there is none, as a DirectInput scan code (45 = X).\n"
-			L"Easiest to change in game through SKSE Menu Framework. Read once when the game starts." },
+			L"Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n"
+			L"A DirectInput scan code (45 = X)." },
 		{ kHotkeySection, kHotkeyModifierKey, L"42",
-			L"Key that must be held together with Key: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt.\n"
-			L"Left and right keys count the same. Read once when the game starts." },
+			L"Key to hold with the hotkey: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt. Left and right count the same." },
 		{ kCameraSection, kSpeedPercentKey, L"100",
-			L"Speed of the preview camera: W / A / S / D movement, mouse drags and wheel zoom, as a percentage (10 to 200, 100 = normal).\n"
-			L"Shift halves the movement while held. Easiest to change in game through SKSE Menu Framework." },
+			L"Preview camera speed in percent (10 to 200, 100 = normal): W / A / S / D, mouse drag and wheel zoom.\n"
+			L"Hold Shift to move at half speed." },
 		{ kPlayerSection, kAddMissingKey, L"0",
-			L"1 = an outfit you give yourself adds the items you do not carry. Warning: this creates new items in your inventory.\n"
-			L"0 = those items are left out, and the message on screen names them.\n"
-			L"In game the tick Dress yourself from inventory only is the opposite of this value.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = dressing yourself creates the items you don't carry in your inventory, for free.\n"
+			L"0 = it uses only the items you carry, and a message names the rest.\n"
+			L"In game this is Dress yourself from inventory only, reversed." },
 		{ kWindowSection, kShowPlayerInventoryKey, L"1",
-			L"1 = the window of an NPC also lists your armor, under Player's Inventory.\n"
-			L"0 = it lists only the NPC's own items and those of the loaded outfit.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = an NPC's window also lists your armor, under \"<your name>'s Inventory\"." },
 		{ kWindowSection, kShowPlayerWornKey, L"0",
-			L"1 = that list includes the armor you wear.\n"
-			L"0 = it leaves out what you wear, unless you carry another copy.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = that list includes your equipped armor. 0 = it leaves it out unless you carry another copy.\n"
+			L"In game this is Exclude equipped items, reversed." },
 		{ kWindowSection, kShowSlotColumnKey, L"0",
-			L"1 = the window's item list has a Slot column: each item's body slots by number (32, 34).\n"
-			L"0 = it shows the Name and Type columns only.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = the item list shows a Slot column: each item's body slot numbers (32, 34)." },
 		{ kTransferSection, kMoveFromPlayerKey, L"1",
-			L"1 = Apply in an NPC's window moves the ticked items from your inventory to them, enchantments and tempering included.\n"
-			L"0 = the NPC gets a new plain copy of each and yours stay with you.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = Apply on an NPC transfers the ticked items from your inventory, enchantments and tempering included.\n"
+			L"0 = the NPC gets plain copies and you keep yours." },
 		{ kTransferSection, kProtectFavoritesKey, L"1",
-			L"1 = your favorites are left out of that list, as quest items always are.\n"
-			L"0 = your favorites are listed too.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = your inventory list in an NPC's window leaves out your favorites. Quest items are always left out." },
 		{ kSituationsSection, kNotifyChangesKey, L"0",
-			L"1 = a message on screen tells you when a character changes outfit because a situation (Town, Warm, ...) began or ended.\n"
-			L"0 = they change without a message.\n"
-			L"Easiest to change in game through SKSE Menu Framework." },
+			L"1 = a message tells you when a character changes outfit as a situation (Town, Warm, ...) starts or ends." },
 		{ kUninstallSection, kReleaseEveryoneKey, L"0",
-			L"1 = every time a save loads, Livery releases everyone it dresses and tells you on screen, until you set this back to 0.\n"
-			L"Use it before you uninstall Livery when you do not have SKSE Menu Framework, whose Livery page has a Release everyone button.\n"
-			L"0 = normal play. Read once when the game starts." },
+			L"1 = each time you load a save, Livery takes its outfits off everyone and tells you, until you set this back to 0.\n"
+			L"Use it before you uninstall Livery if you don't have SKSE Menu Framework, whose Livery page has a Release everyone button." },
 	} };
 
 	// A modifier is named by its left-hand code in the INI and the picker; either side counts.
