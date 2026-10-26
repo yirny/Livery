@@ -5,7 +5,7 @@
 //                    replaces a confirmed existing outfit's pieces and name;
 //                    UpdateWornPieces only its pieces (the Apply popup's Yes)
 //   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
-//                    outfit pages, through OutfitPreview, seen through PreviewCamera, while the
+//                    outfit pages, through OutfitPreview, seen through FreeCamera, while the
 //                    window's Live Preview tick is on; saving is off and an NPC is held where they
 //                    stand (MovementHold) while the window is open, and turns to the player with a
 //                    greeting (NpcReaction) as it opens with the preview on; every close of the window,
@@ -43,17 +43,17 @@
 #include "Assignments.h"
 #include "CaptureWindow.h"
 #include "Dressing.h"
-#include "Hooks.h"
 #include "Library.h"
 #include "MovementHold.h"
 #include "NpcReaction.h"
 #include "OutfitPreview.h"
 #include "PieceIcons.h"
-#include "PreviewCamera.h"
 #include "Settings.h"
 #include "SituationStore.h"
 #include "Situations.h"
 #include "TradeFilter.h"
+#include "sarrai/FreeCamera.h"
+#include "sarrai/Overlay.h"
 
 #include <algorithm>
 #include <array>
@@ -205,7 +205,7 @@ namespace
 
 	// Wires the live preview into the window about to open, and starts it when
 	// the settings say so. While it is on, ticks change the pieces OutfitPreview
-	// dresses the actor in, and input over the game moves PreviewCamera (when it
+	// dresses the actor in, and input over the game moves FreeCamera (when it
 	// could take the camera); the window's Live Preview tick starts and ends both.
 	// When the preview cannot start, the window greys the tick and says why.
 	// Contract: game thread; `armors` matches request.pieces index for index.
@@ -218,18 +218,18 @@ namespace
 			}
 			auto reason = OutfitPreview::Begin(*target, PickPieces(armors, pieces));
 			if (reason.empty()) {
-				PreviewCamera::Begin(*target);  // without the camera the preview goes on in the game's own view
+				FreeCamera::Begin(*target);  // without the camera the preview goes on in the game's own view
 			}
 			return reason;
 		};
 		request.onPreviewOff = [] {
-			PreviewCamera::End();
+			FreeCamera::End();
 			OutfitPreview::End();
 		};
 		// These three do nothing while Live Preview is off: no preview, no camera.
 		request.onPieceToggled = [armors](std::size_t index, bool on) { OutfitPreview::SetPiece(armors[index], on); };
 		request.onPreviewPieces = [armors](const std::vector<std::size_t>& pieces) { OutfitPreview::Show(PickPieces(armors, pieces)); };
-		request.onViewInput = PreviewCamera::Move;
+		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale()); };
 
 		if (Settings::LivePreview()) {
 			std::vector<std::size_t> ticked;
@@ -908,7 +908,7 @@ namespace
 		g_capturedGaps = GapsOf(Assignments::ChoicesOf(actor.GetFormID()), inventory);  // before the preview begins again
 		if (previewing) {
 			if (const auto reason = OutfitPreview::Begin(actor, shown ? *shown : WornArmors(inventory)); !reason.empty()) {
-				PreviewCamera::End();
+				FreeCamera::End();
 				CaptureWindow::RefusePreview(reason);
 			}
 		}
@@ -1275,7 +1275,7 @@ namespace
 		// Manage Wardrobe or Manage Situations left for it, lets saving back on and lets an NPC
 		// walk again.
 		request.onClose = [] {
-			PreviewCamera::End();
+			FreeCamera::End();
 			OutfitPreview::End();
 			RedressAtClose();
 			AllowSaving();
@@ -1302,7 +1302,7 @@ namespace
 			return;
 		}
 		// No overlay (Skyrim VR, or ImGui failed to initialise): the hotkey only opens the window.
-		if (!Hooks::IsRenderReady()) {
+		if (!Overlay::IsRenderReady()) {
 			Notify("Livery: the window is not available.");
 			return;
 		}
@@ -1429,7 +1429,7 @@ namespace
 			PieceIcons::Load();      // its rule files go by the loaded plugins' names
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
 			Assignments::RegisterSinks();
-			Hooks::RegisterMenu();
+			Overlay::RegisterMenu();
 			break;
 
 		case SKSE::MessagingInterface::kPreLoadGame:
@@ -1476,18 +1476,39 @@ namespace
 		spdlog::set_level(spdlog::level::info);
 		spdlog::flush_on(spdlog::level::info);
 	}
+
+	// The capture window's overlay (sarrai-common): Livery's menu name and asset folder, the
+	// piece icons for its rows, and the capture window behind every callback.
+	void InstallOverlay()
+	{
+		Overlay::Install({ .menuName = "LiveryMenu",
+			.pluginName = "Livery",
+			.assetFolder = L"Data/SKSE/Plugins/Livery",
+			.defaultIconKey = std::string{ OutfitIcons::kDefaultKey },
+			.iconFiles = PieceIcons::FindFiles,
+			.isOpen = CaptureWindow::IsOpen,
+			.queueInput = CaptureWindow::QueueInput,
+			.prepareFrame =
+				[](float a_displayHeight) {
+					Theme::Apply(Settings::Skin(), Settings::Palette(), a_displayHeight);
+					CaptureWindow::FeedInput();
+				},
+			.draw = CaptureWindow::Draw,
+			.advance = MovementHold::Enforce,
+			.close = CaptureWindow::Close });
+	}
 }
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
-	// Five write_call<5> hooks (two in Hooks.cpp, three in TradeFilter.cpp) need 14 bytes each;
+	// Five write_call<5> hooks (two in sarrai-common's Overlay.cpp, three in TradeFilter.cpp) need 14 bytes each;
 	// 128 leaves room to grow.
 	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 128 });
 	SetupLog();
 	logger::info("Livery loaded");
 	Settings::Load();
 	Assignments::RegisterCoSave();
-	Hooks::Install();
+	InstallOverlay();
 	TradeFilter::Install();
 	return SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
 }

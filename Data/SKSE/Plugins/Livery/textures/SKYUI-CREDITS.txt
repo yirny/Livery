@@ -1,8 +1,0 @@
-skyui-heading-rule.png is SkyUI's MCM header rule (interface/skyui/configpanel.swf,
-symbol OptionsListEntry, frame "header", child headerDecor), by the SkyUI Team
-(https://www.nexusmods.com/skyrimspecialedition/mods/12604), rendered from its vector
-shape as a white alpha mask; the plugin tints it at draw time. NORDIC UI ships the
-same art.
-
-Used under the asset use permission on that page:
-"You are allowed to use the assets in this file without permission as long as you credit me"

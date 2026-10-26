@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "sarrai/Theme.h"
+
 #include <cstdint>
-#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -16,11 +17,7 @@ namespace PieceIcons
 {
 	// A PNG under the icons folder. Its key is its path from that folder without ".png", in
 	// ASCII lower case with "/" between folders: "skyui/icons_item_psychosteve/armor_head".
-	struct File
-	{
-		std::string           key;
-		std::filesystem::path path;
-	};
+	using File = Theme::IconFile;
 
 	// Every PNG under the icons folder. Any thread: it reads the folder only.
 	std::vector<File> FindFiles();

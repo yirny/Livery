@@ -25,8 +25,8 @@
 
 #include "OutfitBrowser.h"
 #include "OutfitRows.h"
-#include "Theme.h"
 #include "Utils.h"
+#include "sarrai/Theme.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>  // BeginDragDropTargetCustom, ImRect, GetActiveID
@@ -863,7 +863,8 @@ namespace CaptureWindow::Internal
 			return;
 		}
 		ImGui::SetDragDropPayload(kOutfitPayload, &a_payload, sizeof(a_payload));
-		Theme::OutfitDragGhost(a_label, a_grip, a_icon);
+		const auto icon = a_icon ? RowIconOf(*a_icon) : Theme::RowIcon{};
+		Theme::OutfitDragGhost(a_label, a_grip, a_icon ? &icon : nullptr);
 		ImGui::EndDragDropSource();
 	}
 

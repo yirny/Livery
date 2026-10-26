@@ -6,3 +6,6 @@
 	path = lib/vcpkg
 	url = https://github.com/microsoft/vcpkg.git
 	shallow = true
+[submodule "lib/sarrai-common"]
+	path = lib/sarrai-common
+	url = C:/Users/yirny/Dropbox/works/Skyrim Modding/sarrai-common

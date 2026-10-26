@@ -13,7 +13,7 @@
 
 #include "CaptureWindow.h"
 #include "OutfitBrowser.h"
-#include "Theme.h"
+#include "sarrai/Theme.h"
 
 #include <imgui.h>
 
@@ -414,4 +414,11 @@ namespace CaptureWindow::Internal
 	// the row (Theme::OutfitDragGhost) named `a_label`, with its `a_grip` and `a_icon` (nullptr
 	// for none).
 	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon);
+
+	// An outfit's icon as the skins draw it. Contract: the key is a view into `a_icon`, so the
+	// result lives no longer than it.
+	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon)
+	{
+		return { a_icon.key, a_icon.rgb };
+	}
 }

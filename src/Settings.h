@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "Theme.h"
+#include "sarrai/Theme.h"
 
 // User settings from Data/SKSE/Plugins/Livery.ini, editable in game
 // through SKSE Menu Framework when it is installed (see Settings.cpp). The INI is

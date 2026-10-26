@@ -25,7 +25,9 @@ if(PLUGIN_TESTS_ONLY)
     add_executable(${PROJECT_NAME}Tests test/ExampleTests.cpp test/OutfitBrowserTests.cpp test/OutfitRowsTests.cpp
                                         test/SituationStoreTests.cpp src/OutfitBrowser.cpp)
 
-    target_include_directories(${PROJECT_NAME}Tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    # CaptureWindow.h takes FreeCamera::ViewInput from sarrai-common (header only, no build of it here).
+    target_include_directories(${PROJECT_NAME}Tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+                                                            "${CMAKE_CURRENT_SOURCE_DIR}/lib/sarrai-common/include")
 
     target_link_libraries(${PROJECT_NAME}Tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
 
@@ -38,6 +40,10 @@ else()
         message(FATAL_ERROR "lib/commonlibsse-ng is not checked out. Clone with --recurse-submodules, "
                             "or run: git submodule update --init --recursive")
     endif()
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib/sarrai-common/CMakeLists.txt")
+        message(FATAL_ERROR "lib/sarrai-common is not checked out. Run: "
+                            "git -c protocol.file.allow=always submodule update --init lib/sarrai-common")
+    endif()
 
     # Dependencies
 
@@ -45,7 +51,7 @@ else()
     # directxtk must be found before add_commonlibsse_plugin (CommonLibSSE-NG links
     # Microsoft::DirectXTK transitively).
     find_package(directxtk CONFIG REQUIRED)
-    # Dear ImGui with the Win32 + DX11 backends, drawn from a DXGI Present hook (src/Hooks.cpp).
+    # Dear ImGui with the Win32 + DX11 backends, drawn by sarrai-common's overlay (lib/sarrai-common).
     find_package(imgui CONFIG REQUIRED)
     # Reads and writes the outfit library, outfits.json (src/Library.cpp), and situations.json
     # (src/SituationStore.cpp).
@@ -81,6 +87,10 @@ else()
 
     include("${CMAKE_CURRENT_SOURCE_DIR}/lib/commonlibsse-ng/cmake/CommonLibSSE.cmake")
 
+    # sarrai-common: the overlay, window skins and free camera shared with the user's other
+    # plugins. Needs the CommonLibSSE::CommonLibSSE target, so it comes after CommonLibSSE-NG.
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/lib/sarrai-common" "${CMAKE_CURRENT_BINARY_DIR}/sarrai-common")
+
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc" @ONLY)
 
@@ -95,7 +105,6 @@ else()
         src/Assignments.cpp
         src/CaptureWindow.cpp
         src/Dressing.cpp
-        src/Hooks.cpp
         src/Library.cpp
         src/MovementHold.cpp
         src/NpcReaction.cpp
@@ -104,12 +113,10 @@ else()
         src/OutfitPreview.cpp
         src/PieceIcons.cpp
         src/Plugin.cpp
-        src/PreviewCamera.cpp
         src/Settings.cpp
         src/SituationPage.cpp
         src/SituationStore.cpp
         src/Situations.cpp
-        src/Theme.cpp
         src/TradeFilter.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"
         USE_ADDRESS_LIBRARY)
@@ -127,9 +134,8 @@ else()
 
     target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h)
 
-    # imgui's vcpkg port does not link the system libraries its backends need.
-    # windowscodecs (WIC) decodes the skin textures (src/Theme.cpp).
-    target_link_libraries(${PROJECT_NAME} PRIVATE imgui::imgui d3d11 dwmapi imm32 windowscodecs)
+    # The overlay, skins and free camera; it brings imgui and the system libraries its backends need.
+    target_link_libraries(${PROJECT_NAME} PRIVATE sarrai-common)
     target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
     target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -205,11 +211,12 @@ else()
     # No INI is deployed: the plugin creates Livery.ini with defaults on
     # first start and adds missing keys afterwards, so the player's settings survive updates.
 
-    # The skins' fonts (with their OFL licences) and textures (src/Theme.cpp). The palettes are not
-    # installed: the plugin writes those missing on start (src/Settings.cpp), so a deploy never
-    # overwrites the player's edits.
+    # The piece icons, and sarrai-common's skin fonts (with their OFL licences) and textures. The
+    # palettes are not installed: the plugin writes those missing on start (src/Settings.cpp), so
+    # a deploy never overwrites the player's edits.
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/SKSE/Plugins/Livery"
             DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
+    sarrai_install_assets("${DEPLOY_DIR}/SKSE/Plugins/Livery")
 
     # `cmake --build --preset deploy`  (or  cmake --workflow --preset deploy)
     add_custom_target(

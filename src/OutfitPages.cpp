@@ -39,7 +39,7 @@
 #include "CaptureWindowInternal.h"
 
 #include "OutfitBrowser.h"
-#include "Theme.h"
+#include "sarrai/Theme.h"
 
 #include <imgui.h>
 
@@ -200,7 +200,8 @@ namespace CaptureWindow::Internal
 		const Theme::OutfitMarks marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
 			.defaultOutfit = HoldsOutfit(a_state, 0, outfit.id),
 			.situations = a_situationMark && !situations.empty() ? situations.c_str() : nullptr };
-		return Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &outfit.icon);
+		const auto               icon = RowIconOf(outfit.icon);
+		return Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &icon);
 	}
 
 	// Left column of the outfit pages: the wardrobe's outfits that pass the
@@ -1015,7 +1016,7 @@ namespace CaptureWindow::Internal
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + gap);
 			}
 			ImGui::PushID(drawn++);
-			if (Theme::IconTile("##icon", { std::string{ key }, shown }, pick.key == key)) {
+			if (Theme::IconTile("##icon", { key, shown }, pick.key == key)) {
 				QueueMenuSound(kFocusSound);
 				pick.key = key;
 			}
