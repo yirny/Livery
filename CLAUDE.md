@@ -67,7 +67,7 @@ The library (`outfits.json`, `src/Library.cpp`) is shared by every save and char
 - Null-check what the engine or API may return null. No speculative try/catch, retries or fallbacks — add only after a reported failure.
 - **Constants:** used in one function → local `constexpr`; shared in a file → anonymous-namespace `constexpr` at file top (`kName`); user-tunable → ask where it lives (INI etc.). Check single-use before hoisting. User says "constant" → follow.
 - **Style:** `.clang-format` (CI checks `src/` and `test/`). Format only what you change.
-- **Git:** commit each verified change on a branch (not `main`); Conventional Commits `feat|fix|chore|refactor` (defined in `lefthook.yml`; lefthook is not installed on this PC, so follow it by hand), English. Never push unless asked — `origin` is the template upstream.
+- **Git:** commit each verified change on a branch (not `main`); Conventional Commits `feat|fix|chore|refactor` (defined in `lefthook.yml`; lefthook is not installed on this PC, so follow it by hand), English. Never push unless asked — `upstream` is the template repo; there is no `origin` yet.
 
 ## 4. Readability
 
