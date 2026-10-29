@@ -677,12 +677,14 @@ namespace CaptureWindow::Internal
 	}
 
 	// Input over the game goes to onViewInput, in one SKSE task per frame that
-	// has any. A drag is a button held since a press the window did not own; the
-	// mouse moves of the frame it was held (collected by QueueInput) are a look
-	// for the left button and a pan for the right. Keys count while no item is
-	// active and no popup is open (WantCaptureKeyboard), the wheel while the
-	// cursor is over the game. None while Live Preview is off: a drag is
-	// dropped, so QueueInput moves the cursor again.
+	// has any, and in one each frame while the preview camera glides
+	// (FreeCamera::Gliding), empty when there is none. A drag is a button held
+	// since a press the window did not own; the mouse moves of the frame it was
+	// held (collected by QueueInput) are a look for the left button and a pan
+	// for the right. Keys count while no item is active and no popup is open
+	// (WantCaptureKeyboard), the wheel while the cursor is over the game. None
+	// while Live Preview is off: a drag is dropped, so QueueInput moves the
+	// cursor again.
 	void ForwardViewInput(State& a_state)
 	{
 		const auto& onViewInput = a_state.request.onViewInput;
@@ -721,7 +723,7 @@ namespace CaptureWindow::Internal
 		input.seconds = io.DeltaTime;
 		const bool any = input.lookX != 0.0f || input.lookY != 0.0f || input.panX != 0.0f || input.panY != 0.0f ||
 		                 input.moveForward != 0.0f || input.moveRight != 0.0f || input.zoomSteps != 0.0f;
-		if (any) {
+		if (any || FreeCamera::Gliding()) {
 			SKSE::GetTaskInterface()->AddTask([onViewInput, input] { onViewInput(input); });
 		}
 	}
