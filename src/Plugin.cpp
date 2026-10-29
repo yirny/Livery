@@ -18,15 +18,15 @@
 //                    and Update dresses the actor again when they wear it; Apply moves
 //                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
 //                    and dresses them (Assignments) with the window open (DressCaptured), as
-//                    Manage Wardrobe's Apply does; Restore goes to Assignments;
-//                    Manage Wardrobe' Update writes the library and redresses the actor when they
+//                    the Wardrobe page's Apply does; Restore goes to Assignments;
+//                    the Wardrobe page's Update writes the library and redresses the actor when they
 //                    wear the outfit; its Remove writes the library, clears the outfit from the
 //                    assignments (Assignments::ForgetOutfit) and takes those wearing it for a
 //                    situation out of it: the captured actor at once, the others at the
 //                    window's close or, out of reach, when they load; both hand the window the
 //                    rebuilt list (CaptureWindow::SetOutfits), with the captured actor's pieces
 //                    as they are after a redress;
-//                    Manage Situations' Save Changes writes the situations' names
+//                    the Situations page's Save Changes writes the situations' names
 //                    (SituationStore), then the captured actor's rows
 //                    (Assignments::SetRows) and redresses them as Update does; Remove
 //                    Situation writes situations.json, clears the situation's rows
@@ -129,7 +129,7 @@ namespace
 	}
 
 	// Contract: game thread; the user confirmed this outfit's update in the Save page's or
-	// Manage Wardrobe's popup.
+	// the Wardrobe page's popup.
 	// Its pieces whose plugin is not loaded stay in it; the HUD message says how many, and its
 	// old name when it is renamed. Without `icon` it keeps its own.
 	// Returns an error message, or nullopt on success (HUD message shown).
@@ -796,7 +796,7 @@ namespace
 		};
 	}
 
-	// What a Manage Wardrobe or Manage Situations change redresses the captured actor for
+	// What a Wardrobe page or Situations page change redresses the captured actor for
 	// (RedressCaptured; docs/outfit-management-ui.md §6).
 	struct PendingRedress
 	{
@@ -944,11 +944,11 @@ namespace
 		}
 	}
 
-	// Manage Wardrobe's Apply: the outfit goes to window row `row` (RowSituation), the one the
+	// the Wardrobe page's Apply: the outfit goes to window row `row` (RowSituation), the one the
 	// window chose: the situation they wear another outfit for now, after the user agreed in
 	// its popup, the one they wear it for, or the Default, leaving `excluded` off there; then
 	// they are dressed for their situations now with the window open (DressCaptured): the
-	// preview begins again on `pieces` less `excluded`, the outfit as Manage Wardrobe shows it.
+	// preview begins again on `pieces` less `excluded`, the outfit as the Wardrobe page shows it.
 	// Returns their pieces for the window (SetOutfits).
 	// Contract: as DressCaptured's.
 	CaptureWindow::ActorPieces ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row, const std::vector<std::uint32_t>& excluded,
@@ -1015,7 +1015,7 @@ namespace
 			const bool forSituation = current && current->worn != Situations::Situation::kDefault;
 			// The outfit they wear, ticked whole or in part: it stays on the row it is worn for
 			// (the Default when that changed since the click, or the situation was removed),
-			// `excluded` left off there from now on, as Manage Wardrobe's Apply leaves its
+			// `excluded` left off there from now on, as the Wardrobe page's Apply leaves its
 			// unticked items.
 			const bool wornNow = outfit != 0 && current && current->wornOutfit == outfit;
 			const auto wornRow = wornNow && !SituationStore::IsRemoved(current->worn) ? current->worn : Situations::Situation::kDefault;
@@ -1060,7 +1060,7 @@ namespace
 		}
 	}
 
-	// Manage Wardrobe' Update, Remove and Apply. Update and Remove write the library first; a
+	// the Wardrobe page's Update, Remove and Apply. Update and Remove write the library first; a
 	// refused or failed write changes nothing, assigns nothing and redresses no one (CLAUDE.md
 	// §2.1). Then the actors are redressed (RedressCaptured, QueueRedress, ApplyOutfit), and
 	// the window, still open, shows the library as written. Apply writes nothing to the library.
@@ -1145,7 +1145,7 @@ namespace
 		};
 	}
 
-	// The actor's rows with Manage Situations' rows put in, by situation, each keeping the
+	// The actor's rows with the Situations page's rows put in, by situation, each keeping the
 	// outfits gone from the library that the window did not show (OutfitRows::KeepGone).
 	// Contract: game thread.
 	OutfitRows::Rows RowsWith(RE::FormID actorID, const std::vector<CaptureWindow::RowEdit>& edits)
@@ -1159,7 +1159,7 @@ namespace
 		return rows;
 	}
 
-	// Manage Situations' Save Changes, Remove (a situation) and Restore Presets. Each writes
+	// the Situations page's Save Changes, Remove (a situation) and Restore Presets. Each writes
 	// situations.json first; a refused or failed write changes no row and redresses no one
 	// (CLAUDE.md §2.1). Then the captured actor's rows change and the actors are redressed
 	// (RedressCaptured, QueueRedress), and the window, still open, shows the situations and
@@ -1297,7 +1297,7 @@ namespace
 		AttachManage(request, actor, armors, offered);
 		AttachSituations(request, actor, armors, offered);
 		// Every close, whatever closed the window, ends the preview, redresses the actors
-		// Manage Wardrobe or Manage Situations left for it, lets saving back on and lets an NPC
+		// the Wardrobe page or the Situations page left for it, lets saving back on and lets an NPC
 		// walk again.
 		request.onClose = [] {
 			FreeCamera::End();

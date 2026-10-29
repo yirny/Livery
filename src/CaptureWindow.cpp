@@ -7,7 +7,7 @@
 //   Input        - QueueInput translates engine events and moves the game's cursor;
 //                  FeedInput hands them and the cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers; the tab column
-//                  (Inventory, Manage Wardrobe, Manage Situations, Appearance) and its rule beside
+//                  (Inventory, the Wardrobe page, the Situations page, Appearance) and its rule beside
 //                  those pages; leaving a page with unsaved edits through the unsaved-changes alert
 //                  (Save Changes, Discard Changes, Back); mouse and key input over the game
 //                  goes to onViewInput
@@ -26,14 +26,14 @@
 //   Save page    - Create New Outfit / Update Existing Outfit tabs, each with its own name:
 //                  Create shows the ticked pieces read only and an icon they suggest until
 //                  one is chosen (CreateIcon, Choose icon), Create and Apply gives the new
-//                  outfit the row Manage Wardrobe's Apply would (its popup first when that asks);
+//                  outfit the row the Wardrobe page's Apply would (its popup first when that asks);
 //                  Update shows the wardrobe's outfits, the chosen one's pieces and the ticked
 //                  ones in three columns (ChooseOutfit), its confirm popup before the write;
 //                  both tabs hand over to onSave
 //   Appearance   - Window skin, Restore original palette and Play menu sounds, written to the
 //                  INI at once (Settings); the window is drawn in a new skin from the next frame
-//   Outfit pages - the outfit browser and lists, the Load, Manage Wardrobe and Edit pages:
-//                  OutfitPages.cpp; the Manage Situations page: SituationPage.cpp
+//   Outfit pages - the outfit browser and lists, the Load, the Wardrobe page and Edit pages:
+//                  OutfitPages.cpp; the Situations page: SituationPage.cpp
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
@@ -497,14 +497,14 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
 	}
 
-	// The Inventory page, Manage Wardrobe, Manage Situations and Appearance have the tab column
+	// The Inventory page, the Wardrobe page, the Situations page and Appearance have the tab column
 	// at the window's left edge; the pages they lead to do not.
 	bool HasTabs(Page a_page)
 	{
 		return a_page == Page::kCapture || a_page == Page::kManage || a_page == Page::kSituations || a_page == Page::kAppearance;
 	}
 
-	// Inventory, Manage Wardrobe, Manage Situations, then Appearance, each centred between the
+	// Inventory, the Wardrobe page, the Situations page, then Appearance, each centred between the
 	// window's left edge and the rule. A click on another tab leaves the page for it (RequestLeave).
 	void DrawTabColumn(State& a_state)
 	{
@@ -517,7 +517,7 @@ namespace CaptureWindow::Internal
 		constexpr std::array<TabOption, 4> kTabs{ {
 			{ Theme::TabIcon::kInventory, "Inventory", Page::kCapture },
 			{ Theme::TabIcon::kOutfits, "Wardrobe", Page::kManage },
-			{ Theme::TabIcon::kSituations, "Manage Situations", Page::kSituations },
+			{ Theme::TabIcon::kSituations, "Situations", Page::kSituations },
 			{ Theme::TabIcon::kAppearance, "Appearance", Page::kAppearance },
 		} };
 
@@ -551,7 +551,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// The pieces a tab page keeps on the preview in place of the Inventory page's ticks:
-	// Manage Wardrobe's selected outfit as edited, less its unticked items, Manage Situations'
+	// the Wardrobe page's selected outfit as edited, less its unticked items, the Situations page's
 	// outfit whose details show (ViewedOutfitPieces); nullopt while it shows the ticks. A page
 	// that gets a preview of its own adds it here.
 	std::optional<std::vector<std::size_t>> PagePreview(const State& a_state, Page a_page)
@@ -565,7 +565,7 @@ namespace CaptureWindow::Internal
 		return std::nullopt;
 	}
 
-	// Every heading of Manage Situations is open when its tab opens, and an outfit's details
+	// Every heading of the Situations page is open when its tab opens, and an outfit's details
 	// there close as it goes. The preview shows the opened page's own pieces (PagePreview), or
 	// the ticks again when only the page left had its own.
 	void Leave(State& a_state, const PendingLeave& a_leave)
@@ -579,7 +579,7 @@ namespace CaptureWindow::Internal
 		a_state.situationForm.viewedRow = -1;
 		const int target = a_leave.page == Page::kManage ? IndexOfOutfit(a_state, a_leave.manageOutfit) : -1;
 		if (target >= 0) {
-			// Contract: Manage Wardrobe has no unsaved edits now: leaving it with any went through
+			// Contract: the Wardrobe page has no unsaved edits now: leaving it with any went through
 			// the unsaved-changes alert, which saved or dropped them.
 			FillManageForm(a_state, target);
 		}
@@ -649,7 +649,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// The page's heading: the Inventory page's own title over the summary line; Manage
-	// Wardrobe's, Manage Situations' and the Edit page's with no summary line; the Load page's the actor's name over the summary line;
+	// Wardrobe's, the Situations page's and the Edit page's with no summary line; the Load page's the actor's name over the summary line;
 	// Appearance's over where the other settings are. The Save page's tabs are its heading (DrawSaveTabs).
 	void DrawTitle(const State& a_state)
 	{
@@ -1568,11 +1568,11 @@ namespace CaptureWindow::Internal
 		return clicked;
 	}
 
-	// An outfit's name field (a Save page tab's, Manage Wardrobe'), with no label: hovered while
+	// An outfit's name field (a Save page tab's, the Wardrobe page's), with no label: hovered while
 	// not being typed in, it says `Outfit Name`. Returns true when the user pressed Enter with a
 	// name typed. The empty field shows kNeedName; a failed save turns it red with the message
 	// on hover instead, until the name is edited. With `a_icon`, its icon field comes first on
-	// the line: with `a_iconClicked` (Manage Wardrobe, the Create tab) it says `Outfit Icon` on
+	// the line: with `a_iconClicked` (the Wardrobe page, the Create tab) it says `Outfit Icon` on
 	// hover and `*a_iconClicked` says whether it was clicked; without (the Update tab, which
 	// keeps the outfit's icon) it only shows the icon.
 	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked)
@@ -1658,8 +1658,8 @@ namespace CaptureWindow::Internal
 		bool iconClicked = false;  // the icon field, which opens Choose icon
 	};
 
-	// The Create tab's fields: the icon (CreateIcon) and name, as Manage Wardrobe's, then the
-	// ticked pieces read only under their count line, as Manage Wardrobe shows an outfit's.
+	// The Create tab's fields: the icon (CreateIcon) and name, as the Wardrobe page's, then the
+	// ticked pieces read only under their count line, as the Wardrobe page shows an outfit's.
 	CreateTabInput DrawCreateTab(State& a_state)
 	{
 		CreateTabInput input;
@@ -1784,7 +1784,7 @@ namespace CaptureWindow::Internal
 		return back ? SaveAction::kBack : SaveAction::kNone;
 	}
 
-	// Create and Apply's popup, opened when it asks first (ApplyAsksFirst): Manage Wardrobe's
+	// Create and Apply's popup, opened when it asks first (ApplyAsksFirst): the Wardrobe page's
 	// Apply popup for the outfit Create makes first (`Create "A", then ...?`). Returns the row
 	// the user applies it to, or nullopt; Cancel saves nothing.
 	std::optional<std::size_t> DrawCreateApplyPopup(const State& a_state)
@@ -1854,7 +1854,7 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
 	}
 
-	// Create and Apply gives the new outfit the row Manage Wardrobe's Apply would: it asks
+	// Create and Apply gives the new outfit the row the Wardrobe page's Apply would: it asks
 	// first when that offers a situation or replaces the Default (ApplyAsksFirst), else
 	// saves at once for the Default.
 	// Contract: called in the window's own ID scope, as DrawCreateApplyPopup is.
@@ -2297,7 +2297,7 @@ namespace CaptureWindow
 		FinishLeave(state);  // before the page's width, which a switch changes
 
 		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
-		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, Manage Wardrobe and Manage Situations pages
+		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, the Wardrobe page and the Situations pages
 		constexpr float kWideWidthRatio = 1.05f;    // of the screen height, for the Save page's Update tab and its three columns
 		constexpr float kNarrowWidthRatio = 0.53f;  // of the screen height, for the one-column pages
 		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kManage || state.page == Page::kSituations;

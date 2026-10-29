@@ -116,7 +116,7 @@ namespace Situations
 	}
 
 	// When the situation applies, in the README's words; the Default's says where it is worn.
-	// Manage Situations shows it read only, until conditions can be edited (docs/design.md §8).
+	// the Situations page shows it read only, until conditions can be edited (docs/design.md §8).
 	constexpr const char* ConditionsText(Situation a_situation) noexcept
 	{
 		switch (a_situation) {

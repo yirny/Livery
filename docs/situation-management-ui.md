@@ -8,7 +8,7 @@ approval first, built, checked in game and committed before the next:
   (§1). High impact (SKSE serialization).
 - B. `situations.json`: situation names, removed situations, the names in sentences
   (§2). High impact (a new file write shared by every save).
-- C. The Manage Situations page (§3-§6), and Manage Wardrobe's unsaved-changes alert
+- C. The the Situations page (§3-§6), and the Wardrobe page's unsaved-changes alert
   aligned with it.
 
 Docs follow the code in the step that makes them stale: design.md (§5 co-save, §7
@@ -30,7 +30,7 @@ Per actor, per row:
 - The Default only: `pieces`, armor not in the wardrobe (what `Assign(pieces, 0)` gives
   today).
 - `excluded`: per outfit on `outfits`, the armor FormIDs it leaves off for this actor
-  (`OutfitRows::Exclusion`; design.md §2). Set by Apply to #{Name} from Manage Wardrobe's
+  (`OutfitRows::Exclusion`; design.md §2). Set by Apply to #{Name} from the Wardrobe page's
   ticks and by the ticks of an outfit's details opened from the row (§5); the Inventory
   page's Apply and Create and Apply give the outfit with all its items. An outfit that
   leaves `outfits` (taken off, or replaced as `chosen`) loses them. Kept in the co-save's
@@ -140,12 +140,12 @@ Cold`, the Situation headings, the rows' labels and change lines (`Town: added`)
 Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Cold` and `no
 outfit for Town any more`.
 
-## 3. Manage Situations page (step C)
+## 3. The Situations page (step C)
 
 - The third tab of the tab column (docs/outfit-management-ui.md §3): the star, point down,
-  that marks a situational outfit in the outfit list, tooltip `Manage Situations`. The tab
-  column shows on the Inventory, Manage Wardrobe, Manage Situations and Appearance pages.
-- Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on Manage Wardrobe:
+  that marks a situational outfit in the outfit list, tooltip `Situations`. The tab
+  column shows on the Inventory, the Wardrobe page, the Situations page and Appearance pages.
+- Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on the Wardrobe page:
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
 - The preview shows the Inventory page's ticks, or the outfit whose details show (§5).
@@ -262,23 +262,23 @@ The situation's details, its fields evenly spaced with no headings:
   docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
   The edits are dropped, nothing is selected and the right pane shows the outfit list.
 
-An outfit's details, in Manage Wardrobe's order (`DrawOutfitSummary`): its icon and name
+An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its icon and name
 with no label (`Theme::OutfitNameText`), `SITUATIONS (#{Name})`, its label starting with the
 star as the Name label's does, with the rows the page's edits
 give it (`Default, Town`, or `None`), then its pieces, with the Inventory page's icons, under
 their count line. Clicked under a
-situation's heading, the pieces are Manage Wardrobe's tick rows, ticked as that row wears the
+situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved with Save Changes, and the last
 ticked piece cannot be unticked. Clicked on the outfit list, or once that row no longer
 holds the outfit, they are read only. The outfit's row in the Situation List is drawn
 selected only under the heading it was clicked under. The preview shows the outfit less its
 unticked pieces. 12px of extra
 room, then `Edit` and `Back` centred. The details grow with the pieces, moving the page's
-buttons down when taller than the Situation List, as Manage Wardrobe's selection does; the
+buttons down when taller than the Situation List, as the Wardrobe page's selection does; the
 pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every
 list keeps to, `kMaxListHeightRatio`), so the window stays on screen. Back, and Escape, show
 what the right pane showed before and the Inventory page's ticks on the preview. Edit goes to
-Manage Wardrobe with the outfit selected and on the preview, through the unsaved-changes
+The Wardrobe page with the outfit selected and on the preview, through the unsaved-changes
 alert when the page has edits (§6). A click on a situation's heading closes the details and
 shows the situation's.
 
@@ -309,7 +309,7 @@ shows the situation's.
 - Exit, Escape or another tab with unsaved edits asks `You have unsaved changes.` with
   `Save Changes` / `Discard Changes` / `Back`: Save Changes saves as the button does, then
   goes; a refused save stays. Discard Changes drops the edits and goes. Back stays.
-- Manage Wardrobe asks the same on Exit, Escape and another tab, its line naming the
+- the Wardrobe page asks the same on Exit, Escape and another tab, its line naming the
   outfit (`You have unsaved changes for "#{Outfit}".`); its Save Changes runs Update, popup
   included, and Update's Cancel stays. Its `Discard changes` / `Keep editing` on selecting
   another outfit stays.
@@ -345,7 +345,7 @@ shows the situation's.
   summary line.
 
 CLAUDE.md §2.1 gains, in step B: `situations.json` (`src/SituationStore.cpp`) is shared by
-every save too; a situation's name changes only through Manage Situations'
+every save too; a situation's name changes only through the Situations page's
 Save Changes, a situation is removed only through the details' Remove popup and restored
 only through Restore Presets' popup; every write is made before any assignment changes, a
 refused or failed one changes none; the same load and write rules as the library.
