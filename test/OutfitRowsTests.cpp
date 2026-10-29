@@ -188,16 +188,16 @@ TEST_CASE("Resolve takes the first situation whose row holds an outfit", "[rows]
 	OutfitRows::Rows rows{};
 	rows[OutfitRows::RowOf(Situation::kDefault)] = { .outfits = { 1 }, .chosen = 1 };
 	rows[OutfitRows::RowOf(Situation::kTown)] = { .outfits = { 2 }, .chosen = 2 };
-	rows[OutfitRows::RowOf(Situation::kWarm)] = { .outfits = { 3 } };  // nothing chosen
+	rows[OutfitRows::RowOf(Situation::kCold)] = { .outfits = { 3 } };  // nothing chosen
 
 	Situations::Applicable now;
 	CHECK(OutfitRows::Resolve(rows, now) == Situation::kDefault);
-	now.Add(Situation::kWarm);
+	now.Add(Situation::kCold);
 	now.Add(Situation::kTown);
 	CHECK(OutfitRows::Resolve(rows, now) == Situation::kTown);
 
-	rows[OutfitRows::RowOf(Situation::kWarm)].random = true;
-	CHECK(OutfitRows::Resolve(rows, now) == Situation::kWarm);
+	rows[OutfitRows::RowOf(Situation::kCold)].random = true;
+	CHECK(OutfitRows::Resolve(rows, now) == Situation::kCold);
 
 	Situations::Applicable home;
 	home.Add(Situation::kHome);

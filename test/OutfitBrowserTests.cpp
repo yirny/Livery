@@ -22,10 +22,10 @@ namespace
 		request.categories = {
 			{ kSituationGroup, "Default" },
 			{ kSituationGroup, "Town" },
+			{ kSituationGroup, "Castle" },
 			{ kSituationGroup, "Home" },
 			{ kSituationGroup, "Sleep" },
-			{ kSituationGroup, "Swimming" },
-			{ kSituationGroup, "Warm" },
+			{ kSituationGroup, "Cold" },
 		};
 		request.existingOutfits = {
 			{ .name = "iron set", .id = 1 },
@@ -34,24 +34,24 @@ namespace
 			{ .name = "Bare", .id = 4 },
 			{ .name = "Scout", .id = 5 },
 		};
-		// Default, Town, Home, Sleep, Swimming, Warm. A row shows only what it holds: Town's "Guard
+		// Default, Town, Castle, Home, Sleep, Cold. A row shows only what it holds: Town's "Guard
 		// Uniform" is hidden behind its chosen "Scout", Home's "Bare" is on its list with none
-		// chosen, and the random Swimming holds its whole list.
+		// chosen, and the random Cold holds its whole list.
 		request.situations = {
 			{ .situation = Situation::kDefault, .name = "Default" },
 			{ .situation = Situation::kTown, .name = "Town" },
+			{ .situation = Situation::kCastle, .name = "Castle" },
 			{ .situation = Situation::kHome, .name = "Home" },
 			{ .situation = Situation::kSleep, .name = "Sleep" },
-			{ .situation = Situation::kSwimming, .name = "Swimming" },
-			{ .situation = Situation::kWarm, .name = "Warm" },
+			{ .situation = Situation::kCold, .name = "Cold" },
 		};
 		request.assigned = {
 			{ .row = { .outfits = { 3 }, .chosen = 3 } },
 			{ .row = { .outfits = { 5, 2 }, .chosen = 5 } },
+			{},
 			{ .row = { .outfits = { 4 } } },
 			{ .row = { .outfits = { 3 }, .chosen = 3 } },
 			{ .row = { .outfits = { 2 }, .random = true } },
-			{},
 		};
 		return request;
 	}
@@ -123,7 +123,7 @@ TEST_CASE("The rows holding the outfit, in their order", "[browser]")
 	OutfitBrowser::Reset(state, request);
 	CHECK(RowNames(state, request, 2) == std::vector<std::string>{ "Default", "Sleep" });  // Town Dress
 	CHECK(RowNames(state, request, 4) == std::vector<std::string>{ "Town" });              // Scout, chosen over Guard Uniform
-	CHECK(RowNames(state, request, 1) == std::vector<std::string>{ "Swimming" });          // Guard Uniform: the random row's list
+	CHECK(RowNames(state, request, 1) == std::vector<std::string>{ "Cold" });              // Guard Uniform: the random row's list
 	CHECK(state.categories[3].empty());                                                    // Bare: on Home's list with none chosen
 	CHECK(state.categories[0].empty());                                                    // iron set
 }
@@ -133,10 +133,10 @@ TEST_CASE("Situation marks name the situations, never Default", "[browser]")
 	const auto           request = MakeRequest();
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
-	CHECK(state.situations[2] == "For Sleep");     // Town Dress: Default and Sleep
-	CHECK(state.situations[4] == "For Town");      // Scout
-	CHECK(state.situations[1] == "For Swimming");  // Guard Uniform
-	CHECK(state.situations[0].empty());            // iron set
+	CHECK(state.situations[2] == "For Sleep");  // Town Dress: Default and Sleep
+	CHECK(state.situations[4] == "For Town");   // Scout
+	CHECK(state.situations[1] == "For Cold");   // Guard Uniform
+	CHECK(state.situations[0].empty());         // iron set
 }
 
 TEST_CASE("Filter rows follow the rows, then the No row", "[browser]")
@@ -148,7 +148,7 @@ TEST_CASE("Filter rows follow the rows, then the No row", "[browser]")
 	for (const auto& row : state.filter) {
 		labels.push_back(row.label);
 	}
-	CHECK(labels == std::vector<std::string>{ "Default", "Town", "Home", "Sleep", "Swimming", "Warm", "No Situation" });
+	CHECK(labels == std::vector<std::string>{ "Default", "Town", "Castle", "Home", "Sleep", "Cold", "No Situation" });
 }
 
 TEST_CASE("Search matches part of the name, ignoring ASCII case", "[browser]")
@@ -179,10 +179,10 @@ TEST_CASE("Filter: any ticked row matches", "[browser]")
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Scout" });
 
-	Tick(state, kSituationGroup, "Swimming");
+	Tick(state, kSituationGroup, "Cold");
 	OutfitBrowser::Refresh(state, request);
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Guard Uniform", "Scout" });
-	CHECK(OutfitBrowser::FilterPreview(state) == "Town, Swimming");
+	CHECK(OutfitBrowser::FilterPreview(state) == "Town, Cold");
 
 	OutfitBrowser::ClearFilter(state);
 	OutfitBrowser::Refresh(state, request);

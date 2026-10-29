@@ -10,9 +10,9 @@
 //   Load, death - pieces put back on, and armor worn over them taken off, when an assigned NPC
 //                 loads; locks released when one dies; pieces taken from one in a menu
 //                 replaced as it closes
-//   Co-save     - save, load (versions 1 to 4; older ones turned into rows; the rows of
-//                 situations removed in situations.json dropped), the items the rows' outfits
-//                 leave off in a record of their own, revert
+//   Co-save     - save, load (versions 1 to 5; older ones turned into rows; the rows of
+//                 situations removed in situations.json or gone from this version dropped),
+//                 the items the rows' outfits leave off in a record of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, MenuOpenCloseEvent
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
@@ -31,8 +31,10 @@
 #include <atomic>
 #include <format>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -48,12 +50,17 @@ namespace
 
 	constexpr std::uint32_t kCoSaveID = 'LVRY';
 	constexpr std::uint32_t kAssignmentsRecord = 'ASGN';
-	constexpr std::uint32_t kAssignmentsVersion = 4;
+	constexpr std::uint32_t kAssignmentsVersion = 5;
+	constexpr std::uint32_t kFourthAssignmentsVersion = 4;  // still read: as v5 with the situations by number (kNumberedKeys)
 	constexpr std::uint32_t kThirdAssignmentsVersion = 3;   // still read: one outfit per situation, the default's armor, no rows
 	constexpr std::uint32_t kSecondAssignmentsVersion = 2;  // still read: as v3 without the default armor and the situations
 	constexpr std::uint32_t kFirstAssignmentsVersion = 1;   // still read: as v2 without the outfit id and the pieces taken off
 	constexpr std::uint32_t kExclusionsRecord = 'EXCL';
-	constexpr std::uint32_t kExclusionsVersion = 1;
+	constexpr std::uint32_t kExclusionsVersion = 2;
+	constexpr std::uint32_t kFirstExclusionsVersion = 1;  // still read: as v2 with the row by number (kNumberedKeys)
+	// The situations' keys (Situations::FromKey) at the numbers ASGN v3 and v4 and EXCL v1
+	// stored them by; v3 keeps one outfit for each after the Default, in this order.
+	constexpr std::array<std::string_view, 6> kNumberedKeys{ "Default", "Town", "Home", "Sleep", "Swimming", "Warm" };
 
 	// --- Records --------------------------------------------------------------
 
@@ -470,17 +477,19 @@ namespace
 
 	// --- Co-save --------------------------------------------------------------
 	//
-	// Record ASGN v4: assignment count; per assignment the actor FormID, the library outfit
+	// Record ASGN v5: assignment count; per assignment the actor FormID, the library outfit
 	// worn (wornOutfit), the piece count, per piece its instance key (armor FormID, the
 	// ExtraUniqueID's baseID and uniqueID), added and locked; the count of their own copies
 	// taken off and their instance keys; the Default's piece count and their armor FormIDs;
-	// the row worn (one byte); the row count (one byte), per row its situation (one byte, the
-	// Situations::Situation value), random (one byte), chosen, the outfit count and the
-	// outfit ids.
-	// v3 has the default's outfit id where v4 has wornOutfit, its armor where v4 has the
-	// Default's pieces, then one outfit id per situation in Situations::kChoosable order and
-	// the situation worn. v2 ends after the copies taken off, v1 after the pieces and has no
-	// outfit id: both get the pieces' armor as the default. FromLegacy turns them into rows.
+	// the situation of the row worn; the row count (one byte), per row its situation, random
+	// (one byte), chosen, the outfit count and the outfit ids. A situation is stored by its key
+	// (Situations::Name): its length (one byte) and its characters, so situations can be
+	// added and removed without a new version.
+	// v4 stores a situation as its number in kNumberedKeys (one byte). v3 has the default's
+	// outfit id where v4 has wornOutfit, its armor where v4 has the Default's pieces, then one
+	// outfit id per situation of kNumberedKeys after the Default and the number of the
+	// situation worn. v2 ends after the copies taken off, v1 after the pieces and has no outfit
+	// id: both get the pieces' armor as the default. FromLegacy turns them into rows.
 	// Contract: SKSE calls the three callbacks from the game's save, load and revert, on
 	// the game thread.
 
@@ -512,9 +521,15 @@ namespace
 		return true;
 	}
 
-	bool WriteRow(const SKSE::SerializationInterface& a_intfc, std::size_t a_situation, const OutfitRows::Row& a_row)
+	bool WriteSituation(const SKSE::SerializationInterface& a_intfc, Situation a_situation)
 	{
-		bool written = Write(a_intfc, static_cast<std::uint8_t>(a_situation)) && Write(a_intfc, static_cast<std::uint8_t>(a_row.random)) &&
+		const std::string_view key = Situations::Name(a_situation);
+		return Write(a_intfc, static_cast<std::uint8_t>(key.size())) && a_intfc.WriteRecordData(key.data(), static_cast<std::uint32_t>(key.size()));
+	}
+
+	bool WriteRow(const SKSE::SerializationInterface& a_intfc, Situation a_situation, const OutfitRows::Row& a_row)
+	{
+		bool written = WriteSituation(a_intfc, a_situation) && Write(a_intfc, static_cast<std::uint8_t>(a_row.random)) &&
 		               Write(a_intfc, a_row.chosen) && Write(a_intfc, static_cast<std::uint32_t>(a_row.outfits.size()));
 		for (const auto outfit : a_row.outfits) {
 			written = written && Write(a_intfc, outfit);
@@ -537,18 +552,18 @@ namespace
 		for (const auto armor : a_assignment.defaultPieces) {
 			written = written && Write(a_intfc, armor);
 		}
-		written = written && Write(a_intfc, static_cast<std::uint8_t>(a_assignment.worn)) && Write(a_intfc, static_cast<std::uint8_t>(a_assignment.rows.size()));
+		written = written && WriteSituation(a_intfc, a_assignment.worn) && Write(a_intfc, static_cast<std::uint8_t>(a_assignment.rows.size()));
 		for (std::size_t i = 0; i < a_assignment.rows.size(); ++i) {
-			written = written && WriteRow(a_intfc, i, a_assignment.rows[i]);
+			written = written && WriteRow(a_intfc, static_cast<Situation>(i), a_assignment.rows[i]);
 		}
 		return written;
 	}
 
-	// Record EXCL v1, written after ASGN while a row's outfit leaves items off
-	// (OutfitRows::Exclusion): entry count; per entry the actor FormID, the row (one byte, the
-	// Situations::Situation value), the outfit id, the armor count and the armor FormIDs. A
-	// record of its own, so ASGN keeps its version and a Livery that does not know EXCL skips
-	// it and dresses every item.
+	// Record EXCL v2, written after ASGN while a row's outfit leaves items off
+	// (OutfitRows::Exclusion): entry count; per entry the actor FormID, the row's situation (by
+	// its key, as in ASGN v5), the outfit id, the armor count and the armor FormIDs; v1 stores
+	// the situation as its number in kNumberedKeys (one byte). A record of its own, so a
+	// Livery that does not know EXCL skips it and dresses every item.
 
 	std::uint32_t CountExclusions()
 	{
@@ -575,7 +590,7 @@ namespace
 		for (const auto& assignment : g_assignments) {
 			for (std::size_t i = 0; i < assignment.rows.size(); ++i) {
 				for (const auto& [outfit, armor] : assignment.rows[i].excluded) {
-					written = written && Write(*a_intfc, assignment.actor) && Write(*a_intfc, static_cast<std::uint8_t>(i)) && Write(*a_intfc, outfit) &&
+					written = written && Write(*a_intfc, assignment.actor) && WriteSituation(*a_intfc, static_cast<Situation>(i)) && Write(*a_intfc, outfit) &&
 					          Write(*a_intfc, static_cast<std::uint32_t>(armor.size()));
 					for (const auto id : armor) {
 						written = written && Write(*a_intfc, id);
@@ -677,19 +692,44 @@ namespace
 		return true;
 	}
 
-	// Reads a row worn (one byte). Returns false when the record ends early or names a row
-	// this version does not have.
-	bool ReadWornRow(const SKSE::SerializationInterface& a_intfc, Assignment& a_assignment)
+	// Reads a situation's key: by its number in kNumberedKeys (`a_numbered`, ASGN v3 and v4,
+	// EXCL v1) or as written (WriteSituation). A number past them reads as "#<number>", which
+	// names no situation. Returns false when the record ends early.
+	bool ReadSituationKey(const SKSE::SerializationInterface& a_intfc, bool a_numbered, std::string& a_key)
 	{
-		std::uint8_t worn = 0;
-		if (!Read(a_intfc, worn) || worn >= a_assignment.rows.size()) {
+		if (a_numbered) {
+			std::uint8_t number = 0;
+			if (!Read(a_intfc, number)) {
+				return false;
+			}
+			a_key = number < kNumberedKeys.size() ? std::string{ kNumberedKeys[number] } : std::format("#{}", number);
+			return true;
+		}
+		std::uint8_t length = 0;
+		if (!Read(a_intfc, length)) {
 			return false;
 		}
-		a_assignment.worn = static_cast<Situation>(worn);
+		a_key.resize(length);
+		return length == 0 || a_intfc.ReadRecordData(a_key.data(), length) == length;
+	}
+
+	// Reads the situation of the row worn. One this version does not have (Situations::FromKey)
+	// reads as the Default, with a log line. Returns false when the record ends early.
+	bool ReadWornRow(const SKSE::SerializationInterface& a_intfc, bool a_numbered, Assignment& a_assignment)
+	{
+		std::string key;
+		if (!ReadSituationKey(a_intfc, a_numbered, key)) {
+			return false;
+		}
+		const auto situation = Situations::FromKey(key);
+		if (!situation) {
+			logger::warn("{:08X} wore the co-save row of situation {}, which this version does not have; read as the Default", a_assignment.actor, key);
+		}
+		a_assignment.worn = situation.value_or(Situation::kDefault);
 		return true;
 	}
 
-	// One row of a v4 record, after its situation.
+	// One row of a v4 or v5 record, after its situation.
 	bool ReadRow(const SKSE::SerializationInterface& a_intfc, OutfitRows::Row& a_row)
 	{
 		std::uint8_t  random = 0;
@@ -708,26 +748,29 @@ namespace
 		return true;
 	}
 
-	// Reads the Default's pieces, the row worn and the rows (v4). A row for a situation this
-	// version does not have is dropped with a log line. Returns false when the record ends
-	// early or names a worn row this version does not have.
-	bool ReadRows(const SKSE::SerializationInterface& a_intfc, Assignment& a_assignment)
+	// Reads the Default's pieces, the row worn and the rows (v4 `a_numbered`, v5). A row for a
+	// situation this version does not have is dropped with a log line. Returns false when the
+	// record ends early.
+	bool ReadRows(const SKSE::SerializationInterface& a_intfc, bool a_numbered, Assignment& a_assignment)
 	{
 		std::uint8_t rows = 0;
-		if (!ReadArmorForms(a_intfc, a_assignment.defaultPieces) || !ReadWornRow(a_intfc, a_assignment) || !Read(a_intfc, rows)) {
+		if (!ReadArmorForms(a_intfc, a_assignment.defaultPieces) || !ReadWornRow(a_intfc, a_numbered, a_assignment) || !Read(a_intfc, rows)) {
 			return false;
 		}
 		for (; rows > 0; --rows) {
-			std::uint8_t    situation = 0;
+			std::string     key;
 			OutfitRows::Row row;
-			if (!Read(a_intfc, situation) || !ReadRow(a_intfc, row)) {
+			if (!ReadSituationKey(a_intfc, a_numbered, key) || !ReadRow(a_intfc, row)) {
 				return false;
 			}
-			if (situation >= a_assignment.rows.size()) {
-				logger::warn("Dropped the co-save row of situation {}, unknown to this version, for {:08X}", situation, a_assignment.actor);
+			const auto situation = Situations::FromKey(key);
+			if (!situation) {
+				if (row != OutfitRows::Row{}) {
+					logger::warn("Dropped the co-save row of situation {}, which this version does not have, for {:08X}", key, a_assignment.actor);
+				}
 				continue;
 			}
-			a_assignment.rows[situation] = std::move(row);
+			a_assignment.rows[RowOf(*situation)] = std::move(row);
 		}
 		return true;
 	}
@@ -735,13 +778,14 @@ namespace
 	// What versions 1 to 3 kept of an actor's choices.
 	struct LegacyChoices
 	{
-		std::uint32_t                                            defaultOutfit = 0;  // the library outfit the default armor came from; 0 for none
-		std::vector<RE::FormID>                                  defaultArmor;       // empty for no default
-		std::array<std::uint32_t, Situations::kChoosable.size()> situations{};       // outfit per situation (Situations::Index); 0 for none
+		std::uint32_t           defaultOutfit = 0;  // the library outfit the default armor came from; 0 for none
+		std::vector<RE::FormID> defaultArmor;       // empty for no default
+		// Outfit per situation of kNumberedKeys after the Default, in its order; 0 for none.
+		std::array<std::uint32_t, kNumberedKeys.size() - 1> situations{};
 	};
 
 	// Reads the default armor, the situation outfits and the situation worn (v3). Returns
-	// false when the record ends early or names a situation this version does not have.
+	// false when the record ends early.
 	bool ReadLegacyChoices(const SKSE::SerializationInterface& a_intfc, LegacyChoices& a_choices, Assignment& a_assignment)
 	{
 		if (!ReadArmorForms(a_intfc, a_choices.defaultArmor)) {
@@ -752,12 +796,13 @@ namespace
 				return false;
 			}
 		}
-		return ReadWornRow(a_intfc, a_assignment);
+		return ReadWornRow(a_intfc, true, a_assignment);
 	}
 
 	// Rows from versions 1 to 3: a default with an outfit id still in the library becomes a
 	// row of that outfit, chosen, and its armor is dropped; else the armor becomes the
-	// Default's pieces. Each situation's outfit becomes a row of it, chosen. Random off.
+	// Default's pieces. Each situation's outfit becomes a row of it, chosen, unless this
+	// version does not have the situation. Random off.
 	// Contract: the library is loaded (Library::Load at kDataLoaded, before any co-save load).
 	void FromLegacy(Assignment& a_assignment, const LegacyChoices& a_choices)
 	{
@@ -767,20 +812,28 @@ namespace
 		} else {
 			a_assignment.defaultPieces = a_choices.defaultArmor;
 		}
-		for (const auto situation : Situations::kChoosable) {
-			if (const auto outfit = a_choices.situations[Situations::Index(situation)]; outfit != 0) {
-				a_assignment.rows[RowOf(situation)] = { .outfits = { outfit }, .chosen = outfit };
+		for (std::size_t i = 0; i < a_choices.situations.size(); ++i) {
+			const auto outfit = a_choices.situations[i];
+			const auto key = kNumberedKeys[i + 1];
+			if (outfit == 0) {
+				continue;
+			}
+			if (const auto situation = Situations::FromKey(key)) {
+				a_assignment.rows[RowOf(*situation)] = { .outfits = { outfit }, .chosen = outfit };
+			} else {
+				logger::warn("Dropped the co-save row of situation {}, which this version does not have, for {:08X}", key, a_assignment.actor);
 			}
 		}
-		a_assignment.wornOutfit = a_assignment.worn == Situation::kDefault ? defaultRow.chosen : a_choices.situations[Situations::Index(a_assignment.worn)];
+		a_assignment.wornOutfit = a_assignment.rows[RowOf(a_assignment.worn)].chosen;
 	}
 
 	// Reads one assignment of a `a_version` record. Returns false when the record ends early.
 	bool ReadAssignment(const SKSE::SerializationInterface& a_intfc, std::uint32_t a_version, Assignment& a_assignment, bool& a_actorResolved)
 	{
 		LegacyChoices legacy;
-		// v4's outfit worn, v2's and v3's default outfit; v1 has neither.
-		auto& second = a_version == kAssignmentsVersion ? a_assignment.wornOutfit : legacy.defaultOutfit;
+		// v4's and v5's outfit worn, v2's and v3's default outfit; v1 has neither.
+		const bool hasRows = a_version >= kFourthAssignmentsVersion;
+		auto&      second = hasRows ? a_assignment.wornOutfit : legacy.defaultOutfit;
 		if (!Read(a_intfc, a_assignment.actor) || (a_version != kFirstAssignmentsVersion && !Read(a_intfc, second))) {
 			return false;
 		}
@@ -788,8 +841,8 @@ namespace
 		if (!ReadWorn(a_intfc, a_version, a_assignment)) {
 			return false;
 		}
-		if (a_version == kAssignmentsVersion) {
-			return ReadRows(a_intfc, a_assignment);
+		if (hasRows) {
+			return ReadRows(a_intfc, a_version == kFourthAssignmentsVersion, a_assignment);
 		}
 		if (a_version == kThirdAssignmentsVersion) {
 			if (!ReadLegacyChoices(a_intfc, legacy, a_assignment)) {
@@ -848,15 +901,15 @@ namespace
 	// An EXCL entry as read, its FormIDs fixed for the current load order.
 	struct StoredExclusion
 	{
-		RE::FormID              actor = 0;
-		std::uint8_t            row = 0;
-		std::uint32_t           outfit = 0;
-		std::vector<RE::FormID> armor;
+		RE::FormID               actor = 0;
+		std::optional<Situation> row;  // nullopt for a situation this version does not have
+		std::uint32_t            outfit = 0;
+		std::vector<RE::FormID>  armor;
 	};
 
-	// Reads an EXCL v1 record. An entry whose actor's plugin is gone is dropped, and so is an
-	// armor form whose plugin is gone (ReadArmorForms).
-	std::vector<StoredExclusion> ReadExclusions(const SKSE::SerializationInterface& a_intfc)
+	// Reads an EXCL record of `a_version`. An entry whose actor's plugin is gone is dropped,
+	// and so is an armor form whose plugin is gone (ReadArmorForms).
+	std::vector<StoredExclusion> ReadExclusions(const SKSE::SerializationInterface& a_intfc, std::uint32_t a_version)
 	{
 		std::vector<StoredExclusion> entries;
 		std::uint32_t                count = 0;
@@ -866,10 +919,13 @@ namespace
 		}
 		for (; count > 0; --count) {
 			StoredExclusion entry;
-			if (!Read(a_intfc, entry.actor) || !Read(a_intfc, entry.row) || !Read(a_intfc, entry.outfit) || !ReadArmorForms(a_intfc, entry.armor)) {
+			std::string     key;
+			if (!Read(a_intfc, entry.actor) || !ReadSituationKey(a_intfc, a_version == kFirstExclusionsVersion, key) || !Read(a_intfc, entry.outfit) ||
+				!ReadArmorForms(a_intfc, entry.armor)) {
 				logger::error("The co-save record of the items left off is cut short");
 				return entries;
 			}
+			entry.row = Situations::FromKey(key);
 			if (a_intfc.ResolveFormID(entry.actor, entry.actor)) {
 				entries.push_back(std::move(entry));
 			}
@@ -885,10 +941,10 @@ namespace
 	{
 		for (const auto& entry : a_entries) {
 			auto* assignment = FindAssignment(entry.actor);
-			if (!assignment || entry.row >= assignment->rows.size()) {
+			if (!assignment || !entry.row) {
 				continue;
 			}
-			auto& row = assignment->rows[entry.row];
+			auto& row = assignment->rows[RowOf(*entry.row)];
 			if (std::ranges::find(row.outfits, entry.outfit) != row.outfits.end()) {
 				OutfitRows::SetExcluded(row, entry.outfit, entry.armor);
 			}
@@ -903,17 +959,17 @@ namespace
 		std::vector<StoredExclusion> exclusions;
 		while (a_intfc->GetNextRecordInfo(type, version, length)) {
 			if (type == kExclusionsRecord) {
-				if (version != kExclusionsVersion) {
+				if (version != kExclusionsVersion && version != kFirstExclusionsVersion) {
 					logger::warn("Co-save record EXCL version {} is unknown; every outfit wears all its items", version);
 					continue;
 				}
-				exclusions = ReadExclusions(*a_intfc);
+				exclusions = ReadExclusions(*a_intfc, version);
 				continue;
 			}
 			if (type != kAssignmentsRecord) {
 				continue;
 			}
-			if (version != kAssignmentsVersion && version != kThirdAssignmentsVersion && version != kSecondAssignmentsVersion && version != kFirstAssignmentsVersion) {
+			if (version < kFirstAssignmentsVersion || version > kAssignmentsVersion) {
 				logger::warn("Co-save record version {} is unknown; no assignments loaded", version);
 				continue;
 			}

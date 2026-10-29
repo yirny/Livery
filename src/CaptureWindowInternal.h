@@ -433,7 +433,7 @@ namespace CaptureWindow::Internal
 	bool HasSituationEdits(const State& a_state);
 
 	// The star's tooltip from the page's edits, as OutfitBrowser::State::situations from the
-	// actor's rows: "For Town, Warm", the situations (never Default) whose edited row holds
+	// actor's rows: "For Town, Cold", the situations (never Default) whose edited row holds
 	// `a_outfit` by their edited names; "" for none.
 	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit);
 
