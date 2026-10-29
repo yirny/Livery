@@ -1374,7 +1374,7 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const auto list = InventoryPieces(a_state);
 		DrawPieceRows(a_state, list);
-		const bool load = DrawPieceCount(a_state, list, true);
+		const bool load = DrawPieceCount(a_state, list, a_state.request.offersWardrobe);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}

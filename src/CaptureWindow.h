@@ -189,6 +189,9 @@ namespace CaptureWindow
 		bool movesFromPlayer = true;
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
 		bool protectsFavorites = true;
+		// The Inventory page's count line ends in `Add items from Wardrobe...`; off for the
+		// player while they dress from their inventory only (Settings::PlayerAddsMissingPieces).
+		bool offersWardrobe = true;
 
 		// Runs on the game thread when the user saves on the Save page: after Create, after
 		// Create and Apply (its popup first when it gives a situation or replaces the Default),
