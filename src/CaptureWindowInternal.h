@@ -126,6 +126,10 @@ namespace CaptureWindow::Internal
 		OutfitIcons::Icon               icon;
 		std::array<char, kNameCapacity> name{};
 		std::vector<std::size_t>        pieces;  // its loaded pieces as edited: indices into request.pieces, ascending
+		// The armor (FormIDs, ascending) of `pieces` unticked in its piece list, which Apply has
+		// the outfit leave off on the row it gives it; never every one of `pieces`. Not an
+		// unsaved edit: selecting an outfit, or SetOutfits, starts it from the actor's rows.
+		std::vector<std::uint32_t> excluded;
 	};
 
 	// The Choose icon popup (Manage Wardrobe's and the Save page's Create tab's) while it is open.
@@ -153,6 +157,7 @@ namespace CaptureWindow::Internal
 		int                         selected = -1;             // index into entries; -1 for none
 		bool                        details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
 		std::uint32_t               viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
+		int                         viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
 		bool                        scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
 		int                         nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
 		ImGuiID                     nameField = 0;             // that field's ImGui ID
@@ -350,11 +355,13 @@ namespace CaptureWindow::Internal
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped,
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
-	// Outfit `a_index` (into request.existingOutfits) read only, in Manage Wardrobe's order:
-	// its name, `a_situations` under the "SITUATIONS (#{Name})" label, then its
-	// pieces under their count line, their list ending by screen Y `a_bottom` and scrolling
-	// when they need more (one row shows at least).
-	void DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom);
+	// Outfit `a_index` (into request.existingOutfits) in Manage Wardrobe's order: its name,
+	// `a_situations` under the "SITUATIONS (#{Name})" label, then its pieces under their count
+	// line, their list ending by screen Y `a_bottom` and scrolling when they need more (one row
+	// shows at least). Read only with no `a_excluded`; else the pieces tick (DrawPieceChoices),
+	// and it returns true when `a_excluded` changed.
+	bool DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom,
+		std::vector<std::uint32_t>* a_excluded = nullptr);
 
 	// An outfit's piece count line, the pieces whose plugin is not loaded included.
 	std::string PieceCountText(std::size_t a_loaded, std::size_t a_unloaded);
@@ -363,6 +370,21 @@ namespace CaptureWindow::Internal
 	// list's, ending by screen Y `a_bottom` and scrolling when they need more; one row shows at
 	// least.
 	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces, float a_bottom = FLT_MAX);
+
+	// An outfit's pieces (indices into request.pieces) as the Inventory page's tick rows, with
+	// their icons: a ticked one is worn with the outfit, an unticked one left off, its armor in
+	// `a_excluded` (FormIDs, ascending). A click ticks or unticks one, but the last ticked one
+	// stays ticked. The list ends by screen Y `a_bottom` and scrolls when it needs more; one row
+	// shows at least. Returns true when `a_excluded` changed.
+	bool DrawPieceChoices(const State& a_state, const std::vector<std::size_t>& a_pieces, std::vector<std::uint32_t>& a_excluded, float a_bottom = FLT_MAX);
+
+	// `a_pieces` less those whose armor `a_excluded` names, or all of them when that leaves
+	// none, as dressing wears them (OutfitRows::WornPieces).
+	std::vector<std::size_t> WornOf(const State& a_state, const std::vector<std::size_t>& a_pieces, const std::vector<std::uint32_t>& a_excluded);
+
+	// Those of `a_excluded` that name one of `a_pieces`; none when they name every one, as
+	// dressing then wears them all.
+	std::vector<std::uint32_t> ExcludedAmong(const State& a_state, const std::vector<std::size_t>& a_pieces, std::vector<std::uint32_t> a_excluded);
 
 	// What an Apply popup dresses the actor in (docs/outfit-management-ui.md §4): Manage
 	// Wardrobe's selected outfit, or the outfit the Save page's Create and Apply creates.
@@ -409,6 +431,10 @@ namespace CaptureWindow::Internal
 
 	// A situation's name differs from situations.json, or a row from the actor's.
 	bool HasSituationEdits(const State& a_state);
+
+	// The pieces of the outfit whose details show (SituationForm::viewedOutfit), less those its
+	// row leaves off when they were opened from a row that holds it; empty with none showing.
+	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state);
 
 	// Drags the outfit row just laid out, carrying `a_payload`, shown as a see-through copy of
 	// the row (Theme::OutfitDragGhost) named `a_label`, with its `a_grip` and `a_icon` (nullptr

@@ -8,14 +8,16 @@
 //   Edits           - the form from the request, what differs from it, a name's rule at the
 //                     end of its edit
 //   Drag and drop   - an outfit dragged from either pane, dropped on a situation (at its front,
-//                     or between two of its outfits) or on the outfit list (taken off its row);
-//                     a folded heading opens once a drag has hovered it a while
+//                     or between two of its outfits; moved with the items it leaves off) or on
+//                     the outfit list (taken off its row); a folded heading opens once a drag
+//                     has hovered it a while
 //   Situation List  - the left pane: a heading per situation (a click or Edit selects, its
 //                     chevron folds) over the outfits it shows; a click on an outfit row of
 //                     either pane shows its details and puts it on the preview
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
-//                     Outfit List with Remove; or an outfit's details with Edit and Back
+//                     Outfit List with Remove; or an outfit's details with Edit and Back, its
+//                     pieces ticked as the row it was clicked under wears them
 //   Buttons, popups - Save Changes, Exit, Restore Presets (?); Remove's and Restore Presets'
 //                     popups and the unsaved-changes alert, each handing its write to the
 //                     Request's handler
@@ -170,35 +172,65 @@ namespace CaptureWindow::Internal
 			return dropped;
 		}
 
-		// An outfit dropped on situation `a_target`, before what it shows at `a_index` (the
-		// front with random off, where only `chosen` shows): from the outfit list a copy; from a
-		// situation moved, off its row first (its `chosen` 0 if it was that), or within its own
-		// row reordered. An outfit made the Default's `chosen` drops its pieces, as
-		// Assignments does.
-		void DropOnSituation(SituationForm& a_form, std::size_t a_target, std::size_t a_index, const OutfitPayload& a_payload)
+		// A drop changed the rows: the preview follows the outfit whose details show when what it
+		// wears changed (`a_before`, ViewedOutfitPieces before the drop).
+		void FollowViewedPieces(const State& a_state, const std::vector<std::size_t>& a_before)
 		{
-			if (a_payload.from >= 0 && static_cast<std::size_t>(a_payload.from) != a_target) {
-				OutfitRows::Take(a_form.entries[static_cast<std::size_t>(a_payload.from)].row, a_payload.outfit);
+			if (a_state.situationForm.viewedOutfit == 0) {
+				return;
 			}
-			auto& row = a_form.entries[a_target].row;
+			if (auto now = ViewedOutfitPieces(a_state); now != a_before) {
+				QueuePreview(a_state, std::move(now));
+			}
+		}
+
+		// An outfit dropped on situation `a_target`, before what it shows at `a_index` (the
+		// front with random off, where only `chosen` shows): from the outfit list a copy, all its
+		// items worn; from a situation moved, off its row first (its `chosen` 0 if it was that)
+		// with the items it left off there, which it leaves off on the new row unless that has
+		// it already, its details following it; or within its own row reordered. An outfit made
+		// the Default's `chosen` drops its pieces, as Assignments does.
+		void DropOnSituation(State& a_state, std::size_t a_target, std::size_t a_index, const OutfitPayload& a_payload)
+		{
+			auto&                      form = a_state.situationForm;
+			const auto                 before = ViewedOutfitPieces(a_state);
+			const bool                 moved = a_payload.from >= 0 && static_cast<std::size_t>(a_payload.from) != a_target;
+			std::vector<std::uint32_t> carried;
+			if (moved) {
+				auto& source = form.entries[static_cast<std::size_t>(a_payload.from)].row;
+				carried = OutfitRows::ExcludedOf(source, a_payload.outfit);
+				OutfitRows::Take(source, a_payload.outfit);
+			}
+			auto&      row = form.entries[a_target].row;
+			const bool arrives = std::ranges::find(row.outfits, a_payload.outfit) == row.outfits.end();
 			OutfitRows::Place(row, a_payload.outfit, row.random ? a_index : 0);
-			if (a_target == 0 && !row.random) {
-				a_form.defaultPieces = false;
+			if (moved && arrives) {
+				OutfitRows::SetExcluded(row, a_payload.outfit, std::move(carried));
 			}
+			if (moved && form.viewedOutfit == a_payload.outfit && form.viewedRow == a_payload.from) {
+				form.viewedRow = static_cast<int>(a_target);
+			}
+			if (a_target == 0 && !row.random) {
+				form.defaultPieces = false;
+			}
+			FollowViewedPieces(a_state, before);
 		}
 
 		// A drag from the Situation List dropped on the outfit list: the outfit leaves its row
 		// (its `chosen` 0 if it was that), or the Default's pieces go.
-		void DropOnOutfitList(SituationForm& a_form, const OutfitPayload& a_payload)
+		void DropOnOutfitList(State& a_state, const OutfitPayload& a_payload)
 		{
+			auto& form = a_state.situationForm;
 			if (a_payload.from < 0) {
 				return;
 			}
 			if (a_payload.outfit == 0) {
-				a_form.defaultPieces = false;
+				form.defaultPieces = false;
 				return;
 			}
-			OutfitRows::Take(a_form.entries[static_cast<std::size_t>(a_payload.from)].row, a_payload.outfit);
+			const auto before = ViewedOutfitPieces(a_state);
+			OutfitRows::Take(form.entries[static_cast<std::size_t>(a_payload.from)].row, a_payload.outfit);
+			FollowViewedPieces(a_state, before);
 		}
 
 		// --- Situation List ---------------------------------------------------
@@ -208,20 +240,35 @@ namespace CaptureWindow::Internal
 		void CloseOutfitView(State& a_state)
 		{
 			a_state.situationForm.viewedOutfit = 0;
+			a_state.situationForm.viewedRow = -1;
 			QueuePreview(a_state, TickedPieces(a_state));
 		}
 
-		// A click on an outfit row of either pane: its details on the right and the outfit on the
-		// preview; on the outfit whose details show, back, as Back does.
-		void ViewOutfit(State& a_state, int a_index)
+		// A click on an outfit row of either pane, under situation `a_row`'s heading or on the
+		// outfit list (-1): its details on the right and the outfit, less the items that row
+		// leaves off, on the preview; on the row whose details show, back, as Back does.
+		void ViewOutfit(State& a_state, int a_index, int a_row)
 		{
+			auto&       form = a_state.situationForm;
 			const auto& outfit = OutfitAt(a_state, a_index);
-			if (a_state.situationForm.viewedOutfit == outfit.id) {
+			if (form.viewedOutfit == outfit.id && form.viewedRow == a_row) {
 				CloseOutfitView(a_state);
 				return;
 			}
-			a_state.situationForm.viewedOutfit = outfit.id;
-			QueuePreview(a_state, outfit.pieces);
+			form.viewedOutfit = outfit.id;
+			form.viewedRow = a_row;
+			QueuePreview(a_state, ViewedOutfitPieces(a_state));
+		}
+
+		// The entry whose row the ticks of the shown outfit's pieces edit: the one it was clicked
+		// under, while that row holds it (OutfitRows::Holds); -1 for none, the pieces read only.
+		int EditedRow(const SituationForm& a_form)
+		{
+			const auto row = a_form.viewedRow;
+			if (row < 0 || static_cast<std::size_t>(row) >= a_form.entries.size()) {
+				return -1;
+			}
+			return OutfitRows::Holds(a_form.entries[static_cast<std::size_t>(row)].row, a_form.viewedOutfit) ? row : -1;
 		}
 
 		// What a heading shows under it: every outfit on the list with random on, `chosen`
@@ -294,7 +341,7 @@ namespace CaptureWindow::Internal
 				ImGui::PopStyleColor();
 				if (ImGui::BeginDragDropTarget()) {
 					if (const auto dropped = AcceptOnSituation(top)) {
-						DropOnSituation(form, a_entry, 0, *dropped);
+						DropOnSituation(a_state, a_entry, 0, *dropped);
 					}
 				}
 				return;
@@ -310,9 +357,10 @@ namespace CaptureWindow::Internal
 				ImGui::PushID(static_cast<int>(k));
 				const float top = ImGui::GetCursorScreenPos().y;
 				// No star: every row here is one chosen for a situation.
-				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, form.viewedOutfit == shown[k], k % 2 == 1, Theme::Grip::kName, false)) {
+				const bool viewed = form.viewedOutfit == shown[k] && form.viewedRow == static_cast<int>(a_entry);
+				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, viewed, k % 2 == 1, Theme::Grip::kName, false)) {
 					QueueMenuSound(kFocusSound);
-					ViewOutfit(a_state, index);
+					ViewOutfit(a_state, index, static_cast<int>(a_entry));
 				}
 				const float bottom = ImGui::GetItemRectMax().y;
 				const auto& outfit = OutfitAt(a_state, index);
@@ -320,7 +368,7 @@ namespace CaptureWindow::Internal
 				if (ImGui::BeginDragDropTarget()) {
 					const bool after = random && ImGui::GetMousePos().y >= (top + bottom) * 0.5f;
 					if (const auto dropped = AcceptOnSituation(after ? bottom : top)) {
-						DropOnSituation(form, a_entry, after ? k + 1 : k, *dropped);
+						DropOnSituation(a_state, a_entry, after ? k + 1 : k, *dropped);
 					}
 				}
 				ImGui::PopID();
@@ -381,7 +429,7 @@ namespace CaptureWindow::Internal
 					}
 				}
 				if (const auto dropped = AcceptOnSituation(bottom)) {
-					DropOnSituation(form, a_entry, 0, *dropped);
+					DropOnSituation(a_state, a_entry, 0, *dropped);
 				}
 			}
 			if (!entry.folded) {
@@ -471,14 +519,14 @@ namespace CaptureWindow::Internal
 						ImGui::GetWindowDrawList()->AddRect(pane.Min, pane.Max, ImGui::GetColorU32(ImGuiCol_CheckMark), 0.0f, ImDrawFlags_None,
 							(std::max)(1.0f, kFrameWidth * Theme::Scale()));
 						if (payload->IsDelivery()) {
-							DropOnOutfitList(a_state.situationForm, *static_cast<const OutfitPayload*>(payload->Data));
+							DropOnOutfitList(a_state, *static_cast<const OutfitPayload*>(payload->Data));
 						}
 					}
 				}
 				ImGui::EndDragDropTarget();
 			}
 			if (clicked >= 0) {
-				ViewOutfit(a_state, clicked);  // DrawOutfitList played the focus sound
+				ViewOutfit(a_state, clicked, -1);  // DrawOutfitList played the focus sound
 			}
 			return controls.escapeTaken;
 		}
@@ -591,10 +639,12 @@ namespace CaptureWindow::Internal
 			return names.empty() ? "None" : names;
 		}
 
-		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits), read only
-		// as Manage Wardrobe lays it out (DrawOutfitSummary), its rows as the page's edits have
-		// them; then Edit and Back centred. It grows with the pieces, moving the page's buttons
-		// when taller than the Situation List; its pieces' list scrolls only to keep the whole view
+		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits) as Manage
+		// Wardrobe lays it out (DrawOutfitSummary), its rows as the page's edits have them, its
+		// pieces ticked as the row it was clicked under wears them, a tick an edit of that row
+		// (read only from the outfit list, or once the row lost it); then Edit and Back centred.
+		// It grows with the pieces, moving the page's buttons when taller than the Situation
+		// List; its pieces' list scrolls only to keep the whole view
 		// within kMaxListHeightRatio of the screen, as every list's column keeps, so the window
 		// stays on screen. Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
 		// Contract: ShownPane is RightPane::kOutfit; called at the top of the right pane.
@@ -603,7 +653,14 @@ namespace CaptureWindow::Internal
 			const float buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight();  // under the pieces' list
 			const float bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;            // the view's lowest
 			ImGui::PushID("outfitView");
-			DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, a_state.situationForm.viewedOutfit), bottom - buttonRow);
+			auto&      form = a_state.situationForm;
+			const auto edited = EditedRow(form);
+			auto*      row = edited >= 0 ? &form.entries[static_cast<std::size_t>(edited)].row : nullptr;
+			auto       excluded = row ? OutfitRows::ExcludedOf(*row, form.viewedOutfit) : std::vector<std::uint32_t>{};
+			if (DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, form.viewedOutfit), bottom - buttonRow, row ? &excluded : nullptr)) {
+				OutfitRows::SetExcluded(*row, form.viewedOutfit, std::move(excluded));
+				QueuePreview(a_state, ViewedOutfitPieces(a_state));
+			}
 			BeginPaneButtonRow({ "Edit", "Back" });
 			const bool edit = Theme::Button("Edit");
 			ImGui::SameLine();
@@ -759,8 +816,8 @@ namespace CaptureWindow::Internal
 				}
 				save.dropDefaultPieces = request.assigned[0].pieces && !form.defaultPieces;
 			}
-			if (const int viewed = IndexOfOutfit(a_state, form.viewedOutfit); viewed >= 0) {
-				save.previewPieces = OutfitAt(a_state, viewed).pieces;
+			if (IndexOfOutfit(a_state, form.viewedOutfit) >= 0) {
+				save.previewPieces = ViewedOutfitPieces(a_state);
 			}
 			a_state.status = Status::kSaving;
 			a_state.error.clear();
@@ -828,9 +885,11 @@ namespace CaptureWindow::Internal
 			return a_before[static_cast<std::size_t>(a_index)].situation;
 		};
 		const auto selected = keyOf(form.selected);
+		const auto viewedFrom = keyOf(form.viewedRow);
 
 		std::vector<SituationEntry> entries(request.situations.size());
 		form.selected = -1;
+		form.viewedRow = -1;
 		for (std::size_t i = 0; i < entries.size(); ++i) {
 			const auto& info = request.situations[i];
 			auto&       entry = entries[i];
@@ -844,6 +903,9 @@ namespace CaptureWindow::Internal
 			if (selected && info.situation == *selected) {
 				form.selected = static_cast<int>(i);
 			}
+			if (viewedFrom && info.situation == *viewedFrom) {
+				form.viewedRow = static_cast<int>(i);
+			}
 		}
 		form.entries = std::move(entries);
 		form.defaultPieces = !request.assigned.empty() && request.assigned[0].pieces;
@@ -855,6 +917,18 @@ namespace CaptureWindow::Internal
 	bool HasSituationEdits(const State& a_state)
 	{
 		return NamesChanged(a_state) || RowsChanged(a_state);
+	}
+
+	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state)
+	{
+		const auto& form = a_state.situationForm;
+		const int   viewed = IndexOfOutfit(a_state, form.viewedOutfit);
+		if (viewed < 0) {
+			return {};
+		}
+		const auto& pieces = OutfitAt(a_state, viewed).pieces;
+		const auto  edited = EditedRow(form);
+		return edited >= 0 ? WornOf(a_state, pieces, OutfitRows::ExcludedOf(form.entries[static_cast<std::size_t>(edited)].row, form.viewedOutfit)) : pieces;
 	}
 
 	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon)

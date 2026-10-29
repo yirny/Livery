@@ -28,8 +28,8 @@ namespace Assignments
 	// Contract: game thread; a save is loaded and no preview is on (the capture window is closed).
 	void ReleaseEveryone();
 
-	// Gives their Default, worn wherever no situation applies, library outfit `a_outfit`
-	// (OutfitRows::Give; the Default's pieces go when it becomes `chosen`), or with `a_outfit`
+	// Gives their Default, worn wherever no situation applies, library outfit `a_outfit` with
+	// all its items (OutfitRows::Give; the Default's pieces go when it becomes `chosen`), or with `a_outfit`
 	// 0 makes `a_armor` the Default's pieces, `chosen` 0 and random off. Then dresses them for
 	// their situations now: in the Default, kept on and an NPC locked, or in a situation
 	// outfit they have. A library outfit is read from the library; its pieces not in
@@ -49,6 +49,9 @@ namespace Assignments
 		std::vector<Situations::Situation> assign;
 		std::vector<Situations::Situation> remove;
 		std::vector<RE::TESObjectARMO*>    leaveOut;  // stays out of this dressing only (pieces that could not be moved to them)
+		// The armor `outfit` leaves off on the rows in `assign` from now on
+		// (OutfitRows::Exclusion); empty wears all its items.
+		std::vector<RE::FormID> excluded;
 	};
 
 	// Makes every change, then dresses them once, anew, for their situations now, so an

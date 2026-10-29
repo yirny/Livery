@@ -10,7 +10,8 @@
 //   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies;
 //                 pieces taken from one in a menu replaced as it closes
 //   Co-save     - save, load (versions 1 to 4; older ones turned into rows; the rows of
-//                 situations removed in situations.json dropped), revert
+//                 situations removed in situations.json dropped), the items the rows' outfits
+//                 leave off in a record of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, MenuOpenCloseEvent
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
@@ -50,6 +51,8 @@ namespace
 	constexpr std::uint32_t kThirdAssignmentsVersion = 3;   // still read: one outfit per situation, the default's armor, no rows
 	constexpr std::uint32_t kSecondAssignmentsVersion = 2;  // still read: as v3 without the default armor and the situations
 	constexpr std::uint32_t kFirstAssignmentsVersion = 1;   // still read: as v2 without the outfit id and the pieces taken off
+	constexpr std::uint32_t kExclusionsRecord = 'EXCL';
+	constexpr std::uint32_t kExclusionsVersion = 1;
 
 	// --- Records --------------------------------------------------------------
 
@@ -260,13 +263,18 @@ namespace
 		return OutfitRows::Wears(a_rows[RowOf(a_row)], kept, RandomIndex);
 	}
 
-	// The armor row `a_row` wears as `a_outfit`: the library outfit's loaded pieces, or with
-	// none the Default's pieces. Empty for an outfit gone from the library or nothing to wear.
+	// The armor row `a_row` wears as `a_outfit`: the library outfit's loaded pieces less those
+	// it leaves off on the row (OutfitRows::WornPieces), or with none the Default's pieces.
+	// Empty for an outfit gone from the library or nothing to wear.
 	std::vector<RE::TESObjectARMO*> ArmorFor(const Assignment& a_assignment, Situation a_row, std::uint32_t a_outfit)
 	{
 		if (a_outfit != 0) {
 			const auto* outfit = Library::Find(a_outfit);
-			return outfit ? Library::LoadedPieces(*outfit) : std::vector<RE::TESObjectARMO*>{};
+			if (!outfit) {
+				return {};
+			}
+			const auto excluded = OutfitRows::ExcludedOf(a_assignment.rows[RowOf(a_row)], a_outfit);
+			return OutfitRows::WornPieces(Library::LoadedPieces(*outfit), excluded, [](const RE::TESObjectARMO* a_piece) { return a_piece->GetFormID(); });
 		}
 		std::vector<RE::TESObjectARMO*> armor;
 		if (a_row != Situation::kDefault) {
@@ -340,13 +348,13 @@ namespace
 		return true;
 	}
 
-	// Row `a_row` gets library outfit `a_outfit` (OutfitRows::Give); a library outfit made the
-	// Default's `chosen` with random off drops the Default's pieces (a random Default keeps
-	// them for an empty list). Nobody is dressed here.
-	void GiveRow(Assignment& a_assignment, Situation a_row, std::uint32_t a_outfit)
+	// Row `a_row` gets library outfit `a_outfit`, leaving `a_excluded` off (OutfitRows::Give);
+	// a library outfit made the Default's `chosen` with random off drops the Default's pieces
+	// (a random Default keeps them for an empty list). Nobody is dressed here.
+	void GiveRow(Assignment& a_assignment, Situation a_row, std::uint32_t a_outfit, const std::vector<RE::FormID>& a_excluded = {})
 	{
 		auto& row = a_assignment.rows[RowOf(a_row)];
-		OutfitRows::Give(row, a_outfit);
+		OutfitRows::Give(row, a_outfit, a_excluded);
 		if (a_row == Situation::kDefault && !row.random && row.chosen == a_outfit) {
 			a_assignment.defaultPieces.clear();
 		}
@@ -361,7 +369,7 @@ namespace
 			OutfitRows::Take(a_assignment.rows[RowOf(row)], a_changes.outfit);
 		}
 		for (const auto row : a_changes.assign) {
-			GiveRow(a_assignment, row, a_changes.outfit);
+			GiveRow(a_assignment, row, a_changes.outfit, a_changes.excluded);
 		}
 	}
 
@@ -531,6 +539,50 @@ namespace
 		return written;
 	}
 
+	// Record EXCL v1, written after ASGN while a row's outfit leaves items off
+	// (OutfitRows::Exclusion): entry count; per entry the actor FormID, the row (one byte, the
+	// Situations::Situation value), the outfit id, the armor count and the armor FormIDs. A
+	// record of its own, so ASGN keeps its version and a Livery that does not know EXCL skips
+	// it and dresses every item.
+
+	std::uint32_t CountExclusions()
+	{
+		std::uint32_t count = 0;
+		for (const auto& assignment : g_assignments) {
+			for (const auto& row : assignment.rows) {
+				count += static_cast<std::uint32_t>(row.excluded.size());
+			}
+		}
+		return count;
+	}
+
+	void SaveExclusions(SKSE::SerializationInterface* a_intfc)
+	{
+		const auto count = CountExclusions();
+		if (count == 0) {
+			return;
+		}
+		if (!a_intfc->OpenRecord(kExclusionsRecord, kExclusionsVersion)) {
+			logger::error("Could not open the co-save record of the items left off");
+			return;
+		}
+		bool written = Write(*a_intfc, count);
+		for (const auto& assignment : g_assignments) {
+			for (std::size_t i = 0; i < assignment.rows.size(); ++i) {
+				for (const auto& [outfit, armor] : assignment.rows[i].excluded) {
+					written = written && Write(*a_intfc, assignment.actor) && Write(*a_intfc, static_cast<std::uint8_t>(i)) && Write(*a_intfc, outfit) &&
+					          Write(*a_intfc, static_cast<std::uint32_t>(armor.size()));
+					for (const auto id : armor) {
+						written = written && Write(*a_intfc, id);
+					}
+				}
+			}
+		}
+		if (!written) {
+			logger::error("Could not write the co-save record of the items left off");
+		}
+	}
+
 	void OnSave(SKSE::SerializationInterface* a_intfc)
 	{
 		if (g_assignments.empty()) {
@@ -547,6 +599,7 @@ namespace
 		if (!written) {
 			logger::error("Could not write the co-save record");
 		}
+		SaveExclusions(a_intfc);
 	}
 
 	bool ReadPiece(const SKSE::SerializationInterface& a_intfc, Dressing::Piece& a_piece, bool& a_resolved)
@@ -787,12 +840,71 @@ namespace
 		return assignments;
 	}
 
+	// An EXCL entry as read, its FormIDs fixed for the current load order.
+	struct StoredExclusion
+	{
+		RE::FormID              actor = 0;
+		std::uint8_t            row = 0;
+		std::uint32_t           outfit = 0;
+		std::vector<RE::FormID> armor;
+	};
+
+	// Reads an EXCL v1 record. An entry whose actor's plugin is gone is dropped, and so is an
+	// armor form whose plugin is gone (ReadArmorForms).
+	std::vector<StoredExclusion> ReadExclusions(const SKSE::SerializationInterface& a_intfc)
+	{
+		std::vector<StoredExclusion> entries;
+		std::uint32_t                count = 0;
+		if (!Read(a_intfc, count)) {
+			logger::error("The co-save record of the items left off is cut short");
+			return entries;
+		}
+		for (; count > 0; --count) {
+			StoredExclusion entry;
+			if (!Read(a_intfc, entry.actor) || !Read(a_intfc, entry.row) || !Read(a_intfc, entry.outfit) || !ReadArmorForms(a_intfc, entry.armor)) {
+				logger::error("The co-save record of the items left off is cut short");
+				return entries;
+			}
+			if (a_intfc.ResolveFormID(entry.actor, entry.actor)) {
+				entries.push_back(std::move(entry));
+			}
+		}
+		return entries;
+	}
+
+	// Gives the assignments read the items their rows' outfits leave off. An entry for an actor
+	// without an assignment, a row this version does not have, or an outfit no longer on the
+	// row (its situation removed in situations.json, DropRemovedRows) is dropped.
+	// Contract: after the ASGN record was read, in whichever order the records came.
+	void AttachExclusions(const std::vector<StoredExclusion>& a_entries)
+	{
+		for (const auto& entry : a_entries) {
+			auto* assignment = FindAssignment(entry.actor);
+			if (!assignment || entry.row >= assignment->rows.size()) {
+				continue;
+			}
+			auto& row = assignment->rows[entry.row];
+			if (std::ranges::find(row.outfits, entry.outfit) != row.outfits.end()) {
+				OutfitRows::SetExcluded(row, entry.outfit, entry.armor);
+			}
+		}
+	}
+
 	void OnLoad(SKSE::SerializationInterface* a_intfc)
 	{
-		std::uint32_t type = 0;
-		std::uint32_t version = 0;
-		std::uint32_t length = 0;
+		std::uint32_t                type = 0;
+		std::uint32_t                version = 0;
+		std::uint32_t                length = 0;
+		std::vector<StoredExclusion> exclusions;
 		while (a_intfc->GetNextRecordInfo(type, version, length)) {
+			if (type == kExclusionsRecord) {
+				if (version != kExclusionsVersion) {
+					logger::warn("Co-save record EXCL version {} is unknown; every outfit wears all its items", version);
+					continue;
+				}
+				exclusions = ReadExclusions(*a_intfc);
+				continue;
+			}
 			if (type != kAssignmentsRecord) {
 				continue;
 			}
@@ -803,6 +915,7 @@ namespace
 			g_assignments = ReadAssignments(*a_intfc, version);
 			logger::info("Read co-save record version {}", version);
 		}
+		AttachExclusions(exclusions);
 		SyncManaged();
 		logger::info("Loaded {} assignment(s) from the co-save", g_assignments.size());
 	}

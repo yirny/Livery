@@ -477,7 +477,8 @@ namespace
 			.slotText = SlotText(slots),
 			.slotOrder = std::countr_zero(slots),
 			.icon = std::move(icon.key),
-			.iconColor = icon.color };
+			.iconColor = icon.color,
+			.armor = armor.GetFormID() };
 	}
 
 	// The group of a piece the actor carries: worn and put on by Livery from the library
@@ -940,15 +941,18 @@ namespace
 
 	// Manage Wardrobe's Apply: the outfit goes to window row `row` (RowSituation), the one the
 	// window chose: the situation they wear another outfit for now, after the user agreed in
-	// its popup, the one they wear it for, or the Default; then they are dressed for their
-	// situations now with the window open (DressCaptured): the preview begins again on
-	// `shown`, the outfit as Manage Wardrobe shows it. Returns their pieces for the window
-	// (SetOutfits).
+	// its popup, the one they wear it for, or the Default, leaving `excluded` off there; then
+	// they are dressed for their situations now with the window open (DressCaptured): the
+	// preview begins again on `pieces` less `excluded`, the outfit as Manage Wardrobe shows it.
+	// Returns their pieces for the window (SetOutfits).
 	// Contract: as DressCaptured's.
-	CaptureWindow::ActorPieces ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>& shown)
+	CaptureWindow::ActorPieces ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row, const std::vector<std::uint32_t>& excluded,
+		const std::vector<RE::TESObjectARMO*>& armors, const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>& pieces)
 	{
-		const auto dress = [&actor, outfit, row] { Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) } }); };
+		const auto dress = [&actor, outfit, row, &excluded] {
+			Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) }, .excluded = excluded });
+		};
+		const auto shown = OutfitRows::WornPieces(pieces, excluded, [](const RE::TESObjectARMO* a_piece) { return a_piece->GetFormID(); });
 		return DressCaptured(actor, dress, armors, offered, &shown);
 	}
 
@@ -1058,7 +1062,7 @@ namespace
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			if (target && apply && edit.applyRow) {
-				redressed = ApplyOutfit(*target, edit.outfit, *edit.applyRow, armors, offered, picked);
+				redressed = ApplyOutfit(*target, edit.outfit, *edit.applyRow, edit.excluded, armors, offered, picked);
 			} else if (target && !apply && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
 				redressed = RedressCaptured(*target, { .updated = edit.outfit }, armors, offered, &picked);
 			}
@@ -1094,10 +1098,11 @@ namespace
 			list.actorPieces = std::move(redressed);
 			CaptureWindow::SetOutfits(std::move(list));
 		};
-		// Apply to #{Name}: the outfit as the library has it goes to the row the window chose
-		// and on (ApplyOutfit), the window staying open; the Inventory page follows what they
-		// wear.
-		request.onManageApply = [handle, actorID, armors, offered, name = request.actorName](std::uint32_t outfit, std::size_t row) {
+		// Apply to #{Name}: the outfit as the library has it goes to the row the window chose,
+		// its unticked items left off there, and on (ApplyOutfit), the window staying open; the
+		// Inventory page follows what they wear.
+		request.onManageApply = [handle, actorID, armors, offered, name = request.actorName](std::uint32_t outfit, std::size_t row,
+									const std::vector<std::uint32_t>& excluded) {
 			const auto target = handle.get();
 			if (!target) {
 				CaptureWindow::SetError(std::format("{} is no longer here.", name));
@@ -1113,7 +1118,7 @@ namespace
 				CaptureWindow::SetError("None of its items is loaded.");
 				return;
 			}
-			auto dressed = ApplyOutfit(*target, outfit, row, armors, offered, pieces);
+			auto dressed = ApplyOutfit(*target, outfit, row, excluded, armors, offered, pieces);
 			auto list = CurrentOutfitList(actorID, armors);  // after the dressing
 			list.actorPieces = std::move(dressed);
 			CaptureWindow::SetOutfits(std::move(list));
