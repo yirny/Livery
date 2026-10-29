@@ -106,7 +106,8 @@ page. Each page keeps its own search and sort.
   three `Outfit (...)` headings, the bare form over the loaded outfit's.
 - The count line ends in `Add items from Wardrobe...` (`Theme::LabelLink`, its plus mark
   first), which opens the Load page; greyed while the library is empty, showing
-  `kNoOutfits` on hover. The buttons are `Create / Update Outfit`, `Apply`, `Exit`.
+  `kNoOutfits` on hover. Not shown for the player while `Dress yourself from inventory only`
+  is ticked (`Request::offersWardrobe`). The buttons are `Create / Update Outfit`, `Apply`, `Exit`.
 - Tooltips on hover while enabled; a greyed button shows its reason instead:
   - Create / Update Outfit: `Save the ticked items as a new outfit, or into an existing one.`
   - Apply: `Dress #{Name} in the ticked items.`
