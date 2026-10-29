@@ -68,6 +68,7 @@ namespace CaptureWindow
 		int           slotOrder = 0;  // what the Slot column sorts by: its lowest slot
 		std::string   icon;           // PieceIcons' key of the icon left of its name; "" for none
 		std::uint32_t iconColor = 0;  // the icon's tint, 0xRRGGBB
+		std::uint32_t armor = 0;      // the armor's FormID, which the items a row's outfit leaves off name (OutfitRows::Exclusion)
 	};
 
 	// One frame of mouse and key input over the game rather than the window,
@@ -129,8 +130,9 @@ namespace CaptureWindow
 		std::vector<SituationEdit> edits;                      // the situations whose name changed; empty for none
 		std::vector<RowEdit>       rows;                       // every row of Request::assigned when any changed, else empty
 		bool                       dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
-		// The outfit whose details show, as indices into Request::pieces: a preview begun again
-		// after the redress shows it; nullopt for what the actor wears then.
+		// The outfit whose details show, less the items the row they were opened from leaves
+		// off, as indices into Request::pieces: a preview begun again after the redress shows
+		// it; nullopt for what the actor wears then.
 		std::optional<std::vector<std::size_t>> previewPieces;
 	};
 
@@ -152,6 +154,10 @@ namespace CaptureWindow
 		// Create and Apply: those of `pieces` the window lists under Player's Inventory, which
 		// move first; those that do not move stay out of the dressing. Empty otherwise.
 		std::vector<std::size_t> fromPlayer;
+		// With `applyRow` from Manage Wardrobe: the armor (FormIDs) the outfit leaves off on that
+		// row, the items unticked in its piece list; empty wears all its items, as Create and
+		// Apply always does.
+		std::vector<std::uint32_t> excluded;
 	};
 
 	struct Request
@@ -222,11 +228,12 @@ namespace CaptureWindow
 		// Runs on the game thread when the user presses Manage Wardrobe's "Apply to #{Name}"
 		// with no unsaved edits: library outfit `outfit`, as the library has it, goes to the
 		// actor for row `row` of `assigned` (the situation they wear another outfit for now,
-		// when the user agreed in Apply's popup, the one they wear it for, or the Default), and
-		// they are dressed for their situations now. The window stays open: it must end by
+		// when the user agreed in Apply's popup, the one they wear it for, or the Default),
+		// leaving `excluded` (armor FormIDs, the items unticked in its piece list) off there,
+		// and they are dressed for their situations now. The window stays open: it must end by
 		// calling SetOutfits(), with the actor's pieces as they are dressed now, or SetError().
 		// Empty greys the button.
-		std::function<void(std::uint32_t outfit, std::size_t row)> onManageApply;
+		std::function<void(std::uint32_t outfit, std::size_t row, const std::vector<std::uint32_t>& excluded)> onManageApply;
 
 		// Run on the game thread from Manage Situations (docs/situation-management-ui.md §5, §6):
 		// onSituationsSave with Save Changes' edits, onSituationRemove with the situation Remove

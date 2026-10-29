@@ -10,11 +10,23 @@
 #include <vector>
 
 // An actor's rows (docs/situation-management-ui.md §1): the Default and one per situation,
-// each a list of library outfits, a random flag and the outfit worn with random off.
+// each a list of library outfits, a random flag, the outfit worn with random off and the
+// items each outfit leaves off for this actor.
 // Assignments keeps them in the co-save and the capture window shows them; the rules here
 // need no game, so the unit tests reach them.
 namespace OutfitRows
 {
+	// The items an outfit on a row leaves off for this actor: those unticked in its piece list
+	// on Manage Wardrobe (its Apply) or in its details opened from the row on Manage
+	// Situations. Its other items, those added to it later included, are worn.
+	struct Exclusion
+	{
+		std::uint32_t              outfit = 0;
+		std::vector<std::uint32_t> armor;  // armor FormIDs, ascending, each once, never empty
+
+		friend bool operator==(const Exclusion&, const Exclusion&) = default;
+	};
+
 	struct Row
 	{
 		std::vector<std::uint32_t> outfits;         // library outfit ids, each once, in the user's order (only how a page lists them)
@@ -22,6 +34,10 @@ namespace OutfitRows
 		// Worn with random off; with random on, the last pick worn (Assignments records it), which
 		// turning random off keeps on. Always on `outfits`, or 0 for none.
 		std::uint32_t chosen = 0;
+		// One per outfit on `outfits` that leaves items off, in ascending outfit order
+		// (SetExcluded keeps it so, so equal rows compare equal); an outfit not here wears all
+		// its items.
+		std::vector<Exclusion> excluded;
 
 		friend bool operator==(const Row&, const Row&) = default;
 	};
@@ -46,11 +62,46 @@ namespace OutfitRows
 		}(),
 		"Rows: the situations follow the Default in Situations::kChoosable order");
 
+	// The items `a_outfit` leaves off on the row (Exclusion::armor); empty for none.
+	inline std::vector<std::uint32_t> ExcludedOf(const Row& a_row, std::uint32_t a_outfit)
+	{
+		const auto found = std::ranges::find(a_row.excluded, a_outfit, &Exclusion::outfit);
+		return found != a_row.excluded.end() ? found->armor : std::vector<std::uint32_t>{};
+	}
+
+	// From now on `a_outfit` leaves `a_armor` (armor FormIDs in any order) off on the row;
+	// empty wears all its items.
+	// Contract: `a_outfit` is on `outfits`, or `a_armor` is empty.
+	inline void SetExcluded(Row& a_row, std::uint32_t a_outfit, std::vector<std::uint32_t> a_armor)
+	{
+		std::erase_if(a_row.excluded, [a_outfit](const Exclusion& a_entry) { return a_entry.outfit == a_outfit; });
+		if (a_outfit == 0 || a_armor.empty()) {
+			return;
+		}
+		std::ranges::sort(a_armor);
+		const auto repeats = std::ranges::unique(a_armor);
+		a_armor.erase(repeats.begin(), repeats.end());
+		const auto at = std::ranges::lower_bound(a_row.excluded, a_outfit, {}, &Exclusion::outfit);
+		a_row.excluded.insert(at, { .outfit = a_outfit, .armor = std::move(a_armor) });
+	}
+
+	// The pieces worn of an outfit's `a_pieces`: those whose armor (`a_armorOf`) `a_excluded`
+	// does not name, or all of them when that leaves none, as a library update that took every
+	// other item out of the outfit would.
+	template <class Piece, class ArmorOf>
+	std::vector<Piece> WornPieces(const std::vector<Piece>& a_pieces, const std::vector<std::uint32_t>& a_excluded, ArmorOf&& a_armorOf)
+	{
+		auto worn = a_pieces;
+		std::erase_if(worn, [&](const Piece& a_piece) { return std::ranges::find(a_excluded, a_armorOf(a_piece)) != a_excluded.end(); });
+		return worn.empty() ? a_pieces : worn;
+	}
+
 	// Gives the row library outfit `a_outfit` at a place in its list. Random on: it goes before
 	// the outfit at `a_index` of `outfits` (at the end past it), or moves there when on it
 	// already. Random off, the list keeps its length: an outfit on it becomes `chosen` where it
 	// is; one not on it takes `chosen`'s place, which leaves the list (the user replaces the
-	// outfit worn); with no `chosen`, it goes in at `a_index`. Either way it is then `chosen`.
+	// outfit worn, the items it left off with it); with no `chosen`, it goes in at `a_index`.
+	// Either way it is then `chosen`. An outfit on the list keeps the items it leaves off.
 	// Manage Situations' drop at a place in a row's list.
 	inline void Place(Row& a_row, std::uint32_t a_outfit, std::size_t a_index)
 	{
@@ -65,6 +116,7 @@ namespace OutfitRows
 				return;
 			}
 			if (const auto chosen = std::ranges::find(outfits, a_row.chosen); a_row.chosen != 0 && chosen != outfits.end()) {
+				SetExcluded(a_row, a_row.chosen, {});
 				*chosen = a_outfit;
 				a_row.chosen = a_outfit;
 				return;
@@ -83,10 +135,12 @@ namespace OutfitRows
 	}
 
 	// Gives the row library outfit `a_outfit` at the front of its list (Place): random off, in
-	// `chosen`'s place, and it becomes `chosen`.
-	inline void Give(Row& a_row, std::uint32_t a_outfit)
+	// `chosen`'s place, and it becomes `chosen`. It leaves `a_excluded` off (SetExcluded), all
+	// its items worn with none.
+	inline void Give(Row& a_row, std::uint32_t a_outfit, std::vector<std::uint32_t> a_excluded = {})
 	{
 		Place(a_row, a_outfit, 0);
+		SetExcluded(a_row, a_outfit, std::move(a_excluded));
 	}
 
 	// Turns random on or off. Off keeps `chosen` on: the last pick worn, or the outfit chosen
@@ -99,23 +153,26 @@ namespace OutfitRows
 		}
 	}
 
-	// Takes `a_outfit` off `outfits`; `chosen` becomes 0 if it was that.
+	// Takes `a_outfit` off `outfits`, with the items it left off; `chosen` becomes 0 if it was
+	// that.
 	inline void Take(Row& a_row, std::uint32_t a_outfit)
 	{
 		std::erase(a_row.outfits, a_outfit);
+		SetExcluded(a_row, a_outfit, {});
 		if (a_row.chosen == a_outfit) {
 			a_row.chosen = 0;
 		}
 	}
 
 	// The row without the outfits `a_inLibrary` rejects, which a row from another save still
-	// names after Remove took them out of the library; `chosen` becomes 0 if it was one. What
-	// the window shows and dressing sees: the co-save keeps them, so restoring outfits.json
-	// brings them back.
+	// names after Remove took them out of the library, and the items they left off; `chosen`
+	// becomes 0 if it was one. What the window shows and dressing sees: the co-save keeps them,
+	// so restoring outfits.json brings them back.
 	template <class Has>
 	Row WithoutGone(Row a_row, Has&& a_inLibrary)
 	{
 		std::erase_if(a_row.outfits, [&a_inLibrary](std::uint32_t a_outfit) { return !a_inLibrary(a_outfit); });
+		std::erase_if(a_row.excluded, [&a_inLibrary](const Exclusion& a_entry) { return !a_inLibrary(a_entry.outfit); });
 		if (a_row.chosen != 0 && !a_inLibrary(a_row.chosen)) {
 			a_row.chosen = 0;
 		}
@@ -123,14 +180,16 @@ namespace OutfitRows
 	}
 
 	// `a_edited`, made from WithoutGone(a_stored), with `a_stored`'s gone outfits back at the
-	// end of its list and its gone `chosen` back while `a_edited` chose none, so an edit keeps
-	// what it could not show. An outfit given in a gone `chosen`'s place leaves it on the list.
+	// end of its list, with the items they left off, and its gone `chosen` back while
+	// `a_edited` chose none, so an edit keeps what it could not show. An outfit given in a gone
+	// `chosen`'s place leaves it on the list.
 	template <class Has>
 	Row KeepGone(Row a_edited, const Row& a_stored, Has&& a_inLibrary)
 	{
 		for (const auto outfit : a_stored.outfits) {
 			if (!a_inLibrary(outfit) && std::ranges::find(a_edited.outfits, outfit) == a_edited.outfits.end()) {
 				a_edited.outfits.push_back(outfit);
+				SetExcluded(a_edited, outfit, ExcludedOf(a_stored, outfit));
 			}
 		}
 		if (a_edited.chosen == 0 && a_stored.chosen != 0 && !a_inLibrary(a_stored.chosen)) {
