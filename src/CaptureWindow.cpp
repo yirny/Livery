@@ -19,9 +19,10 @@
 //                  Wardrobe... (the Load page; greyed while the library has no outfits); the
 //                  Live Preview tick, handed to onPreviewOn / onPreviewOff in an SKSE task that
 //                  also freezes or unfreezes the game; Save / Apply / Exit, with Restore
-//                  at the row's right end while Livery dresses the actor; Apply asks first
-//                  when the ticks differ from the library outfit Livery has on the actor (Yes
-//                  updates it); Apply and Restore hand over to onApply / onRestore
+//                  at the row's right end while Livery dresses the actor; Apply leaves off
+//                  the unticked pieces of the library outfit Livery has on the actor, and asks
+//                  first when the ticks hold others (Yes updates it); Apply and Restore hand
+//                  over to onApply / onRestore
 //   Save page    - Create New Outfit / Update Existing Outfit tabs, each with its own name:
 //                  Create shows the ticked pieces read only and an icon they suggest until
 //                  one is chosen (CreateIcon, Choose icon), Create and Apply gives the new
@@ -1167,17 +1168,30 @@ namespace CaptureWindow::Internal
 		return a_state.request.wornOutfit != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
-	// The id of the outfit last loaded, or else the one Livery has on the actor, when the
-	// ticks are exactly its pieces; 0 when neither is.
+	// The id of the outfit last loaded when the ticks are exactly its pieces; 0 otherwise.
 	std::uint32_t TickedOutfitId(const State& a_state)
 	{
-		const auto ticked = TickedPieces(a_state);
-		for (const int index : { a_state.loadedOutfit, WornOutfitIndex(a_state) }) {
-			if (index >= 0 && ticked == OutfitAt(a_state, index).pieces) {
-				return OutfitAt(a_state, index).id;
+		const int loaded = a_state.loadedOutfit;
+		return loaded >= 0 && TickedPieces(a_state) == OutfitAt(a_state, loaded).pieces ? OutfitAt(a_state, loaded).id : 0;
+	}
+
+	// When the ticks are all or some of the pieces of `a_worn` (WornOutfitIndex) and nothing
+	// else: the armor (FormIDs) of its pieces left unticked, empty for none. nullopt otherwise.
+	std::optional<std::vector<std::uint32_t>> UntickedOfWorn(const State& a_state, int a_worn)
+	{
+		const auto& pieces = OutfitAt(a_state, a_worn).pieces;
+		const auto  ticked = TickedPieces(a_state);
+		const auto  inOutfit = [&pieces](std::size_t a_piece) { return std::ranges::binary_search(pieces, a_piece); };
+		if (!std::ranges::all_of(ticked, inOutfit)) {
+			return std::nullopt;
+		}
+		std::vector<std::uint32_t> unticked;
+		for (const auto piece : pieces) {
+			if (!std::ranges::binary_search(ticked, piece)) {
+				unticked.push_back(a_state.request.pieces[piece].armor);
 			}
 		}
-		return 0;
+		return unticked;
 	}
 
 	// The widest button row of the Capture page, which sets the page's least width: the row
@@ -1245,30 +1259,38 @@ namespace CaptureWindow::Internal
 
 	// `a_updateWorn`: Yes in the Apply popup, so `a_outfit` is the worn library outfit, which
 	// the handler updates with the ticks before it dresses the actor. The ticked pieces under
-	// Player's Inventory, as the list shows them now, are those that move.
-	void RequestApply(State& a_state, std::uint32_t a_outfit, bool a_updateWorn)
+	// Player's Inventory, as the list shows them now, are those that move. `a_excluded`: the
+	// armor of the worn outfit `a_outfit` left unticked (UntickedOfWorn).
+	void RequestApply(State& a_state, std::uint32_t a_outfit, bool a_updateWorn, std::vector<std::uint32_t> a_excluded = {})
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		auto pieces = TickedPieces(a_state);
 		auto fromPlayer = TickedFromPlayer(a_state);
 		auto onApply = a_state.request.onApply;
-		SKSE::GetTaskInterface()->AddTask([onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn] {
-			onApply(pieces, fromPlayer, a_outfit, a_updateWorn);
-		});
+		SKSE::GetTaskInterface()->AddTask(
+			[onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn, excluded = std::move(a_excluded)] {
+				onApply(pieces, fromPlayer, a_outfit, a_updateWorn, excluded);
+			});
 	}
 
-	// Apply: the popup first when Livery has a library outfit on the actor and the ticks are
-	// not exactly its pieces; else the ticks go on at once.
+	// Apply: when Livery has a library outfit on the actor, the ticks all or some of its pieces
+	// and nothing else go on at once as that outfit, the unticked ones left off (as Manage
+	// Wardrobe's Apply leaves them); other ticks ask first in the popup. Else the ticks go on
+	// at once.
 	// Contract: called in the window's own ID scope, as DrawApplyPopup is.
 	void BeginApply(State& a_state)
 	{
 		const int worn = WornOutfitIndex(a_state);
-		if (worn >= 0 && TickedPieces(a_state) != OutfitAt(a_state, worn).pieces) {
-			ImGui::OpenPopup(kApplyPopup);
+		if (worn < 0) {
+			RequestApply(a_state, TickedOutfitId(a_state), false);
 			return;
 		}
-		RequestApply(a_state, TickedOutfitId(a_state), false);
+		if (auto unticked = UntickedOfWorn(a_state, worn)) {
+			RequestApply(a_state, a_state.request.wornOutfit, false, std::move(*unticked));
+			return;
+		}
+		ImGui::OpenPopup(kApplyPopup);
 	}
 
 	enum class ApplyChoice

@@ -49,8 +49,9 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 
 A library outfit given to a row is dressed less the items it leaves off on that row
 (`OutfitRows::Exclusion`, per actor, row and outfit): those unticked in its piece list on
-Manage Wardrobe when Apply gave it the row, or on Manage Situations in its details opened
-from the row. The outfit's other items, those added to it later included, are worn; when
+Manage Wardrobe when Apply gave it the row, on Manage Situations in its details opened
+from the row, or on the Inventory page when its Apply dressed the actor in some of the
+outfit they wore (below). The outfit's other items, those added to it later included, are worn; when
 the items left off are all it has, it is dressed whole. The library outfit itself never
 changes for this.
 
@@ -72,7 +73,10 @@ preview and the Save page move nothing, but Create and Apply, which moves them a
 The outfit the window's Apply gives (`Assignments::Assign`) is the actor's default. An outfit chosen for a situation (§7)
 replaces it while the situation lasts, by the same steps: the worn pieces are released
 (copies removed, the actor's own pieces back on) and the new outfit is dressed. When the
-actor wears a library outfit and the ticks differ from it, Apply asks first: Yes updates
+actor wears a library outfit and the ticks are all or some of its items and nothing else,
+Apply gives it the row it is worn for (`Assignments::Change`), the unticked ones left off
+there, as Manage Wardrobe's Apply does, without asking and without a library write. When
+the ticks hold an item it does not have, Apply asks first: Yes updates
 that outfit's pieces (`Library::Update`, name kept), then the Default
 gets the outfit, or, for a situation outfit, `Assignments::Refresh` dresses the updated
 outfit with the Default untouched; No, apply as is makes the ticks the Default's pieces,

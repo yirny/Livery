@@ -204,10 +204,13 @@ namespace CaptureWindow
 		// into `pieces` (ascending, never empty), those of them the window lists under
 		// Player's Inventory now (PieceGroup::kPlayer) in `fromPlayer`, and `outfit`: with
 		// `updateWorn` (Yes in the Apply popup) `wornOutfit`, which the ticks are to replace the
-		// pieces of first; else the outfit last loaded, or `wornOutfit`, when the ticks are
-		// exactly its pieces, or 0. The window stays open: it must end by calling SetOutfits(),
-		// with the actor's pieces as they are dressed now, or SetError().
-		std::function<void(const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn)>
+		// pieces of first; else `wornOutfit` when the ticks are all or some of its pieces and
+		// nothing else, `excluded` holding the armor (FormIDs) of those left unticked, which it
+		// is to leave off on the row it is worn for; else the outfit last loaded when the ticks
+		// are exactly its pieces, or 0. The window stays open: it must end by calling
+		// SetOutfits(), with the actor's pieces as they are dressed now, or SetError().
+		std::function<void(const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn,
+			const std::vector<std::uint32_t>& excluded)>
 			onApply;
 
 		// Runs on the game thread when the user presses Restore, shown while

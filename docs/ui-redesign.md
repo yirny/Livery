@@ -140,10 +140,13 @@ when they wear it; a failed write assigns nothing.
 ## 5. Apply
 
 - Apply assigns the ticks as the default, after the transfer (§3).
-- Modal `Update "X" with the ticked items?` when Livery dresses the actor, the outfit worn
-  now is a library outfit (the default's id when the default is worn, else the worn
-  situation's) and the ticks differ from its loaded pieces. For a situation it adds `"X" is
-  #{Name}'s Town outfit.`
+- When the outfit worn now is a library outfit X (the default's id when the default is worn,
+  else the worn situation's) and the ticks are all or some of its loaded pieces and nothing
+  else, Apply asks nothing: X goes to the row it is worn for in one `Assignments::Change`,
+  the unticked pieces left off there (`OutfitRows::Exclusion`, as Manage Wardrobe's Apply
+  leaves them; none unticked wears all its items). The library does not change.
+- Modal `Update "X" with the ticked items?` when the ticks hold a piece X does not. For a
+  situation it adds `"X" is #{Name}'s Town outfit.`
   - `Yes`: `Library::Update(X, pieces = ticks, name kept)`. Default
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced
     redress puts the updated outfit on (new Assignments API; `WearFor` only redresses on a
@@ -156,8 +159,8 @@ when they wear it; a failed write assigns nothing.
   - `Cancel`: back to the window.
 - Apply is greyed with no ticked piece (`kNeedPiece`).
 
-Checks: the modal on a dressed NPC with one piece unticked; no modal when the ticks equal the
-outfit; Yes while a Town outfit is worn updates that outfit and the NPC wears it at once; No
+Checks: no modal on a dressed NPC with one piece unticked, which comes off and stays unticked
+on Manage Wardrobe; the modal with a piece of another outfit ticked; Yes while a Town outfit is worn updates that outfit and the NPC wears it at once; No
 in a town changes nothing visible until the NPC leaves.
 
 ## 6. Removed

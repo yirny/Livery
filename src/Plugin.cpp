@@ -984,7 +984,9 @@ namespace
 	// Apply dresses them in the ticked pieces as their default, the player's as an NPC's,
 	// those the window lists under Player's Inventory moved to an NPC first (a piece
 	// Livery put on them while the window was open is listed as theirs); with Yes in its
-	// popup the worn library outfit takes the ticks before. The window stays open: they are
+	// popup the worn library outfit takes the ticks before. Ticks that are all or some of the
+	// worn library outfit's items keep it on the row it is worn for, the unticked ones left
+	// off there (Assignments::Change with `excluded`). The window stays open: they are
 	// dressed with no preview on (DressCaptured), and the Inventory page follows what they
 	// wear. Restore, shown while Livery has pieces on them, ends what Livery chose for them;
 	// it closes the window first, so the preview has put back what they wore before.
@@ -1000,7 +1002,8 @@ namespace
 		request.protectsFavorites = Settings::ProtectFavorites();
 		request.offersWardrobe = !actor.IsPlayerRef() || Settings::PlayerAddsMissingPieces();
 		request.onApply = [handle, actorID, armors, offered, name = request.actorName](const std::vector<std::size_t>& pieces,
-							  const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn) {
+							  const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn,
+							  const std::vector<std::uint32_t>& excluded) {
 			const auto target = handle.get();
 			if (!target) {
 				CaptureWindow::SetError(std::format("{} is no longer here.", name));
@@ -1010,6 +1013,13 @@ namespace
 			// open.
 			const auto current = Assignments::ChoicesOf(actorID);
 			const bool forSituation = current && current->worn != Situations::Situation::kDefault;
+			// The outfit they wear, ticked whole or in part: it stays on the row it is worn for
+			// (the Default when that changed since the click, or the situation was removed),
+			// `excluded` left off there from now on, as Manage Wardrobe's Apply leaves its
+			// unticked items.
+			const bool wornNow = outfit != 0 && current && current->wornOutfit == outfit;
+			const auto wornRow = wornNow && !SituationStore::IsRemoved(current->worn) ? current->worn : Situations::Situation::kDefault;
+			const bool reapply = !updateWorn && outfit != 0 && (wornNow || !excluded.empty());
 			const auto picked = PickPieces(armors, pieces);
 			if (updateWorn) {
 				if (const auto error = UpdateWornPieces(outfit, picked)) {
@@ -1023,6 +1033,10 @@ namespace
 				// the default is not touched.
 				if (updateWorn && forSituation) {
 					Assignments::Refresh(*target, notMoved);
+					return;
+				}
+				if (reapply) {
+					Assignments::Change(*target, { .outfit = outfit, .assign = { wornRow }, .leaveOut = notMoved, .excluded = excluded });
 					return;
 				}
 				AssignMoved(*target, picked, notMoved, outfit);
