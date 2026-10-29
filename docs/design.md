@@ -29,8 +29,9 @@ An outfit is a list of armor base forms. Dressing an actor in it:
    unworn instance that carries `ExtraCannotWear` cannot be equipped and is skipped.
 2. When the actor has none, add a plain copy (`AddObjectToContainer`), give it an
    `ExtraUniqueID` (`InventoryChanges::GetNextUniqueID`) and record the key in the
-   co-save (§5). Copies that stay are made only here, at assignment time; the live
-   preview's own copies go back when it ends.
+   co-save (§5). Copies that stay are made only here, at assignment time, and when a
+   piece taken in a menu is replaced (Keeping the outfit on); the live preview's own
+   copies go back when it ends.
 3. Equip each chosen instance with `ActorEquipManager::EquipObject(..., a_forceEquip =
    true)`. `forceEquip` is the game's PreventRemoval flag: the engine puts
    `ExtraCannotWear` on the worn instance and its best-gear pass (`UpdateWornGear`)
@@ -85,8 +86,18 @@ says so), so a lock would be needed anyway.
   lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
   copies are created here. The sink only checks a mutex-guarded id list and queues an
   SKSE task, since the event's thread is not documented.
-- A locked piece the player takes back in the trade menu stays taken: the slot is left
-  to the vanilla picker until the player assigns again. The window counts the pieces Livery
+- A piece the player takes from an assigned NPC in the trade, container or pickpocket
+  menu goes on again as that menu closes (`Dressing::Replenish`): a copy of that armor
+  they still carry, else a new plain copy, recorded as added (hidden in trade, taken back
+  at release). Only pieces that were the actor's or the player's: a copy Livery added
+  that is taken (where §3's filter does not hide it) stays gone, so taking it again makes
+  no new copy. The filter's list fill notes the NPC (`Assignments::NoteShownInMenu`, an
+  atomic id); a `MenuOpenCloseEvent` sink takes the note when `ContainerMenu` or
+  `BarterMenu` closes and queues an SKSE task; openings and other menus return after the
+  name compares. The note is not cleared at opening, since whether the list fills before
+  that event is not documented; only those two menus list an NPC's inventory. A piece still missing (refused, a runtime where the
+  filter found no call site, another mod's inventory access) leaves the slot to the
+  vanilla picker until the player assigns again. The window counts the pieces Livery
   put on that the actor wears no copy of, and the worn armor it did not put on (`GapsOf` in `Plugin.cpp`, read as it opens
   and after each dressing with it open, no preview on): the summary line then says the
   outfit is only assigned, `Assigned "X" as Default, 1 item not worn.`, an extra piece
@@ -161,7 +172,8 @@ to an assigned NPC (the co-save's `added` keys) carry a temporary `ExtraOutfitIt
 NPC's `defaultOutfit` (`Dressing::MarkAsOutfitItems`); it is taken off again before the call
 returns, so no `SetOutfit` can ever see it and nothing is flagged as changed. Only the mod's
 copies are hidden: player-given instances stay visible and takeable even while they are part
-of the outfit (taking back one's own item is not a dupe). Not filtered: the player's own list
+of the outfit (taking back one's own item is not a dupe; the NPC gets a copy of it as the menu
+closes, §2 Keeping the outfit on, which leaves them as an Apply without the gift would). Not filtered: the player's own list
 (a copy added to the player is the player's item), an NPC without a default outfit, and
 corpses (Livery forgets an actor at death, and vanilla shows a corpse's outfit items too).
 The capture window's `Inventory` heading follows the engine's rule: an NPC's own outfit

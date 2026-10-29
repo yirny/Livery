@@ -7,13 +7,14 @@
 //   Dressing    - which row a situation resolves to and the outfit it wears (a random row's
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
-//   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies
+//   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies;
+//                 pieces taken from one in a menu replaced as it closes
 //   Co-save     - save, load (versions 1 to 4; older ones turned into rows; the rows of
 //                 situations removed in situations.json dropped), revert
-//   Event sinks - TESObjectLoadedEvent, TESDeathEvent
+//   Event sinks - TESObjectLoadedEvent, TESDeathEvent, MenuOpenCloseEvent
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
-//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies
+//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -25,6 +26,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <format>
 #include <mutex>
 #include <random>
@@ -81,6 +83,11 @@ namespace
 
 	// Contract: game thread only. The NPC whose locks are off for the preview, or 0.
 	RE::FormID g_suspended = 0;
+
+	// The assigned NPC whose inventory the open trade, container or pickpocket menu lists, or
+	// 0. Contract: written on the game thread (NoteShownInMenu), taken by MenuSink, whose
+	// thread is not documented, hence atomic.
+	std::atomic<RE::FormID> g_shownInMenu{ 0 };
 
 	Assignment* FindAssignment(RE::FormID a_actor)
 	{
@@ -416,6 +423,23 @@ namespace
 		}
 		if (const auto count = Dressing::PutBackOn(*actor, assignment->pieces); count > 0) {
 			logger::info("Put {} piece(s) back on or locked again on {:08X}", count, a_actor);
+		}
+	}
+
+	// The pieces the player took from them in the menu that just closed go on again, as
+	// copies when they carry none, so the outfit does not change by itself.
+	void ReplenishTaken(RE::FormID a_actor)
+	{
+		if (a_actor == g_suspended) {
+			return;  // the preview has them off on purpose
+		}
+		auto* assignment = FindAssignment(a_actor);
+		auto* actor = assignment ? RE::TESForm::LookupByID<RE::Actor>(a_actor) : nullptr;
+		if (!actor || actor->IsDead()) {
+			return;
+		}
+		if (const auto count = Dressing::Replenish(*actor, assignment->pieces); count > 0) {
+			logger::info("Replenished {} piece(s) on {:08X} taken in a menu", count, a_actor);
 		}
 	}
 
@@ -830,6 +854,30 @@ namespace
 			return sink;
 		}
 	};
+
+	// Opening a menu and every other menu return after the name compares. The note is not
+	// cleared as a menu opens: whether its list fills before or after that event is not
+	// documented. Only these two menus list an NPC's inventory, so the note is theirs.
+	class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
+	{
+	public:
+		RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
+		{
+			if (!a_event || a_event->opening || (a_event->menuName != RE::ContainerMenu::MENU_NAME && a_event->menuName != RE::BarterMenu::MENU_NAME)) {
+				return RE::BSEventNotifyControl::kContinue;
+			}
+			if (const auto id = g_shownInMenu.exchange(0); id != 0) {
+				SKSE::GetTaskInterface()->AddTask([id] { ReplenishTaken(id); });
+			}
+			return RE::BSEventNotifyControl::kContinue;
+		}
+
+		static MenuSink& Get()
+		{
+			static MenuSink sink;
+			return sink;
+		}
+	};
 }
 
 namespace Assignments
@@ -856,6 +904,11 @@ namespace Assignments
 		}
 		events->AddEventSink<RE::TESObjectLoadedEvent>(&LoadedSink::Get());
 		events->AddEventSink<RE::TESDeathEvent>(&DeathSink::Get());
+		if (auto* ui = RE::UI::GetSingleton()) {
+			ui->AddEventSink<RE::MenuOpenCloseEvent>(&MenuSink::Get());
+		} else {
+			logger::error("UI missing: items taken back in the trade menu are not replaced");
+		}
 	}
 
 	// An actor not in memory (a non-persistent NPC whose cell is not loaded) cannot be
@@ -1184,5 +1237,13 @@ namespace Assignments
 	void UnmarkAddedCopies(RE::Actor& a_actor, const std::vector<Dressing::InstanceKey>& a_keys)
 	{
 		Dressing::UnmarkOutfitItems(a_actor, a_keys);
+	}
+
+	void NoteShownInMenu(RE::Actor& a_actor)
+	{
+		const auto id = a_actor.GetFormID();
+		if (id != kPlayerRef && FindAssignment(id)) {
+			g_shownInMenu.store(id);
+		}
 	}
 }

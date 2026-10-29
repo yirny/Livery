@@ -56,6 +56,13 @@ namespace Dressing
 	// piece's `locked`; returns how many it put on or locked.
 	std::size_t PutBackOn(RE::Actor& actor, std::vector<Piece>& pieces);
 
+	// Puts on again, locked, each piece that was theirs or the player's (not `added`) and
+	// that they no longer carry (taken from them in a menu): a copy of that armor they carry,
+	// else a new plain copy. The piece then names the copy worn. A copy this module added
+	// that is gone stays gone, so taking it again and again makes no new copies. Returns how
+	// many it put on.
+	std::size_t Replenish(RE::Actor& actor, std::vector<Piece>& pieces);
+
 	// Takes off the locks this module set; with `removeCopies`, also takes back the
 	// copies it added. Instances that were the actor's own stay with them.
 	void Release(RE::Actor& actor, const std::vector<Piece>& pieces, bool removeCopies);
