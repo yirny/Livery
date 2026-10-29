@@ -211,7 +211,9 @@ page. Each page keeps its own search and sort.
     unticked. A tick is not an unsaved edit: selecting an outfit, or a change the window
     takes (`SetOutfits`), starts the ticks again from the rows; Update and Remove ignore
     them. The Load page's details and the Save page's piece columns keep the
-    same room before their count line.
+    same room before their count line. Their read-only piece rows have the same icons
+    (`Theme::TextRow`), and the outfit's name over the Load page's details, and over Manage
+    Situations' outfit details, its icon as the outfit list draws it (`Theme::OutfitNameText`).
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
   has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Update's

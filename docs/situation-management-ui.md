@@ -235,7 +235,9 @@ back.
 
 The situation's details, its fields evenly spaced with no headings:
 
-- `Name`, an underlined field (as the Save page's). Ending the edit with it empty, or with a
+- `Name`, an underlined field (as the Save page's), its label starting with the star of the
+  Situations tab, a square of the label's line height in its grey, and 6px (`Theme::LabelText`'s
+  `star`). Ending the edit with it empty, or with a
   name another situation has (ASCII case ignored), puts the previous name back; with that
   empty too, `Unnamed Situation`. The Default's is read only, greyed, and says `The Default's
   name cannot be changed.` on hover.
@@ -260,9 +262,11 @@ The situation's details, its fields evenly spaced with no headings:
   docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
   The edits are dropped, nothing is selected and the right pane shows the outfit list.
 
-An outfit's details, in Manage Wardrobe's order (`DrawOutfitSummary`): its name
-with no label, `Situations for #{Name}` with the rows the page's edits
-give it (`Default, Town`, or `None`), then its pieces under their count line. Clicked under a
+An outfit's details, in Manage Wardrobe's order (`DrawOutfitSummary`): its icon and name
+with no label (`Theme::OutfitNameText`), `SITUATIONS (#{Name})`, its label starting with the
+star as the Name label's does, with the rows the page's edits
+give it (`Default, Town`, or `None`), then its pieces, with the Inventory page's icons, under
+their count line. Clicked under a
 situation's heading, the pieces are Manage Wardrobe's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved with Save Changes, and the last
 ticked piece cannot be unticked. Clicked on the outfit list, or once that row no longer

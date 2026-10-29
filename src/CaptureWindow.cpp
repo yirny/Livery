@@ -1571,18 +1571,19 @@ namespace CaptureWindow::Internal
 	// An outfit's name field (a Save page tab's, Manage Wardrobe'), with no label: hovered while
 	// not being typed in, it says `Outfit Name`. Returns true when the user pressed Enter with a
 	// name typed. The empty field shows kNeedName; a failed save turns it red with the message
-	// on hover instead, until the name is edited. With `a_icon` (Manage Wardrobe), its icon
-	// field comes first on the line, saying `Outfit Icon` on hover; `*a_iconClicked` says
-	// whether it was clicked.
+	// on hover instead, until the name is edited. With `a_icon`, its icon field comes first on
+	// the line: with `a_iconClicked` (Manage Wardrobe, the Create tab) it says `Outfit Icon` on
+	// hover and `*a_iconClicked` says whether it was clicked; without (the Update tab, which
+	// keeps the outfit's icon) it only shows the icon.
 	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked)
 	{
 		Theme::SectionGap();  // a field with no label
 		if (a_icon) {
-			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon));
-			if (ImGui::IsItemHovered()) {
-				Theme::Tooltip("Outfit Icon");
-			}
+			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon), a_iconClicked != nullptr);
 			if (a_iconClicked) {
+				if (ImGui::IsItemHovered()) {
+					Theme::Tooltip("Outfit Icon");
+				}
 				*a_iconClicked = clicked;
 			}
 			ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
@@ -1694,9 +1695,10 @@ namespace CaptureWindow::Internal
 		ImGui::PopID();
 	}
 
-	// The Update tab's fields: the name (greyed while no outfit is chosen), then three columns:
-	// the wardrobe's outfits with their search and Sort, the chosen outfit's pieces as the
-	// library has them, and the ticked pieces that replace them.
+	// The Update tab's fields: the chosen outfit's icon, shown only, and the name (both greyed,
+	// the icon the default one, while no outfit is chosen), then three columns: the wardrobe's
+	// outfits with their search and Sort, the chosen outfit's pieces as the library has them,
+	// and the ticked pieces that replace them.
 	UpdateTabInput DrawUpdateTab(State& a_state)
 	{
 		UpdateTabInput input;
@@ -1705,8 +1707,9 @@ namespace CaptureWindow::Internal
 		if (!chosen) {
 			a_state.focusNameField = false;  // a greyed field takes no focus
 		}
+		const OutfitIcons::Icon icon = chosen ? OutfitAt(a_state, a_state.chosenOutfit).icon : OutfitIcons::Icon{};
 		ImGui::BeginDisabled(!chosen);
-		input.enter = DrawNameField(a_state, a_state.updateName);
+		input.enter = DrawNameField(a_state, a_state.updateName, &icon);
 		ImGui::EndDisabled();
 		Theme::AfterFieldGap();
 		if (BeginColumns("columns", 3)) {
