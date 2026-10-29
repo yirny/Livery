@@ -34,7 +34,7 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 ## 2. Where you may work
 
 - **Edit:** `src/`, `test/`; build config per §1 high impact.
-- **Docs:** update `README.md` (its Nexus section included) and `docs/` (`docs/nexus-page.md` included) when a code change makes them stale. `scripts/generate-nexus-page.py` is ask-first like the rest of `scripts/`.
+- **Docs:** update `README.md` (its Nexus section included) and `docs/` (`docs/nexus-page.md` included) when a code change makes them stale. `scripts/generate-nexus-page.py` may be changed as needed too (the rest of `scripts/` stays ask-first).
 - **Never edit:** `lib/commonlibsse-ng`, `lib/vcpkg` (submodules; bump only via `scripts/update.sh` on request); `build/`; `docs/archive/` (the user's raw drafts, kept for people: do not read them either; `.claude/settings.json` denies Read there).
 - **Ask first:** `.github/`, `scripts/`, `lefthook.yml`, lint configs (`.clang-format`, `.clang-tidy`, `.vale*`, `dprint.json`).
 - **Never touch outside the repo:** the Skyrim install, MO2 mods / profiles / overwrite, other mods' data files — give the user steps instead. Deploy only to `build/msvc/deploy/` unless the user set `DEPLOY_DIR_OVERRIDE`.
