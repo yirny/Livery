@@ -66,7 +66,7 @@ The result is shown as a HUD message. The plugin writes nothing until you confir
 
 ### Live Preview
 
-While **Live Preview** is ticked, the game keeps running and the character wears the ticked items, the outfit selected on the Load Outfit page or on Update Existing Outfit, the edited outfit on Manage Wardrobe, or the Edit page's ticks, seen through a free camera. On you, the camera starts with you in the middle, not over your shoulder. With it off the game is paused and the view stays as it was. The window opens with the preview on or off as `LivePreview` says (see [Settings](#settings)); the tick switches it at any time.
+While **Live Preview** is ticked, the game keeps running and the character wears the ticked items, the outfit selected on the Load Outfit page or on Update Existing Outfit, the edited outfit on Manage Wardrobe, or the Edit page's ticks, seen through a free camera. On you, the camera slides until you stand in the middle, not over your shoulder. With it off the game is paused and the view stays as it was. The window opens with the preview on or off as `LivePreview` says (see [Settings](#settings)); the tick switches it at any time.
 
 With the cursor over the game rather than the window:
 

@@ -270,10 +270,11 @@ namespace CaptureWindow
 		std::function<void(const std::vector<std::size_t>& pieces)> onPreviewPieces;
 
 		// Runs on the game thread for each frame with input over the game rather
-		// than the window. Keys count only while no item of the window is active
-		// (a name being typed, a popup open); a drag only when it began over the
-		// game. Only while Live Preview is on, when the window starts on the left
-		// of the screen. Empty for none.
+		// than the window, and for each frame while the preview camera glides.
+		// Keys count only while no item of the window is active (a name being
+		// typed, a popup open); a drag only when it began over the game. Only
+		// while Live Preview is on, when the window starts on the left of the
+		// screen. Empty for none.
 		std::function<void(const ViewInput& input)> onViewInput;
 
 		// Runs on the game thread once the window has closed, whatever closed it:
