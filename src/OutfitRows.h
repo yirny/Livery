@@ -17,7 +17,7 @@
 namespace OutfitRows
 {
 	// The items an outfit on a row leaves off for this actor: those unticked in its piece list
-	// on Manage Wardrobe (its Apply) or in its details opened from the row on Manage
+	// on the Wardrobe page (its Apply) or in its details opened from the row on Manage
 	// Situations. Its other items, those added to it later included, are worn.
 	struct Exclusion
 	{
@@ -102,7 +102,7 @@ namespace OutfitRows
 	// is; one not on it takes `chosen`'s place, which leaves the list (the user replaces the
 	// outfit worn, the items it left off with it); with no `chosen`, it goes in at `a_index`.
 	// Either way it is then `chosen`. An outfit on the list keeps the items it leaves off.
-	// Manage Situations' drop at a place in a row's list.
+	// the Situations page's drop at a place in a row's list.
 	inline void Place(Row& a_row, std::uint32_t a_outfit, std::size_t a_index)
 	{
 		if (a_outfit == 0) {

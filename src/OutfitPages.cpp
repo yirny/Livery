@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // The capture window's outfit pages (see CaptureWindow.cpp for the window and the
-// Inventory and Save pages, SituationPage.cpp for Manage Situations, CaptureWindowInternal.h
+// Inventory and Save pages, SituationPage.cpp for the Situations page, CaptureWindowInternal.h
 // for the state they share).
 //
 // FILE MAP
@@ -11,14 +11,14 @@
 //   Outfit lists - the library outfit list under its icon and Name column labels, which sort
 //                  it (a second click reverses), its count line below it, the selected outfit's name
 //                  (or a hint while none is) and its piece list, and an outfit read only
-//                  in Manage Wardrobe's order, which the outfit pages and Manage Situations
+//                  in the Wardrobe page's order, which the outfit pages and the Situations page
 //                  share (there each row has a grip and drags a copy of its outfit);
 //                  on the Load page and the Save page's Update tab the selected outfit is on
 //                  the preview, and a second click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
 //                  pieces and returns (greyed while none of them is loaded); opened from
 //                  the Edit page, it adds them to that page's ticks
-//   Manage Wardrobe - the tab beside the Inventory page: library outfits and the selected
+//   the Wardrobe page - the tab beside the Inventory page: library outfits and the selected
 //                  one's icon (Choose icon popup), name and pieces (ticked as Apply would
 //                  dress the actor in them, from the row they wear it for or the Default),
 //                  edited in place and kept for one outfit at a time (Discard changes / Keep
@@ -199,7 +199,7 @@ namespace CaptureWindow::Internal
 		bool a_situationMark)
 	{
 		const auto& outfit = OutfitAt(a_state, a_index);
-		// On Manage Situations the Default and situation marks follow the page's unsaved rows
+		// On the Situations page the Default and situation marks follow the page's unsaved rows
 		// and names; the current mark is what the actor wears, so it stays the request's.
 		const auto&        entries = a_state.situationForm.entries;
 		const bool         edited = a_state.page == Page::kSituations && !entries.empty();
@@ -222,7 +222,7 @@ namespace CaptureWindow::Internal
 	// the order, as the piece list's labels do. The list stays as tall as the whole wardrobe,
 	// so narrowing it does not move the buttons; `a_reserved` is the browser's height (ListHeight).
 	// Returns the index into request.existingOutfits of the one clicked, or -1;
-	// a click plays the focus sound. `a_draggable` (Manage Situations): each row has a grip
+	// a click plays the focus sound. `a_draggable` (the Situations page): each row has a grip
 	// and drags a copy of its outfit.
 	// Names are shown as they are (Theme::SelectRow).
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable)
@@ -387,7 +387,7 @@ namespace CaptureWindow::Internal
 		DrawOutfitPieces(a_state, outfit);
 	}
 
-	// The name with no label, as Manage Wardrobe's field; the situations' label with the
+	// The name with no label, as the Wardrobe page's field; the situations' label with the
 	// situation star, as the Situation List's headings have it.
 	bool DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom, std::vector<std::uint32_t>* a_excluded)
 	{
@@ -506,7 +506,7 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// --- Manage Wardrobe ------------------------------------------------------
+	// --- Wardrobe page ------------------------------------------------------
 	//
 	// The tab beside the Inventory page. The edits belong to the selected outfit and stay
 	// until another is selected or the window closes; the preview shows them, or the
@@ -521,7 +521,7 @@ namespace CaptureWindow::Internal
 
 	std::string ApplyTooltip(const State& a_state);
 
-	// The row whose left-off items Manage Wardrobe's piece list starts from for library outfit
+	// The row whose left-off items the Wardrobe page's piece list starts from for library outfit
 	// `a_outfit`: the one the actor wears it for now, which Apply gives it again
 	// (DirectApplyRow), else the Default.
 	std::size_t SelectionRow(const State& a_state, std::uint32_t a_outfit)
@@ -863,7 +863,7 @@ namespace CaptureWindow::Internal
 		return HasLibraryEdits(a_state) || ApplyAsksFirst(a_state, ManagedOutfitId(a_state));
 	}
 
-	// Manage Wardrobe's selected outfit as its Apply popup names it; unsaved library edits are
+	// the Wardrobe page's selected outfit as its Apply popup names it; unsaved library edits are
 	// saved first. Contract: an outfit is selected.
 	ApplySubject ManagedSubject(const State& a_state)
 	{

@@ -49,7 +49,7 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 
 A library outfit given to a row is dressed less the items it leaves off on that row
 (`OutfitRows::Exclusion`, per actor, row and outfit): those unticked in its piece list on
-Manage Wardrobe when Apply gave it the row, on Manage Situations in its details opened
+The Wardrobe page when Apply gave it the row, on the Situations page in its details opened
 from the row, or on the Inventory page when its Apply dressed the actor in some of the
 outfit they wore (below). The outfit's other items, those added to it later included, are worn; when
 the items left off are all it has, it is dressed whole. The library outfit itself never
@@ -75,7 +75,7 @@ replaces it while the situation lasts, by the same steps: the worn pieces are re
 (copies removed, the actor's own pieces back on) and the new outfit is dressed. When the
 actor wears a library outfit and the ticks are all or some of its items and nothing else,
 Apply gives it the row it is worn for (`Assignments::Change`), the unticked ones left off
-there, as Manage Wardrobe's Apply does, without asking and without a library write. When
+there, as the Wardrobe page's Apply does, without asking and without a library write. When
 the ticks hold an item it does not have, Apply asks first: Yes updates
 that outfit's pieces (`Library::Update`, name kept), then the Default
 gets the outfit, or, for a situation outfit, `Assignments::Refresh` dresses the updated
@@ -115,7 +115,7 @@ says so), so a lock would be needed anyway.
   put on that the actor wears no copy of, and the worn armor it did not put on (`GapsOf` in `Plugin.cpp`, read as it opens
   and after each dressing with it open, no preview on): the summary line then says the
   outfit is only assigned, `Assigned "X" as Default, 1 item not worn.`, an extra piece
-  is added as `, 1 extra item worn`, and Manage Wardrobe's Apply is not greyed as worn
+  is added as `, 1 extra item worn`, and the Wardrobe page's Apply is not greyed as worn
   already; it dresses them again, a copy added for a piece they no longer carry (§2 step 2),
   the extra pieces taken off (step 4).
 - Unassign (the window's Restore): release the mod's locks, remove the mod's copies
@@ -348,13 +348,13 @@ and recorded as `chosen`, so turning random off keeps the last pick on. Giving a
 outfit (`OutfitRows::Give`) with random on puts it at the front of the list; with random
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
 the list keeps its length. The Save page changes no row but by Create and Apply, which gives
-the new outfit the row Manage Wardrobe's Apply would (below) in one `Assignments::Change`, after
-the library write, with one forced redress. Manage Wardrobe's Update changes no row; its `Apply to #{Name}` changes
+the new outfit the row the Wardrobe page's Apply would (below) in one `Assignments::Change`, after
+the library write, with one forced redress. The Wardrobe page's Update changes no row; its `Apply to #{Name}` changes
 what the actor wears now: while they wear another outfit for a situation, its popup gives
 the outfit that row (Yes, `OutfitRows::Give`, worn now) or the Default (Apply as Default,
 the situation's outfit staying on); else the outfit goes to the situation they wear it
 for, or the Default.
-Manage Situations (docs/situation-management-ui.md §3-§6) edits every row of the captured
+The Situations page (docs/situation-management-ui.md §3-§6) edits every row of the captured
 actor by drag and drop, the random flags included, and the situations' names; its Save
 Changes writes `situations.json` first, then replaces the rows
 (`Assignments::SetRows`, the record only) and dresses them once (`Assignments::Refresh`,
@@ -442,11 +442,11 @@ Each stage ends with an in-game check before the next starts.
    the player): done.
 7. Outfit management in the capture window (docs/outfit-management-ui.md): step 1, the
    outfit list and the Inventory page's buttons: done. Step 2, the tab column and the
-   Manage Wardrobe page with Update, the captured actor redressed while the window is open
+   The Wardrobe page with Update, the captured actor redressed while the window is open
    (§6 there): done. Step 3, Remove, which deals with the assignments and situation
    choices that name the outfit: done.
 8. Situation management (docs/situation-management-ui.md): step A, the rows with their
-   random picks, and step B, `situations.json`: done. Step C, the Manage Situations page:
+   random picks, and step B, `situations.json`: done. Step C, the Situations page:
    done. Later, user-defined conditions in the way of Skyrim Outfit Equipment System NG,
    extending `Situations::Applicable` (§7).
 9. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
@@ -487,8 +487,8 @@ Each stage ends with an in-game check before the next starts.
   `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their
   permission (`icons/ICON-CREDITS.txt`). Other icon packs' PNGs are not in the repository.
 - Outfit icons use the same PNGs (§4: an outfit's `icon` and `color`). The outfit rows, their
-  drag copies, the icon fields (Manage Wardrobe's, the Create tab's, the Update tab's, shown
-  only) and the outfit names over the Load page's and Manage Situations' outfit details draw the outfit's icon
+  drag copies, the icon fields (the Wardrobe page's, the Create tab's, the Update tab's, shown
+  only) and the outfit names over the Load page's and the Situations page's outfit details draw the outfit's icon
   tinted with its colour; a key whose PNG is not loaded draws the default key's PNG in that
   colour. The picker offers the keys of `OutfitIcons::kKeys` whose PNG is loaded, in that
   order: SkyUI's slots (helmet, circlet, body, hands, feet, necklace, ring, shield; each

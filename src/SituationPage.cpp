@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The capture window's Manage Situations page (docs/situation-management-ui.md §3-§6; see
+// The capture window's the Situations page (docs/situation-management-ui.md §3-§6; see
 // CaptureWindow.cpp for the window, CaptureWindowInternal.h for the state the pages share).
 //
 // FILE MAP
@@ -626,7 +626,7 @@ namespace CaptureWindow::Internal
 			kBack
 		};
 
-		// The rows the page's edits give outfit `a_outfit`, named as Manage Wardrobe's dropdown
+		// The rows the page's edits give outfit `a_outfit`, named as the Wardrobe page's dropdown
 		// names them (`Default, Town`), or `None`.
 		std::string HeldRowsText(const State& a_state, std::uint32_t a_outfit)
 		{

@@ -23,9 +23,9 @@ namespace RE
 // QueueInput runs on the game thread from the input dispatch hook. All state is
 // guarded by one mutex. Nothing here touches the outfit library or the
 // assignments: the Save page's Create and Update hand the outfit (and Create and Apply
-// the row it is worn for) to Request::onSave, Manage Wardrobe's Update and Remove the outfit to
+// the row it is worn for) to Request::onSave, the Wardrobe page's Update and Remove the outfit to
 // Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
-// Manage Situations' Save Changes, Remove (a situation) and Restore Presets go to
+// the Situations page's Save Changes, Remove (a situation) and Restore Presets go to
 // Request::onSituationsSave, onSituationRemove and onRestorePresets,
 // Apply and Restore go to
 // Request::onApply and Request::onRestore, each piece tick to
@@ -104,27 +104,27 @@ namespace CaptureWindow
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;  // its key, which the handlers take
 		std::string           name;
-		std::string           conditions;  // when it applies, shown read only on Manage Situations
+		std::string           conditions;  // when it applies, shown read only on the Situations page
 		// Who has outfits on its list in this save, one line each, for the Remove situation? popup:
 		// "Lydia: 2 outfit(s)", the actor's FormID when not in memory. Empty for the Default.
 		std::vector<std::string> holders;
 	};
 
-	// A situation's name as Manage Situations leaves it.
+	// A situation's name as the Situations page leaves it.
 	struct SituationEdit
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;
 		std::string           name;  // trimmed, non-empty
 	};
 
-	// One of the actor's rows as Manage Situations leaves it.
+	// One of the actor's rows as the Situations page leaves it.
 	struct RowEdit
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;
 		OutfitRows::Row       row;
 	};
 
-	// What Manage Situations' Save Changes hands over.
+	// What the Situations page's Save Changes hands over.
 	struct SituationSave
 	{
 		std::vector<SituationEdit> edits;                      // the situations whose name changed; empty for none
@@ -136,25 +136,25 @@ namespace CaptureWindow
 		std::optional<std::vector<std::size_t>> previewPieces;
 	};
 
-	// What the Save page and Manage Wardrobe's Update hand over: the outfit to write, and for
-	// Create and Apply or Manage Wardrobe's Update and Apply the one row (an index into
+	// What the Save page and the Wardrobe page's Update hand over: the outfit to write, and for
+	// Create and Apply or the Wardrobe page's Update and Apply the one row (an index into
 	// Request::assigned) that gets it and is dressed for.
 	struct SaveRequest
 	{
 		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
 		std::string              name;        // trimmed, non-empty
 		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
-		// The outfit's icon: Manage Wardrobe's, or the Create tab's for a new outfit; nullopt
+		// The outfit's icon: the Wardrobe page's, or the Create tab's for a new outfit; nullopt
 		// keeps the one it has (the Save page's Update tab).
 		std::optional<OutfitIcons::Icon> icon;
-		// The row the outfit goes to, as Manage Wardrobe's Apply gives it (the situation the
+		// The row the outfit goes to, as the Wardrobe page's Apply gives it (the situation the
 		// actor wears another outfit for now, after the user agreed, else the Default); nullopt
 		// for a save that changes no row.
 		std::optional<std::size_t> applyRow;
 		// Create and Apply: those of `pieces` the window lists under Player's Inventory, which
 		// move first; those that do not move stay out of the dressing. Empty otherwise.
 		std::vector<std::size_t> fromPlayer;
-		// With `applyRow` from Manage Wardrobe: the armor (FormIDs) the outfit leaves off on that
+		// With `applyRow` from the Wardrobe page: the armor (FormIDs) the outfit leaves off on that
 		// row, the items unticked in its piece list; empty wears all its items, as Create and
 		// Apply always does.
 		std::vector<std::uint32_t> excluded;
@@ -217,7 +217,7 @@ namespace CaptureWindow
 		// `dressed`. Empty hides it. It must end by calling Close() or SetError().
 		std::function<void()> onRestore;
 
-		// Runs on the game thread when the user confirms Manage Wardrobe's Update: `edit` holds
+		// Runs on the game thread when the user confirms the Wardrobe page's Update: `edit` holds
 		// the outfit, its new name and pieces; no row changes. The library
 		// write comes first; a refused or failed write assigns nothing. The window stays open: it
 		// must end by calling SetOutfits() with the library as written, or SetError(). With
@@ -226,12 +226,12 @@ namespace CaptureWindow
 		// SetOutfits() their pieces as they are dressed now. Empty greys Update.
 		std::function<void(const SaveRequest& edit, bool apply)> onManageUpdate;
 
-		// Runs on the game thread when the user confirms Manage Wardrobe' Remove of library
+		// Runs on the game thread when the user confirms the Wardrobe page's Remove of library
 		// outfit `outfit`. As onManageUpdate, it must end by calling SetOutfits() or SetError().
 		// Empty greys Remove.
 		std::function<void(std::uint32_t outfit)> onManageRemove;
 
-		// Runs on the game thread when the user presses Manage Wardrobe's "Apply to #{Name}"
+		// Runs on the game thread when the user presses the Wardrobe page's "Apply to #{Name}"
 		// with no unsaved edits: library outfit `outfit`, as the library has it, goes to the
 		// actor for row `row` of `assigned` (the situation they wear another outfit for now,
 		// when the user agreed in Apply's popup, the one they wear it for, or the Default),
@@ -241,7 +241,7 @@ namespace CaptureWindow
 		// Empty greys the button.
 		std::function<void(std::uint32_t outfit, std::size_t row, const std::vector<std::uint32_t>& excluded)> onManageApply;
 
-		// Run on the game thread from Manage Situations (docs/situation-management-ui.md §5, §6):
+		// Run on the game thread from the Situations page (docs/situation-management-ui.md §5, §6):
 		// onSituationsSave with Save Changes' edits, onSituationRemove with the situation Remove
 		// Situation's popup confirmed, onRestorePresets after Restore Presets' popup. Each writes
 		// situations.json first, when it has anything to write, and a refused or failed write
@@ -321,13 +321,13 @@ namespace CaptureWindow
 	void SetError(const std::string& message);
 	bool IsOpen();
 
-	// Ends an Apply, or a Manage Wardrobe or Manage Situations change the library,
+	// Ends an Apply, or a Wardrobe page or Situations page change the library,
 	// situations.json or the actor's rows took: the window shows `list` and lets the user
 	// edit again, Restore shown while `list.dressed`. The pages'
 	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
 	// when gone; the Update tab is left when the wardrobe is empty), each
 	// list keeps its search, sort and folded headings, the Inventory page drops ticks on
-	// pieces it no longer lists, Manage Situations' edits start again from the rows and the
+	// pieces it no longer lists, the Situations page's edits start again from the rows and the
 	// situations (its selected situation and folded headings found again by key), and Manage
 	// Wardrobe's edits start again from the library, or
 	// the preview shows the Inventory page's ticks when its outfit is gone. The heading of the pieces Livery put on

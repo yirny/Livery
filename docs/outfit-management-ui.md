@@ -3,9 +3,9 @@
 Written 2026-10-20 for the AI that implements it, from the user's draft and the decisions
 made on it; current spec only. Three steps, each built, checked in game and committed
 before the next, each with CLAUDE.md §1 approval first: (1) the outfit list and the
-Inventory page's buttons, (2) the tab column and the Manage Wardrobe page with Update,
+Inventory page's buttons, (2) the tab column and the Wardrobe page with Update,
 (3) Remove. Docs follow the code in the step that makes them stale: design.md, README, and
-CLAUDE.md §2.1 (step 2 adds the Manage Wardrobe Update path, step 3 the window's delete).
+CLAUDE.md §2.1 (step 2 adds the Wardrobe page's Update path, step 3 the window's delete).
 
 The Inventory page is today's Capture page (`Page::kCapture`), titled `#{Name}'s Inventory`.
 Docs call it the Inventory page; code identifiers stay.
@@ -36,7 +36,7 @@ in Nordic 0.7 of the body (14px). Count lines, the links (`Add items from Wardro
 
 ## 1. Outfit list (step 1)
 
-The outfit list shared by the Load page, the Save page's Update tab and the Manage Wardrobe
+The outfit list shared by the Load page, the Save page's Update tab and the Wardrobe page
 page. Each page keeps its own search and sort.
 
 - Wording: the window calls the library the wardrobe (`12 outfit(s) in the wardrobe`,
@@ -67,7 +67,7 @@ page. Each page keeps its own search and sort.
   (after Nordic's arrow), then the label; Modern a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
   of them: a dressed form (a gown on the stand) for the outfit the actor wears now
-  (`Request::wornOutfit`), else a bare form (Manage Wardrobe's tab icon) for one their
+  (`Request::wornOutfit`), else a bare form (the Wardrobe page's tab icon) for one their
   Default holds; a star (point down, lines from its centre to its inner corners, the upper left face filled) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
@@ -144,8 +144,8 @@ page. Each page keeps its own search and sort.
 ## 3. Tab column (step 2)
 
 - A column of icon tabs at the window's left edge, a rule between it and the page:
-  Inventory (a backpack), Manage Wardrobe (a bare dress form: a padded torso on a stand,
-  each shoulder one arc), Manage Situations (the star, point down, of the outfit rows'
+  Inventory (a backpack), the Wardrobe page (a bare dress form: a padded torso on a stand,
+  each shoulder one arc), the Situations page (the star, point down, of the outfit rows'
   situation mark; docs/situation-management-ui.md §3) and Appearance (a painter's palette: a
   round board with a bite out of its lower right, three dabs of paint across from it, smaller
   towards the upper right, each as far from the rim and from the next).
@@ -155,10 +155,10 @@ page. Each page keeps its own search and sort.
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
 - Each tab is centred between the window's left edge and the rule. Nordic's start 8px
   lower, clear of the corner knot.
-- Shown on the Inventory, Manage Wardrobe, Manage Situations and Appearance pages only; the
+- Shown on the Inventory, the Wardrobe page, the Situations page and Appearance pages only; the
   Load, Save, Select and Edit pages have none.
 - Switching tabs keeps the Inventory page's ticks until the window closes. Leaving Manage
-  Wardrobe or Manage Situations with unsaved edits asks first (§4,
+  Wardrobe or the Situations page with unsaved edits asks first (§4,
   docs/situation-management-ui.md §6).
 - The rule: Modern, 1px in its rule colour (Tailor 3.0's sidebar divider). Vanilla, 2px in its
   rule grey. Nordic, NORDIC UI's vertical rope, the ornament left and right of the level-up
@@ -185,9 +185,9 @@ page. Each page keeps its own search and sort.
   `ChoosePalette`, `RestoreChosenPalette`, `SetMenuSounds`); the log names the page a change
   came from.
 
-## 4. Manage Wardrobe page (step 2)
+## 4. The Wardrobe page (step 2)
 
-- Title `Manage Wardrobe` (the tab's name too), no summary line. Two columns as on the Load
+- Title `Wardrobe` (the tab's name too), no summary line. Two columns as on the Load
   page: the outfit list (§1) on the left; on the right the selected outfit, editable:
   - icon and name on one line: the icon field (`Theme::IconField`), the outfit's icon with
     8px on either side, as tall as the name field, filled in the hover colour while hovered
@@ -288,13 +288,13 @@ page. Each page keeps its own search and sort.
   preview shows this page's ticks with the selected outfit added; Load and Back return to
   this page, nothing written.
 - `Use Ticked Items` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
-  pieces and the page returns to Manage Wardrobe, its unticked pieces among them staying
+  pieces and the page returns to the Wardrobe page, its unticked pieces among them staying
   unticked (all ticked again when they were all); nothing is written. `Back` and Escape
   return with the edited pieces as they were.
 
 ## 5. Remove (step 3)
 
-- `Remove` on Manage Wardrobe, enabled with an outfit selected (greyed with `kNeedOutfit` on
+- `Remove` on the Wardrobe page, enabled with an outfit selected (greyed with `kNeedOutfit` on
   hover without one). A popup names the outfit and
   lists who uses it among Livery's assignments in this save: each actor (their FormID when
   not in memory) with the rows that hold it (`Lydia: Default, Town`), then `Remove` /
@@ -318,11 +318,11 @@ page. Each page keeps its own search and sort.
 ## 6. Redressing while the window is open (steps 2 and 3)
 
 Assignments run only with no preview on, since the preview restores what it found at
-`OutfitPreview::Begin`. A Manage Wardrobe change that redresses:
+`OutfitPreview::Begin`. A Wardrobe page change that redresses:
 
 - the captured actor, at once, Live Preview on or off. With it on, one SKSE task runs
   `OutfitPreview::End`, the assignment change, then `OutfitPreview::Begin` with the outfit
-  Manage Wardrobe has selected (Update), or with what they wear now (Remove), so the new
+  The Wardrobe page has selected (Update), or with what they wear now (Remove), so the new
   state is what the preview later restores. The camera and the movement hold stay. When
   Begin refuses, the Live Preview tick greys with the reason, as at Open. With it off, the
   assignment runs in the game the window froze, and the NPC's model is rebuilt at once
@@ -344,7 +344,7 @@ time it goes on. Remove: §5.
 An Apply (the Inventory page's, Apply to #{Name}, Update and Apply) dresses the captured
 actor at once, Live Preview on or off, as above, and the window stays on its page; with
 Live Preview on the preview begins again on what they wear now (the Inventory page) or the
-outfit Manage Wardrobe has selected. The Inventory page follows what they wear
+outfit the Wardrobe page has selected. The Inventory page follows what they wear
 (`actorPieces`), and `Restore` shows while Livery dresses them
 (`OutfitList::dressed`). The Save page's Create and Apply and Restore close the window
 first.
@@ -352,10 +352,10 @@ first.
 ## 7. Code
 
 - `src/CaptureWindow.cpp` (about 2400 lines) splits at the start of step 2, in a move-only
-  commit: the outfit browser, the outfit lists and the Load, Manage Wardrobe and Edit
+  commit: the outfit browser, the outfit lists and the Load, the Wardrobe page and Edit
   pages go to `src/OutfitPages.cpp`; the state and shared helpers to a header private to
   the two files. `CMakeLists.txt` gains the file (CLAUDE.md §1, build system).
-- `CaptureWindow`: pages for Manage Wardrobe and Edit; `SetOutfits` (the rebuilt outfits
+- `CaptureWindow`: pages for the Wardrobe page and Edit; `SetOutfits` (the rebuilt outfits
   and rows, the window's indices into them found again by id); a call that greys
   Live Preview with a reason; `Request::onManageUpdate` and, in step 3,
   `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with one row
@@ -373,7 +373,7 @@ first.
   a link with its `(?)` (`LabelHelpLink`), a button with one (`HelpButton`), the underlined
   fields with the pen, the icons (bare and dressed form, star, palette), `AfterFieldGap`.
 - `Plugin.cpp`: the Situation group for `Request::categories` and each outfit's rows, the
-  Manage Wardrobe handlers, the redress queue (§6).
+  The Wardrobe page handlers, the redress queue (§6).
 
 ## 8. Checks
 
