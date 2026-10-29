@@ -919,6 +919,18 @@ namespace CaptureWindow::Internal
 		return NamesChanged(a_state) || RowsChanged(a_state);
 	}
 
+	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit)
+	{
+		const auto& entries = a_state.situationForm.entries;
+		std::string text;
+		for (std::size_t i = 1; i < entries.size(); ++i) {
+			if (OutfitRows::Holds(entries[i].row, a_outfit)) {
+				text += std::format("{}{}", text.empty() ? "For " : ", ", Trimmed(entries[i].name.data()));
+			}
+		}
+		return text;
+	}
+
 	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state)
 	{
 		const auto& form = a_state.situationForm;

@@ -226,7 +226,9 @@ outfit clicked last, until Back; else the selected situation's details, until Sh
 List; else the outfit list.
 
 The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
-search and sort, each row with the drag grip, and nothing under the list. While
+search and sort, each row with the drag grip, and nothing under the list. Its star and
+Default marks (and the star's `For Town, Warm`) follow the page's unsaved rows and names at
+once; in the Situation List too, the Default mark does. While
 an outfit's details show, the
 selected situation's heading is drawn unselected (no fill, no mark); closing them brings it
 back.
