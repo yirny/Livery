@@ -29,6 +29,12 @@ Per actor, per row:
   recorded by `Assignments` as the row goes on. It is always on `outfits` or 0.
 - The Default only: `pieces`, armor not in the wardrobe (what `Assign(pieces, 0)` gives
   today).
+- `excluded`: per outfit on `outfits`, the armor FormIDs it leaves off for this actor
+  (`OutfitRows::Exclusion`; design.md §2). Set by Apply to #{Name} from Manage Wardrobe's
+  ticks and by the ticks of an outfit's details opened from the row (§5); the Inventory
+  page's Apply and Create and Apply give the outfit with all its items. An outfit that
+  leaves `outfits` (taken off, or replaced as `chosen`) loses them. Kept in the co-save's
+  `EXCL` record (design.md §5).
 
 What a row wears:
 
@@ -193,7 +199,7 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 | --- | --- | --- |
 | an outfit list row (right) | a heading, its rule, its `Items...` line | added at the front (§1) |
 | an outfit list row (right) | between two outfit rows of a situation | added there |
-| a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target |
+| a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target with the items it left off there, unless the target has it already; its details, when shown from the source, follow it |
 | a situation's outfit row | its own situation | reordered |
 | a situation's outfit row, or `Items not in the wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
 
@@ -252,9 +258,15 @@ The situation's details, its fields evenly spaced with no headings:
   docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
   The edits are dropped, nothing is selected and the right pane shows the outfit list.
 
-An outfit's details, read only, in Manage Wardrobe's order (`DrawOutfitSummary`): its name
+An outfit's details, in Manage Wardrobe's order (`DrawOutfitSummary`): its name
 with no label, `Situations for #{Name}` with the rows the page's edits
-give it (`Default, Town`, or `None`), then its pieces under their count line. 12px of extra
+give it (`Default, Town`, or `None`), then its pieces under their count line. Clicked under a
+situation's heading, the pieces are Manage Wardrobe's tick rows, ticked as that row wears the
+outfit; a tick is an edit of that row (§1 `excluded`), saved with Save Changes, and the last
+ticked piece cannot be unticked. Clicked on the outfit list, or once that row no longer
+holds the outfit, they are read only. The outfit's row in the Situation List is drawn
+selected only under the heading it was clicked under. The preview shows the outfit less its
+unticked pieces. 12px of extra
 room, then `Edit` and `Back` centred. The details grow with the pieces, moving the page's
 buttons down when taller than the Situation List, as Manage Wardrobe's selection does; the
 pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every

@@ -47,6 +47,13 @@ An outfit is a list of armor base forms. Dressing an actor in it:
    earlier assignment of the same actor is released first, its own pieces back on, so
    they are what the new one records.
 
+A library outfit given to a row is dressed less the items it leaves off on that row
+(`OutfitRows::Exclusion`, per actor, row and outfit): those unticked in its piece list on
+Manage Wardrobe when Apply gave it the row, or on Manage Situations in its details opened
+from the row. The outfit's other items, those added to it later included, are worn; when
+the items left off are all it has, it is dressed whole. The library outfit itself never
+changes for this.
+
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
 put on armor they own there (a helmet, a shield). Accepted for now.
 
@@ -229,8 +236,8 @@ would have to be kept in step).
 
 ## 5. Co-save
 
-Co-save id `LVRY`, one record `ASGN` (version 4; versions 1 to 3 are still read), read
-in the SKSE load callback, cleared on revert:
+Co-save id `LVRY`, records `ASGN` (version 4; versions 1 to 3 are still read) and `EXCL`
+(version 1), read in the SKSE load callback, cleared on revert:
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
   library outfit the pieces on them are from (`wornOutfit`, 0 for none or the Default's
@@ -256,6 +263,12 @@ in the SKSE load callback, cleared on revert:
   check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
   line; pieces worn for it stay on until the poll's next dressing. A key whose
   instance is gone is skipped whenever the actor is dressed or released.
+- `EXCL`, written after `ASGN` while any row's outfit leaves items off (§2): a count, and
+  per entry the actor FormID, the row (one byte), the library outfit id and the armor
+  FormIDs it leaves off. A record of its own, so `ASGN` keeps its version and a Livery
+  that does not know `EXCL` skips it and dresses every item. At load, after `ASGN`, an
+  entry for an actor without an assignment, a row the version does not know or an outfit
+  no longer on that row is dropped, and so is an armor form whose plugin is gone.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
 can come later if sharing across characters is wanted.

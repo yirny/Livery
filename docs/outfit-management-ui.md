@@ -200,16 +200,23 @@ page. Each page keeps its own search and sort.
     colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
     leaves it. Nothing is written until Update. The Save page's Create tab opens the same
     popup for the new outfit's icon (docs/ui-redesign.md).
-  - 4px of extra room, then its pieces, read only, under a count line ending in `Edit`
+  - 4px of extra room, then its pieces under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
-    stay in the outfit. The Load page's details and the Save page's piece columns keep the
+    stay in the outfit. The pieces are the Inventory page's tick rows (`Theme::TickRow`, with
+    their icons, no column labels): the ticked ones are what Apply dresses the actor in, the
+    unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
+    They start as that row leaves them, the row the actor wears the outfit for now, else the
+    Default (all ticked when it does not have the outfit); the last ticked piece cannot be
+    unticked. A tick is not an unsaved edit: selecting an outfit, or a change the window
+    takes (`SetOutfits`), starts the ticks again from the rows; Update and Remove ignore
+    them. The Load page's details and the Save page's piece columns keep the
     same room before their count line.
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
   has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Update's
   popup lists, then `Discard changes` / `Keep editing`.
-- The preview shows the selected outfit as edited; with none selected, the Inventory page's
-  ticks.
+- The preview shows the selected outfit as edited, less its unticked pieces; with none
+  selected, the Inventory page's ticks.
 - Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (step 3) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`).
   - Update: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
@@ -222,8 +229,9 @@ page. Each page keeps its own search and sort.
     (`CaptureWindow::SetOutfits`), the edits start again from the library, the outfit stays
     selected (found by id), and the captured actor is redressed when they wear it (§6).
   - Apply to #{Name}: changes what the actor wears now. The outfit goes to one row in one
-    `Assignments::Change`, the window staying open as after the Inventory page's Apply (§6);
-    nothing moves from the player's inventory. The row, from `Request::wornFor` (what
+    `Assignments::Change`, its unticked pieces left off there (none unticked: all its items),
+    the window staying open as after the Inventory page's Apply (§6); nothing moves from the
+    player's inventory. The Save page's Create and Apply always gives every item. The row, from `Request::wornFor` (what
     `Request::wornOutfit` is worn for):
     - They wear another library outfit for a situation now: a popup (`Apply outfit?`) says
       so, `#{Name} is wearing their Town outfit, "B".` (random on: `one of their Town
@@ -251,7 +259,8 @@ page. Each page keeps its own search and sort.
     row. Greyed with no outfit selected, with no edited piece (`kNoLoadedPiece`), with
     library edits and an empty name (`kNeedName`), and with no library edits while the actor
     wears the outfit now, every piece Livery put on still worn (`Request::piecesNotWorn` 0)
-    and nothing else worn (`Request::extraWorn` 0), for the Default or a situation not removed (`kWornAlready`), as Apply would change
+    and nothing else worn (`Request::extraWorn` 0), for the Default or a situation not
+    removed, with the ticks that row's (`kWornAlready`), as Apply would change
     nothing.
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
@@ -276,7 +285,8 @@ page. Each page keeps its own search and sort.
   preview shows this page's ticks with the selected outfit added; Load and Back return to
   this page, nothing written.
 - `Use Ticked Items` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
-  pieces and the page returns to Manage Wardrobe; nothing is written. `Back` and Escape
+  pieces and the page returns to Manage Wardrobe, its unticked pieces among them staying
+  unticked (all ticked again when they were all); nothing is written. `Back` and Escape
   return with the edited pieces as they were.
 
 ## 5. Remove (step 3)

@@ -203,3 +203,73 @@ TEST_CASE("Resolve takes the first situation whose row holds an outfit", "[rows]
 	home.Add(Situation::kHome);
 	CHECK(OutfitRows::Resolve(rows, home) == Situation::kDefault);
 }
+
+TEST_CASE("SetExcluded keeps each outfit's items sorted and drops an empty one", "[rows][excluded]")
+{
+	Row row{ .outfits = { 5, 2 }, .chosen = 5 };
+	OutfitRows::SetExcluded(row, 5, { 30, 10, 30 });
+	OutfitRows::SetExcluded(row, 2, { 20 });
+	CHECK(row.excluded == std::vector<OutfitRows::Exclusion>{ { .outfit = 2, .armor = { 20 } }, { .outfit = 5, .armor = { 10, 30 } } });
+	CHECK(OutfitRows::ExcludedOf(row, 5) == Ids{ 10, 30 });
+	CHECK(OutfitRows::ExcludedOf(row, 7).empty());
+
+	OutfitRows::SetExcluded(row, 5, {});  // all its items worn again
+	CHECK(OutfitRows::ExcludedOf(row, 5).empty());
+	CHECK(row.excluded.size() == 1);
+
+	Row same{ .outfits = { 5, 2 }, .chosen = 5 };
+	CHECK(same != row);  // the items left off count in a row's equality
+	OutfitRows::SetExcluded(same, 2, { 20 });
+	CHECK(same == row);
+}
+
+TEST_CASE("Give sets the items the outfit leaves off; a replaced or taken outfit loses its own", "[rows][excluded]")
+{
+	Row row;
+	OutfitRows::Give(row, 1, { 11 });
+	CHECK(OutfitRows::ExcludedOf(row, 1) == Ids{ 11 });
+
+	OutfitRows::Give(row, 1);  // given again with all its items
+	CHECK(row.excluded.empty());
+
+	OutfitRows::Give(row, 1, { 11 });
+	OutfitRows::Give(row, 2, { 22 });  // random off: takes 1's place, which leaves with its items
+	CHECK(row.outfits == Ids{ 2 });
+	CHECK(OutfitRows::ExcludedOf(row, 1).empty());
+	CHECK(OutfitRows::ExcludedOf(row, 2) == Ids{ 22 });
+
+	Row random{ .outfits = { 1, 2 }, .random = true };
+	OutfitRows::SetExcluded(random, 1, { 11 });
+	OutfitRows::Place(random, 1, 2);  // reordered: keeps its items
+	CHECK(OutfitRows::ExcludedOf(random, 1) == Ids{ 11 });
+	OutfitRows::Take(random, 1);
+	CHECK(random.excluded.empty());
+}
+
+TEST_CASE("WithoutGone hides a gone outfit's items and KeepGone brings them back", "[rows][excluded]")
+{
+	const auto inLibrary = [](std::uint32_t a_outfit) { return a_outfit != 9; };
+	Row        stored{ .outfits = { 1, 9 }, .random = true };
+	OutfitRows::SetExcluded(stored, 1, { 11 });
+	OutfitRows::SetExcluded(stored, 9, { 99 });
+
+	auto shown = OutfitRows::WithoutGone(stored, inLibrary);
+	CHECK(shown.outfits == Ids{ 1 });
+	CHECK(shown.excluded.size() == 1);
+
+	OutfitRows::SetExcluded(shown, 1, { 12 });  // the edit
+	const auto kept = OutfitRows::KeepGone(shown, stored, inLibrary);
+	CHECK(kept.outfits == Ids{ 1, 9 });
+	CHECK(OutfitRows::ExcludedOf(kept, 1) == Ids{ 12 });
+	CHECK(OutfitRows::ExcludedOf(kept, 9) == Ids{ 99 });
+}
+
+TEST_CASE("WornPieces leaves out the items left off, or none when that leaves nothing", "[rows][excluded]")
+{
+	const Ids  pieces{ 10, 20, 30 };
+	const auto self = [](std::uint32_t a_armor) { return a_armor; };
+	CHECK(OutfitRows::WornPieces(pieces, Ids{ 20 }, self) == Ids{ 10, 30 });
+	CHECK(OutfitRows::WornPieces(pieces, Ids{ 40 }, self) == pieces);  // an item no longer in the outfit
+	CHECK(OutfitRows::WornPieces(pieces, Ids{ 10, 20, 30 }, self) == pieces);
+	CHECK(OutfitRows::WornPieces(pieces, Ids{}, self) == pieces);
+}
