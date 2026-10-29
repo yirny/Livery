@@ -1,4 +1,4 @@
-# Livery - Immersive Outfit Management
+# Livery - Outfit Manager
 
 An SKSE plugin for Skyrim Special Edition / Anniversary Edition that saves the armor an NPC, or you, are wearing as an
 outfit in its own library, and dresses any character in a saved outfit, keeping an NPC in it. Aim at the NPC (or at

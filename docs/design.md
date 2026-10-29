@@ -2,7 +2,7 @@
 
 Written 2026-10-19 for the AI and the developer who implement it. Current spec only;
 the decisions below were settled with the user and verified where marked. The product
-is Livery - Immersive Outfit Management (`livery.dll`, `Livery.ini`, `Livery.log`,
+is Livery - Outfit Manager (`livery.dll`, `Livery.ini`, `Livery.log`,
 `Data/SKSE/Plugins/Livery/`). This repository evolved from a Tailor add-on and keeps
 its ImGui window, input hook, theme, preview camera and inventory code; the Tailor API
 dependency went away in stage 2. The dressing core is `src/Dressing.cpp`, the
