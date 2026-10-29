@@ -516,7 +516,7 @@ namespace CaptureWindow::Internal
 		};
 		constexpr std::array<TabOption, 4> kTabs{ {
 			{ Theme::TabIcon::kInventory, "Inventory", Page::kCapture },
-			{ Theme::TabIcon::kOutfits, "Manage Wardrobe", Page::kManage },
+			{ Theme::TabIcon::kOutfits, "Wardrobe", Page::kManage },
 			{ Theme::TabIcon::kSituations, "Manage Situations", Page::kSituations },
 			{ Theme::TabIcon::kAppearance, "Appearance", Page::kAppearance },
 		} };
@@ -658,7 +658,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(a_state.captureTitle.c_str(), a_state.request.actorSummary.c_str());
 			break;
 		case Page::kManage:
-			Theme::HeadingText("Manage Wardrobe");
+			Theme::HeadingText("Wardrobe");
 			break;
 		case Page::kSituations:
 			Theme::HeadingText(a_state.situationsTitle.c_str());
