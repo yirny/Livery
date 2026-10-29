@@ -44,7 +44,7 @@ namespace OutfitBrowser
 		bool                              descending = false;  // the whole order reversed, ties included
 		std::vector<int>                  visible;             // indices into Request::existingOutfits that pass, in display order
 		std::vector<std::vector<int>>     categories;          // per outfit: indices into Request::categories it is in, ascending
-		// Per outfit: the tooltip of its row's situation mark, "For Town, Warm" from the situations
+		// Per outfit: the tooltip of its row's situation mark, "For Town, Cold" from the situations
 		// (never Default) the actor wears it for; "" for none.
 		std::vector<std::string> situations;
 	};

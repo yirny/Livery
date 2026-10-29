@@ -71,7 +71,7 @@ page. Each page keeps its own search and sort.
   Default holds; a star (point down, lines from its centre to its inner corners, the upper left face filled) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
-  it), `Default Outfit` on the bare form, `For Town, Warm` (`OutfitBrowser::State::situations`,
+  it), `Default Outfit` on the bare form, `For Town, Cold` (`OutfitBrowser::State::situations`,
   computed at Rebuild). The form and the star side by side when both apply.
 - Rows meet with no gap (the list lays them out with no item spacing; each row holds the
   former gap, half above and half below, and 5px above and below its name), and every

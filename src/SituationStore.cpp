@@ -106,11 +106,15 @@ namespace SituationStore
 			logger::info("No situations.json yet; every situation is as installed");
 			return;
 		}
-		const std::string     text{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
-		SituationTable::Table table;
-		if (const auto problem = SituationTable::Parse(text, table)) {
+		const std::string        text{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+		SituationTable::Table    table;
+		std::vector<std::string> retired;
+		if (const auto problem = SituationTable::Parse(text, table, &retired)) {
 			logger::error("situations.json cannot be used: {} Every situation stays as installed and the file is not written.", *problem);
 			return;
+		}
+		for (const auto& key : retired) {
+			logger::info("situations.json: dropped the entry of {}, a situation this version no longer has", key);
 		}
 		g_table = std::move(table);
 		g_writable = true;

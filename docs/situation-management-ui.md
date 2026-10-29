@@ -15,7 +15,7 @@ Docs follow the code in the step that makes them stale: design.md (§5 co-save, 
 situations), README, docs/outfit-management-ui.md, docs/ui-redesign.md, CLAUDE.md §2.1.
 
 Terms: a *row* is the Default or one situation, per actor. The *preset situations* are
-the ones Livery ships: Default, Town, Home, Sleep, Swimming, Warm (`Situations::kChoosable`
+the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::kChoosable`
 plus Default).
 
 ## 1. Rows (step A)
@@ -103,8 +103,8 @@ situation id becomes `outfits = [id]`, `chosen = id`; random off everywhere.
 { "version": 1, "situations": [ { "key": "Town", "name": "City", "removed": false } ] }
 ```
 
-- `key` is the `Situations::Situation` it is for (`Default`, `Town`, `Home`, `Sleep`,
-  `Swimming`, `Warm`), never shown or changed. The file holds only rows that differ from
+- `key` is the `Situations::Situation` it is for (`Default`, `Town`, `Castle`, `Home`,
+  `Sleep`, `Cold`; `Warm` is read as `Cold`), never shown or changed. The file holds only rows that differ from
   the presets; a missing or empty file (nothing but whitespace) means every preset as
   installed and is not written at load. An entry's other fields (such as a `description`)
   are ignored, and a rewrite drops them.
@@ -136,8 +136,8 @@ nothing for the Default; the summary line names the Default too. Only these:
 | Refresh HUD | `Livery: Lydia now wears "X" for Town` |
 
 The names also show in: the Apply popup's `"X" is Lydia's Town outfit.`, the star's `For Town,
-Warm`, the Situation headings, the rows' labels and change lines (`Town: added`),
-Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Warm` and `no
+Cold`, the Situation headings, the rows' labels and change lines (`Town: added`),
+Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Cold` and `no
 outfit for Town any more`.
 
 ## 3. Manage Situations page (step C)
@@ -227,7 +227,7 @@ List; else the outfit list.
 
 The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
 search and sort, each row with the drag grip, and nothing under the list. Its star and
-Default marks (and the star's `For Town, Warm`) follow the page's unsaved rows and names at
+Default marks (and the star's `For Town, Cold`) follow the page's unsaved rows and names at
 once; in the Situation List too, the Default mark does. While
 an outfit's details show, the
 selected situation's heading is drawn unselected (no fill, no mark); closing them brings it

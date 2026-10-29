@@ -233,14 +233,21 @@ would have to be kept in step).
   presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
   situation key its name and removed flag, only for the situations that
   differ from the presets; a missing or empty file is every preset as installed and is not
-  written at load. The same load and write rules as the library (docs/situation-management-ui.md
+  written at load. An entry under `Warm` is Cold's (a name `Warm` reads as `Cold`); one
+  under `Swimming`, a situation this version no longer has, is dropped with a log line and
+  the file stays writable. The same load and write rules as the library (docs/situation-management-ui.md
   §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
 - Settings: INI, as today.
 
 ## 5. Co-save
 
-Co-save id `LVRY`, records `ASGN` (version 4; versions 1 to 3 are still read) and `EXCL`
-(version 1), read in the SKSE load callback, cleared on revert:
+Co-save id `LVRY`, records `ASGN` (version 5; versions 1 to 4 are still read) and `EXCL`
+(version 2; version 1 is still read), read in the SKSE load callback, cleared on revert. A
+situation is stored by its key (`Situations::Name`, the key `situations.json` uses): a
+length byte and its characters, so situations can be added or removed without a new
+version. Older versions store it as a number (`kNumberedKeys`: Default, Town, Home, Sleep,
+Swimming, Warm); `Situations::FromKey` reads `Warm` as Cold, and a key the version does not
+have (Swimming) drops its row with a log line, or reads a row worn as the Default.
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
   library outfit the pieces on them are from (`wornOutfit`, 0 for none or the Default's
@@ -249,13 +256,13 @@ Co-save id `LVRY`, records `ASGN` (version 4; versions 1 to 3 are still read) an
   lock. NPCs are locked, the player never, so no per-actor lock flag is stored. Then the
   instance keys of their own copies Livery took off (§2 step 4).
 - The Default's pieces: armor FormIDs not in the wardrobe, worn while the Default's row
-  wears no outfit (docs/situation-management-ui.md §1). Then which row the pieces are for
-  (one byte, the `Situations::Situation` value), and the rows (`OutfitRows`): a count, and
-  per row its situation (one byte), random, `chosen` and its library outfit ids. Every row
+  wears no outfit (docs/situation-management-ui.md §1). Then the situation of the row the
+  pieces are for, and the rows (`OutfitRows`): a count, and per row its situation, random,
+  `chosen` and its library outfit ids. Every row
   reads its outfit from the library each time it goes on; the window names the outfits
   from the ids. A row for a situation the version does not know is dropped with a log line.
 - Version 3 has the default's outfit id and armor and one library outfit id per situation
-  (`Situations::kChoosable` order) instead of the rows. Version 1 has no outfit id and no
+  (`kNumberedKeys` order after the Default) instead of the rows. Version 1 has no outfit id and no
   own pieces; versions 1 and 2 have no default armor and no situations: their pieces'
   armor becomes the default. At load, a default whose outfit id the library has becomes
   the Default's row (`outfits = [id]`, `chosen = id`) and its armor is dropped; else its
@@ -267,9 +274,9 @@ Co-save id `LVRY`, records `ASGN` (version 4; versions 1 to 3 are still read) an
   line; pieces worn for it stay on until the poll's next dressing. A key whose
   instance is gone is skipped whenever the actor is dressed or released.
 - `EXCL`, written after `ASGN` while any row's outfit leaves items off (§2): a count, and
-  per entry the actor FormID, the row (one byte), the library outfit id and the armor
-  FormIDs it leaves off. A record of its own, so `ASGN` keeps its version and a Livery
-  that does not know `EXCL` skips it and dresses every item. At load, after `ASGN`, an
+  per entry the actor FormID, the row's situation, the library outfit id and the armor
+  FormIDs it leaves off. A record of its own, so a Livery that does not know `EXCL` skips
+  it and dresses every item. At load, after `ASGN`, an
   entry for an actor without an assignment, a row the version does not know or an outfit
   no longer on that row is dropped, and so is an armor form whose plugin is gone.
 
@@ -299,15 +306,16 @@ can come later if sharing across characters is wanted.
   engine). A load door and waiting an hour did not do it; the next dressing took them off.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
-- Situation outfits on a follower (§7): Town in a town and the default outside it; Warm
-  outdoors in cloudy, rainy or snowy weather (a region that is not snowy); the default
+- Situation outfits on a follower (§7): Town in a town and the default outside it; Cold
+  outdoors by weather (a region that is not snowy, while cloudy weather still counted); the default
   during a fight and the situation outfit after it; the choices and the switching survive
   save and load; a version 2 co-save record is read.
 - Clearing situation choices (§7): two cleared at once; Town cleared while in a town put
   the default back on at once; the cleared choices stayed cleared across save and load.
-- Situation outfits on the player (§7): Town in Whiterun, Warm by weather, and Swimming
-  when wading on foot; no redress while a werewolf, and the right outfit on after turning
-  back; wading on horseback is not Swimming; the choices survive save and load.
+- Situation outfits on the player (§7): Town in Whiterun, Cold by weather, and the
+  in-water condition when wading on foot (while a situation used it); no redress while a
+  werewolf, and the right outfit on after turning back; wading on horseback is not in
+  water; the choices survive save and load.
 - Dressing while the capture window froze the game (Live Preview off, 2026-10-23):
   `EquipObject` and the assignment change the equipment data at once, so the window's list
   follows at once, but an NPC's new pieces get no 3D until their actor update, which the
@@ -322,7 +330,7 @@ can come later if sharing across characters is wanted.
 
 ## 7. Situations
 
-An assigned actor has a row per situation, Town, Home, Sleep, Swimming, Warm
+An assigned actor has a row per situation, Town, Castle, Home, Sleep, Cold
 (`Situations::kChoosable`), and the Default, what the window's Apply gives, worn where
 none of them applies. A row is a list of library outfit ids, a random flag and the one
 chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
@@ -355,28 +363,36 @@ player has the same rows.
 ### Detection (`Situations::Evaluate`)
 
 The situations an actor is in, the most specific first (`Situations::Applicable`); the
-first one whose row holds an outfit is worn, else the Default (`OutfitRows::Resolve`). The rules are Tailor 3.0's
+first one whose row holds an outfit is worn, else the Default (`OutfitRows::Resolve`).
+Each situation applies while its condition holds (`Situations::Condition`,
+`Situations::ConditionOf`); Evaluate checks the situations in `Situations::kPriority`
+order, Sleep, Cold, Home, Castle, Town, and only their conditions. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
-(§6): Town, Warm by weather, combat, Swimming by wading. Not yet: Home, Sleep, Warm by a
-snowy region. The rules:
+(§6): Town, Cold by weather (while cloudy weather counted), combat, in water by wading.
+Not yet: Castle, Home, Sleep, Cold by a snowy region. In combat no situation applies, so
+a fight is fought in the default outfit. The conditions:
 
-- In combat: none, so a fight is fought in the default outfit.
-- Swimming: the actor state's swimming flag, or the engine reports a water height
+- In water (no situation Livery installs uses it; kept for situations whose conditions
+  can be chosen): the actor state's swimming flag, or the engine reports a water height
   relevant to them no lower than 40 units under their feet (wading counts); once the poll
-  saw them swimming, they stay in it until that water is 60 units under their feet, so a
-  shore does not flip it on and off. On a mount
-  only the swimming flag counts: a rider's feet are above the water the horse wades.
-- Sleep: sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
+  saw them in a situation in water, they stay in it until that water is 60 units under
+  their feet, so a shore does not flip it on and off. On a mount only the swimming flag
+  counts: a rider's feet are above the water the horse wades.
+- Sleeping (Sleep): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
   and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
   bed (Tailor's note in `SituationHandler.cpp`), so the player's Sleep needs a mod that does.
-- Warm: in an exterior cell and the weather is cloudy, rainy or snowy (while the sky
+- Cold: in an exterior cell and the weather is rainy or snowy, not cloudy alone (while the sky
   blends weathers, the last one decides until the new one is halfway in), or the sky's
   weather region, the one around the player, has snow weathers for at least a quarter
   of its weather chance (its clear days are its own).
 - Home: the current location has `LocTypePlayerHouse`, or `LocTypeHouse` for an NPC.
   Town follows it, so a home without a Home outfit wears the Town one.
+- Castle: the current location has `LocTypeCastle`. In Skyrim.esm these are the jarls'
+  seats but Winterhold's longhouse (a house), and Solitude's Castle Dour with its Emperor's
+  Tower; the DLCs add none. Each is a dwelling too, so Town follows it.
 - Town: `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling` or
-  `LocTypeInn`. Keywords keep their editor IDs at runtime and are found by them.
+  `LocTypeInn`, or Home's. Keywords keep their editor IDs at runtime and are found by
+  them; a location's own keywords only.
 
 A situation is thus an ordered list of conditions; user-defined conditions, as Skyrim
 Outfit Equipment System NG offers them, would extend this list.
@@ -429,7 +445,8 @@ Each stage ends with an in-game check before the next starts.
    random picks, and step B, `situations.json`: done. Step C, the Manage Situations page:
    done. Later, user-defined conditions in the way of Skyrim Outfit Equipment System NG,
    extending `Situations::Applicable` (§7).
-9. The open in-game checks: Home, Sleep and Warm by a snowy region (§7); quickload with
+9. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
+   snowy region (§7); quickload with
    the window open, then New Game; the player's left-hand weapon back after a shield
    preview; tempered player gear after Exit; a follower's given armor gone after Load
    Outfit + Exit (seen while Tailor managed her).

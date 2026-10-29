@@ -2,7 +2,8 @@
 //
 // FILE MAP
 //   Constants - the poll interval and redress hold, the water reach and leave, the snow share
-//   Detection - water, sleep, cold outdoors, location, the player's beast form
+//   Detection - the conditions (water, sleep, cold outdoors, home, castle, town) and the
+//               player's beast form
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
@@ -38,7 +39,7 @@ namespace
 	// that is no lower than this under their feet, so wading counts.
 	constexpr float kWaterReach = 40.0f;  // game units
 	// Once the poll saw them in water, they stay in it until the water is this far under
-	// their feet, so walking along a shore does not flip Swimming on and off.
+	// their feet, so walking along a shore does not flip a situation in water on and off.
 	constexpr float kWaterLeave = 60.0f;  // game units
 	// A snowy region: snow weathers hold at least one part in this many of its weather chance.
 	constexpr std::uint64_t kSnowShare = 4;
@@ -120,10 +121,10 @@ namespace
 		return result;
 	}
 
-	// Outdoors in cloudy, rainy or snowy weather, or anywhere outdoors in a snowy region
-	// (whose clear days are its own). While the sky blends from the last weather to the
-	// current one, the last one decides until the new one is halfway in, so nobody takes a
-	// cloak off while the snow still falls.
+	// Outdoors in rain or snow, or anywhere outdoors in a snowy region (whose clear days are
+	// its own); a cloudy sky alone is not cold. While the sky blends from the last weather to
+	// the current one, the last one decides until the new one is halfway in, so nobody takes
+	// a cloak off while the snow still falls.
 	bool IsColdOutdoors(RE::Actor& a_actor)
 	{
 		using Flag = RE::TESWeather::WeatherDataFlag;
@@ -137,31 +138,56 @@ namespace
 		}
 		const bool  lastDecides = sky->lastWeather && sky->currentWeatherPct < 0.5f;
 		const auto* weather = lastDecides ? sky->lastWeather : sky->currentWeather;
-		if (weather && weather->data.flags.any(Flag::kCloudy, Flag::kRainy, Flag::kSnow)) {
+		if (weather && weather->data.flags.any(Flag::kRainy, Flag::kSnow)) {
 			return true;
 		}
 		return sky->region && IsSnowyRegion(*sky->region);
 	}
 
-	// Home is any house for an NPC and their own for the player; a city, town, settlement,
-	// dwelling or inn is Town, and so is a home, which falls back to the Town outfit.
-	// Keywords keep their editor IDs at runtime, so they are named rather than numbered.
-	void AddByLocation(RE::Actor& a_actor, Situations::Applicable& a_applicable)
+	// Location keywords keep their editor IDs at runtime, so they are named rather than
+	// numbered. A location's own keywords only: a room of a city is not in it by its parent.
+
+	// Any house for an NPC, their own for the player.
+	bool IsHome(const RE::Actor& a_actor, const RE::BGSLocation& a_location)
 	{
-		const auto* location = a_actor.GetCurrentLocation();
-		if (!location) {
-			return;
+		return a_location.HasKeywordString("LocTypePlayerHouse"sv) || (!a_actor.IsPlayerRef() && a_location.HasKeywordString("LocTypeHouse"sv));
+	}
+
+	// A jarl's palace or keep. Every one in the game is a dwelling too, so in a town (IsTown).
+	bool IsCastle(const RE::BGSLocation& a_location)
+	{
+		return a_location.HasKeywordString("LocTypeCastle"sv);
+	}
+
+	// A city, town, settlement, dwelling or inn, and a home (IsHome), so a home without an
+	// outfit of its own falls back to the Town one.
+	bool IsTown(const RE::Actor& a_actor, const RE::BGSLocation& a_location)
+	{
+		const auto has = [&a_location](std::string_view a_keyword) { return a_location.HasKeywordString(a_keyword); };
+		return IsHome(a_actor, a_location) || has("LocTypeCity"sv) || has("LocTypeTown"sv) || has("LocTypeSettlement"sv) || has("LocTypeDwelling"sv) ||
+		       has("LocTypeInn"sv);
+	}
+
+	// `a_location`: their current location, or null outside any. `a_wasInWater`: the poll last
+	// saw them in a situation in water (IsInWater).
+	bool Holds(Situations::Condition a_condition, RE::Actor& a_actor, const RE::BGSLocation* a_location, bool a_wasInWater)
+	{
+		using Condition = Situations::Condition;
+		switch (a_condition) {
+		case Condition::kInWater:
+			return IsInWater(a_actor, a_wasInWater);
+		case Condition::kSleeping:
+			return IsSleeping(a_actor);
+		case Condition::kCold:
+			return IsColdOutdoors(a_actor);
+		case Condition::kHome:
+			return a_location && IsHome(a_actor, *a_location);
+		case Condition::kCastle:
+			return a_location && IsCastle(*a_location);
+		case Condition::kTown:
+			return a_location && IsTown(a_actor, *a_location);
 		}
-		const auto has = [location](std::string_view a_keyword) { return location->HasKeywordString(a_keyword); };
-		const bool home = has("LocTypePlayerHouse"sv) || (!a_actor.IsPlayerRef() && has("LocTypeHouse"sv));
-		const bool town = home || has("LocTypeCity"sv) || has("LocTypeTown"sv) || has("LocTypeSettlement"sv) || has("LocTypeDwelling"sv) ||
-		                  has("LocTypeInn"sv);
-		if (home) {
-			a_applicable.Add(Situations::Situation::kHome);
-		}
-		if (town) {
-			a_applicable.Add(Situations::Situation::kTown);
-		}
+		return false;
 	}
 
 	// A werewolf or Vampire Lord, or a mod's transformation: their races are not playable
@@ -185,14 +211,16 @@ namespace
 	// Contract: game thread only. When the poll last redressed each actor (kRedressHold).
 	std::unordered_map<RE::FormID, std::chrono::steady_clock::time_point> g_lastRedressed;
 
-	bool WasSeenSwimming(RE::FormID a_actor)
+	// The poll last saw them in a situation that applies in water.
+	bool WasSeenInWater(RE::FormID a_actor)
 	{
 		const auto seen = g_lastSeen.find(a_actor);
 		if (seen == g_lastSeen.end()) {
 			return false;
 		}
 		const auto& items = seen->second.items;
-		return std::ranges::find(items.begin(), items.begin() + seen->second.count, Situations::Situation::kSwimming) != items.begin() + seen->second.count;
+		return std::any_of(items.begin(), items.begin() + seen->second.count,
+			[](Situations::Situation a_situation) { return Situations::ConditionOf(a_situation) == Situations::Condition::kInWater; });
 	}
 
 	bool IsHeld(RE::FormID a_actor, std::chrono::steady_clock::time_point a_now)
@@ -275,16 +303,13 @@ namespace Situations
 		if (a_actor.IsInCombat()) {
 			return applicable;  // a fight is fought in the default outfit
 		}
-		if (IsInWater(a_actor, WasSeenSwimming(a_actor.GetFormID()))) {
-			applicable.Add(Situation::kSwimming);
+		const auto* location = a_actor.GetCurrentLocation();
+		const bool  wasInWater = WasSeenInWater(a_actor.GetFormID());
+		for (const auto situation : kPriority) {
+			if (Holds(ConditionOf(situation), a_actor, location, wasInWater)) {
+				applicable.Add(situation);
+			}
 		}
-		if (IsSleeping(a_actor)) {
-			applicable.Add(Situation::kSleep);
-		}
-		if (IsColdOutdoors(a_actor)) {
-			applicable.Add(Situation::kWarm);
-		}
-		AddByLocation(a_actor, applicable);
 		return applicable;
 	}
 
