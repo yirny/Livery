@@ -33,7 +33,7 @@ Change an NPC's equipment through a dedicated interface, using items from their 
 Save what you or an NPC are wearing as an outfit, and put it on anyone, any time, from a Wardrobe shared by all your characters. No rebuilding it piece by piece, and your enchanted or tempered copies are used when you have them.
 
 [b]Situational Outfits[/b]
-Give a character a different outfit for Town, Home, Sleep, Swimming or Warm (cold and wet weather outdoors). Livery changes them automatically, and remembers it per character.
+Give a character a different outfit for Town, Castle, Home, Sleep or Cold (rain and snow outdoors). Livery changes them automatically, and remembers it per character.
 
 [line]
 
@@ -203,7 +203,7 @@ Only ASCII can be typed into the name field for now (see Roadmap).
 
 [b]Ideas, not planned (ask, and they move up)[/b]
 [list]
-[*]Partial outfits that go on over the current one, e.g. a hood and cloak for cold weather. For now, save a copy of the Default with the hood and cloak added and give it to Warm.
+[*]Partial outfits that go on over the current one, e.g. a hood and cloak for cold weather. For now, save a copy of the Default with the hood and cloak added and give it to Cold.
 [*]Tags on outfits. For now, icons and colours are the way to organise.
 [*]A wardrobe per save. For now, move outfits.json aside before a new game.
 [*]Opening Livery from dialogue (needs an ESP).

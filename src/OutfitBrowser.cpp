@@ -64,7 +64,7 @@ namespace
 		return in;
 	}
 
-	// "For Town, Warm": the situations (rows after Default, in their order) the actor wears
+	// "For Town, Cold": the situations (rows after Default, in their order) the actor wears
 	// the outfit for; "" for none.
 	std::string SituationsText(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
 	{

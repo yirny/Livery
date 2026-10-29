@@ -23,7 +23,7 @@ TEST_CASE("Presets are named by their keys", "[situations]")
 	auto table = SituationTable::Presets();
 	CHECK(At(table, Situation::kDefault).name == "Default");
 	CHECK(At(table, Situation::kTown).name == "Town");
-	CHECK(At(table, Situation::kWarm).name == "Warm");
+	CHECK(At(table, Situation::kCold).name == "Cold");
 	for (const auto& entry : table) {
 		CHECK_FALSE(entry.removed);
 	}
@@ -45,7 +45,7 @@ TEST_CASE("Names need text, are unique among the situations not removed, and the
 	CHECK_FALSE(SituationTable::CheckNames(table));
 
 	table = SituationTable::Presets();
-	At(table, Situation::kWarm).name = "DEFAULT";
+	At(table, Situation::kCold).name = "DEFAULT";
 	CHECK(SituationTable::CheckNames(table));
 
 	table = SituationTable::Presets();
@@ -109,15 +109,47 @@ TEST_CASE("Serialize writes only what differs from the presets, and Parse reads 
 	CHECK(read == table);
 	CHECK(SituationTable::Serialize(table).find("Town") == std::string::npos);
 
-	At(table, Situation::kWarm).name = "Cold";
-	At(table, Situation::kSwimming).removed = true;
+	At(table, Situation::kCold).name = "Chill";
+	At(table, Situation::kCastle).removed = true;
 	const auto text = SituationTable::Serialize(table);
-	CHECK(text.find("\"Warm\"") != std::string::npos);
-	CHECK(text.find("\"Swimming\"") != std::string::npos);
+	CHECK(text.find("\"Cold\"") != std::string::npos);
+	CHECK(text.find("\"Castle\"") != std::string::npos);
 	CHECK(text.find("\"Town\"") == std::string::npos);
 	CHECK(text.find("description") == std::string::npos);
 	REQUIRE_FALSE(SituationTable::Parse(text, read));
 	CHECK(read == table);
+}
+
+TEST_CASE("Parse reads Cold's earlier key and drops a situation this version no longer has", "[situations]")
+{
+	SituationTable::Table table;
+	Lines                 retired;
+	REQUIRE_FALSE(SituationTable::Parse(R"({ "version": 1, "situations": [
+		{ "key": "Warm", "name": "Cloak Weather" },
+		{ "key": "Swimming", "name": "Water", "removed": true } ] })",
+		table, &retired));
+	CHECK(At(table, Situation::kCold) == SituationTable::Entry{ .name = "Cloak Weather" });
+	CHECK(retired == Lines{ "Swimming" });
+
+	// A name that is the earlier key takes the preset's, and the rewrite uses the key now.
+	REQUIRE_FALSE(SituationTable::Parse(R"({ "version": 1, "situations": [ { "key": "Warm", "name": "Warm", "removed": true } ] })", table));
+	CHECK(At(table, Situation::kCold) == SituationTable::Entry{ .name = "Cold", .removed = true });
+	const auto text = SituationTable::Serialize(table);
+	CHECK(text.find("\"Cold\"") != std::string::npos);
+	CHECK(text.find("Warm") == std::string::npos);
+}
+
+TEST_CASE("Keys name each situation once, and earlier ones still find theirs", "[situations]")
+{
+	for (std::size_t i = 0; i < SituationTable::kCount; ++i) {
+		const auto situation = static_cast<Situation>(i);
+		CHECK(Situations::FromKey(Situations::Name(situation)) == situation);
+	}
+	CHECK(Situations::FromKey("Warm") == Situation::kCold);
+	CHECK_FALSE(Situations::FromKey("Swimming"));
+	CHECK(Situations::IsRetiredKey("Swimming"));
+	CHECK_FALSE(Situations::FromKey("Tavern"));
+	CHECK_FALSE(Situations::IsRetiredKey("Tavern"));
 }
 
 TEST_CASE("RestoreChanges names each situation that differs, under its name now", "[situations]")
@@ -125,6 +157,6 @@ TEST_CASE("RestoreChanges names each situation that differs, under its name now"
 	auto table = SituationTable::Presets();
 	At(table, Situation::kTown).removed = true;
 	At(table, Situation::kHome).name = "Cottage";
-	At(table, Situation::kWarm).name = "Cold";
-	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Town: restored", "Cottage: name reset", "Cold: name reset" });
+	At(table, Situation::kCold).name = "Chill";
+	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Town: restored", "Cottage: name reset", "Chill: name reset" });
 }

@@ -115,7 +115,7 @@ namespace
 		{ kTransferSection, kProtectFavoritesKey, L"1",
 			L"1 = your inventory list in an NPC's window leaves out your favorites. Quest items are always left out." },
 		{ kSituationsSection, kNotifyChangesKey, L"0",
-			L"1 = a message tells you when a character changes outfit as a situation (Town, Warm, ...) starts or ends." },
+			L"1 = a message tells you when a character changes outfit as a situation (Town, Cold, ...) starts or ends." },
 		{ kUninstallSection, kReleaseEveryoneKey, L"0",
 			L"1 = each time you load a save, Livery takes its outfits off everyone and tells you, until you set this back to 0.\n"
 			L"Use it before you uninstall Livery if you don't have SKSE Menu Framework, whose Livery page has a Release everyone button." },
