@@ -432,6 +432,11 @@ namespace CaptureWindow::Internal
 	// A situation's name differs from situations.json, or a row from the actor's.
 	bool HasSituationEdits(const State& a_state);
 
+	// The star's tooltip from the page's edits, as OutfitBrowser::State::situations from the
+	// actor's rows: "For Town, Warm", the situations (never Default) whose edited row holds
+	// `a_outfit` by their edited names; "" for none.
+	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit);
+
 	// The pieces of the outfit whose details show (SituationForm::viewedOutfit), less those its
 	// row leaves off when they were opened from a row that holds it; empty with none showing.
 	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state);
