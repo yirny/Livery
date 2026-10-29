@@ -5,8 +5,8 @@
 //               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
-//   API       - RefreshModel / Dress / PutBackOn / Replenish / Release / PutBack / MarkAsOutfitItems /
-//               UnmarkOutfitItems / WornArmor / MoveFromPlayer
+//   API       - RefreshModel / Dress / PutBackOn / TakeOffOverlapping / Replenish / Release / PutBack /
+//               MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -409,6 +409,37 @@ namespace Dressing
 			}
 		}
 		return count;
+	}
+
+	std::size_t TakeOffOverlapping(RE::Actor& actor, const std::vector<Piece>& pieces)
+	{
+		auto* equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!equipManager) {
+			return 0;
+		}
+		std::uint32_t slots = 0;  // the body slots of the pieces they wear
+		for (const auto& piece : pieces) {
+			if (const auto copy = Find(actor, piece.key); copy.extra && copy.extra->GetWorn()) {
+				slots |= copy.armor->GetSlotMask().underlying();
+			}
+		}
+		const auto overlapping = [&pieces, slots](const Copy& copy) {
+			if (!copy.extra->GetWorn() || !IsGear(*copy.armor) || IsLocked(*copy.extra) || (copy.armor->GetSlotMask().underlying() & slots) == 0) {
+				return false;
+			}
+			const auto key = KeyOf(copy);
+			return !key || std::ranges::none_of(pieces, [&key](const Piece& piece) { return piece.key == *key; });
+		};
+		const auto countOverlapping = [&] { return std::ranges::count_if(Copies(actor), overlapping); };
+		const auto before = countOverlapping();
+		if (before == 0) {
+			return 0;
+		}
+		ForEachCopy(actor, overlapping, [&](const Copy& copy) {
+			equipManager->UnequipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
+		});
+		const auto after = countOverlapping();
+		return before > after ? static_cast<std::size_t>(before - after) : 0;
 	}
 
 	std::size_t Replenish(RE::Actor& actor, std::vector<Piece>& pieces)

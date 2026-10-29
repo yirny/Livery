@@ -7,8 +7,9 @@
 //   Dressing    - which row a situation resolves to and the outfit it wears (a random row's
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
-//   Load, death - pieces put back on when an assigned NPC loads; locks released when one dies;
-//                 pieces taken from one in a menu replaced as it closes
+//   Load, death - pieces put back on, and armor worn over them taken off, when an assigned NPC
+//                 loads; locks released when one dies; pieces taken from one in a menu
+//                 replaced as it closes
 //   Co-save     - save, load (versions 1 to 4; older ones turned into rows; the rows of
 //                 situations removed in situations.json dropped), the items the rows' outfits
 //                 leave off in a record of their own, revert
@@ -431,6 +432,10 @@ namespace
 		}
 		if (const auto count = Dressing::PutBackOn(*actor, assignment->pieces); count > 0) {
 			logger::info("Put {} piece(s) back on or locked again on {:08X}", count, a_actor);
+		}
+		// After PutBackOn, so the pieces it put on again count as worn.
+		if (const auto count = Dressing::TakeOffOverlapping(*actor, assignment->pieces); count > 0) {
+			logger::info("Took off {} item(s) worn over Livery's pieces on {:08X}", count, a_actor);
 		}
 	}
 

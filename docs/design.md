@@ -91,8 +91,11 @@ says so), so a lock would be needed anyway.
 - On `TESObjectLoadedEvent` for a managed NPC: if the instance chosen for a piece is
   still in the inventory but not worn (another mod took it off; taking off clears the
   lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
-  copies are created here. The sink only checks a mutex-guarded id list and queues an
-  SKSE task, since the event's thread is not documented.
+  copies are created here. Then worn armor that is none of the pieces and shares a body
+  slot with a worn piece is taken off (`Dressing::TakeOffOverlapping`; non-playable armor
+  and another mod's locked pieces stay): fast travel can mark the NPC's own outfit items
+  worn again beside the locked pieces (§6). The sink only checks a mutex-guarded id list
+  and queues an SKSE task, since the event's thread is not documented.
 - A piece the player takes from an assigned NPC in the trade, container or pickpocket
   menu goes on again as that menu closes (`Dressing::Replenish`): a copy of that armor
   they still carry, else a new plain copy, recorded as added (hidden in trade, taken back
@@ -289,6 +292,11 @@ can come later if sharing across characters is wanted.
 - `TESObjectREFR::InitInventoryIfRequired` on an NPC wearing outfit items (Whiterun
   guards, a follower) left every outfit copy without `ExtraWorn` (one copy per armor,
   `ExtraOutfitItem` kept, the 3D unchanged); a non-outfit copy kept it.
+- Fast travel (two in a row, 2026-10-29) left a follower in Livery's locked outfit with
+  their own outfit items (body, feet) marked worn again beside the locked pieces of the
+  same slots: the window listed both, the 3D showed only Livery's, and the trade menu
+  showed neither (Livery's copies filtered, their own outfit items hidden by the
+  engine). A load door and waiting an hour did not do it; the next dressing took them off.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
 - Situation outfits on a follower (§7): Town in a town and the default outside it; Warm
