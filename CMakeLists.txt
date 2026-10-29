@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(
     livery
     VERSION 0.0.1
-    DESCRIPTION "Livery - Immersive Outfit Management"
+    DESCRIPTION "Livery - Outfit Manager"
     LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
