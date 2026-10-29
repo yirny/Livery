@@ -79,27 +79,27 @@ listed; the HUD counts moved pieces; the NPC keeps the piece after Restore.
 
 Reached from `Create / Update Outfit` with the ticked pieces, which both tabs save. The page
 writes the library; only Create and Apply gives the outfit a row. Giving an outfit to a
-situation is Manage Situations' job (docs/situation-management-ui.md).
+situation is the Situations page's job (docs/situation-management-ui.md).
 
 - Heading: `Create New Outfit / Update Existing Outfit` in place of the title, in the
   heading font, where the title goes (Nordic: centred, over its rule), separated by a greyed
   `/`, text only (no box), the unselected one half transparent (`Theme::BeginHeadingTabs`);
   no actor name or summary line. The page is widened when the tabs would not fit on one
   line. Each tab keeps its name while the window is open, the Update tab its outfit.
-- Both tabs start with the name, as Manage Wardrobe's field: no label (`Outfit Name` on hover
+- Both tabs start with the name, as the Wardrobe page's field: no label (`Outfit Name` on hover
   while not being typed in; a failed save's error instead).
-- `Create New Outfit`: the icon field and the name, as Manage Wardrobe's (its `Choose icon`
+- `Create New Outfit`: the icon field and the name, as the Wardrobe page's (its `Choose icon`
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
   NNN`, then the ticked pieces read only, with the Inventory page's icons, under their count
-  line, as Manage Wardrobe shows an outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
+  line, as the Wardrobe page shows an outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
 - The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it while
   the window is open (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
   body slot, then head (head, hair, long hair), circlet, hands, feet, amulet, ring, then any,
   whose key `OutfitIcons::kKeys` lists and whose PNG is loaded; else the default key. Its
   colour is white (`#eaeaea`). Create writes it with the outfit; the Update tab keeps the
-  outfit's icon and shows it before the name, as Manage Wardrobe's icon field without its
+  outfit's icon and shows it before the name, as the Wardrobe page's icon field without its
   click, hover fill or tooltip (the default icon, greyed with the name, while none is chosen).
-- Create and Apply saves as Create does and gives the new outfit the row Manage Wardrobe's
+- Create and Apply saves as Create does and gives the new outfit the row the Wardrobe page's
   Apply would (docs/outfit-management-ui.md §4), through the same popup body
   (`ApplySubject`), its question starting `Create "#{Outfit}", then`:
   - while the actor wears another outfit for a situation: `Lydia is wearing their Town
@@ -144,7 +144,7 @@ when they wear it; a failed write assigns nothing.
 - When the outfit worn now is a library outfit X (the default's id when the default is worn,
   else the worn situation's) and the ticks are all or some of its loaded pieces and nothing
   else, Apply asks nothing: X goes to the row it is worn for in one `Assignments::Change`,
-  the unticked pieces left off there (`OutfitRows::Exclusion`, as Manage Wardrobe's Apply
+  the unticked pieces left off there (`OutfitRows::Exclusion`, as the Wardrobe page's Apply
   leaves them; none unticked wears all its items). The library does not change.
 - Modal `Update "X" with the ticked items?` when the ticks hold a piece X does not. For a
   situation it adds `"X" is #{Name}'s Town outfit.`
@@ -161,7 +161,7 @@ when they wear it; a failed write assigns nothing.
 - Apply is greyed with no ticked piece (`kNeedPiece`).
 
 Checks: no modal on a dressed NPC with one piece unticked, which comes off and stays unticked
-on Manage Wardrobe; the modal with a piece of another outfit ticked; Yes while a Town outfit is worn updates that outfit and the NPC wears it at once; No
+on the Wardrobe page; the modal with a piece of another outfit ticked; Yes while a Town outfit is worn updates that outfit and the NPC wears it at once; No
 in a town changes nothing visible until the NPC leaves.
 
 ## 6. Removed
