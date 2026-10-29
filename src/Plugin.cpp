@@ -218,7 +218,11 @@ namespace
 			}
 			auto reason = OutfitPreview::Begin(*target, PickPieces(armors, pieces));
 			if (reason.empty()) {
-				FreeCamera::Begin(*target);  // without the camera the preview goes on in the game's own view
+				// Without the camera the preview goes on in the game's own view. On the player it
+				// starts without an over-the-shoulder offset (SmoothCam); an NPC's view stays as it is.
+				if (FreeCamera::Begin(*target) && target->IsPlayerRef()) {
+					FreeCamera::CentreSideways(*target);
+				}
 			}
 			return reason;
 		};
