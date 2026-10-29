@@ -5,7 +5,7 @@
 //               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
-//   API       - RefreshModel / Dress / PutBackOn / Release / PutBack / MarkAsOutfitItems /
+//   API       - RefreshModel / Dress / PutBackOn / Replenish / Release / PutBack / MarkAsOutfitItems /
 //               UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
@@ -405,6 +405,25 @@ namespace Dressing
 			equipManager->EquipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, true, false, true);
 			if (const auto now = Find(actor, piece.key); now.extra && now.extra->GetWorn()) {
 				piece.locked = IsLocked(*now.extra);
+				++count;
+			}
+		}
+		return count;
+	}
+
+	std::size_t Replenish(RE::Actor& actor, std::vector<Piece>& pieces)
+	{
+		auto* equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!equipManager) {
+			return 0;
+		}
+		std::size_t count = 0;
+		for (auto& piece : pieces) {
+			if (piece.added || Find(actor, piece.key).extra) {
+				continue;
+			}
+			auto* armor = RE::TESForm::LookupByID<RE::TESObjectARMO>(piece.key.armor);
+			if (armor && PutOn(actor, *armor, true, true, *equipManager, piece) == Outcome::kWorn) {
 				++count;
 			}
 		}

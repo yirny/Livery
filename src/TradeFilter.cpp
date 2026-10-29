@@ -80,7 +80,8 @@ namespace
 
 	// Runs `a_fill`, the engine's filling of a menu list from `a_container`'s inventory, with
 	// the copies Livery added to that actor marked as their outfit items, so the engine's own
-	// rule leaves them out; the marks are gone when it returns.
+	// rule leaves them out; the marks are gone when it returns. The actor is noted, so what the
+	// player takes from them there goes on them again as the menu closes.
 	// Contract: game thread. The menus fill their lists while the engine processes UI messages,
 	// on the game thread, where Assignments reads its records.
 	void FillHidingCopies(RE::NiPointer<RE::TESObjectREFR>& a_container, auto a_fill)
@@ -91,6 +92,7 @@ namespace
 			a_fill();
 			return;
 		}
+		Assignments::NoteShownInMenu(*actor);
 		const auto marked = Assignments::MarkAddedCopies(*actor);
 		a_fill();
 		Assignments::UnmarkAddedCopies(*actor, marked);
