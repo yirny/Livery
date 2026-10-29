@@ -166,4 +166,11 @@ namespace Assignments
 	// touches the inventory.
 	std::vector<Dressing::InstanceKey> MarkAddedCopies(RE::Actor& a_actor);
 	void                               UnmarkAddedCopies(RE::Actor& a_actor, const std::vector<Dressing::InstanceKey>& a_keys);
+
+	// Notes that a trade, container or pickpocket menu lists this NPC's inventory. When that
+	// menu closes, the pieces of their outfit the player took go on them again, as Livery's
+	// copies when they carry none (Dressing::Replenish). Nothing for the player or an actor
+	// Livery does not dress.
+	// Contract: game thread (the trade-menu filter's list fills).
+	void NoteShownInMenu(RE::Actor& a_actor);
 }
