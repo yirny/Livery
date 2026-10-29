@@ -274,7 +274,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// Top of the right column, level with the search field: the selected
-	// outfit's name, so the selection stays named while the browser hides it
+	// outfit's icon and name, so the selection stays named while the browser hides it
 	// from the list. With none selected it shows `a_hint` as a field label and
 	// returns false.
 	bool DrawSelectedName(const State& a_state, int a_selected, const char* a_hint)
@@ -284,7 +284,8 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		Theme::SectionGap();  // as the label beside it opens (Theme::LabelText)
-		ImGui::TextWrapped("%s", OutfitAt(a_state, a_selected).name.c_str());
+		const auto& outfit = OutfitAt(a_state, a_selected);
+		Theme::OutfitNameText(outfit.name.c_str(), RowIconOf(outfit.icon));
 		return true;
 	}
 
@@ -303,7 +304,9 @@ namespace CaptureWindow::Internal
 		const float listHeight = (std::max)(rowHeight, (std::min)(ListHeight(a_pieces.size(), rowHeight), room));
 		if (Theme::BeginList("outfitPieces", listHeight)) {
 			for (const auto index : a_pieces) {
-				Theme::TextRow(a_state.request.pieces[index].name.c_str());
+				const auto&          piece = a_state.request.pieces[index];
+				const Theme::RowIcon icon{ piece.icon, piece.iconColor };  // the Inventory page's
+				Theme::TextRow(piece.name.c_str(), &icon);
 			}
 		}
 		ImGui::PopStyleVar();
@@ -384,12 +387,13 @@ namespace CaptureWindow::Internal
 		DrawOutfitPieces(a_state, outfit);
 	}
 
-	// The name with no label, as Manage Wardrobe's field.
+	// The name with no label, as Manage Wardrobe's field; the situations' label with the
+	// situation star, as the Situation List's headings have it.
 	bool DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom, std::vector<std::uint32_t>* a_excluded)
 	{
 		DrawSelectedName(a_state, a_index, "");
 		const auto& outfit = OutfitAt(a_state, a_index);
-		Theme::LabelText(a_state.situationsLabel.c_str());
+		Theme::LabelText(a_state.situationsLabel.c_str(), true, true);
 		ImGui::TextWrapped("%s", a_situations.c_str());
 		Theme::AfterFieldGap();
 		if (!a_excluded) {

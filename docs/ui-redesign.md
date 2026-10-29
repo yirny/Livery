@@ -90,14 +90,15 @@ situation is Manage Situations' job (docs/situation-management-ui.md).
   while not being typed in; a failed save's error instead).
 - `Create New Outfit`: the icon field and the name, as Manage Wardrobe's (its `Choose icon`
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
-  NNN`, then the ticked pieces read only under their count line, as Manage Wardrobe shows an
-  outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
+  NNN`, then the ticked pieces read only, with the Inventory page's icons, under their count
+  line, as Manage Wardrobe shows an outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
 - The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it while
   the window is open (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
   body slot, then head (head, hair, long hair), circlet, hands, feet, amulet, ring, then any,
   whose key `OutfitIcons::kKeys` lists and whose PNG is loaded; else the default key. Its
   colour is white (`#eaeaea`). Create writes it with the outfit; the Update tab keeps the
-  outfit's icon.
+  outfit's icon and shows it before the name, as Manage Wardrobe's icon field without its
+  click, hover fill or tooltip (the default icon, greyed with the name, while none is chosen).
 - Create and Apply saves as Create does and gives the new outfit the row Manage Wardrobe's
   Apply would (docs/outfit-management-ui.md §4), through the same popup body
   (`ApplySubject`), its question starting `Create "#{Outfit}", then`:
@@ -112,9 +113,9 @@ situation is Manage Situations' job (docs/situation-management-ui.md).
 - `Update Existing Outfit`: greyed while the library is empty (`kNoOutfits`). The page widens
   for three equal columns (`kWideWidthRatio`, 1.05 of the screen height) under the name: the
   outfit list (docs/outfit-management-ui.md §1, with its own search and sort), `CURRENT
-  PIECES` (the chosen outfit's pieces as the library has them, its count line counting those
-  of unloaded plugins; `Select an outfit to update` while none is chosen) and `NEW PIECES`
-  (the ticked pieces). Each column's list grows with its rows up to `kMaxListHeightRatio`,
+  ITEMS` (the chosen outfit's pieces as the library has them, its count line counting those
+  of unloaded plugins; `Select an outfit to update` while none is chosen) and `NEW ITEMS`
+  (the ticked pieces), each piece with the Inventory page's icon. Each column's list grows with its rows up to `kMaxListHeightRatio`,
   then scrolls. The tab opens with its outfit, or else the one last loaded, or else the
   library outfit Livery has on the actor, chosen. A click on an outfit chooses it, fills the
   name from it and shows it on the preview; a second click unchooses it, which greys the name

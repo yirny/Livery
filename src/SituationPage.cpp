@@ -539,8 +539,8 @@ namespace CaptureWindow::Internal
 			CentreButtonRow(a_labels);
 		}
 
-		// The settings every actor shares: the name (read only for the Default, which says so on
-		// hover) and the conditions, read only.
+		// The settings every actor shares: the name, its label with the situation star (read
+		// only for the Default, which says so on hover), and the conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			constexpr const char* kDefaultName = "The Default's name cannot be changed.";
@@ -548,7 +548,7 @@ namespace CaptureWindow::Internal
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
 			const bool isDefault = a_entry == 0;
-			Theme::LabelText("Name");
+			Theme::LabelText("Name", true, true);
 			ImGui::BeginDisabled(isDefault);
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
