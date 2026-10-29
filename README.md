@@ -139,7 +139,6 @@ Palettes: each `.ini` in `Data\SKSE\Plugins\Livery\palettes\` sets the window's 
 
 - Only ASCII can be typed into the name field (the game's text input carries the ANSI code page).
 - Items from plugins that are not loaded have no row in the window, and an update leaves them in the outfit. Edit `outfits.json` to remove them.
-- The window has no delete. Edit `outfits.json` for that, with the game closed.
 - Earlier versions, as a Tailor add-on, kept a working outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - Slots an assigned outfit leaves empty stay the game's: an NPC can put on a helmet or shield they own there.
 - Updating an outfit changes another character's Default only when you give it to them again: a Default keeps the items it was given.
