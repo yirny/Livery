@@ -487,7 +487,8 @@ Each stage ends with an in-game check before the next starts.
   `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their
   permission (`icons/ICON-CREDITS.txt`). Other icon packs' PNGs are not in the repository.
 - Outfit icons use the same PNGs (§4: an outfit's `icon` and `color`). The outfit rows, their
-  drag copies and the icon fields (Manage Wardrobe's, the Create tab's) draw the outfit's icon
+  drag copies, the icon fields (Manage Wardrobe's, the Create tab's, the Update tab's, shown
+  only) and the outfit names over the Load page's and Manage Situations' outfit details draw the outfit's icon
   tinted with its colour; a key whose PNG is not loaded draws the default key's PNG in that
   colour. The picker offers the keys of `OutfitIcons::kKeys` whose PNG is loaded, in that
   order: SkyUI's slots (helmet, circlet, body, hands, feet, necklace, ring, shield; each
