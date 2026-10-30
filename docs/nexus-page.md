@@ -60,7 +60,7 @@ Convenient outfit management shouldn't feel like stepping out of Skyrim.
 
 [i]Respect for the game's rules[/i]
 [list]
-[*]By default, Livery dresses only you, your followers and your spouse. (Configurable)
+[*]By default, Livery dresses only you, your followers and your spouse, and you can save what your friends wear as outfits. (Configurable)
 [*]An outfit is built from equipment that actually exists in someone's inventory, or from the NPC's current outfit, never from a plugin's item list.
 [*]By default, you can only wear items you actually carry. (Configurable)
 [/list]

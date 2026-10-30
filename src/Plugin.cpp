@@ -10,7 +10,8 @@
 //                    stand (MovementHold) while the window is open, and turns to the player with a
 //                    greeting (NpcReaction) as it opens with the preview on; every close of the window,
 //                    a save included, ends them all
-//   Capture        - hotkey handler: check the target (the player when nothing is aimed at), collect inventory
+//   Capture        - hotkey handler: check the target (the player when nothing is aimed at) and what its group
+//                    allows (Settings::AccessOf; Save only opens a window that only saves what they wear), collect inventory
 //                    armor (and for an NPC the player's, per the settings), each piece with its group,
 //                    SkyUI's Type and Class (ArmorInfo) and its icon (PieceIcons), detect the class, list the library's outfits (adding
 //                    their pieces nobody carries), then open the window with the worn pieces ticked; the window's Save
@@ -203,6 +204,27 @@ namespace
 		}
 	}
 
+	// The live preview of a Save only window: the camera and the running game, nothing else.
+	// Contract: game thread. It never calls OutfitPreview, so it cannot touch the inventory, and
+	// leaves onPieceToggled and onPreviewPieces empty (Request::saveOnly).
+	void AttachSaveOnlyPreview(CaptureWindow::Request& request, RE::Actor& actor)
+	{
+		request.onPreviewOn = [handle = actor.GetHandle()](const std::vector<std::size_t>&) -> std::string {
+			const auto target = handle.get();
+			if (!target) {
+				return "Preview off: the character is gone.";
+			}
+			FreeCamera::Begin(*target);  // without the camera the preview goes on in the game's own view
+			return {};
+		};
+		request.onPreviewOff = [] { FreeCamera::End(); };
+		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale()); };
+		if (Settings::LivePreview()) {
+			request.previewNote = request.onPreviewOn({});
+			request.previewOn = request.previewNote.empty();
+		}
+	}
+
 	// Wires the live preview into the window about to open, and starts it when
 	// the settings say so. While it is on, ticks change the pieces OutfitPreview
 	// dresses the actor in, and input over the game moves FreeCamera (when it
@@ -261,6 +283,36 @@ namespace
 		constexpr RE::FormID kPlayerMarriedFaction = 0x000C6472;
 		const auto*          married = RE::TESForm::LookupByID<RE::TESFaction>(kPlayerMarriedFaction);
 		return married && actor.IsInFaction(married);
+	}
+
+	// Whether the game ranks the actor and the player Friend or better (Friend, Confidant, Ally,
+	// Lover), by their relationship record; none is Acquaintance. A leveled actor's record is on
+	// its template. Runs at a hotkey press only, so the log can show what the game answered.
+	bool IsPlayerFriend(RE::Actor& actor)
+	{
+		using Level = RE::BGSRelationship::RELATIONSHIP_LEVEL;
+		auto* base = actor.GetTemplateBase();
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		auto* playerBase = player ? player->GetActorBase() : nullptr;
+		if (!base || !playerBase) {
+			return false;
+		}
+		const auto* relationship = RE::BGSRelationship::GetRelationship(base, playerBase);
+		if (!relationship) {
+			logger::info("{:08X} has no relationship with the player", actor.GetFormID());
+			return false;
+		}
+		logger::info("{:08X} has relationship level {} with the player", actor.GetFormID(), relationship->level.underlying());
+		return relationship->level <= Level::kFriend;  // the enum runs from Lover (0) down to Archnemesis
+	}
+
+	// In priority order: followers and spouse, then friends, then everyone else.
+	Settings::NpcGroup GroupOf(RE::Actor& actor)
+	{
+		if (IsFollowerOrSpouse(actor)) {
+			return Settings::NpcGroup::kFollowersAndSpouse;
+		}
+		return IsPlayerFriend(actor) ? Settings::NpcGroup::kFriends : Settings::NpcGroup::kOtherNpcs;
 	}
 
 	std::string DisplayName(const RE::TESObjectARMO& armor)
@@ -1263,7 +1315,9 @@ namespace
 	// them, Livery's pieces that are not one, or those Livery did not put on; worn ones start
 	// ticked. For an NPC the player's armor follows (AddPlayerPieces), then the library
 	// outfits' other pieces, for Load Outfit.
-	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory)
+	// `saveOnly`: the window only saves what `inventory` holds, the worn armor, as an outfit
+	// (Request::saveOnly). The library write stays the Save page's; nothing else is attached.
+	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory, bool saveOnly)
 	{
 		CaptureWindow::Request request;
 		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
@@ -1289,13 +1343,20 @@ namespace
 			request.pieces.push_back(MakePiece(*piece.armor, OwnPieceGroup(piece, choices, livery), StartsTicked(piece)));
 			armors.push_back(piece.armor);
 		}
-		const auto offered = AddPlayerPieces(actor, armors, request.pieces);
+		const auto offered = saveOnly ? std::vector<RE::TESObjectARMO*>{} : AddPlayerPieces(actor, armors, request.pieces);
 		request.existingOutfits = ExistingOutfits(armors, request.pieces);
-		AttachAssignment(request, actor, armors, offered, choices);
 		AttachSave(request, actor, armors, choices);
-		AttachPreview(request, actor, armors);
-		AttachManage(request, actor, armors, offered);
-		AttachSituations(request, actor, armors, offered);
+		if (saveOnly) {
+			request.saveOnly = true;
+			request.offersWardrobe = false;
+			request.actorSummary = std::format("You can save {}'s equipped items as a new outfit, but not change what they wear.", request.actorName);
+			AttachSaveOnlyPreview(request, actor);
+		} else {
+			AttachAssignment(request, actor, armors, offered, choices);
+			AttachPreview(request, actor, armors);
+			AttachManage(request, actor, armors, offered);
+			AttachSituations(request, actor, armors, offered);
+		}
 		// Every close, whatever closed the window, ends the preview, redresses the actors
 		// the Wardrobe page or the Situations page left for it, lets saving back on and lets an NPC
 		// walk again.
@@ -1348,17 +1409,28 @@ namespace
 			Notify("Livery: children are not supported.");
 			return;
 		}
-		// The follower restriction narrows which NPCs qualify; the player always does.
-		if (!isPlayer && Settings::FollowersAndSpouseOnly() && !IsFollowerOrSpouse(*actor)) {
-			Notify("Livery: followers and your spouse only (see Settings).");
-			return;
+		// The NPC's group says what the hotkey may do, at this press only: outfits they already
+		// wear stay on whatever their group is now. The player is always Full management.
+		auto access = Settings::NpcAccess::kFull;
+		if (!isPlayer) {
+			const auto group = GroupOf(*actor);
+			access = Settings::AccessOf(group);
+			if (access == Settings::NpcAccess::kDisabled) {
+				Notify(std::format("Livery: {} are disabled (see Settings).", Settings::NameOf(group)));
+				return;
+			}
 		}
+		const bool saveOnly = access == Settings::NpcAccess::kSaveOnly;
 
 		std::size_t skipped = 0;
 		std::size_t substituted = 0;
+		auto        inventory = CollectArmor(*actor, skipped, substituted);
+		if (saveOnly) {
+			std::erase_if(inventory, [](const InventoryArmor& piece) { return !piece.worn; });
+		}
 		// The window also offers carried armor and Load Outfit, so it opens even when
 		// the actor carries no armor.
-		OpenNameWindow(*actor, CollectArmor(*actor, skipped, substituted));
+		OpenNameWindow(*actor, inventory, saveOnly);
 	}
 
 	// The settings page's Release everyone, refused while a release could break what the

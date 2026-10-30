@@ -21,8 +21,28 @@ namespace Settings
 	// included) is loaded. Does nothing when SKSE Menu Framework is not loaded.
 	void RegisterMenu(void (*a_releaseEveryone)());
 
+	// Who the hotkey tells apart among NPCs; the player is always Full management.
+	enum class NpcGroup
+	{
+		kFollowersAndSpouse,
+		kFriends,
+		kOtherNpcs
+	};
+
+	// What the hotkey lets the player do with a group: everything, only save what the NPC wears
+	// as an outfit (Request::saveOnly), or nothing.
+	enum class NpcAccess
+	{
+		kFull,
+		kSaveOnly,
+		kDisabled
+	};
+
 	// Safe from any thread.
-	bool FollowersAndSpouseOnly();
+	NpcAccess AccessOf(NpcGroup a_group);
+
+	// The group's name as the settings page and the HUD show it.
+	const char* NameOf(NpcGroup a_group);
 
 	// Whether the capture window opens with Live Preview on. Safe from any thread.
 	bool LivePreview();
