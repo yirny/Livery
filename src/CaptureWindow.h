@@ -192,6 +192,10 @@ namespace CaptureWindow
 		// The Inventory page's count line ends in `Add items from Wardrobe...`; off for the
 		// player while they dress from their inventory only (Settings::PlayerAddsMissingPieces).
 		bool offersWardrobe = true;
+		// The window only saves what the actor wears as an outfit: `pieces` holds only that, its
+		// ticks stay as they are, and the Wardrobe and Situations tabs, Apply and Create and Apply
+		// are gone. A Live Preview here must not dress them (onPieceToggled, onPreviewPieces empty).
+		bool saveOnly = false;
 
 		// Runs on the game thread when the user saves on the Save page: after Create, after
 		// Create and Apply (its popup first when it gives a situation or replaces the Default),

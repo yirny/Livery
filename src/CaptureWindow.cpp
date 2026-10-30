@@ -526,6 +526,9 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		ImGui::SetCursorScreenPos(ImVec2(left, origin.y + Theme::TabTopGap()));
 		for (const auto& tab : kTabs) {
+			if (a_state.request.saveOnly && (tab.page == Page::kManage || tab.page == Page::kSituations)) {
+				continue;
+			}
 			const bool selected = a_state.page == tab.page;
 			if (Theme::Tab(tab.icon, tab.name, selected) && !selected) {
 				QueueMenuSound(kFocusSound);
@@ -979,6 +982,7 @@ namespace CaptureWindow::Internal
 	{
 		const auto&       pieces = a_state.request.pieces;
 		const auto&       onToggled = a_state.request.onPieceToggled;
+		const bool        locked = a_state.request.saveOnly;
 		const auto        positions = ColumnPositions(a_state);
 		const std::size_t columns = a_state.showSlots ? kColumnLabels.size() : static_cast<std::size_t>(kSlotColumn);  // Slot is the last
 		const auto        labels = std::span(kColumnLabels).first(columns);
@@ -1002,7 +1006,13 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::PushID(static_cast<int>(i));
 				const std::array<const char*, 3> cells{ pieces[i].name.c_str(), pieces[i].type.c_str(), pieces[i].slotText.c_str() };
-				if (Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor })) {
+				// Save only: the row takes no click and shows no hover, yet does not grey (DisabledAlpha 1).
+				ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, locked ? 1.0f : ImGui::GetStyle().DisabledAlpha);
+				ImGui::BeginDisabled(locked);
+				const bool toggled = Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor });
+				ImGui::EndDisabled();
+				ImGui::PopStyleVar();
+				if (toggled) {
 					QueueMenuSound(kFocusSound);
 					if (a_list.ticked[i]) {
 						UntickSharingSlots(a_state, a_list, i);
@@ -1220,12 +1230,20 @@ namespace CaptureWindow::Internal
 	{
 		constexpr const char* kSaveTooltip = "Save the ticked items as a new outfit, or into an existing one.";
 
-		BeginButtonRow({ "Create / Update Outfit", "Apply", "Exit" });
+		const bool saveOnly = a_state.request.saveOnly;
+		if (saveOnly) {
+			BeginButtonRow({ "Create / Update Outfit", "Exit" });
+		} else {
+			BeginButtonRow({ "Create / Update Outfit", "Apply", "Exit" });
+		}
 		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
 		const bool  save = ReasonButton("Create / Update Outfit", noPiece, kSaveTooltip);
 		ImGui::SameLine();
-		const bool apply = ReasonButton("Apply", noPiece, a_state.applyTooltip.c_str());
-		ImGui::SameLine();
+		bool apply = false;
+		if (!saveOnly) {
+			apply = ReasonButton("Apply", noPiece, a_state.applyTooltip.c_str());
+			ImGui::SameLine();
+		}
 		// While the Apply or Restore popup is open, Escape is its own Cancel.
 		const bool exitPressed = Theme::Button("Exit") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 		const bool restore = DrawRestoreLink(a_state);
@@ -1748,12 +1766,15 @@ namespace CaptureWindow::Internal
 		constexpr const char* kCreateAndApply = "Create and Apply";
 
 		const bool  chosen = a_state.chosenOutfit >= 0;
+		const bool  offersApply = !a_state.updateTab && !a_state.request.saveOnly;
 		std::string save = "Create";
 		if (a_state.updateTab) {
 			save = chosen ? std::format("Update {}", OutfitAt(a_state, a_state.chosenOutfit).name) : std::string("Update");
-			BeginButtonRow({ save.c_str(), "Back" });
-		} else {
+		}
+		if (offersApply) {
 			BeginButtonRow({ save.c_str(), kCreateAndApply, "Back" });
+		} else {
+			BeginButtonRow({ save.c_str(), "Back" });
 		}
 		const char* reason = nullptr;
 		if (a_state.updateTab && !chosen) {
@@ -1763,7 +1784,7 @@ namespace CaptureWindow::Internal
 		}
 		const bool pressed = ReasonButton(save.c_str(), reason) || a_enter;
 		bool       apply = false;
-		if (!a_state.updateTab) {
+		if (offersApply) {
 			ImGui::SameLine();
 			apply = ReasonButton(kCreateAndApply, reason);
 		}
