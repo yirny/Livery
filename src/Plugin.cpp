@@ -1053,6 +1053,7 @@ namespace
 		request.movesFromPlayer = Settings::MoveFromPlayer();
 		request.protectsFavorites = Settings::ProtectFavorites();
 		request.offersWardrobe = !actor.IsPlayerRef() || Settings::PlayerAddsMissingPieces();
+		request.carriedOnly = actor.IsPlayerRef() && !Settings::PlayerAddsMissingPieces();
 		request.onApply = [handle, actorID, armors, offered, name = request.actorName](const std::vector<std::size_t>& pieces,
 							  const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn,
 							  const std::vector<std::uint32_t>& excluded) {
