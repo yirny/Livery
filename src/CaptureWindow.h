@@ -192,6 +192,10 @@ namespace CaptureWindow
 		// The Inventory page's count line ends in `Add items from Wardrobe...`; off for the
 		// player while they dress from their inventory only (Settings::PlayerAddsMissingPieces).
 		bool offersWardrobe = true;
+		// The player dresses from their inventory only (Settings::PlayerAddsMissingPieces off):
+		// every piece list fades PieceGroup::kNotCarried rows and says why on hover. Their ticks
+		// stay as they are: not carrying an item now leaves nothing off the outfit for good.
+		bool carriedOnly = false;
 		// The window only saves what the actor wears as an outfit: `pieces` holds only that, its
 		// ticks stay as they are, and the Wardrobe and Situations tabs, Apply and Create and Apply
 		// are gone. A Live Preview here must not dress them (onPieceToggled, onPreviewPieces empty).

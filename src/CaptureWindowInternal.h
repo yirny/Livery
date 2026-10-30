@@ -39,6 +39,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kManageConfirmPopup = "Save changes?";
 	constexpr const char* kManageApplyPopup = "Apply outfit?";
 	constexpr const char* kRemovePopup = "Remove outfit?";
+	constexpr const char* kNotCarriedPopup = "Items not carried";
 	constexpr const char* kIconPopup = "Choose icon";
 	constexpr const char* kRestorePopup = "Restore original outfit?";
 	// The unsaved-changes alert of the Wardrobe page and the Situations page (DrawLeavePopup).
@@ -51,6 +52,10 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
 	constexpr const char* kNoChanges = "No changes to save.";
 	constexpr const char* kWornAlready = "Already worn as is.";
+	// A piece list row of an item the player would not get (Request::carriedOnly): its opacity
+	// and its hover text. Shared by the piece lists of CaptureWindow.cpp and OutfitPages.cpp.
+	constexpr float       kNotCarriedAlpha = 0.5f;
+	constexpr const char* kNotCarriedHint = "You don't carry this item. Dressing from inventory only leaves it off.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -287,6 +292,7 @@ namespace CaptureWindow::Internal
 	bool                                 BeginColumns(const char* a_id, int a_count = 2);
 	void                                 EndColumns(int a_count = 2);
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
+	bool                                 FadesNotCarried(const State& a_state, std::size_t a_piece);
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
 	void                                 DrawHelpTooltip(const std::string& a_text);
 	std::size_t                          RowCount(const State& a_state);

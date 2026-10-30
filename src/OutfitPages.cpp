@@ -306,7 +306,17 @@ namespace CaptureWindow::Internal
 			for (const auto index : a_pieces) {
 				const auto&          piece = a_state.request.pieces[index];
 				const Theme::RowIcon icon{ piece.icon, piece.iconColor };  // the Inventory page's
+				const bool           faded = FadesNotCarried(a_state, index);
+				if (faded) {
+					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
+				}
 				Theme::TextRow(piece.name.c_str(), &icon);
+				if (faded) {
+					ImGui::PopStyleVar();
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(kNotCarriedHint);
+					}
+				}
 			}
 		}
 		ImGui::PopStyleVar();
@@ -329,8 +339,19 @@ namespace CaptureWindow::Internal
 				bool                             on = !isOff(i);
 				const std::array<const char*, 1> cells{ pieces[i].name.c_str() };
 				ImGui::PushID(static_cast<int>(i));
+				const bool faded = FadesNotCarried(a_state, i);
+				if (faded) {
+					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
+				}
 				// TickRow flips `on`; the last ticked piece stays ticked.
-				if (Theme::TickRow(cells, columnX, &on, { pieces[i].icon, pieces[i].iconColor }) && (on || ticked > 1)) {
+				const bool toggled = Theme::TickRow(cells, columnX, &on, { pieces[i].icon, pieces[i].iconColor });
+				if (faded) {
+					ImGui::PopStyleVar();
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(kNotCarriedHint);
+					}
+				}
+				if (toggled && (on || ticked > 1)) {
 					QueueMenuSound(kFocusSound);
 					const auto at = std::ranges::lower_bound(a_excluded, pieces[i].armor);
 					if (on) {
@@ -1068,6 +1089,54 @@ namespace CaptureWindow::Internal
 		return remove;
 	}
 
+	// The items ticked on the Wardrobe page that the player would not get (FadesNotCarried).
+	std::vector<std::size_t> ManagedNotCarried(const State& a_state)
+	{
+		std::vector<std::size_t> missing;
+		for (const auto i : ManagedWorn(a_state)) {
+			if (FadesNotCarried(a_state, i)) {
+				missing.push_back(i);
+			}
+		}
+		return missing;
+	}
+
+	// Lists the ticked items the player does not carry, then OK / Back. Returns true on OK;
+	// OK is greyed while they carry none of the ticked items, as nothing could go on.
+	// Contract: asks before Apply's popup and before any library write, so Back changes nothing.
+	bool DrawNotCarriedPopup(const State& a_state)
+	{
+		if (!BeginModal(kNotCarriedPopup)) {
+			return false;
+		}
+		const auto& form = a_state.manage;
+		const auto  missing = form.outfit < 0 ? std::vector<std::size_t>{} : ManagedNotCarried(a_state);
+		if (missing.empty()) {
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+			return false;
+		}
+		ImGui::TextUnformatted(std::format("You don't carry these items from \"{}\":", OutfitAt(a_state, form.outfit).name).c_str());
+		for (const auto i : missing) {
+			ImGui::BulletText("%s", a_state.request.pieces[i].name.c_str());
+		}
+		const bool carriesNone = missing.size() == ManagedWorn(a_state).size();
+		if (!carriesNone) {
+			ImGui::TextUnformatted("Only the items you carry go on.");
+		}
+		BeginButtonRow({ "OK", "Back" });
+		const bool ok = ReasonButton("OK", carriesNone ? "You carry none of these items." : nullptr);
+		ImGui::SameLine();
+		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		EndButtonRow();
+		if (ok || back) {
+			QueueMenuSound(ok ? kOkSound : kCancelSound);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+		return ok;
+	}
+
 	// Hands the outfit to onManageRemove; until the handler ends with SetOutfits or SetError
 	// the page is greyed.
 	// Contract: the handler changes no assignment for a refused or failed write (CLAUDE.md §2.1).
@@ -1093,6 +1162,17 @@ namespace CaptureWindow::Internal
 		auto onApply = a_state.request.onManageApply;
 		SKSE::GetTaskInterface()->AddTask(
 			[onApply, id = ManagedOutfitId(a_state), a_row, excluded = a_state.manage.excluded] { onApply(id, a_row, excluded); });
+	}
+
+	// Apply past the items-not-carried alert: asks when it has anything to say
+	// (ApplyNeedsConfirm), else dresses at once.
+	void ContinueManageApply(State& a_state)
+	{
+		if (ApplyNeedsConfirm(a_state)) {
+			ImGui::OpenPopup(kManageApplyPopup);
+		} else {
+			RequestManageApply(a_state, DirectApplyRow(a_state));
+		}
 	}
 
 	// Choose icon: the icons whose PNG is loaded, in OutfitIcons' order, the chosen one marked;
@@ -1182,6 +1262,9 @@ namespace CaptureWindow::Internal
 			RequestManageUpdate(a_state, std::nullopt);
 			a_state.leaveAfterSave = a_state.leave.has_value();
 		}
+		if (DrawNotCarriedPopup(a_state)) {
+			ContinueManageApply(a_state);
+		}
 		if (const auto row = DrawManageApplyPopup(a_state)) {
 			RequestManageApply(a_state, *row);
 		}
@@ -1206,8 +1289,9 @@ namespace CaptureWindow::Internal
 	}
 
 	// Selecting an outfit starts its edits and shows it on the preview; a second click on
-	// it deselects it. Either asks first while the selected one has unsaved edits. Apply asks
-	// when it has anything to say (ApplyNeedsConfirm), else dresses at once.
+	// it deselects it. Either asks first while the selected one has unsaved edits. Apply first
+	// lists the ticked items the player does not carry (DrawNotCarriedPopup), then asks when it
+	// has anything to say (ApplyNeedsConfirm), else dresses at once.
 	void DrawManagePage(State& a_state)
 	{
 		if (std::exchange(a_state.openLeave, false)) {
@@ -1258,10 +1342,10 @@ namespace CaptureWindow::Internal
 			ImGui::OpenPopup(kRemovePopup);
 		} else if (action == ManageAction::kApply) {
 			QueueMenuSound(kOkSound);
-			if (ApplyNeedsConfirm(a_state)) {
-				ImGui::OpenPopup(kManageApplyPopup);
+			if (!ManagedNotCarried(a_state).empty()) {
+				ImGui::OpenPopup(kNotCarriedPopup);
 			} else {
-				RequestManageApply(a_state, DirectApplyRow(a_state));
+				ContinueManageApply(a_state);
 			}
 		} else if (action == ManageAction::kCancel) {
 			RequestLeave(a_state, { .exit = true });

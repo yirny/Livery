@@ -372,7 +372,10 @@ the library write, with one forced redress. The Wardrobe page's Update changes n
 what the actor wears now: while they wear another outfit for a situation, its popup gives
 the outfit that row (Yes, `OutfitRows::Give`, worn now) or the Default (Apply as Default,
 the situation's outfit staying on); else the outfit goes to the situation they wear it
-for, or the Default.
+for, or the Default. While the player dresses from their inventory only
+(`Request::carriedOnly`), that Apply first lists the ticked items they do not carry, before
+its popup and any library write: OK goes on, greyed when they carry none of the ticked items;
+Back changes nothing.
 The Situations page (docs/situation-management-ui.md §3-§6) edits every row of the captured
 actor by drag and drop, the random flags included, and the situations' names; its Save
 Changes writes `situations.json` first, then replaces the rows
@@ -501,6 +504,9 @@ Each stage ends with an in-game check before the next starts.
   `SKSE::Translation::Translate`) when the window lists the pieces; a key with no
   translation is ignored and the earlier text stays, so a raw `$` key never shows.
 - Keywords are tested by editor ID when the window lists the pieces, so those KID adds count.
+- While the player dresses from their inventory only (`Request::carriedOnly`), every piece
+  list draws the rows of `PieceGroup::kNotCarried` at half opacity, with the reason on hover.
+  Their ticks and what they do stay as they are.
 - Livery ships the PNGs for SkyUI's labels (PsychoSteve's art from
   `icons_item_psychosteve.swf`) and for `I4IconAddon/icons` `clothing_cloak` and
   `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their

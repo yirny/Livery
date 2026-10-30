@@ -762,6 +762,11 @@ namespace CaptureWindow::Internal
 
 	// --- Capture page ---------------------------------------------------------
 
+	bool FadesNotCarried(const State& a_state, std::size_t a_piece)
+	{
+		return a_state.request.carriedOnly && a_state.request.pieces[a_piece].group == CaptureWindow::PieceGroup::kNotCarried;
+	}
+
 	std::size_t GroupIndex(CaptureWindow::PieceGroup a_group)
 	{
 		return static_cast<std::size_t>(a_group);
@@ -1009,7 +1014,18 @@ namespace CaptureWindow::Internal
 				// Save only: the row takes no click and shows no hover, yet does not grey (DisabledAlpha 1).
 				ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, locked ? 1.0f : ImGui::GetStyle().DisabledAlpha);
 				ImGui::BeginDisabled(locked);
+				// Times the current alpha: a page greyed by BeginDisabled stays greyer still.
+				const bool faded = FadesNotCarried(a_state, i);
+				if (faded) {
+					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
+				}
 				const bool toggled = Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor });
+				if (faded) {
+					ImGui::PopStyleVar();
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(kNotCarriedHint);
+					}
+				}
 				ImGui::EndDisabled();
 				ImGui::PopStyleVar();
 				if (toggled) {
