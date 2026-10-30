@@ -144,6 +144,25 @@ switchable in the settings (`[Player] AddMissingPieces`) with a warning that it 
 items; nothing is put back on the player when they load. Situation outfits (§7) switch
 on the player as on an NPC, unlocked like the default, and not in beast form.
 
+### Who the hotkey opens on
+
+The player is always Full management. An NPC falls in the first group that fits, read at the
+hotkey press (`GroupOf` in `src/Plugin.cpp`): followers and spouse (teammate flag or
+`PlayerMarriedFaction`), friends (`BGSRelationship::GetRelationship` of the actor's template
+base and the player's base at Friend or better; no record is Acquaintance), other NPCs. Each
+group has an access in `[General]` (`Settings::AccessOf`), defaults in brackets:
+`FollowersAndSpouse` (`Full`), `Friends` (`SaveOnly`), `OtherNPCs` (`Off`). Children are refused first.
+
+- `Full`: the whole window. `Off`: a HUD message, no window.
+- `SaveOnly` (`Request::saveOnly`): the window lists only the worn armor with its ticks fixed,
+  has the Inventory and Appearance tabs, no Apply, Restore, Create and Apply or link to the
+  Wardrobe, and writes the library only through the Save page. Its Live Preview is the camera
+  alone and never calls `OutfitPreview`, so the inventory stays untouched. An Update of the
+  outfit the NPC wears still redresses them, as for every wearer of an updated outfit.
+
+The group is read only there: outfits an NPC already wears stay on when their group changes,
+and a Save only NPC in a Livery outfit is released by Full management or Release everyone.
+
 ### Items
 
 Livery deletes an item in two places only, each by its own `ExtraUniqueID` key and only for a

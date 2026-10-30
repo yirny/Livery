@@ -26,7 +26,9 @@
 namespace
 {
 	constexpr auto kIniSection = L"General";
-	constexpr auto kRestrictKey = L"RestrictToFollowersAndSpouse";
+	constexpr auto kFollowersAndSpouseKey = L"FollowersAndSpouse";
+	constexpr auto kFriendsKey = L"Friends";
+	constexpr auto kOtherNpcsKey = L"OtherNPCs";
 	constexpr auto kLivePreviewKey = L"LivePreview";
 	constexpr auto kNpcReactionKey = L"NpcReaction";
 	constexpr auto kUiSection = L"UI";
@@ -76,10 +78,14 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 16> kIniKeys{ {
-		{ kIniSection, kRestrictKey, L"1",
-			L"1 = the hotkey works only on your followers and spouse. 0 = it works on any adult NPC.\n"
-			L"You can always open Livery for yourself." },
+	constexpr std::array<IniKey, 18> kIniKeys{ {
+		{ kIniSection, kFollowersAndSpouseKey, L"Full",
+			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
+			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
+		{ kIniSection, kFriendsKey, L"SaveOnly",
+			L"The same, for NPCs who count you as a friend or better." },
+		{ kIniSection, kOtherNpcsKey, L"Off",
+			L"The same, for every other adult NPC." },
 		{ kIniSection, kLivePreviewKey, L"1",
 			L"1 = Livery opens with Live Preview on: the game keeps running and the character wears the ticked items.\n"
 			L"0 = it opens with Live Preview off and the game paused." },
@@ -133,7 +139,36 @@ namespace
 		{ Key::kLeftAlt, Key::kRightAlt },
 	} };
 
-	std::atomic<bool>          g_followersAndSpouseOnly{ true };
+	using Settings::NpcAccess;
+
+	struct NpcAccessOption
+	{
+		const wchar_t* iniValue;
+		const char*    label;
+	};
+	// In NpcAccess order.
+	constexpr std::array<NpcAccessOption, 3> kNpcAccessOptions{ {
+		{ L"Full", "Full management" },
+		{ L"SaveOnly", "Save only" },
+		{ L"Off", "Disabled" },
+	} };
+
+	struct NpcGroupSetting
+	{
+		const wchar_t* key;
+		const char*    label;
+		const char*    who;            // the tooltip's first line
+		NpcAccess      defaultAccess;  // keep in step with kIniKeys
+	};
+	// In NpcGroup order.
+	constexpr std::array<NpcGroupSetting, 3> kNpcGroups{ {
+		{ kFollowersAndSpouseKey, "Followers and spouse", "Your followers and spouse. You can always open Livery for yourself.", NpcAccess::kFull },
+		{ kFriendsKey, "Friends", "NPCs who count you as a friend or better.", NpcAccess::kSaveOnly },
+		{ kOtherNpcsKey, "Other NPCs", "Every other adult NPC.", NpcAccess::kDisabled },
+	} };
+
+	std::array<std::atomic<NpcAccess>, kNpcGroups.size()> g_npcAccess{ NpcAccess::kFull, NpcAccess::kSaveOnly, NpcAccess::kDisabled };
+
 	std::atomic<bool>          g_livePreview{ true };
 	std::atomic<bool>          g_npcReaction{ true };
 	std::atomic<bool>          g_menuSounds{ true };
@@ -251,10 +286,28 @@ namespace
 		}
 	}
 
-	void SaveFollowersAndSpouseOnly(bool value)
+	void SaveNpcAccess(std::size_t a_group, NpcAccess a_access)
 	{
-		if (!::WritePrivateProfileStringW(kIniSection, kRestrictKey, value ? L"1" : L"0", g_iniPath.c_str())) {
+		const auto* value = kNpcAccessOptions[static_cast<std::size_t>(a_access)].iniValue;
+		if (!::WritePrivateProfileStringW(kIniSection, kNpcGroups[a_group].key, value, g_iniPath.c_str())) {
 			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
+		}
+	}
+
+	// A missing key or a value Livery does not know keeps the group's default.
+	void LoadNpcAccess()
+	{
+		for (std::size_t group = 0; group < kNpcGroups.size(); ++group) {
+			wchar_t value[16]{};
+			::GetPrivateProfileStringW(kIniSection, kNpcGroups[group].key, L"", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+			auto access = kNpcGroups[group].defaultAccess;
+			for (std::size_t option = 0; option < kNpcAccessOptions.size(); ++option) {
+				if (_wcsicmp(value, kNpcAccessOptions[option].iniValue) == 0) {
+					access = static_cast<NpcAccess>(option);
+				}
+			}
+			g_npcAccess[group] = access;
+			logger::info("{} = {}", kNpcGroups[group].label, kNpcAccessOptions[static_cast<std::size_t>(access)].label);
 		}
 	}
 
@@ -363,8 +416,10 @@ namespace
 		SaveHotkey(kDefaultHotkey, kDefaultModifier);
 		g_notifySituationChanges = false;
 		SaveFlag(kSituationsSection, kNotifyChangesKey, false);
-		g_followersAndSpouseOnly = true;
-		SaveFollowersAndSpouseOnly(true);
+		for (std::size_t group = 0; group < kNpcGroups.size(); ++group) {
+			g_npcAccess[group] = kNpcGroups[group].defaultAccess;
+			SaveNpcAccess(group, kNpcGroups[group].defaultAccess);
+		}
 		g_npcReaction = true;
 		SaveFlag(kIniSection, kNpcReactionKey, true);
 		g_moveFromPlayer = true;
@@ -508,6 +563,33 @@ namespace
 		ImGuiMCP::SeparatorText(a_label);
 	}
 
+	// One dropdown per NPC group; a choice takes effect at the next hotkey press.
+	// Contract: render thread (RenderSettings).
+	void RenderNpcAccess()
+	{
+		constexpr float kComboWidthEms = 10.0f;  // the dropdown's width, of the font size
+		constexpr auto  kAccessHelp = "Full management: you can dress them. Save only: you can save what they wear as an outfit. Disabled: the hotkey does nothing on them.";
+
+		for (std::size_t group = 0; group < kNpcGroups.size(); ++group) {
+			const auto& setting = kNpcGroups[group];
+			const auto  current = static_cast<std::size_t>(g_npcAccess[group].load());
+			ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
+			if (ImGuiMCP::BeginCombo(setting.label, kNpcAccessOptions[current].label)) {
+				for (std::size_t option = 0; option < kNpcAccessOptions.size(); ++option) {
+					if (ImGuiMCP::Selectable(kNpcAccessOptions[option].label, option == current)) {
+						const auto access = static_cast<NpcAccess>(option);
+						g_npcAccess[group] = access;
+						SaveNpcAccess(group, access);
+						logger::info("{} = {} ({})", setting.label, kNpcAccessOptions[option].label, kMenuSource);
+					}
+				}
+				ImGuiMCP::EndCombo();
+			}
+			ImGuiMCP::SetItemTooltip("%s\n%s\nDefault: %s", setting.who, kAccessHelp, kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
+			SettingGap();
+		}
+	}
+
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
 	// the page is shown. The INI is written only when the player clicks.
 	// Labels are short; each setting explains itself in a tooltip (CLAUDE.md, player-facing English).
@@ -537,18 +619,10 @@ namespace
 		}
 		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\nDefault: OFF");
 
-		// Every tick here is immersive when on.
+		// Every tick here is immersive when on; so are the dropdowns' defaults.
 		Heading("Immersion");
 
-		bool followersOnly = g_followersAndSpouseOnly.load();
-		if (ImGuiMCP::Checkbox("Followers and spouse only", &followersOnly)) {
-			g_followersAndSpouseOnly = followersOnly;
-			SaveFollowersAndSpouseOnly(followersOnly);
-			logger::info("RestrictToFollowersAndSpouse = {} (SKSE Menu Framework)", followersOnly);
-		}
-		ImGuiMCP::SetItemTooltip("Restricts the hotkey to your followers and spouse. You can always open Livery for yourself.\nDefault: ON");
-
-		SettingGap();
+		RenderNpcAccess();
 
 		// Takes effect the next time the window opens.
 		bool npcReaction = g_npcReaction.load();
@@ -694,14 +768,10 @@ namespace Settings
 			AddMissingIniKeys();
 		}
 
-		// A missing file or key keeps the default (on).
-		wchar_t value[8]{};
-		::GetPrivateProfileStringW(kIniSection, kRestrictKey, L"1", value, static_cast<DWORD>(std::size(value)),
-			g_iniPath.c_str());
-		g_followersAndSpouseOnly = std::wstring_view{ value } != L"0";
-		logger::info("RestrictToFollowersAndSpouse = {}", g_followersAndSpouseOnly.load());
+		LoadNpcAccess();
 
 		// A missing key keeps the default (on).
+		wchar_t value[8]{};
 		::GetPrivateProfileStringW(kIniSection, kLivePreviewKey, L"1", value, static_cast<DWORD>(std::size(value)),
 			g_iniPath.c_str());
 		g_livePreview = std::wstring_view{ value } != L"0";
@@ -812,9 +882,14 @@ namespace Settings
 		return known && IsModifierHeld(*known);
 	}
 
-	bool FollowersAndSpouseOnly()
+	NpcAccess AccessOf(NpcGroup a_group)
 	{
-		return g_followersAndSpouseOnly.load();
+		return g_npcAccess[static_cast<std::size_t>(a_group)].load();
+	}
+
+	const char* NameOf(NpcGroup a_group)
+	{
+		return kNpcGroups[static_cast<std::size_t>(a_group)].label;
 	}
 
 	bool LivePreview()
