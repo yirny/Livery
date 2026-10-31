@@ -92,7 +92,7 @@ Dressing yourself uses only items you carry. A setting lifts that, but it's not 
 [*]Tick the items you want them to wear.
 [*]Apply, then Exit.
 [/list]
-Add items from Wardrobe puts a saved outfit's items on the list. Items Livery put on stay on.
+Add from Wardrobe puts a saved outfit's items on the list. Items Livery put on stay on.
 
 [b]Save an outfit[/b]
 [list=1]
@@ -121,7 +121,7 @@ Drag an outfit back to the list to clear it. Situational outfits are saved per c
 [b]Keep variants in a chest[/b] (optional: turn on Item chests in the settings)
 [list=1]
 [*]Pick the Chests tab, Create New Chest, and click it to fill it: the visor open and closed, a wig in each colour.
-[*]When dressing someone, use Add items from Chest under the list and Load the chest.
+[*]When dressing someone, use Add from Chest under the list and Load the chest.
 [*]Tick the variant you want, Apply.
 [/list]
 A chest is never worn as a whole, so it needs no outfit per variant. Chests are shared by every save.

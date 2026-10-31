@@ -484,6 +484,7 @@ namespace CaptureWindow::Internal
 	void DrawChestEditPage(State& a_state)
 	{
 		constexpr const char* kNoOtherChests = "No other chests.";
+		constexpr const char* kAddFromChest = "Add from Chest...";
 
 		if (std::exchange(a_state.openLeave, false)) {
 			ImGui::OpenPopup(kLeavePopup);
@@ -498,15 +499,17 @@ namespace CaptureWindow::Internal
 			const float height = EditorListHeight(a_state);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
-			Theme::LabelText("Items");
+			Theme::LabelText("Items", Theme::HeadingIcon::kBackpack);
 			Theme::AfterFieldGap();
 			Theme::CountText(std::format("{} item(s)", CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
-			links.wardrobe = DrawCountLink("Add from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr);
-			links.chest = DrawCountLink("Add from Chest...", a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr);
+			// Together at the column's right end: the first starts the line under the list.
+			links.wardrobe = DrawCountLink("Add from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::LinkLine::kNext,
+				Theme::LabelLinkWidth(kAddFromChest));
+			links.chest = DrawCountLink(kAddFromChest, a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
-			Theme::LabelText("In Chest");
+			Theme::LabelText("In Chest", Theme::HeadingIcon::kChest);
 			Theme::AfterFieldGap();
 			Theme::CountText(PieceCountText(form.pieces.size(), form.chest >= 0 ? ChestAt(a_state, form.chest).unloadedPieces : 0).c_str());
 			takeOut = DrawItemsInside(a_state, height);

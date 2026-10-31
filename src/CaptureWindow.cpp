@@ -15,9 +15,9 @@
 //                  Livery outfit, other worn, carried, the player's, the loaded outfit's or
 //                  chest's), in Name / Type / Slot (Settings) columns sorted by a click on a
 //                  column label (the piece list the Edit page shows too, PieceList), each tick
-//                  handed to onPieceToggled; under the list the count line, ending in Add items
-//                  from Wardrobe... and Add items from Chest... (the Load page; each greyed while
-//                  it has nothing to offer); the
+//                  handed to onPieceToggled; under the list the count line, ending in Add from
+//                  Wardrobe..., with Add from Chest... on the line below (the Load page; each
+//                  greyed while it has nothing to offer); the
 //                  Live Preview tick, handed to onPreviewOn / onPreviewOff in an SKSE task that
 //                  also freezes or unfreezes the game; Save / Apply / Exit, with Restore
 //                  at the row's right end while Livery dresses the actor; Apply leaves off
@@ -311,7 +311,8 @@ namespace CaptureWindow::Internal
 	// (State::inventoryShown) under the heading naming where they came from.
 	PieceList InventoryPieces(const State& a_state)
 	{
-		return { a_state.pieceTicked.get(), &a_state.inventoryShown, &a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] };
+		return { a_state.pieceTicked.get(), &a_state.inventoryShown, &a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)],
+			a_state.inventoryShownFromChest ? Theme::HeadingIcon::kChest : Theme::HeadingIcon::kBareForm };
 	}
 
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list)
@@ -863,6 +864,7 @@ namespace CaptureWindow::Internal
 		a_state.loadedOutfit = -1;
 		a_state.inventoryShown.clear();
 		a_state.inventoryShownNames.clear();
+		a_state.inventoryShownFromChest = false;
 		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)].clear();
 		SortPieces(a_state);
 	}
@@ -968,7 +970,7 @@ namespace CaptureWindow::Internal
 	{
 		const bool  notCarried = a_group == CaptureWindow::PieceGroup::kNotCarried;
 		const auto& heading = notCarried ? *a_list.heading : a_state.headings[GroupIndex(a_group)];
-		const auto  icon = GroupIcon(a_group);
+		const auto  icon = notCarried ? a_list.shownIcon : GroupIcon(a_group);
 		if (a_group != CaptureWindow::PieceGroup::kPlayer) {
 			Theme::ListHeading(heading.c_str(), icon);
 			return;
@@ -1061,10 +1063,10 @@ namespace CaptureWindow::Internal
 	}
 
 	// A link of the count line, greyed with `a_reason` (shown on hover). Returns true when clicked.
-	bool DrawCountLink(const char* a_label, const char* a_reason)
+	bool DrawCountLink(const char* a_label, const char* a_reason, Theme::LinkLine a_line, float a_reserveRight)
 	{
 		ImGui::BeginDisabled(a_reason != nullptr);
-		const bool clicked = Theme::LabelLink(a_label);
+		const bool clicked = Theme::LabelLink(a_label, a_line, a_reserveRight);
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
@@ -1075,18 +1077,18 @@ namespace CaptureWindow::Internal
 	}
 
 	// The count line under the list; on the Inventory and Edit pages (`a_withLinks`) it ends in
-	// `Add items from Wardrobe...`, which opens the Load page and is greyed while the library is
-	// empty, and with Request::offersChests `Add items from Chest...`, greyed while there is no
-	// chest. Returns which link was clicked.
+	// `Add from Wardrobe...`, which opens the Load page and is greyed while the library is
+	// empty, with Request::offersChests `Add from Chest...` on the line below it, greyed while
+	// there is no chest. Returns which link was clicked.
 	CountLinks DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
 		Theme::CountText(std::format("{} of {} item(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		CountLinks links;
 		if (a_withLinks) {
-			links.wardrobe = DrawCountLink("Add items from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr);
+			links.wardrobe = DrawCountLink("Add from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr);
 			if (a_state.request.offersChests) {
-				links.chest = DrawCountLink("Add items from Chest...", a_state.request.chests.empty() ? kNoChests : nullptr);
+				links.chest = DrawCountLink("Add from Chest...", a_state.request.chests.empty() ? kNoChests : nullptr, Theme::LinkLine::kNext);
 			}
 		}
 		if (ticked == 0) {
@@ -1267,7 +1269,7 @@ namespace CaptureWindow::Internal
 
 	// Create / Update Outfit, Apply and Exit centred below a gap, then Restore at the
 	// row's right end. Create / Update Outfit and Apply act on the ticked pieces, so they need at least one. `a_load`: Add
-	// pieces from Wardrobe... was clicked on the count line.
+	// from Wardrobe... or Add from Chest... was clicked under the list.
 	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load)
 	{
 		constexpr const char* kSaveTooltip = "Save the ticked items as a new outfit, or into an existing one.";
@@ -2137,6 +2139,7 @@ namespace CaptureWindow
 			state.loadedOutfit = -1;
 			state.inventoryShown.clear();
 			state.inventoryShownNames.clear();
+			state.inventoryShownFromChest = false;
 			state.chest = {};
 			for (auto* browser : { &state.loadBrowser, &state.updateBrowser, &state.manageBrowser, &state.situationBrowser }) {
 				OutfitBrowser::Reset(*browser, state.request);

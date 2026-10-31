@@ -17,8 +17,8 @@
 //                  the preview, and a second click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
 //                  pieces and returns (greyed while none of them is loaded); opened from
-//                  the Edit page, it adds them to that page's ticks; opened by Add items
-//                  from Chest..., it lists the chests instead (ChestPages.cpp) and Load lists
+//                  the Edit page, it adds them to that page's ticks; opened by Add from
+//                  Chest..., it lists the chests instead (ChestPages.cpp) and Load lists
 //                  the selected one's items, ticking none; opened from the chest editor, Add
 //                  puts the selection's items in the chest
 //   the Wardrobe page - the tab beside the Inventory page: library outfits and the selected
@@ -37,7 +37,7 @@
 //                  Exit, Escape or another tab with unsaved edits shows the unsaved-changes
 //                  alert, whose Save Changes goes through Update's popup
 //   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks,
-//                  Add pieces from Wardrobe... and Live Preview; Use Ticked Pieces makes
+//                  Add from Wardrobe... and Live Preview; Use Ticked Pieces makes
 //                  them the edited pieces, Back leaves them; nothing is written
 #include "PCH.h"
 
@@ -478,6 +478,7 @@ namespace CaptureWindow::Internal
 		a_state.loadedOutfit = a_state.previewedOutfit;
 		a_state.inventoryShown = outfit.pieces;
 		a_state.inventoryShownNames = { outfit.name };
+		a_state.inventoryShownFromChest = false;
 		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = EditShownHeading(a_state.inventoryShownNames);
 	}
 
@@ -498,6 +499,7 @@ namespace CaptureWindow::Internal
 		if (std::ranges::find(names, chest.name) == names.end()) {
 			names.push_back(chest.name);
 		}
+		a_state.inventoryShownFromChest = true;
 		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = EditShownHeading(names);
 	}
 
@@ -549,7 +551,7 @@ namespace CaptureWindow::Internal
 	// Selecting an outfit shows it on the preview; a second click on it, or Back,
 	// shows the ticks again. Nothing here changes the ticks until Load. Opened from the Edit
 	// page, Load adds to that page's ticks and both go back there; from the chest editor, Add
-	// puts the selection's items in the chest. With chests listed (Add items from Chest...),
+	// puts the selection's items in the chest. With chests listed (Add from Chest...),
 	// selecting one shows its items in the right column, and Load lists them.
 	void DrawLoadPage(State& a_state)
 	{
@@ -1439,7 +1441,8 @@ namespace CaptureWindow::Internal
 
 	PieceList EditPieces(const State& a_state)
 	{
-		return { a_state.editTicked.get(), &a_state.editShown, &a_state.editShownHeading };
+		return { a_state.editTicked.get(), &a_state.editShown, &a_state.editShownHeading,
+			a_state.editShownFromChest ? Theme::HeadingIcon::kChest : Theme::HeadingIcon::kBareForm };
 	}
 
 	// "\"A\", \"B\"": over the pieces nobody carries, the outfits they come
@@ -1498,6 +1501,7 @@ namespace CaptureWindow::Internal
 		if (bringsUncarried && std::ranges::find(names, outfit.name) == names.end()) {
 			names.push_back(outfit.name);
 			a_state.editShownHeading = EditShownHeading(names);
+			a_state.editShownFromChest = false;
 		}
 	}
 
@@ -1517,6 +1521,7 @@ namespace CaptureWindow::Internal
 		if (bringsUncarried && std::ranges::find(names, chest.name) == names.end()) {
 			names.push_back(chest.name);
 			a_state.editShownHeading = EditShownHeading(names);
+			a_state.editShownFromChest = true;
 		}
 	}
 
@@ -1534,12 +1539,13 @@ namespace CaptureWindow::Internal
 		a_state.editTitle = std::format("Edit \"{}\"", name);
 		a_state.editOutfitNames = { name };
 		a_state.editShownHeading = EditShownHeading(a_state.editOutfitNames);
+		a_state.editShownFromChest = false;
 		GoToPage(a_state, Page::kEdit);
 	}
 
 	// Use Ticked Pieces makes the ticks the edited pieces, which the preview already shows;
 	// Back and Escape leave them, and the preview shows them again. Nothing is written.
-	// Add pieces from Wardrobe... opens the Load page, whose Load adds to the ticks.
+	// Add from Wardrobe... opens the Load page, whose Load adds to the ticks.
 	void DrawEditPage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);

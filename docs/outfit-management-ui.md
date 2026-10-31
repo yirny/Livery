@@ -31,7 +31,7 @@ and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nord
 (`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by sarrai-common's `Palettes`); below,
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
-in Nordic 0.7 of the body (14px). Count lines, the links (`Add items from Wardrobe...`,
+in Nordic 0.7 of the body (14px). Count lines, the links (`Add from Wardrobe...`,
 `Edit`, `Restore`, `Remove`, `Restore Presets`) take the small font in every skin.
 
 ## 1. Outfit list (step 1)
@@ -103,8 +103,9 @@ page. Each page keeps its own search and sort.
   square at 1080p in every skin, in its grey, centred on the text's line: the Inventory tab's
   backpack over `Inventory` and
   `#{Player}'s Inventory`, the dressed form of an outfit row's current-outfit mark over the
-  three `Outfit (...)` headings, the bare form over the loaded outfit's.
-- The count line ends in `Add items from Wardrobe...` (`Theme::LabelLink`, its plus mark
+  three `Outfit (...)` headings, the bare form over the loaded outfit's, the chest over a
+  loaded chest's (docs/chest-ui.md).
+- The count line ends in `Add from Wardrobe...` (`Theme::LabelLink`, its plus mark
   first), which opens the Load page; greyed while the library is empty, showing
   `kNoOutfits` on hover. Not shown for the player while `Dress yourself from inventory only`
   is ticked (`Request::offersWardrobe`). The buttons are `Create / Update Outfit`, `Apply`, `Exit`.
@@ -280,7 +281,7 @@ page. Each page keeps its own search and sort.
   heading, as after Load. Its ticks are its own; the Inventory page's stay as they were.
 - Title `Edit "#{Outfit}"`, no summary line, no tab column. It has the window's Live Preview
   tick; the preview shows this page's ticks.
-- The count line ends in `Add items from Wardrobe...`, as on the Inventory page (§2): the
+- The count line ends in `Add from Wardrobe...`, as on the Inventory page (§2): the
   Load page opens, and Load adds the selected outfit's pieces to this page's ticks instead
   of replacing them: a ticked piece sharing a body slot with one of them is unticked, as a
   tick would untick it. Its pieces nobody carries stay listed, and their heading names every
