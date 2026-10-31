@@ -90,7 +90,7 @@ namespace CaptureWindow
 		std::vector<std::string> users;
 	};
 
-	// A chest (docs/chest-ui.md), listed on the Chests page and offered by Add items from
+	// A chest (docs/chest-ui.md), listed on the Chests page and offered by Add from
 	// Chest...; never worn.
 	struct ChestInfo
 	{
@@ -204,7 +204,7 @@ namespace CaptureWindow
 		std::vector<RowAssignment>  assigned;         // one per row, in `situations`' order
 		std::vector<std::string>    restoreChanges;   // what Restore Presets would change, one line each; empty while every preset is as installed
 		// The chests (docs/chest-ui.md), in display order, with `offersChests`: the Chests tab
-		// and Add items from Chest... (Settings::ItemChests at Open; never with `saveOnly`).
+		// and Add from Chest... (Settings::ItemChests at Open; never with `saveOnly`).
 		// Their items are in `pieces` as PieceGroup::kNotCarried, like the outfits' (listed while
 		// a chest is loaded). Off, `chests` is empty.
 		std::vector<ChestInfo> chests;
@@ -213,7 +213,7 @@ namespace CaptureWindow
 		bool movesFromPlayer = true;
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
 		bool protectsFavorites = true;
-		// The Inventory page's count line ends in `Add items from Wardrobe...`; off for the
+		// The Inventory page's count line ends in `Add from Wardrobe...`; off for the
 		// player while they dress from their inventory only (Settings::PlayerAddsMissingPieces).
 		bool offersWardrobe = true;
 		// The player dresses from their inventory only (Settings::PlayerAddsMissingPieces off):

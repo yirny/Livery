@@ -5,7 +5,7 @@ slot too, kept so the variants of one armor (a visor open and closed, a wig in e
 alternate design) can be picked from when dressing someone, without one outfit per variant and
 without the real items in an inventory. Chests are off by default: the `Item chests` setting
 (`[Window] ItemChests`, SKSE Menu Framework page, Window section) adds the Chests tab and the
-`Add items from Chest...` link the next time the window opens. `chests.json` is read either way.
+`Add from Chest...` link the next time the window opens. `chests.json` is read either way.
 
 ## 1. Data
 
@@ -52,14 +52,14 @@ under the list. `Exit` or Escape closes the window.
 Reached from the Chests page; no tab column. Title `Edit "#{Chest}"`. The name field, then two
 columns and `Update` / `Remove` / `Back`:
 
-- Left, `Items`: the items someone carries that are not in the chest, under the Inventory
+- Left, `Items` (the backpack before the label): the items someone carries that are not in the chest, under the Inventory
   page's group headings in its order (`State::pieceOrder`), each row its icon and name; then,
   under `Taken out of chest` (the chest icon), the items taken out that nobody carries, listed
-  until the page is left. A click puts the item in. Under the list, `Add from Wardrobe...` and
-  `Add from Chest...` open the Load page (`LoadTarget::kChest`) listing the outfits or the other
+  until the page is left. A click puts the item in. On one line under the list, at the column's
+  right end, `Add from Wardrobe...` and `Add from Chest...` open the Load page (`LoadTarget::kChest`) listing the outfits or the other
   chests; its `Add` puts the selection's items in and returns. `No other chests.` greys the
   second link while this is the only chest.
-- Right, `In Chest`: the chest's items as edited, in the same order, over a count line that
+- Right, `In Chest` (the chest icon before the label): the chest's items as edited, in the same order, over a count line that
   counts the items not loaded. A click takes the item out.
 - `Update` (greyed with `Enter a name.` or `No changes to save.`) hands the name and items to
   `onChestUpdate`; the editor stays on the chest as written. `Remove` asks
@@ -72,9 +72,10 @@ columns and `Update` / `Remove` / `Back`:
 
 ### Using a chest when dressing
 
-- The Inventory page's and the Edit page's count line end in `Add items from Wardrobe...` and,
-  while `offersChests`, `Add items from Chest...` (greyed with `No chests yet.`); both are hidden
-  for the player while they dress from their inventory only, as before. The chest link opens
+- The Inventory page's and the Edit page's count line end in `Add from Wardrobe...`; while
+  `offersChests`, `Add from Chest...` (greyed with `No chests yet.`) is right-aligned on the
+  line below it (`Theme::LinkLine::kNext`). On the Inventory page both are hidden for the
+  player while they dress from their inventory only, as before. The chest link opens
   the Load page with the chests listed (`LoadSource::kChests`): a plain list by name on the
   left, the selected chest's name and items on the right, no preview change, `Load` greyed while
   none of its items is loaded.
@@ -82,12 +83,14 @@ columns and `Update` / `Remove` / `Back`:
   carries and ticks none: the ticks stay, so the listed pieces nobody carries that are ticked
   stay listed and the unticked ones go (`DrawPieceRows`' contract: a piece that is not listed
   is never ticked). The heading names what the list came from, `"Guard", "Visors"`
-  (`State::inventoryShownNames`). Loading an outfit still replaces every tick with its items
+  (`State::inventoryShownNames`), and has the chest icon while a chest was loaded last, the bare
+  form after an outfit's Load. Loading an outfit still replaces every tick with its items
   and lists them alone. Ticking a chest item unticks the ticked items on its body slots, as any
   tick does; Apply then dresses the actor as it would in any ticked items (an NPC gets a copy of
   an item they do not carry; the player gets one only with `AddMissingPieces`).
 - On the Edit page, `Load` of a chest lists its items unticked beside the page's ticks, under
-  the heading naming the outfits and chests they came from.
+  the heading naming the outfits and chests they came from, with the chest icon when a chest
+  brought an item to it last.
 - The worn result is an ordinary set of items: with chest items among the ticks it is not a
   library outfit (`Outfit (Not in Wardrobe)`), unless saved as one.
 
@@ -101,18 +104,18 @@ uses), `src/OutfitPages.cpp` (the Load page's chest mode and targets), `src/Capt
 `ChestForm`), `src/CaptureWindow.h` (`ChestInfo`, `ChestEdit`, the handlers), `src/Plugin.cpp`
 (`Chests::Load` at `kDataLoaded`, the chests in the request, the handlers), `src/Settings.cpp`
 (`[Window] ItemChests`), `lib/sarrai-common` (`Theme::TabIcon::kChests`,
-`Theme::HeadingIcon::kChest`), `test/PieceFileTests.cpp`.
+`Theme::HeadingIcon::kChest`, `Theme::LinkLine`, `LabelText` with an icon), `test/PieceFileTests.cpp`.
 
 ## 4. Checks
 
 - Build; `dumpbin /exports` shows the three SKSE exports.
 - Log: `No chests.json yet; no chests` on the first start, `Loaded N chest(s) from chests.json`
   after; `ItemChests = 1` once the setting is on.
-- Setting off: the window has four tabs and no `Add items from Chest...` link.
+- Setting off: the window has four tabs and no `Add from Chest...` link.
 - Setting on: Chests tab; Create New Chest writes `chests.json` with the empty chest; the editor
   moves items between the columns, Update writes them, Back with edits asks; Remove takes the
   chest out of the file.
-- Inventory page: `Add items from Chest...` lists the chest's items unticked under their
+- Inventory page: `Add from Chest...` lists the chest's items unticked under their
   heading; ticking one unticks the item on its slot; Apply dresses the NPC in it (HUD message,
   the window's Inventory page follows).
 - Load a save: nothing changes for anyone (chests are never assigned).
