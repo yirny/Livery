@@ -510,8 +510,8 @@ Each stage ends with an in-game check before the next starts.
    the window open, then New Game; the player's left-hand weapon back after a shield
    preview; tempered player gear after Exit; a follower's given armor gone after Load
    Outfit + Exit (seen while Tailor managed her).
-10. Chests (docs/chest-ui.md), behind the `Item chests` setting, off by default: built;
-    in-game checks pending (its §4).
+10. Chests (docs/chest-ui.md), behind the `Item chests` setting, off by default: done, checked
+    in game on 1.6.1170 (its §4).
 
 ## 9. Piece icons
 
