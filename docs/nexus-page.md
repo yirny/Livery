@@ -60,7 +60,7 @@ Convenient outfit management shouldn't feel like stepping out of Skyrim.
 
 [i]Respect for the game's rules[/i]
 [list]
-[*]By default, Livery dresses only you, your followers and your spouse, and you can save what your friends wear as outfits. (Configurable)
+[*]By default, Livery dresses only you, your followers and your spouse. Friends you can't dress, but you can save what they wear. (Configurable)
 [*]An outfit is built from equipment that actually exists in someone's inventory, or from the NPC's current outfit, never from a plugin's item list.
 [*]By default, you can only wear items you actually carry. (Configurable)
 [/list]
@@ -82,10 +82,11 @@ Livery's defaults lean towards immersion, but they're not there to tell you how 
 Every setting is on the Livery page of SKSE Menu Framework, where it takes effect at once, or in [font=Courier New]Data\SKSE\Plugins\Livery.ini[/font], read when the game starts. The window's Appearance tab has the skin, palette and menu sounds, with or without SKSE Menu Framework.
 
 [b]Opening Livery[/b]
-Press the hotkey (Shift + X by default). Aim at an NPC to dress them; aim at nothing to dress yourself.
+Press the hotkey (Shift + X by default). Aim at an NPC to open Livery on them; aim at nothing to open it on yourself.
+What the window lets you do depends on who they are. By default, you can dress your followers and spouse, save what your friends wear, and nothing else. (Configurable)
 Dressing yourself uses only items you carry. A setting lifts that, but it's not recommended for normal play.
 
-[b]Dress an NPC[/b]
+[b]Dress a follower or your spouse[/b]
 [list=1]
 [*]Open Livery on the NPC.
 [*]Tick the items you want them to wear.
@@ -95,11 +96,11 @@ Add items from Wardrobe puts a saved outfit's items on the list. Items Livery pu
 
 [b]Save an outfit[/b]
 [list=1]
-[*]Dress the character in what you want to save.
+[*]Dress the character in what you want to save, or open Livery on a friend wearing something you like.
 [*]Press Create / Update Outfit.
 [*]Name it, pick an icon, Create.
 [/list]
-To change an existing outfit, use the Update tab.
+To change an existing outfit, use the Update tab. A friend's window only saves what they wear; it can't change it.
 
 [b]Wear an outfit from the Wardrobe[/b]
 [list=1]
@@ -116,6 +117,14 @@ Rename an outfit, change its icon or remove it on the same page.
 [*]Save Changes.
 [/list]
 Drag an outfit back to the list to clear it. Situational outfits are saved per character.
+
+[b]Keep variants in a chest[/b] (optional: turn on Item chests in the settings)
+[list=1]
+[*]Pick the Chests tab, Create New Chest, and click it to fill it: the visor open and closed, a wig in each colour.
+[*]When dressing someone, use Add items from Chest under the list and Load the chest.
+[*]Tick the variant you want, Apply.
+[/list]
+A chest is never worn as a whole, so it needs no outfit per variant. Chests are shared by every save.
 
 [line]
 
@@ -203,12 +212,12 @@ Only ASCII can be typed into the name field for now (see Roadmap).
 
 [b]Ideas, not planned (ask, and they move up)[/b]
 [list]
-[*]Partial outfits that go on over the current one, e.g. a hood and cloak for cold weather. For now, save a copy of the Default with the hood and cloak added and give it to Cold.
-[*]Tags on outfits. For now, icons and colours are the way to organise.
-[*]A wardrobe per save. For now, move outfits.json aside before a new game.
-[*]Opening Livery from dialogue (needs an ESP).
-[*]A middle ground for wearing items you don't own. "Dress yourself from inventory only" is strict; turning it off hands you a free armoury. Something between the two might fit better: items Livery creates could be unsellable and vanish when taken off, or count as stolen, as if you'd lifted the missing ones somewhere. Which, if any, would you use? Let me know.
-[*]Poses for the NPC while you dress them. For now, the greeting turns them to face you.
+[*]Partial outfits that go on over the current one, e.g. a hood and cloak for cold weather. Handy, but a second kind of outfit to keep track of. For now, save a copy of an outfit with the hood and cloak added and give it to Cold.
+[*]Tags on outfits, like Light Armor or Casual. Easier to find things, but busier lists. For now, icons and colours are the way to organise.
+[*]A wardrobe per save. No outfits from items this character never found, but an outfit saved before a death is lost with the save. For now, move outfits.json aside before a new game.
+[*]Opening Livery from dialogue. More immersive, but it needs an ESP.
+[*]A middle ground for wearing items you don't own. "Dress yourself from inventory only" is strict; turning it off hands you a free armoury. Something between the two might fit better: items Livery creates could be unsellable and vanish when taken off, or count as stolen, as if you'd lifted the missing ones somewhere. Each is a rule of its own to learn, so: which, if any, would you use? Let me know.
+[*]Poses for the NPC while you dress them. Nice for checking the fit, but drifting away from what Livery is for. For now, the greeting turns them to face you.
 [/list]
 
 [line]

@@ -274,6 +274,12 @@ would have to be kept in step).
   under `Swimming`, a situation this version no longer has, is dropped with a log line and
   the file stays writable. The same load and write rules as the library (docs/situation-management-ui.md
   §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
+- Chests (docs/chest-ui.md): `chests.json` beside the library (`src/Chests.cpp`), named sets of
+  items that are never worn, several on one body slot too, offered when dressing; a chest may
+  be empty. The pieces are stored as the library's (`src/PieceFile.h`, shared), with the same
+  load and write rules; loaded at `kDataLoaded` after the library, whether or not the
+  `[Window] ItemChests` setting (off by default) shows the window's Chests tab. Never named by
+  the co-save.
 - Settings: INI, as today.
 
 ## 5. Co-save
@@ -504,6 +510,8 @@ Each stage ends with an in-game check before the next starts.
    the window open, then New Game; the player's left-hand weapon back after a shield
    preview; tempered player gear after Exit; a follower's given armor gone after Load
    Outfit + Exit (seen while Tailor managed her).
+10. Chests (docs/chest-ui.md), behind the `Item chests` setting, off by default: built;
+    in-game checks pending (its §4).
 
 ## 9. Piece icons
 

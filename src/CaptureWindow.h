@@ -90,6 +90,24 @@ namespace CaptureWindow
 		std::vector<std::string> users;
 	};
 
+	// A chest (docs/chest-ui.md), listed on the Chests page and offered by Add items from
+	// Chest...; never worn.
+	struct ChestInfo
+	{
+		std::string              name;
+		std::vector<std::size_t> pieces;              // indices into Request::pieces of its loaded items, ascending, no repeats
+		std::size_t              unloadedPieces = 0;  // its items whose plugin is not loaded; an update leaves them in it
+		std::uint32_t            id = 0;              // Chests' id, handed back in ChestEdit::chest
+	};
+
+	// What the chest editor's Update hands over.
+	struct ChestEdit
+	{
+		std::uint32_t            chest = 0;
+		std::string              name;    // trimmed, non-empty
+		std::vector<std::size_t> pieces;  // indices into Request::pieces, ascending; may be empty
+	};
+
 	// One of the actor's rows as they have it now (docs/situation-management-ui.md §1): the
 	// Default, or a situation.
 	struct RowAssignment
@@ -185,6 +203,12 @@ namespace CaptureWindow
 		std::vector<SituationInfo>  situations;       // one per row of `assigned`: the Default, then the situations not removed
 		std::vector<RowAssignment>  assigned;         // one per row, in `situations`' order
 		std::vector<std::string>    restoreChanges;   // what Restore Presets would change, one line each; empty while every preset is as installed
+		// The chests (docs/chest-ui.md), in display order, with `offersChests`: the Chests tab
+		// and Add items from Chest... (Settings::ItemChests at Open; never with `saveOnly`).
+		// Their items are in `pieces` as PieceGroup::kNotCarried, like the outfits' (listed while
+		// a chest is loaded). Off, `chests` is empty.
+		std::vector<ChestInfo> chests;
+		bool                   offersChests = false;
 		// Apply moves PieceGroup::kPlayer pieces to the NPC; off, the NPC gets copies.
 		bool movesFromPlayer = true;
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
@@ -259,6 +283,16 @@ namespace CaptureWindow
 		std::function<void(Situations::Situation situation)> onSituationRemove;
 		std::function<void()>                                onRestorePresets;
 
+		// Run on the game thread from the Chests page and the chest editor (docs/chest-ui.md):
+		// onChestCreate with the New chest popup's name (an empty chest), onChestUpdate with the
+		// editor's Update, onChestRemove with the Remove popup confirmed. Each writes chests.json
+		// first; a refused or failed write changes nothing. No chest is ever worn, so no row
+		// changes. Each must end by calling SetOutfits(), with `chests` as written, or SetError().
+		// Empty greys the button.
+		std::function<void(const std::string& name)> onChestCreate;
+		std::function<void(const ChestEdit& edit)>   onChestUpdate;
+		std::function<void(std::uint32_t chest)>     onChestRemove;
+
 		// Run on the game thread when the user ticks Live Preview: onPreviewOn
 		// with the ticked indices into `pieces` (ascending, maybe empty) returns
 		// "" once the preview is on, or why it cannot be (the tick then stays
@@ -315,6 +349,7 @@ namespace CaptureWindow
 		std::vector<RowAssignment>  assigned;
 		std::vector<SituationInfo>  situations;
 		std::vector<std::string>    restoreChanges;
+		std::vector<ChestInfo>      chests;  // empty while Request::offersChests is off
 		std::string                 actorSummary;
 		bool                        dressed = false;    // as Request::dressed
 		std::size_t                 piecesNotWorn = 0;  // as Request::piecesNotWorn

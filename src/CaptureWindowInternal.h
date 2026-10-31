@@ -50,6 +50,11 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
+	// The Chests page's and the chest editor's (docs/chest-ui.md).
+	constexpr const char* kChestCreatePopup = "New chest";
+	constexpr const char* kChestRemovePopup = "Remove chest?";
+	constexpr const char* kNeedChest = "Select a chest.";
+	constexpr const char* kNoChests = "No chests yet.";
 	constexpr const char* kNoChanges = "No changes to save.";
 	constexpr const char* kWornAlready = "Already worn as is.";
 	// A piece list row of an item the player would not get (Request::carriedOnly): its opacity
@@ -103,7 +108,23 @@ namespace CaptureWindow::Internal
 		kManage,      // the Wardrobe page
 		kEdit,        // the Wardrobe page's piece editor
 		kSituations,  // the Situations page
+		kChests,      // the Chests page (docs/chest-ui.md)
+		kChestEdit,   // the chest editor, reached from the Chests page
 		kAppearance   // the window's skin and menu sounds (Settings)
+	};
+
+	// Where the Load page's Load goes, and what its list offers.
+	enum class LoadTarget
+	{
+		kInventory,  // the Inventory page: an outfit's items replace the ticks, a chest's are listed
+		kEdit,       // the Edit page: an outfit's items join the ticks, a chest's are listed
+		kChest       // the chest editor: the items join the chest's
+	};
+
+	enum class LoadSource
+	{
+		kOutfits,
+		kChests
 	};
 
 	struct InputRecord
@@ -171,6 +192,18 @@ namespace CaptureWindow::Internal
 		float                       outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
 	};
 
+	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), kept until the
+	// page is left; Update saves them, and a change the handler made (SetOutfits) starts them
+	// again from the chest.
+	struct ChestForm
+	{
+		int                             chest = -1;  // index into request.chests; -1 for none
+		std::array<char, kNameCapacity> name{};
+		std::vector<std::size_t>        pieces;     // its items as edited: indices into request.pieces, ascending
+		std::vector<std::size_t>        takenOut;   // items taken out that nobody carries, listed left under their own heading until the page is left; ascending
+		std::array<char, kNameCapacity> newName{};  // the New chest popup's field
+	};
+
 	// Where leaving a page with unsaved edits goes once they are saved or dropped: the
 	// window's close (Exit, Escape), or a tab's page; the Wardrobe page with `manageOutfit`, the
 	// library outfit to select there (the Situations page's Edit; 0 keeps its selection).
@@ -202,13 +235,21 @@ namespace CaptureWindow::Internal
 		int                      sortColumn = 0;     // the piece list's sorted column: Name, Type or Slot
 		bool                     showSlots = false;  // the piece list has the Slot column (Settings::ShowSlotColumn at Open)
 		bool                     sortDescending = false;
-		int                      previewedOutfit = -1;  // on the Load page: index into request.existingOutfits, -1 for none
-		bool                     loadIntoEdit = false;  // the Load page was opened from the Edit page, whose ticks it adds to
-		int                      loadedOutfit = -1;     // the last one loaded: index into request.existingOutfits, -1 for none
-		OutfitBrowser::State     loadBrowser;           // search, filter and sort of the Load page's outfit list
-		OutfitBrowser::State     updateBrowser;         // the Save page's Update tab's
-		OutfitBrowser::State     manageBrowser;         // the Wardrobe page's
+		int                      previewedOutfit = -1;                 // on the Load page: index into request.existingOutfits, -1 for none
+		int                      previewedChest = -1;                  // on the Load page with LoadSource::kChests: index into request.chests, -1 for none
+		LoadTarget               loadTarget = LoadTarget::kInventory;  // the page the Load page was opened from, which its Load returns to
+		LoadSource               loadSource = LoadSource::kOutfits;
+		int                      loadedOutfit = -1;  // the last one loaded: index into request.existingOutfits, -1 for none
+		// The Inventory page's listed pieces nobody carries: the outfit's at its Load, a chest's
+		// items at its Load with the ticked ones kept; ascending. `inventoryShownNames` are the
+		// outfits and chests they came from, for the heading over them (EditShownHeading).
+		std::vector<std::size_t> inventoryShown;
+		std::vector<std::string> inventoryShownNames;
+		OutfitBrowser::State     loadBrowser;    // search, filter and sort of the Load page's outfit list
+		OutfitBrowser::State     updateBrowser;  // the Save page's Update tab's
+		OutfitBrowser::State     manageBrowser;  // the Wardrobe page's
 		ManageForm               manage;
+		ChestForm                chest;
 		IconPicker               iconPicker;
 		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
 		std::string              manageApplyLabel;  // "Apply to #{Name}"
@@ -256,16 +297,26 @@ namespace CaptureWindow::Internal
 
 	// --- Shared helpers (CaptureWindow.cpp) -----------------------------------
 
+	// The links at the end of a piece list's count line, which open the Load page: Add items
+	// from Wardrobe... (Request::offersWardrobe) and Add items from Chest... (with
+	// Request::offersChests too). Each is true the frame it is clicked.
+	struct CountLinks
+	{
+		bool wardrobe = false;
+		bool chest = false;
+	};
+
 	PieceList                InventoryPieces(const State& a_state);
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
-	bool                     DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink = false);
+	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
+	bool                     DrawCountLink(const char* a_label, const char* a_reason);  // a count line's link, greyed with `a_reason` (its hover text)
 	void                     DrawPreviewToggle(State& a_state, const PieceList& a_list);
 	std::string              Trimmed(const char* a_text);
 	void                     DrawError(const std::string& a_message);
 	void                     RequestCancel();
 	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
-		bool* a_iconClicked = nullptr);
+		bool* a_iconClicked = nullptr, const char* a_hint = "Outfit Name");
 	bool                     BeginModal(const char* a_id);
 	void                     SetGroupHeadings(State& a_state);
 
@@ -292,6 +343,7 @@ namespace CaptureWindow::Internal
 	bool                                 BeginColumns(const char* a_id, int a_count = 2);
 	void                                 EndColumns(int a_count = 2);
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
+	Theme::HeadingIcon                   GroupIcon(CaptureWindow::PieceGroup a_group);  // the icon of a group's heading
 	bool                                 FadesNotCarried(const State& a_state, std::size_t a_piece);
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
 	void                                 DrawHelpTooltip(const std::string& a_text);
@@ -331,6 +383,38 @@ namespace CaptureWindow::Internal
 	void DrawLoadPage(State& a_state);
 	void DrawManagePage(State& a_state);
 	void DrawEditPage(State& a_state);
+
+	// "\"A\", \"B\"": the outfits and chests the pieces nobody carries come from, for the heading
+	// over them.
+	std::string EditShownHeading(const std::vector<std::string>& a_names);
+
+	// --- Chest pages (ChestPages.cpp, docs/chest-ui.md) -----------------------
+
+	void DrawChestsPage(State& a_state);
+	void DrawChestEditPage(State& a_state);
+
+	const CaptureWindow::ChestInfo& ChestAt(const State& a_state, int a_index);
+	int                             IndexOfChest(const State& a_state, std::uint32_t a_id);  // -1 for none or 0
+
+	// The chest editor's name or items differ from the chest.
+	bool HasChestEdits(const State& a_state);
+
+	// Starts the editor's edits of chest `a_index` (-1 for none) from the chest; the items
+	// taken out are forgotten.
+	void FillChestForm(State& a_state, int a_index);
+
+	// The Load page's Add for the chest editor: `a_pieces` (indices into request.pieces,
+	// ascending) join the chest's items.
+	void AddToChest(State& a_state, const std::vector<std::size_t>& a_pieces);
+
+	// The chest list (the Chests page's, the Load page's with LoadSource::kChests): every chest
+	// but `a_except` (an index into request.chests; -1 for none), `a_selected` highlighted, over
+	// its count line. Returns the index into request.chests of the one clicked, or -1.
+	int DrawChestList(const State& a_state, int a_selected, int a_except, float a_reserved);
+
+	// The chest's name and its items, read only, as the Load page's right column; `a_hint` as a
+	// field label while `a_index` is -1.
+	void DrawChestDetails(const State& a_state, int a_index, const char* a_hint);
 
 	// the Wardrobe page's selected outfit differs from the library, or its rows from the actor's.
 	bool HasManageEdits(const State& a_state);

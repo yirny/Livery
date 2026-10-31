@@ -678,6 +678,57 @@ namespace
 		});
 	}
 
+	// Whether the open window lists the chests (Request::offersChests at Open): their items
+	// were added to its piece list then, so the rebuilt list can find them.
+	bool g_chestsOffered = false;
+
+	// The chests in case-insensitive name order, each with its loaded items as indices from
+	// `indexOf`, as ListOutfits lists the outfits. Contract: game thread.
+	std::vector<CaptureWindow::ChestInfo> ListChests(const std::function<std::optional<std::size_t>(RE::TESObjectARMO*)>& indexOf)
+	{
+		std::vector<const Chests::Chest*> stored;
+		for (const auto& chest : Chests::All()) {
+			stored.push_back(&chest);
+		}
+		std::ranges::sort(stored, [](const Chests::Chest* a, const Chests::Chest* b) { return _stricmp(a->name.c_str(), b->name.c_str()) < 0; });
+
+		std::vector<CaptureWindow::ChestInfo> chests;
+		chests.reserve(stored.size());
+		for (const auto* chest : stored) {
+			CaptureWindow::ChestInfo info{ .name = chest->name, .id = chest->id };
+			for (auto* armor : Chests::LoadedPieces(*chest, &info.unloadedPieces)) {
+				if (const auto index = indexOf(armor)) {
+					info.pieces.push_back(*index);
+				}
+			}
+			std::ranges::sort(info.pieces);
+			chests.push_back(std::move(info));
+		}
+		return chests;
+	}
+
+	// The chests as the window opens with them: `armors` gains the items the actor does not
+	// carry, as ExistingOutfits does.
+	std::vector<CaptureWindow::ChestInfo> ExistingChests(std::vector<RE::TESObjectARMO*>& armors, std::vector<CaptureWindow::Piece>& pieces)
+	{
+		return ListChests([&](RE::TESObjectARMO* armor) -> std::optional<std::size_t> { return PieceIndex(armor, armors, pieces); });
+	}
+
+	// The chests again for the open window, as RebuiltOutfits; empty while it does not list them.
+	std::vector<CaptureWindow::ChestInfo> RebuiltChests(const std::vector<RE::TESObjectARMO*>& armors)
+	{
+		if (!g_chestsOffered) {
+			return {};
+		}
+		return ListChests([&](RE::TESObjectARMO* armor) -> std::optional<std::size_t> {
+			if (const auto found = std::ranges::find(armors, armor); found != armors.end()) {
+				return static_cast<std::size_t>(found - armors.begin());
+			}
+			logger::error("Chest item {:08X} is not in the capture window's list; left out of the rebuilt list", armor->GetFormID());
+			return std::nullopt;
+		});
+	}
+
 	// How the armor they wear differs from what Livery put on them, by `inventory`
 	// (CollectArmor): `notWorn`, Livery's pieces they wear no copy of (taken back in the trade
 	// menu, or taken off by another mod or by the player in their own inventory); `extra`, worn
@@ -1024,7 +1075,8 @@ namespace
 			.categories = CategoryOptions(),
 			.assigned = AssignedRows(choices),
 			.situations = SituationInfos(),
-			.restoreChanges = SituationStore::RestoreChanges() };
+			.restoreChanges = SituationStore::RestoreChanges(),
+			.chests = RebuiltChests(armors) };
 		if (choices) {
 			list.actorSummary = DescribeAssignment(*choices, g_capturedGaps);
 			list.dressed = choices->dressed;
@@ -1291,6 +1343,55 @@ namespace
 		};
 	}
 
+	// The Chests page and the chest editor (docs/chest-ui.md): each handler writes chests.json
+	// first and changes nothing on a refused or failed write; no chest is worn, so no row or
+	// dressing changes. The window, still open, shows the chests as written.
+	// Contract: game thread; `armors` matches request.pieces index for index.
+	void AttachChests(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
+	{
+		const auto actorID = actor.GetFormID();
+		request.onChestCreate = [actorID, armors](const std::string& name) {
+			if (const auto error = Chests::Create(name)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			Notify(std::format("Livery: created the chest \"{}\".", name));
+			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
+		};
+		request.onChestUpdate = [actorID, armors](const CaptureWindow::ChestEdit& edit) {
+			const auto* chest = Chests::Find(edit.chest);
+			if (!chest) {
+				CaptureWindow::SetError("The chest no longer exists.");
+				return;
+			}
+			const auto  oldName = chest->name;  // the update leaves `chest` stale
+			std::size_t unloaded = 0;
+			Chests::LoadedPieces(*chest, &unloaded);
+			const auto picked = PickPieces(armors, edit.pieces);
+			if (const auto error = Chests::Update(edit.chest, edit.name, picked)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			auto text = edit.name == oldName ? std::format("Livery: updated the chest \"{}\" ({} items)", edit.name, picked.size()) :
+			                                   std::format("Livery: updated the chest \"{}\", renamed from \"{}\" ({} items)", edit.name, oldName, picked.size());
+			if (unloaded) {
+				text += std::format("; {} item(s) from plugins that are not loaded stay in it", unloaded);
+			}
+			Notify(text + ".");
+			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
+		};
+		request.onChestRemove = [actorID, armors](std::uint32_t id) {
+			const auto* chest = Chests::Find(id);
+			const auto  name = chest ? chest->name : std::string{};  // read before Remove, which leaves `chest` stale
+			if (const auto error = Chests::Remove(id)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			Notify(std::format("Livery: removed the chest \"{}\".", name));
+			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
+		};
+	}
+
 	// The player's armor under Player's Inventory, for an NPC: the forms the NPC does
 	// not carry; the others are listed once, under the NPC's own headings. Returns the armor
 	// it added.
@@ -1348,6 +1449,13 @@ namespace
 		}
 		const auto offered = saveOnly ? std::vector<RE::TESObjectARMO*>{} : AddPlayerPieces(actor, armors, request.pieces);
 		request.existingOutfits = ExistingOutfits(armors, request.pieces);
+		// The chests' items join the list only while the window offers them, so a window
+		// without the Chests tab lists nothing of theirs.
+		g_chestsOffered = !saveOnly && Settings::ItemChests();
+		if (g_chestsOffered) {
+			request.offersChests = true;
+			request.chests = ExistingChests(armors, request.pieces);
+		}
 		AttachSave(request, actor, armors, choices);
 		if (saveOnly) {
 			request.saveOnly = true;
@@ -1359,6 +1467,9 @@ namespace
 			AttachPreview(request, actor, armors);
 			AttachManage(request, actor, armors, offered);
 			AttachSituations(request, actor, armors, offered);
+			if (request.offersChests) {
+				AttachChests(request, actor, armors);
+			}
 		}
 		// Every close, whatever closed the window, ends the preview, redresses the actors
 		// the Wardrobe page or the Situations page left for it, lets saving back on and lets an NPC
