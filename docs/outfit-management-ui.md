@@ -1,14 +1,13 @@
 # Outfit management UI
 
 Written 2026-10-20 for the AI that implements it, from the user's draft and the decisions
-made on it; current spec only. Three steps, each built, checked in game and committed
-before the next, each with CLAUDE.md §1 approval first: (1) the outfit list and the
-Dress page's buttons, (2) the tab column and the Wardrobe page with Update,
-(3) Remove. Docs follow the code in the step that makes them stale: design.md, README, and
-CLAUDE.md §2.1 (step 2 adds the Wardrobe page's Update path, step 3 the window's delete).
+made on it; current spec only: the outfit list, the Dress page's buttons, the tab column,
+the Wardrobe page with Update and Remove, and the redress while the window is open. The
+Dress page's piece list and the Save page are in docs/ui-redesign.md, the Situations page in
+docs/situation-management-ui.md, the chests in docs/chest-ui.md.
 
-The Dress page is today's Capture page (`Page::kCapture`), titled `#{Name}`.
-Docs call it the Dress page; code identifiers stay.
+The Dress page is `Page::kCapture` in code, titled `#{Name}`. Docs call it the Dress page;
+code identifiers stay.
 
 Window-wide look: field labels, list headings (folding ones included) and column labels
 are drawn in ASCII capitals (`Theme`'s `Caps`), the strings in code staying as
@@ -16,8 +15,8 @@ written; count lines (`Theme::CountText`), notes, buttons and links keep their c
 Vanilla and Nordic a page's two columns have a faint 1px rule between them, 4px short of
 the columns' top and bottom. Tooltips sit (32, 20)px from the mouse at 1080p
 (`style.MouseCursorScale`), clear of the game's cursor. In Vanilla and Nordic the rule after
-a list heading's text (the piece list's group headings, folding outfit list headings, Manage
-Situations' situation headings; not its `Situation List` heading) is SkyUI's MCM header rule,
+a list heading's text (the piece list's group headings, the Situations page's situation
+headings; not its `Situation List` heading) is SkyUI's MCM header rule,
 knot at its left end, in the headings' grey; lists and dropdown
 popups scroll with the game's journal scroll bar, 16px wide at 1080p with 2px clear on
 either side: its arrows are the game's art, its track and thumb drawn in code with 1px lines
@@ -34,10 +33,10 @@ marks, column labels and list headings take the label font: the small font (0.85
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add from Wardrobe...`,
 `Edit`, `Restore`, `Remove`, `Restore Presets`) take the small font in every skin.
 
-## 1. Outfit list (step 1)
+## 1. Outfit list
 
-The outfit list shared by the Load page, the Save page's Update tab and the Wardrobe page
-page. Each page keeps its own search and sort.
+The outfit list shared by the Load page, the Save page's Update tab, the Wardrobe page and
+the Situations page. Each page keeps its own search and sort.
 
 - Wording: the window calls the library the wardrobe (`12 outfit(s) in the wardrobe`,
   `Not in Wardrobe`).
@@ -97,7 +96,7 @@ page. Each page keeps its own search and sort.
 - The order and the situation mark text are computed when the list is refreshed, never per
   frame.
 
-## 2. Dress page (step 1)
+## 2. Dress page
 
 - Each group heading of the piece list starts with an icon (`Theme::HeadingIcon`), an 18px
   square at 1080p in every skin, in its grey, centred on the text's line. In Vanilla and Nordic
@@ -144,7 +143,7 @@ page. Each page keeps its own search and sort.
   Vanilla draws its buttons as text alone, 2px larger than the body font, grey
   and white while hovered, with no fill, 2px clear on either side.
 
-## 3. Tab column (step 2)
+## 3. Tab column
 
 - A column of icon tabs at the window's left edge, a rule between it and the page:
   the Dress page (a bare dress form: a padded torso on a stand, each shoulder one arc), the
@@ -161,10 +160,10 @@ page. Each page keeps its own search and sort.
 - Each tab is centred between the window's left edge and the rule, each drawing on its own
   middle down the tab, except the palette, on its frame's. Nordic's start 8px
   lower, clear of the corner knot.
-- Shown on the Dress page, the Wardrobe page, the Situations page and Appearance pages only; the
-  Load, Save, Select and Edit pages have none.
-- Switching tabs keeps the Dress page's ticks until the window closes. Leaving Manage
-  Wardrobe or the Situations page with unsaved edits asks first (§4,
+- Shown on the Dress, Wardrobe, Situations, Chests (docs/chest-ui.md) and Appearance pages
+  only; the Load, Save, Edit and chest editor pages have none.
+- Switching tabs keeps the Dress page's ticks until the window closes. Leaving the Wardrobe
+  page or the Situations page with unsaved edits asks first (§4,
   docs/situation-management-ui.md §6).
 - The rule: Modern, 1px in its rule colour (Tailor 3.0's sidebar divider). Vanilla, 2px in its
   rule grey. Nordic, NORDIC UI's vertical rope, the ornament left and right of the level-up
@@ -191,7 +190,7 @@ page. Each page keeps its own search and sort.
   `ChoosePalette`, `RestoreChosenPalette`, `SetMenuSounds`); the log names the page a change
   came from.
 
-## 4. The Wardrobe page (step 2)
+## 4. The Wardrobe page
 
 - Title `Wardrobe` (the tab's name too), no summary line. Two columns as on the Load
   page: the outfit list (§1) on the left; on the right the selected outfit, editable:
@@ -218,15 +217,15 @@ page. Each page keeps its own search and sort.
     takes (`SetOutfits`), starts the ticks again from the rows; Update and Remove ignore
     them. The Load page's details and the Save page's piece columns keep the
     same room before their count line. Their read-only piece rows have the same icons
-    (`Theme::TextRow`), and the outfit's name over the Load page's details, and over Manage
-    Situations' outfit details, its icon as the outfit list draws it (`Theme::OutfitNameText`).
+    (`Theme::TextRow`), and the outfit's name over the Load page's details, and over the
+    Situations page's outfit details, its icon as the outfit list draws it (`Theme::OutfitNameText`).
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
   has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Update's
   popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
   selected, the Dress page's ticks.
-- Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (step 3) at the row's right
+- Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (§5) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`).
   - Update: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
     with an empty name (`kNeedName`). A popup (`Save changes?`) lists
@@ -300,7 +299,7 @@ page. Each page keeps its own search and sort.
   unticked (all ticked again when they were all); nothing is written. `Back` and Escape
   return with the edited pieces as they were.
 
-## 5. Remove (step 3)
+## 5. Remove
 
 - `Remove` on the Wardrobe page, enabled with an outfit selected (greyed with `kNeedOutfit` on
   hover without one). A popup names the outfit and
@@ -323,14 +322,14 @@ page. Each page keeps its own search and sort.
   as not on the row and never shows (docs/situation-management-ui.md §1), and restoring
   outfits.json brings it back.
 
-## 6. Redressing while the window is open (steps 2 and 3)
+## 6. Redressing while the window is open
 
 Assignments run only with no preview on, since the preview restores what it found at
 `OutfitPreview::Begin`. A Wardrobe page change that redresses:
 
 - the captured actor, at once, Live Preview on or off. With it on, one SKSE task runs
   `OutfitPreview::End`, the assignment change, then `OutfitPreview::Begin` with the outfit
-  The Wardrobe page has selected (Update), or with what they wear now (Remove), so the new
+  the Wardrobe page has selected (Update), or with what they wear now (Remove), so the new
   state is what the preview later restores. The camera and the movement hold stay. When
   Begin refuses, the Live Preview tick greys with the reason, as at Open. With it off, the
   assignment runs in the game the window froze, and the NPC's model is rebuilt at once
@@ -359,38 +358,38 @@ first.
 
 ## 7. Code
 
-- `src/CaptureWindow.cpp` (about 2400 lines) splits at the start of step 2, in a move-only
-  commit: the outfit browser, the outfit lists and the Load, the Wardrobe page and Edit
-  pages go to `src/OutfitPages.cpp`; the state and shared helpers to a header private to
-  the two files. `CMakeLists.txt` gains the file (CLAUDE.md §1, build system).
-- `CaptureWindow`: pages for the Wardrobe page and Edit; `SetOutfits` (the rebuilt outfits
-  and rows, the window's indices into them found again by id); a call that greys
-  Live Preview with a reason; `Request::onManageUpdate` and, in step 3,
-  `onManageRemove` and each outfit's users for Remove's popup; `onManageApply` with one row
-  (`Request::wornFor` tells the row of the outfit worn); Apply's popup body
-  (`DrawApplyPopupBody`, `ApplySubject`), which the Save page's Create and Apply shares.
-- `OutfitBrowser`: sort keys Name, Situation (`SetSort`); per outfit its heading,
-  rows and situation mark text; the folded headings. Unit tests cover the keys, the
-  headings, the folding and the marks.
-- `Library`: `Remove` (step 3), written through the temporary file as Create and Update are.
-- `Assignments`: `ForgetOutfit` (step 3), returning the actors wearing it.
-- `Theme`: the tab column, its icons and rule (Nordic's rope texture), the outfit row with
-  its marks (`OutfitMarks`), the folding headings of a sorted outfit
-  list (`FoldHeading`), the rows' fills and NORDIC UI's line, the dropdown rows
-  (`DropdownRow`), a label's `(?)` (`LabelHelpMark`), a list heading's (`ListHeadingHelp`),
-  a link with its `(?)` (`LabelHelpLink`), a button with one (`HelpButton`), the underlined
-  fields with the pen, the icons (bare and dressed form, star, palette), `AfterFieldGap`.
+- `src/CaptureWindow.cpp`: the window, the Dress page, the tab column and the
+  unsaved-changes alert; `src/OutfitPages.cpp`: the outfit browser, the outfit lists and the
+  Load, Wardrobe and Edit pages; `src/CaptureWindowInternal.h`: the state and helpers the
+  window's files share.
+- `CaptureWindow`: `SetOutfits` (the rebuilt outfits and rows, the window's indices into
+  them found again by id); a call that greys Live Preview with a reason;
+  `Request::onManageUpdate`, `onManageRemove` and each outfit's users for Remove's popup;
+  `onManageApply` with one row (`Request::wornFor` tells the row of the outfit worn);
+  Apply's popup body (`DrawApplyPopupBody`, `ApplySubject`), which the Save page's Create
+  and Apply shares.
+- `OutfitBrowser`: the sort keys (`SetSort`), the search and the hidden Filter
+  (`kShowFilter`); per outfit its rows and situation mark text. Unit tests cover the keys
+  and the marks (`test/OutfitBrowserTests.cpp`).
+- `Library`: `Remove`, written through the temporary file as Create and Update are.
+- `Assignments`: `ForgetOutfit`, returning the actors wearing it.
+- `Theme` (sarrai-common): the tab column, its icons and rule (Nordic's rope texture), the
+  outfit row with its marks (`OutfitMarks`), the rows' fills and NORDIC UI's line, the
+  dropdown rows (`DropdownRow`), a label's `(?)` (`LabelHelpMark`), a list heading's
+  (`ListHeadingHelp`), a link with its `(?)` (`LabelHelpLink`), a button with one
+  (`HelpButton`), the underlined fields with the pen, the icons (bare and dressed form, star,
+  palette), `AfterFieldGap`.
 - `Plugin.cpp`: the Situation group for `Request::categories` and each outfit's rows, the
-  The Wardrobe page handlers, the redress queue (§6).
+  Wardrobe page handlers, the redress queue (§6).
 
 ## 8. Checks
 
-- Step 1: each sort's headings, folded and unfolded; Load from its button; the three skins.
-- Step 2: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
+- Outfit list: each sort's order; Load from its button; the three skins.
+- Wardrobe page: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
   rebuilt list; a taken name refused; Edit, Use Ticked Items and Back; the three warnings;
   Update of the outfit the captured actor wears, at once with Live Preview on and off (the
   frozen game showing the new outfit, no empty torso); the three skins.
-- Step 3: Remove of an outfit in use lists its users; the captured actor wearing it for a
+- Remove: Remove of an outfit in use lists its users; the captured actor wearing it for a
   situation changes at once, Live Preview on or off; a default from it keeps its
   pieces; the assignments survive save and load.
 - Situations and Apply: ticking a free situation and Default, then one that wears another

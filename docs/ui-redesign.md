@@ -1,12 +1,13 @@
-# Capture window redesign
+# Dress page, Save page and Apply
 
-Written 2026-10-19 for the AI that implements it. Decided with the user from their draft of
-this file; current spec only. It reworks the existing window (design.md §8 item 7) in three
-steps, each built, checked in game and committed before the next: (1) the Capture page,
-(2) the Save page, (3) Apply. Every step needs CLAUDE.md §1 approval first. Docs follow the
-code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that makes them stale.
+Written 2026-10-19 for the AI that implements it, decided with the user; current spec only.
+The Dress page's piece list and buttons (§1), the settings and the transfer from the player's
+inventory (§2, §3), the Save page (§4) and Apply (§5). The outfit list, the tab column, the
+Wardrobe page and Remove are in docs/outfit-management-ui.md, the Situations page in
+docs/situation-management-ui.md, the chests in docs/chest-ui.md; design.md §2 has the
+dressing itself.
 
-## 1. Capture page (today's Pieces page)
+## 1. Dress page
 
 - Title: `#{Name}`, the actor's name. The summary line under it stays.
 - The piece list is grouped under headings, in this fixed order, a heading with no piece hidden:
@@ -21,56 +22,51 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   5. `#{Player}'s Inventory`, the player's name (`Player` when it has none; NPC target only): the player's armor, per the settings (§2);
      a form the NPC also carries is listed once, under 1–4.
   6. `"#{Outfit}"`: pieces of the loaded outfit nobody carries, listed while
-     it is loaded (today's `owned == false` rows).
+     it is loaded (`owned == false` rows); a loaded chest's items too (docs/chest-ui.md).
 - Three columns: Name, Type, Slot; Slot only with `ShowSlotColumn` on (INI `[Window]`, SKSE
   Menu Framework; off by default), else Type ends at the list's right end. Type's strings and rules are SkyUI's, from the biped
-  slots, taken from the SkyUI source (schlangster/skyui on GitHub, the inventory data setter)
-  at implementation time, never from memory. Slot lists the piece's body slots by number,
+  slots, taken from the SkyUI source (schlangster/skyui on GitHub, the inventory data setter),
+  or the Type an I4 rule gives (design.md §9). Slot lists the piece's body slots by number,
   lowest first (`32, 34`), sorts by the lowest, and is as wide as its widest text up to four
   slots; a longer list ends in an ellipsis. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
   come first; Name ascending to start.
-- The count line `x of y item(s) selected` moves under the list, ending in `Add from
-  Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview stays as it is.
-- Assign for and `Situations...` go, with the Situations page (§4 covers assignment).
-- Buttons: `Save` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
+- The count line `x of y item(s) selected` sits under the list, ending in `Add from
+  Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview follows it.
+- Buttons: `Create / Update Outfit` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
   `Exit`. `Restore` at the right end of the button row: a borderless text
   button lit on hover, with a `(?)`, shown only while Livery dresses the actor. It ends
   Livery's dressing of them. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
   situational outfits. Items moved from your inventory stay with them."
-- Library: the group "Armor Type" becomes "Class" (constant, Sort key, `No Class` filter row)
-  with SkyUI's four class names, Jewelry new. `DetectArmorClass` follows SkyUI's rule. Where the
-  stored names change, `Load` maps the old ones (Light Armor, Heavy Armor, Clothing); the file
-  is rewritten at the next Create or Update, never at load.
-- Theme: a header row widget and a multi-column `TickRow`, a borderless text button.
-- Needs: `Assignments::Choices` exposes the armor FormIDs of the pieces Livery has on them.
+- `Assignments::Choices` exposes the armor FormIDs of the pieces Livery has on them, which
+  the headings are built from.
 
 Checks: headings and columns on an NPC Livery dresses in a library outfit, on one it dresses in
 loose pieces, on an undressed NPC and on the player; Restore on a dressed NPC; sorting.
 
 ## 2. Settings
 
-INI + SKSE Menu Framework, nothing in the window. Names provisional.
+INI + SKSE Menu Framework, nothing in the window.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `[Window] ShowPlayerInventory` | 1 | NPC target: list the player's armor under heading 4 |
+| `[Window] ShowPlayerInventory` | 1 | NPC target: list the player's armor under heading 5 |
 | `[Window] ShowPlayerWornPieces` | 0 | ...including what the player wears |
-| `[Transfer] MoveFromPlayer` | 1 | Apply moves the player's instance to the NPC (§3); off: a plain copy, as today |
-| `[Transfer] ProtectFavorites` | 1 | favorites are left out of heading 4, as quest items always are |
+| `[Transfer] MoveFromPlayer` | 1 | Apply moves the player's instance to the NPC (§3); off: a plain copy |
+| `[Transfer] ProtectFavorites` | 1 | favorites are left out of heading 5, as quest items always are |
 
 ## 3. Transfer
 
-- At Apply only, for ticked pieces under heading 4: `TESObjectREFR::RemoveItem(armor, 1,
+- At Apply only, for ticked pieces under heading 5: `TESObjectREFR::RemoveItem(armor, 1,
   ITEM_REMOVE_REASON::kStoreInContainer, extraList, npc)` moves the instance with its extra
   data (the container menu's path). The instance is chosen as Dress does: enchanted, else the
   most tempered, else plain. Then Dress finds it in the NPC's inventory.
 - Quest items (`InventoryEntryData::IsQuestObject`, per form) and, with ProtectFavorites,
-  favorites (`IsFavorited`) are not listed. Heading 4's `(?)` says so.
+  favorites (`IsFavorited`) are not listed. Heading 5's `(?)` says so.
 - The NPC's inventory is read again after the moves. A piece that did not move is dropped
   from Dress's list and counted in the HUD message; never a silent copy.
 - A moved instance is not `added`: Restore leaves it with the NPC, as a traded item.
-- The preview and Create / Update Outfit move nothing.
+- The preview and Create / Update Outfit move nothing; Create and Apply moves as Apply does.
 
 Checks: an enchanted piece moves with its enchantment; a quest item and a favorite are not
 listed; the HUD counts moved pieces; the NPC keeps the piece after Restore.
@@ -150,7 +146,7 @@ when they wear it; a failed write assigns nothing.
   situation it adds `"X" is #{Name}'s Town outfit.`
   - `Yes`: `Library::Update(X, pieces = ticks, name kept)`. Default
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced
-    redress puts the updated outfit on (new Assignments API; `WearFor` only redresses on a
+    redress puts the updated outfit on (`Assignments::Refresh`; `WearFor` only redresses on a
     change).
   - `No, apply as is`: `Assign(ticks, 0)`: the ticks become the Default's pieces, `chosen`
     0, random off. Its `(?)`: the pieces become #{Name}'s Default as they are, without a
@@ -163,24 +159,3 @@ when they wear it; a failed write assigns nothing.
 Checks: no modal on a dressed NPC with one piece unticked, which comes off and stays unticked
 on the Wardrobe page; the modal with a piece of another outfit ticked; Yes while a Town outfit is worn updates that outfit and the NPC wears it at once; No
 in a town changes nothing visible until the NPC leaves.
-
-## 6. Removed
-
-- Assign for, `Situations...` and the Situations page (§1, §4).
-- The Tailor export: `src/TailorExport.cpp/.h`, its CMake line, the three `TailorExport::Write`
-  calls in `src/Library.cpp`, design.md §4 and §6 entries, §8 item 6, the README section.
-
-## 7. Situational outfits: model and roadmap
-
-Situation data (name, later conditions) is global, in `situations.json`. Per
-actor, per row (the Default and each situation): a list of library outfits, a random flag
-and the outfit worn with random off. Spec and steps: docs/situation-management-ui.md.
-
-## 8. API changes
-
-- `Assignments::Choices`: the armor FormIDs Livery has on the actor (§1).
-- `Assignments`: clear the default alone; apply several assignment changes with one redress;
-  force a redress of the worn situation outfit (§4, §5).
-- `Library::Update`: the name (§4).
-- `Settings`: the four keys of §2 and their menu entries.
-- `Theme`: column header row, multi-column `TickRow`, text-only tabs, borderless text button.
