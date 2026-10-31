@@ -41,8 +41,9 @@ selected chest again by id.
 ### Chests tab
 
 The fifth tab (a chest: a box with a domed lid), between Situations and Appearance, while
-`offersChests`. The page lists the chests by name over a count line; a click opens the editor
-on that chest. `Create New Chest` opens the `New chest` popup: a name field (`Chest Name` on
+`offersChests`. Its heading's subtitle: `Items in a chest can be loaded on the Inventory page.`
+Under `Select a chest to open` the page lists the chests by name over a count line; a click
+opens the editor on that chest. `Create New Chest` opens the `New chest` popup: a name field (`Chest Name` on
 hover), `Create` (Enter) and `Cancel` (Escape); Create hands the name to `onChestCreate`, which
 adds an empty chest, and the list shows it. A taken or empty name is refused with the message
 under the list. `Exit` or Escape closes the window.
@@ -50,13 +51,14 @@ under the list. `Exit` or Escape closes the window.
 ### Chest editor
 
 Reached from the Chests page; no tab column. Title `Edit "#{Chest}"`. The name field, then two
-columns and `Update` / `Remove` / `Back`:
+columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the Wardrobe page's:
 
 - Left, `Items` (the backpack before the label): the items someone carries that are not in the chest, under the Inventory
   page's group headings in its order (`State::pieceOrder`), each row its icon and name; then,
   under `Taken out of chest` (the chest icon), the items taken out that nobody carries, listed
   until the page is left. A click puts the item in. On one line under the list, at the column's
-  right end, `Add from Wardrobe...` and `Add from Chest...` open the Load page (`LoadTarget::kChest`) listing the outfits or the other
+  right end, `Add from Wardrobe...` (the Wardrobe tab's form after its plus) and `Add from
+  Chest...` (the chest) open the Load page (`LoadTarget::kChest`) listing the outfits or the other
   chests; its `Add` puts the selection's items in and returns. `No other chests.` greys the
   second link while this is the only chest.
 - Right, `In Chest` (the chest icon before the label): the chest's items as edited, in the same order, over a count line that
@@ -74,7 +76,8 @@ columns and `Update` / `Remove` / `Back`:
 
 - The Inventory page's and the Edit page's count line end in `Add from Wardrobe...`; while
   `offersChests`, `Add from Chest...` (greyed with `No chests yet.`) is right-aligned on the
-  line below it (`Theme::LinkLine::kNext`). On the Inventory page both are hidden for the
+  line below it (`Theme::LinkLine::kNext`, 4px further apart). Each link has its icon after
+  the plus: the Wardrobe tab's form, the chest. On the Inventory page both are hidden for the
   player while they dress from their inventory only, as before. The chest link opens
   the Load page with the chests listed (`LoadSource::kChests`): a plain list by name on the
   left, the selected chest's name and items on the right, no preview change, `Load` greyed while
@@ -106,7 +109,7 @@ uses), `src/OutfitPages.cpp` (the Load page's chest mode and targets), `src/Capt
 `ChestForm`), `src/CaptureWindow.h` (`ChestInfo`, `ChestEdit`, the handlers), `src/Plugin.cpp`
 (`Chests::Load` at `kDataLoaded`, the chests in the request, the handlers), `src/Settings.cpp`
 (`[Window] ItemChests`), `lib/sarrai-common` (`Theme::TabIcon::kChests`,
-`Theme::HeadingIcon::kChest`, `Theme::LinkLine`, `LabelText` with an icon), `test/PieceFileTests.cpp`.
+`Theme::HeadingIcon::kChest`, `Theme::LinkLine`, `LabelText` and `LabelLink` with an icon), `test/PieceFileTests.cpp`.
 
 ## 4. Checks
 
