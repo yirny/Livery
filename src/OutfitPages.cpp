@@ -476,10 +476,8 @@ namespace CaptureWindow::Internal
 			a_state.pieceTicked[i] = HasPiece(outfit, i);
 		}
 		a_state.loadedOutfit = a_state.previewedOutfit;
-		a_state.inventoryShown = outfit.pieces;
-		a_state.inventoryShownNames = { outfit.name };
-		a_state.inventoryShownFromChest = false;
-		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = EditShownHeading(a_state.inventoryShownNames);
+		a_state.inventorySources = { { .id = outfit.id, .name = outfit.name, .pieces = outfit.pieces } };
+		SetInventoryShown(a_state);
 	}
 
 	// Lists the selected chest's items on the Inventory page and ticks none: the ticks stay, so
@@ -488,19 +486,15 @@ namespace CaptureWindow::Internal
 	void LoadChest(State& a_state)
 	{
 		const auto& chest = ChestAt(a_state, a_state.previewedChest);
-		std::erase_if(a_state.inventoryShown, [&a_state](std::size_t a_piece) { return !a_state.pieceTicked[a_piece]; });
-		auto& names = a_state.inventoryShownNames;
-		if (a_state.inventoryShown.empty()) {
-			names.clear();
+		auto&       sources = a_state.inventorySources;
+		std::erase_if(sources, [&chest](const ShownSource& a_source) { return a_source.chest && a_source.id == chest.id; });  // loaded again, whole
+		for (auto& source : sources) {
+			std::erase_if(source.pieces, [&a_state](std::size_t a_piece) { return !a_state.pieceTicked[a_piece]; });
+			source.whole = false;
 		}
-		std::vector<std::size_t> shown;
-		std::ranges::set_union(a_state.inventoryShown, chest.pieces, std::back_inserter(shown));
-		a_state.inventoryShown = std::move(shown);
-		if (std::ranges::find(names, chest.name) == names.end()) {
-			names.push_back(chest.name);
-		}
-		a_state.inventoryShownFromChest = true;
-		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = EditShownHeading(names);
+		std::erase_if(sources, [](const ShownSource& a_source) { return a_source.pieces.empty(); });
+		sources.push_back({ .chest = true, .id = chest.id, .name = chest.name, .pieces = chest.pieces });
+		SetInventoryShown(a_state);
 	}
 
 	// A load opened from the Edit page adds to that page's ticks or list (Edit page section).
