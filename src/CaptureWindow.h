@@ -183,13 +183,13 @@ namespace CaptureWindow
 	// `tail`; the names and marks stand out of the grey.
 	struct ActorSummary
 	{
-		std::string       lead;
-		std::string       outfit;
-		OutfitIcons::Icon icon;
-		std::string       link;
-		std::string       situation;
-		bool              situationIsDefault = false;  // marked with the Default's form, not the situations' star
-		std::string       tail;
+		std::string lead;
+		std::string outfit;
+		std::string iconKey;  // OutfitIcons::Icon::key
+		std::string link;
+		std::string situation;
+		bool        situationIsDefault = false;  // marked with the Default's form, not the situations' star
+		std::string tail;
 	};
 
 	struct Request

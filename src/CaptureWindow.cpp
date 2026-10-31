@@ -683,7 +683,7 @@ namespace CaptureWindow::Internal
 		}
 		const std::array<Theme::SubtitleRun, 5> runs{ {
 			{ .text = a_summary.lead.c_str() },
-			{ .text = a_summary.outfit.c_str(), .rowIcon = RowIconOf(a_summary.icon) },
+			{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey },
 			{ .text = a_summary.link.c_str() },
 			{ .text = a_summary.situation.c_str(), .icon = a_summary.situationIsDefault ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar },
 			{ .text = a_summary.tail.c_str() },
