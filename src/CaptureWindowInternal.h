@@ -48,6 +48,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedName = "Enter a name.";
 	constexpr const char* kNeedPiece = "Tick at least one item.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
+	constexpr const char* kAddFrom = "Add from";  // the words of the links under a piece list, before their icon (DrawCountLink)
 	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
 	// The Chests page's and the chest editor's (docs/chest-ui.md).
@@ -324,9 +325,9 @@ namespace CaptureWindow::Internal
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
 	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
-	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text), with
-	// the Wardrobe tab's form or the Chests tab's chest in place of its plus.
-	bool        DrawCountLink(const char* a_label, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame,
+	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text):
+	// "[+] Add from <a_icon> <a_name>", with the Wardrobe tab's form or the Chests tab's chest.
+	bool        DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame,
 		float a_reserveRight = 0.0f);
 	void        DrawPreviewToggle(State& a_state, const PieceList& a_list);
 	std::string Trimmed(const char* a_text);
