@@ -1,6 +1,6 @@
 # Livery — Claude Code Rules
 
-SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v9.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Livery dresses NPCs and the player in outfits of its own (`docs/design.md`): the capture hotkey (INI, default F10) on a crosshair NPC, or on the player when nothing is aimed at, opens an ImGui window that saves the worn armor into Livery's library (`Data/SKSE/Plugins/Livery/outfits.json`, `src/Library.cpp`) and assigns or releases an outfit by direct equip + PreventRemoval, kept in the SKSE co-save (`src/Assignments.cpp`, `src/Dressing.cpp`). Release everyone (the uninstall step) is a button on the SKSE Menu Framework settings page; no key does it.
+SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v13.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Livery dresses NPCs and the player in outfits of its own (`docs/design.md`): the capture hotkey (INI, default Shift + X) on a crosshair NPC, or on the player when nothing is aimed at, opens an ImGui window that saves the worn armor into Livery's library (`Data/SKSE/Plugins/Livery/outfits.json`, `src/Library.cpp`) and assigns or releases an outfit by direct equip + PreventRemoval, kept in the SKSE co-save (`src/Assignments.cpp`, `src/Dressing.cpp`). Release everyone (the uninstall step) is a button on the SKSE Menu Framework settings page; no key does it.
 
 Build (Windows): run inside the VS developer environment (`.vscode/tasks.json` does this; default build task = `Ctrl+Shift+B`):
 `cmake --preset release-windows` then `cmake --build --preset release-windows` → `build/msvc/livery.dll`.
@@ -70,7 +70,7 @@ The library (`outfits.json`, `src/Library.cpp`) is shared by every save and char
 - Null-check what the engine or API may return null. No speculative try/catch, retries or fallbacks — add only after a reported failure.
 - **Constants:** used in one function → local `constexpr`; shared in a file → anonymous-namespace `constexpr` at file top (`kName`); user-tunable → ask where it lives (INI etc.). Check single-use before hoisting. User says "constant" → follow.
 - **Style:** `.clang-format` (CI checks `src/` and `test/`). Format only what you change.
-- **Git:** commit each verified change on a branch (not `main`); Conventional Commits `feat|fix|chore|refactor` (defined in `lefthook.yml`; lefthook is not installed on this PC, so follow it by hand), English. Never push unless asked — `upstream` is the template repo; there is no `origin` yet.
+- **Git:** commit each verified change on a branch (not `main`); Conventional Commits `feat|fix|chore|refactor` (defined in `lefthook.yml`; lefthook is not installed on this PC, so follow it by hand), English. Never push unless asked — `origin` is github.com/yirny/Livery, `upstream` the template repo.
 
 ## 4. Readability
 
