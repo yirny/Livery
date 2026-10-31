@@ -128,7 +128,7 @@ nothing for the Default; the summary line names the Default too. Only these:
 
 | Where | Text |
 | --- | --- |
-| Inventory summary line (`DescribeAssignment`) | `Wearing "X" for Town.`, `Wearing "X" as Default.`; `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library; with pieces Livery put on no longer worn (`PiecesNotWorn`), `Assigned "X" as Default, 1 item not worn.`, `Dressed by Livery, 2 items not worn.`; with worn armor Livery did not put on, `, 1 extra item worn` after them (`GapsOf`) |
+| Inventory summary line (`DescribeAssignment`) | `Wearing X for Town.`, `Wearing X as Default.`, each name with its icon in the palette's `Emphasis` colour (`Theme::SubtitleRun`); `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library; with pieces Livery put on no longer worn (`PiecesNotWorn`), `Assigned X as Default, 1 item not worn.`, `Dressed by Livery, 2 items not worn.`; with worn armor Livery did not put on, `, 1 extra item worn` after them (`GapsOf`) |
 | Situation change HUD (`SituationChangeText`) | `Livery: Lydia now wears "X" for Town.` |
 | Assign HUD, nothing went on | `...; dressed now for Town.` |
 | Assign HUD | `Livery: Lydia now wears these for Town` |

@@ -178,11 +178,25 @@ namespace CaptureWindow
 		std::vector<std::uint32_t> excluded;
 	};
 
+	// The line under the title. With no outfit, `lead` alone is the whole sentence ("" for no
+	// line). With one: `lead`, the outfit's icon and name, `link`, the situation's mark and name,
+	// `tail`; the names and marks stand out of the grey.
+	struct ActorSummary
+	{
+		std::string       lead;
+		std::string       outfit;
+		OutfitIcons::Icon icon;
+		std::string       link;
+		std::string       situation;
+		bool              situationIsDefault = false;  // marked with the Default's form, not the situations' star
+		std::string       tail;
+	};
+
 	struct Request
 	{
 		std::string        actorName;          // the title line names them
 		std::string        playerName;         // PieceGroup::kPlayer's heading names them; "" for "Player"
-		std::string        actorSummary;       // shown greyed under the title line; "" for none
+		ActorSummary       actorSummary;       // under the title line
 		bool               dressed = false;    // Livery has pieces on the character, which shows Restore
 		std::size_t        piecesNotWorn = 0;  // of those, the ones they wear no copy of now (taken back in the trade menu, taken off)
 		std::size_t        extraWorn = 0;      // worn armor Livery did not put on, while it has pieces on them
@@ -350,7 +364,7 @@ namespace CaptureWindow
 		std::vector<SituationInfo>  situations;
 		std::vector<std::string>    restoreChanges;
 		std::vector<ChestInfo>      chests;  // empty while Request::offersChests is off
-		std::string                 actorSummary;
+		ActorSummary                actorSummary;
 		bool                        dressed = false;    // as Request::dressed
 		std::size_t                 piecesNotWorn = 0;  // as Request::piecesNotWorn
 		std::size_t                 extraWorn = 0;      // as Request::extraWorn

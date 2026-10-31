@@ -794,22 +794,29 @@ namespace
 		return count(gaps.notWorn, "item", "not worn") + count(gaps.extra, "extra item", "worn");
 	}
 
-	// The line under the actor's name: what Livery has on them now and what for, `Wearing "X"
-	// for Town.` or `Wearing "X" as Default.` Items that are not a saved outfit, or an outfit
-	// gone from the library (another save's), which the window shows no row of, go unnamed:
-	// `Dressed by Livery.` With Livery's pieces off them the outfit is only theirs, and the
-	// differences follow: `Assigned "X" as Default, 1 piece not worn, 2 extra pieces worn.`
-	std::string DescribeAssignment(const Assignments::Choices& choices, const WornGaps& gaps)
+	// The line under the actor's name: what Livery has on them now and what for, `Wearing X
+	// for Town.` or `Wearing X as Default.`, the names picked out by the window. Items that are
+	// not a saved outfit, or an outfit gone from the library (another save's), which the window
+	// shows no row of, go unnamed: `Dressed by Livery.` With Livery's pieces off them the outfit
+	// is only theirs, and the differences follow: `Assigned X as Default, 1 item not worn, 2
+	// extra items worn.`
+	CaptureWindow::ActorSummary DescribeAssignment(const Assignments::Choices& choices, const WornGaps& gaps)
 	{
 		if (!choices.dressed) {
-			return "Not dressed by Livery right now.";
+			return { .lead = "Not dressed by Livery right now." };
 		}
 		const auto* stored = choices.wornOutfit ? Library::Find(choices.wornOutfit) : nullptr;
 		if (!stored) {
-			return std::format("Dressed by Livery{}.", GapsText(gaps));
+			return { .lead = std::format("Dressed by Livery{}.", GapsText(gaps)) };
 		}
-		const auto worn = choices.worn == Situations::Situation::kDefault ? " as " + SituationStore::Name(choices.worn) : SituationStore::Suffix(choices.worn);
-		return std::format("{} \"{}\"{}{}.", gaps.notWorn == 0 ? "Wearing" : "Assigned", stored->name, worn, GapsText(gaps));
+		const bool isDefault = choices.worn == Situations::Situation::kDefault;
+		return { .lead = gaps.notWorn == 0 ? "Wearing " : "Assigned ",
+			.outfit = stored->name,
+			.icon = stored->icon,
+			.link = isDefault ? " as " : " for ",
+			.situation = SituationStore::Name(choices.worn),
+			.situationIsDefault = isDefault,
+			.tail = GapsText(gaps) + "." };
 	}
 
 	// The library outfit Livery has on them now, for the first heading of the piece list;
@@ -1484,7 +1491,7 @@ namespace
 		if (saveOnly) {
 			request.saveOnly = true;
 			request.offersWardrobe = false;
-			request.actorSummary = std::format("You can save {}'s equipped items as a new outfit, but not change what they wear.", request.actorName);
+			request.actorSummary.lead = std::format("You can save {}'s equipped items as a new outfit, but not change what they wear.", request.actorName);
 			AttachSaveOnlyPreview(request, actor);
 		} else {
 			AttachAssignment(request, actor, armors, offered, choices);
