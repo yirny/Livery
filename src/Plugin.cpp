@@ -812,7 +812,7 @@ namespace
 		const bool isDefault = choices.worn == Situations::Situation::kDefault;
 		return { .lead = gaps.notWorn == 0 ? "Wearing " : "Assigned ",
 			.outfit = stored->name,
-			.icon = stored->icon,
+			.iconKey = stored->icon.key,
 			.link = isDefault ? " as " : " for ",
 			.situation = SituationStore::Name(choices.worn),
 			.situationIsDefault = isDefault,
