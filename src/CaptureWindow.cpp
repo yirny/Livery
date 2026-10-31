@@ -698,7 +698,7 @@ namespace CaptureWindow::Internal
 	{
 		switch (a_state.page) {
 		case Page::kCapture:
-			DrawSummaryHeading(a_state.captureTitle.c_str(), a_state.request.actorSummary);
+			DrawSummaryHeading(a_state.request.actorName.c_str(), a_state.request.actorSummary);
 			break;
 		case Page::kManage:
 			Theme::HeadingText("Wardrobe");
@@ -2189,7 +2189,6 @@ namespace CaptureWindow
 			state.status = Status::kEditing;
 			state.resetImGui = true;
 			state.page = Page::kCapture;
-			state.captureTitle = std::format("{}'s Inventory", state.request.actorName);
 			state.applyTooltip = std::format("Dress {} in the ticked items.", state.request.actorName);
 			SetGroupHeadings(state);
 			state.sortColumn = kNameColumn;
