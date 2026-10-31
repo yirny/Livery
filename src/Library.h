@@ -2,6 +2,7 @@
 #pragma once
 
 #include "OutfitIcons.h"
+#include "PieceFile.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -12,20 +13,15 @@
 
 // Livery's outfit library (docs/design.md §4): named sets of armor shared by every save,
 // kept in Data/SKSE/Plugins/Livery/outfits.json (see Library.cpp). A piece is stored as
-// the file name of the plugin that defines it and its FormID within that plugin, so the
-// library survives load order changes; a piece whose plugin is not loaded stays in it.
+// the file name of the plugin that defines it and its FormID within that plugin
+// (PieceFile::PieceRef), so the library survives load order changes; a piece whose plugin is
+// not loaded stays in it.
 //
 // Contract: every function runs on the game thread (SKSE task); the capture window never
 // calls here. Load runs once at kDataLoaded, before any other function.
 namespace Library
 {
-	// One armor piece as the file stores it.
-	struct PieceRef
-	{
-		std::string plugin;       // file name of the plugin that defines the armor
-		RE::FormID  localID = 0;  // its FormID within that plugin (12 bits for a light plugin)
-		std::string name;         // its name when saved, for people reading the file only
-	};
+	using PieceRef = PieceFile::PieceRef;
 
 	struct Outfit
 	{
