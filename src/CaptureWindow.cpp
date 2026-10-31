@@ -7,11 +7,11 @@
 //   Input        - QueueInput translates engine events and moves the game's cursor;
 //                  FeedInput hands them and the cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers; the tab column
-//                  (Inventory, the Wardrobe page, the Situations page, the Chests page while
+//                  (the Dress page, the Wardrobe page, the Situations page, the Chests page while
 //                  Request::offersChests, Appearance) and its rule beside those pages; leaving a
 //                  page with unsaved edits through the unsaved-changes alert (Save Changes,
 //                  Discard Changes, Back); mouse and key input over the game goes to onViewInput
-//   Capture page - the Inventory page: the actor's pieces under a heading per group (their
+//   Capture page - the Dress page: the actor's pieces under a heading per group (their
 //                  Livery outfit, other worn, carried, the player's, the loaded outfit's or
 //                  chest's), in Name / Type / Slot (Settings) columns sorted by a click on a
 //                  column label (the piece list the Edit page shows too, PieceList), each tick
@@ -307,7 +307,7 @@ namespace CaptureWindow::Internal
 		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
-	// The Inventory page's list: its ticks, the pieces nobody carries that a Load listed
+	// The Dress page's list: its ticks, the pieces nobody carries that a Load listed
 	// (State::inventoryShown) under the heading naming where they came from, with the chest
 	// icon while a chest was loaded last.
 	PieceList InventoryPieces(const State& a_state)
@@ -341,7 +341,7 @@ namespace CaptureWindow::Internal
 		return ticked;
 	}
 
-	// The Inventory page's ticks, which Save and Apply act on.
+	// The Dress page's ticks, which Save and Apply act on.
 	std::vector<std::size_t> TickedPieces(const State& a_state)
 	{
 		return Ticked(a_state, InventoryPieces(a_state));
@@ -514,14 +514,14 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
 	}
 
-	// The Inventory page, the Wardrobe page, the Situations page, the Chests page and Appearance
+	// The Dress page, the Wardrobe page, the Situations page, the Chests page and Appearance
 	// have the tab column at the window's left edge; the pages they lead to do not.
 	bool HasTabs(Page a_page)
 	{
 		return a_page == Page::kCapture || a_page == Page::kManage || a_page == Page::kSituations || a_page == Page::kChests || a_page == Page::kAppearance;
 	}
 
-	// Inventory, the Wardrobe page, the Situations page, the Chests page (Request::offersChests),
+	// The Dress page, the Wardrobe page, the Situations page, the Chests page (Request::offersChests),
 	// then Appearance, each centred between the window's left edge and the rule. A click on
 	// another tab leaves the page for it (RequestLeave).
 	void DrawTabColumn(State& a_state)
@@ -533,8 +533,8 @@ namespace CaptureWindow::Internal
 			Page           page;
 		};
 		constexpr std::array<TabOption, 5> kTabs{ {
-			{ Theme::TabIcon::kInventory, "Inventory", Page::kCapture },
-			{ Theme::TabIcon::kOutfits, "Wardrobe", Page::kManage },
+			{ Theme::TabIcon::kDress, "Dress", Page::kCapture },
+			{ Theme::TabIcon::kWardrobe, "Wardrobe", Page::kManage },
 			{ Theme::TabIcon::kSituations, "Situations", Page::kSituations },
 			{ Theme::TabIcon::kChests, "Chests", Page::kChests },
 			{ Theme::TabIcon::kAppearance, "Appearance", Page::kAppearance },
@@ -576,7 +576,7 @@ namespace CaptureWindow::Internal
 		Leave(a_state, a_leave);
 	}
 
-	// The pieces a tab page keeps on the preview in place of the Inventory page's ticks:
+	// The pieces a tab page keeps on the preview in place of the Dress page's ticks:
 	// the Wardrobe page's selected outfit as edited, less its unticked items, the Situations page's
 	// outfit whose details show (ViewedOutfitPieces); nullopt while it shows the ticks. A page
 	// that gets a preview of its own adds it here.
@@ -674,7 +674,7 @@ namespace CaptureWindow::Internal
 		}
 	}
 
-	// The page's heading: the Inventory page's own title over the summary line; Manage
+	// The page's heading: the Dress page's own title over the summary line; Manage
 	// Wardrobe's, the Situations page's and the Edit page's with no summary line; the Load page's the actor's name over the summary line;
 	// Appearance's over where the other settings are. The Save page's tabs are its heading (DrawSaveTabs).
 	void DrawTitle(const State& a_state)
@@ -693,7 +693,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(a_state.editTitle.c_str());
 			break;
 		case Page::kChests:
-			Theme::HeadingText("Chests", "Items in a chest can be loaded on the Inventory page.");
+			Theme::HeadingText("Chests", "Items in a chest can be loaded on the Dress page.");
 			break;
 		case Page::kChestEdit:
 			Theme::HeadingText(a_state.chest.chest >= 0 ? std::format("Edit \"{}\"", ChestAt(a_state, a_state.chest.chest).name).c_str() : "Edit");
@@ -859,7 +859,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// SetOutfits after the captured actor was redressed with the window open:
-	// the Inventory page lists their pieces as they are now, ticks the ones they wear and lets
+	// the Dress page lists their pieces as they are now, ticks the ones they wear and lets
 	// the loaded outfit go, as if the window had just opened.
 	// Contract: `a_pieces.groups` has one group per request.pieces.
 	void FollowActorPieces(State& a_state, const CaptureWindow::ActorPieces& a_pieces)
@@ -882,7 +882,7 @@ namespace CaptureWindow::Internal
 		SortPieces(a_state);
 	}
 
-	// After SetOutfits: what the Inventory page has loaded follows the library and the chests.
+	// After SetOutfits: what the Dress page has loaded follows the library and the chests.
 	// A whole one brings its pieces as they are now, one a later Load narrowed those it still
 	// has; one that is gone or brings nothing leaves, its name with it.
 	void FollowInventorySources(State& a_state)
@@ -984,7 +984,7 @@ namespace CaptureWindow::Internal
 		return static_cast<std::size_t>(std::ranges::count(listed, true));
 	}
 
-	// A group's icon: the Inventory tab's backpack over carried pieces, a dressed form over worn
+	// A group's icon: a backpack over carried pieces, a dressed form over worn
 	// ones, a bare form over a loaded outfit's.
 	Theme::HeadingIcon GroupIcon(CaptureWindow::PieceGroup a_group)
 	{
@@ -1035,7 +1035,7 @@ namespace CaptureWindow::Internal
 	// each; unticked pieces are left out of the outfit. A click on a label sorts by its
 	// column, a second one reverses the order (both pages share the order). Each tick goes
 	// to onPieceToggled (the live preview) in its own SKSE task, queued in click order.
-	// Contract: a piece that is not listed is never ticked: on the Inventory page only Load
+	// Contract: a piece that is not listed is never ticked: on the Dress page only Load
 	// ticks a piece nobody carries, and the next Load sets every tick again; the Edit page
 	// lists every edited piece it opened with.
 	void DrawPieceRows(State& a_state, const PieceList& a_list)
@@ -1113,7 +1113,7 @@ namespace CaptureWindow::Internal
 		return clicked;
 	}
 
-	// The count line under the list; on the Inventory and Edit pages (`a_withLinks`) it ends in
+	// The count line under the list; on the Dress and Edit pages (`a_withLinks`) it ends in
 	// `Add from Wardrobe...`, which opens the Load page and is greyed while the library is
 	// empty, with Request::offersChests `Add from Chest...` on the line below it, greyed while
 	// there is no chest. Returns which link was clicked.
@@ -2315,7 +2315,7 @@ namespace CaptureWindow
 		FollowWornOutfit(state);
 		SetGroupHeadings(state);
 		FollowInventorySources(state);
-		// DrawPieceRows' contract: a piece the Inventory page does not list is never ticked.
+		// DrawPieceRows' contract: a piece the Dress page does not list is never ticked.
 		const auto inventory = InventoryPieces(state);
 		bool       dropped = false;
 		for (std::size_t i = 0; i < request.pieces.size(); ++i) {

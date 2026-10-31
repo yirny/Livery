@@ -21,7 +21,7 @@
 //                  Chest..., it lists the chests instead (ChestPages.cpp) and Load lists
 //                  the selected one's items, ticking none; opened from the chest editor, Add
 //                  puts the selection's items in the chest
-//   the Wardrobe page - the tab beside the Inventory page: library outfits and the selected
+//   the Wardrobe page - the tab beside the Dress page: library outfits and the selected
 //                  one's icon (Choose icon popup), name and pieces (ticked as Apply would
 //                  dress the actor in them, from the row they wear it for or the Default),
 //                  edited in place and kept for one outfit at a time (Discard changes / Keep
@@ -36,7 +36,7 @@
 //                  the Save page's Create and Apply, ApplySubject); Exit closes the window;
 //                  Exit, Escape or another tab with unsaved edits shows the unsaved-changes
 //                  alert, whose Save Changes goes through Update's popup
-//   Edit page    - the edited pieces as the Inventory page's piece list with its own ticks,
+//   Edit page    - the edited pieces as the Dress page's piece list with its own ticks,
 //                  Add from Wardrobe... and Live Preview; Use Ticked Pieces makes
 //                  them the edited pieces, Back leaves them; nothing is written
 #include "PCH.h"
@@ -308,7 +308,7 @@ namespace CaptureWindow::Internal
 		if (Theme::BeginList("outfitPieces", listHeight)) {
 			for (const auto index : a_pieces) {
 				const auto&          piece = a_state.request.pieces[index];
-				const Theme::RowIcon icon{ piece.icon, piece.iconColor };  // the Inventory page's
+				const Theme::RowIcon icon{ piece.icon, piece.iconColor };  // the Dress page's
 				const bool           faded = FadesNotCarried(a_state, index);
 				if (faded) {
 					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
@@ -480,7 +480,7 @@ namespace CaptureWindow::Internal
 		SetInventoryShown(a_state);
 	}
 
-	// Lists the selected chest's items on the Inventory page and ticks none: the ticks stay, so
+	// Lists the selected chest's items on the Dress page and ticks none: the ticks stay, so
 	// the listed pieces nobody carries that are ticked stay listed too (DrawPieceRows' contract)
 	// and the unticked ones go. The heading names what the list came from.
 	void LoadChest(State& a_state)
@@ -607,9 +607,9 @@ namespace CaptureWindow::Internal
 
 	// --- Wardrobe page ------------------------------------------------------
 	//
-	// The tab beside the Inventory page. The edits belong to the selected outfit and stay
+	// The tab beside the Dress page. The edits belong to the selected outfit and stay
 	// until another is selected or the window closes; the preview shows them, or the
-	// Inventory page's ticks while none is selected. The actor's rows change only by Apply,
+	// Dress page's ticks while none is selected. The actor's rows change only by Apply,
 	// which dresses them in the outfit now (DrawManageApplyPopup).
 
 	// The selected outfit's library id. Contract: an outfit is selected.
@@ -663,7 +663,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// Starts the edits of outfit `a_index` (-1 for none) and shows it on the preview, or
-	// the Inventory page's ticks with none selected.
+	// the Dress page's ticks with none selected.
 	void SelectManaged(State& a_state, int a_index)
 	{
 		FillManageForm(a_state, a_index);
@@ -1475,7 +1475,7 @@ namespace CaptureWindow::Internal
 
 	// The Load page's selected outfit added to the page's ticks (EditPreview), which the
 	// preview already shows; its pieces stay listed, and the heading over those nobody carries
-	// names it when it brings one. The Inventory page's ticks stay as they were.
+	// names it when it brings one. The Dress page's ticks stay as they were.
 	// Contract: an outfit is selected on the Load page.
 	void AddToEdit(State& a_state)
 	{
@@ -1521,7 +1521,7 @@ namespace CaptureWindow::Internal
 
 	// Ticks exactly the edited pieces, which the preview already shows; they stay listed
 	// while the page is open, those nobody carries under the outfit's heading. The
-	// Inventory page's ticks stay as they were.
+	// Dress page's ticks stay as they were.
 	void OpenEditPage(State& a_state)
 	{
 		const auto& form = a_state.manage;
