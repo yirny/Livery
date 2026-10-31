@@ -507,7 +507,7 @@ namespace CaptureWindow::Internal
 			putIn = DrawItemsOutside(a_state, height);
 			// Together at the column's right end: the first starts the line under the list.
 			links.wardrobe = DrawCountLink("Add from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kBareForm,
-				Theme::LinkLine::kNext, Theme::LabelLinkWidth(kAddFromChest, Theme::HeadingIcon::kChest));
+				Theme::LinkLine::kNext, Theme::LabelLinkWidth(kAddFromChest));
 			links.chest = DrawCountLink(kAddFromChest, a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
