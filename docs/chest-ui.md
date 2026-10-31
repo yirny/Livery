@@ -42,22 +42,27 @@ selected chest again by id.
 
 The fifth tab (a chest: a box with a domed lid), between Situations and Appearance, while
 `offersChests`. Its heading's subtitle: `Items in a chest can be loaded on the Dress page.`
-Under `Select a chest to open` the page lists the chests by name over a count line; a click
-opens the editor on that chest. `Create New Chest` opens the `New chest` popup: a name field (`Chest Name` on
+Under `Select a chest to open` the page lists the chests by name over a count line, each after
+the chest icon in the text colour, at the list's left edge (`Theme::Grip::kFlush`: Modern keeps
+its padding); a click opens the editor on that chest. `Create New Chest` opens the `New chest` popup: a name field (`Chest Name` on
 hover), `Create` (Enter) and `Cancel` (Escape); Create hands the name to `onChestCreate`, which
 adds an empty chest, and the list shows it. A taken or empty name is refused with the message
 under the list. `Exit` or Escape closes the window.
 
 ### Chest editor
 
-Reached from the Chests page; no tab column. Title `Edit "#{Chest}"`. The name field, then two
+Reached from the Chests page; no tab column. Title `Edit <chest icon> #{Chest}`
+(`Theme::HeadingRunText`), the icon and the name in the palette's emphasis; the name follows the
+field once it is entered, by Enter or the field losing focus, before anything is saved, and stays
+as it was while the field is empty. Both lists' rows start at the list's left edge
+(`Theme::Grip::kFlush`), level with the group headings. The name field, then two
 columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the Wardrobe page's:
 
 - Left, `Items` (the backpack before the label): the items someone carries that are not in the chest, under the Dress
   page's group headings in its order (`State::pieceOrder`), each row its icon and name; then,
   under `Taken out of chest` (the chest icon), the items taken out that nobody carries, listed
-  until the page is left. A click puts the item in. On one line under the list, at the column's
-  right end, `Add from Wardrobe...` and `Add from Chest...` (each with its icon before the last word)
+  until the page is left. A click puts the item in. Under the list, each on its own line at the
+  column's right end, `Add from Wardrobe...` and `Add from Chest...` (each with its icon before the last word)
   open the Load page (`LoadTarget::kChest`) listing the outfits or the other
   chests; its `Add` puts the selection's items in and returns. `No other chests.` greys the
   second link while this is the only chest.
@@ -80,7 +85,8 @@ columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the
   the last word, `[+] Add from <icon> Wardrobe...` (`Theme::LabelLink`'s `icon` and `afterIcon`):
   the Wardrobe tab's wardrobe, the chest. On the Dress page both are hidden for the
   player while they dress from their inventory only, as before. The chest link opens
-  the Load page with the chests listed (`LoadSource::kChests`): a plain list by name on the
+  the Load page with the chests listed (`LoadSource::kChests`): a list by name, each after the
+  chest icon, the selected one marked in the mark's column, on the
   left, the selected chest's name and items on the right, no preview change, `Load` greyed while
   none of its items is loaded.
 - On the Dress page, `Load` lists the chest's items under the heading over the pieces nobody

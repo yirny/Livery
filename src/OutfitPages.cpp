@@ -557,7 +557,7 @@ namespace CaptureWindow::Internal
 			if (chests) {
 				// The chest being edited is left out of its own Add from Chest... list.
 				const int except = a_state.loadTarget == LoadTarget::kChest ? a_state.chest.chest : -1;
-				clicked = DrawChestList(a_state, a_state.previewedChest, except, 0.0f);
+				clicked = DrawChestList(a_state, a_state.previewedChest, except, 0.0f, Theme::Grip::kNone);
 			} else {
 				controls = DrawBrowserControls(a_state, a_state.loadBrowser);
 				clicked = DrawOutfitList(a_state, a_state.loadBrowser, a_state.previewedOutfit, controls.height);
@@ -1530,7 +1530,9 @@ namespace CaptureWindow::Internal
 			a_state.editTicked[i] = std::ranges::binary_search(form.pieces, i);
 		}
 		a_state.editShown = form.pieces;
-		a_state.editTitle = std::format("Edit \"{}\"", name);
+		// The title is the name as entered on the Wardrobe page, saved or not; none entered, the saved one.
+		const auto entered = Trimmed(form.name.data());
+		a_state.editTitle = entered.empty() ? name : entered;
 		a_state.editOutfitNames = { name };
 		a_state.editShownHeading = EditShownHeading(a_state.editOutfitNames);
 		a_state.editShownFromChest = false;
