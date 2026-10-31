@@ -1,24 +1,19 @@
 # Situation management
 
 Written 2026-10-21 for the AI that implements it, from the user's draft and the decisions
-made on it; current spec only. Three steps, each in its own session, with CLAUDE.md §1
-approval first, built, checked in game and committed before the next:
+made on it; current spec only:
 
-- A. Co-save record version 4: per-row outfit lists, the random flag, the chosen outfit
-  (§1). High impact (SKSE serialization).
-- B. `situations.json`: situation names, removed situations, the names in sentences
-  (§2). High impact (a new file write shared by every save).
-- C. The the Situations page (§3-§6), and the Wardrobe page's unsaved-changes alert
-  aligned with it.
-
-Docs follow the code in the step that makes them stale: design.md (§5 co-save, §7
-situations), README, docs/outfit-management-ui.md, docs/ui-redesign.md, CLAUDE.md §2.1.
+- The rows: per-row outfit lists, the random flag, the chosen outfit (§1); the co-save
+  record that keeps them is in design.md §5.
+- `situations.json`: situation names, removed situations, the names in sentences (§2).
+- The Situations page (§3-§6), and the Wardrobe page's unsaved-changes alert aligned with
+  it.
 
 Terms: a *row* is the Default or one situation, per actor. The *preset situations* are
 the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::kChoosable`
 plus Default).
 
-## 1. Rows (step A)
+## 1. Rows
 
 Per actor, per row:
 
@@ -67,7 +62,7 @@ Changes:
   outfit chosen before random went on; with none, the first of the list.
 - Taking an outfit off a row (a drag off it on the page; `OutfitRows::Take`) takes it off
   `outfits`; `chosen` becomes 0 if it was that.
-- The Dress page's Apply popup: `No, apply as is (?)` (was `No, just apply`). The ticks
+- The Dress page's Apply popup: `No, apply as is (?)`. The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
   `The ticked pieces become #{Name}'s Default as they are, without being added to the
   wardrobe.`, then, while a situation row holds an outfit, `While a situational outfit is
@@ -88,14 +83,10 @@ Changes:
 - A redress forced by a change (`Assignments::Change`, `Refresh`) keeps a random row's pick
   while it is still on the list, else picks again.
 
-Co-save version 4: each assignment's record as version 3, plus `wornOutfit`, then for each
-row its situation (the `Situations::Situation` value), `random`, `chosen`, `outfits`; the
-Default's `pieces` where version 3 kept the default armor. Reading version 3: a default with
-an outfit id still in the library becomes `outfits = [id]`, `chosen = id` and its armor is
-dropped; with id 0, or an id the library no longer has, the armor becomes `pieces`; each
-situation id becomes `outfits = [id]`, `chosen = id`; random off everywhere.
+The co-save keeps the rows in the `ASGN` record (version 5, situations by key) and the
+items left off in `EXCL`; the layout and how older versions are read are in design.md §5.
 
-## 2. Situation data (step B)
+## 2. Situation data
 
 `Data/SKSE/Plugins/Livery/situations.json`, global like `outfits.json`:
 
@@ -140,11 +131,10 @@ Cold`, the Situation headings, the rows' labels and change lines (`Town: added`)
 Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Cold` and `no
 outfit for Town any more`.
 
-## 3. The Situations page (step C)
+## 3. The Situations page
 
 - The third tab of the tab column (docs/outfit-management-ui.md §3): the star, point down,
-  that marks a situational outfit in the outfit list, tooltip `Situations`. The tab
-  column shows on the Dress page, the Wardrobe page, the Situations page and Appearance pages.
+  that marks a situational outfit in the outfit list, tooltip `Situations`.
 - Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on the Wardrobe page:
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
@@ -278,7 +268,7 @@ buttons down when taller than the Situation List, as the Wardrobe page's selecti
 pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every
 list keeps to, `kMaxListHeightRatio`), so the window stays on screen. Back, and Escape, show
 what the right pane showed before and the Dress page's ticks on the preview. Edit goes to
-The Wardrobe page with the outfit selected and on the preview, through the unsaved-changes
+the Wardrobe page with the outfit selected and on the preview, through the unsaved-changes
 alert when the page has edits (§6). A click on a situation's heading closes the details and
 shows the situation's.
 
@@ -316,20 +306,21 @@ shows the situation's.
 
 ## 7. Code
 
-- `src/SituationStore.cpp` / `.h` (step B): load, names, removed, the
+- `src/SituationStore.cpp` / `.h`: load, names, removed, the
   `Apply` (names of several situations in one write) / `Remove` /
   `RestorePresets` writes, Restore's change lines. The rules that need no game (the presets,
   the file's parse and write, the name rules, Restore's change lines) in
   `src/SituationTable.h`, which `test/SituationStoreTests.cpp` reaches: presets, the name
   rules, a file with unknown keys, Restore's change lines.
-- `src/Assignments.cpp` (step A): the rows, version 4 and the version 3 read, the pick,
-  "has an outfit" and "holds", `ForgetOutfit`'s rules; step B: `ForgetSituation` and the
-  rows of removed situations dropped at load. The row rules that need no game (insert at
-  front, move, `chosen` on remove, resolve) in a header the unit tests reach.
-- `src/SituationPage.cpp` (step C): the page, its drag and drop, popups and buttons;
-  `CaptureWindowInternal.h` gains the page and its state; `CMakeLists.txt` gains the files
-  (CLAUDE.md §1, build system). `CaptureWindow.cpp` has the tab column's tabs and the
-  unsaved-changes alert both pages share (`RequestLeave`, `DrawLeavePopup`).
+- `src/Assignments.cpp`: the rows, the co-save record and the older versions' read, the
+  pick, "has an outfit" and "holds", `ForgetOutfit`'s rules, `ForgetSituation` and the rows
+  of removed situations dropped at load. The row rules that need no game (insert at front,
+  move, `chosen` on remove, resolve) are in `src/OutfitRows.h`, which
+  `test/OutfitRowsTests.cpp` reaches.
+- `src/SituationPage.cpp`: the page, its drag and drop, popups and buttons;
+  `CaptureWindowInternal.h` holds the page and its state. `CaptureWindow.cpp` has the tab
+  column's tabs and the unsaved-changes alert the pages share (`RequestLeave`,
+  `DrawLeavePopup`).
 - `src/OutfitRows.h`: `Place`, a drop at a place in a row's list (`Give` is a drop at the
   front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick.
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
@@ -344,22 +335,15 @@ shows the situation's.
 - `Plugin.cpp`: the handlers, the redress queue (docs/outfit-management-ui.md §6), the
   summary line.
 
-CLAUDE.md §2.1 gains, in step B: `situations.json` (`src/SituationStore.cpp`) is shared by
-every save too; a situation's name changes only through the Situations page's
-Save Changes, a situation is removed only through the details' Remove popup and restored
-only through Restore Presets' popup; every write is made before any assignment changes, a
-refused or failed one changes none; the same load and write rules as the library.
-
 ## 8. Checks
 
-- Step A: a version 3 save loads with every assignment as it was; save and load again; Remove
-  of a chosen
-  outfit with another hidden behind it wears neither; Remove of the Default's outfit keeps
-  its pieces on; `No, apply as is`; Update of an outfit an NPC wears for a situation shows at
-  their next change. Unit tests cover the row rules.
-- Step B: no `situations.json` until something is written; the summary line and the HUD
-  read ` for Town`; the summary line `as Default` for the Default.
-- Step C: each drop of §4's table; the 1 s open; Show Outfit List's scroll and open; Edit and
+- Rows: an older co-save loads with every assignment as it was; save and load again; Remove
+  of a chosen outfit with another hidden behind it wears neither; Remove of the Default's
+  outfit keeps its pieces on; `No, apply as is`; Update of an outfit an NPC wears for a
+  situation shows at their next change. Unit tests cover the row rules.
+- Situation data: no `situations.json` until something is written; the summary line and the
+  HUD read ` for Town`; the summary line `as Default` for the Default.
+- The page: each drop of §4's table; the 1 s open; Show Outfit List's scroll and open; Edit and
   a click on the selected heading with the outfit list showing; an outfit's details from
   either pane, with Back, Escape and Edit, and the preview; Save Changes greyed
   and saved (Live Preview on and off); Random Outfit on, picks at situation changes;
@@ -368,5 +352,5 @@ refused or failed one changes none; the same load and write rules as the library
 
 ## 9. Later
 
-- Editing conditions; user-defined situations (design.md §8 item 8). The Default's
+- Editing conditions; user-defined situations (design.md §8). The Default's
   conditions stay read only then, saying so on hover as its name does (§5).

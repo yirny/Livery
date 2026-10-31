@@ -50,7 +50,7 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 
 A library outfit given to a row is dressed less the items it leaves off on that row
 (`OutfitRows::Exclusion`, per actor, row and outfit): those unticked in its piece list on
-The Wardrobe page when Apply gave it the row, on the Situations page in its details opened
+the Wardrobe page when Apply gave it the row, on the Situations page in its details opened
 from the row, or on the Dress page when its Apply dressed the actor in some of the
 outfit they wore (below). The outfit's other items, those added to it later included, are worn; when
 the items left off are all it has, it is dressed whole. The library outfit itself never
@@ -478,40 +478,19 @@ so a situation outfit is kept on, locked and put back at 3D load like the defaul
 
 ## 8. Plan
 
-Each stage ends with an in-game check before the next starts.
+Built and checked in game: the dressing core (§2), the library and the capture window
+(hotkey Shift + X by default), the trade-menu filter (§3), situation outfits for NPCs and
+the player (§7), the window's pages (docs/ui-redesign.md, docs/outfit-management-ui.md,
+docs/situation-management-ui.md) and the chests (docs/chest-ui.md, behind the `Item chests`
+setting, off by default). Open:
 
-1. Rename the project (CMake, DLL, INI, log, deploy folder, repository directory),
-   settings, co-save, dressing core: assign, unassign,
-   load-time re-equip, death release, release everything. Done.
-2. Library: capture the worn pieces into an outfit, JSON storage, the ImGui window,
-   outfit list and preview from the add-on's code; the preview dresses everyone through
-   the inventory; the window's Assign and Release replace the stage-1 keys, and the
-   capture hotkey defaults to Shift + X. Remove the Tailor API and rewrite CLAUDE.md §2.1 for
-   the mod's own data. Done.
-3. The trade-menu filter hook (§3). Done.
-4. Situation outfits for NPCs (§7): detection, the poll, the Assign for dropdown, the
-   Situations page with its per-situation clear. Done.
-5. The player's situations (§7): the window's dropdown and Situations page, the poll
-   skipping beast form, the mount rule for water. Done.
-6. Rework the capture window's existing pages (docs/ui-redesign.md). Step 1, the Capture
-   page: done. Step 2, the Save page: done. Step 3, Apply (its popup and the transfer from
-   the player): done.
-7. Outfit management in the capture window (docs/outfit-management-ui.md): step 1, the
-   outfit list and the Dress page's buttons: done. Step 2, the tab column and the
-   The Wardrobe page with Update, the captured actor redressed while the window is open
-   (§6 there): done. Step 3, Remove, which deals with the assignments and situation
-   choices that name the outfit: done.
-8. Situation management (docs/situation-management-ui.md): step A, the rows with their
-   random picks, and step B, `situations.json`: done. Step C, the Situations page:
-   done. Later, user-defined conditions in the way of Skyrim Outfit Equipment System NG,
-   extending `Situations::Applicable` (§7).
-9. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
-   snowy region (§7); quickload with
-   the window open, then New Game; the player's left-hand weapon back after a shield
-   preview; tempered player gear after Exit; a follower's given armor gone after Load
-   Outfit + Exit (seen while Tailor managed her).
-10. Chests (docs/chest-ui.md), behind the `Item chests` setting, off by default: done, checked
-    in game on 1.6.1170 (its §4).
+1. Later: user-defined conditions in the way of Skyrim Outfit Equipment System NG,
+   extending `Situations::Applicable` (§7); layer outfits (docs/memo-layer-outfits.md).
+2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
+   snowy region (§7); quickload with the window open, then New Game; the player's left-hand
+   weapon back after a shield preview; tempered player gear after Exit; a follower's given
+   armor gone after Load Outfit + Exit (seen while Tailor managed her).
+3. Before the first release: hide the chests (docs/RELEASING.md).
 
 ## 9. Piece icons
 
