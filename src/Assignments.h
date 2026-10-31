@@ -176,4 +176,7 @@ namespace Assignments
 	// Livery does not dress.
 	// Contract: game thread (the trade-menu filter's list fills).
 	void NoteShownInMenu(RE::Actor& a_actor);
+
+	// Whether Livery dresses this NPC; false for the player. Contract: any thread.
+	bool IsManagedNpc(RE::FormID a_actor);
 }
