@@ -8,4 +8,4 @@
 	shallow = true
 [submodule "lib/sarrai-common"]
 	path = lib/sarrai-common
-	url = C:/Users/yirny/Dropbox/works/Skyrim Modding/sarrai-common
+	url = C:/Dev/Skyrim/sarrai-common
