@@ -104,6 +104,7 @@ else()
         SOURCES
         src/Assignments.cpp
         src/CaptureWindow.cpp
+        src/Chests.cpp
         src/Dressing.cpp
         src/Library.cpp
         src/MovementHold.cpp

@@ -94,6 +94,11 @@ namespace Settings
 	// Read when the window opens. Safe from any thread.
 	bool ShowSlotColumn();
 
+	// Whether the capture window has the Chests tab and offers chest items when dressing
+	// (docs/chest-ui.md); off, chests.json is still read. Read when the window opens. Safe from
+	// any thread.
+	bool ItemChests();
+
 	// Whether Apply in an NPC's window moves the ticked pieces from the player's inventory to
 	// the NPC; off, the NPC gets new copies. Safe from any thread.
 	bool MoveFromPlayer();

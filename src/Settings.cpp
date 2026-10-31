@@ -45,6 +45,7 @@ namespace
 	constexpr auto kShowPlayerInventoryKey = L"ShowPlayerInventory";
 	constexpr auto kShowPlayerWornKey = L"ShowPlayerWornPieces";
 	constexpr auto kShowSlotColumnKey = L"ShowSlotColumn";
+	constexpr auto kItemChestsKey = L"ItemChests";
 	constexpr auto kTransferSection = L"Transfer";
 	constexpr auto kMoveFromPlayerKey = L"MoveFromPlayer";
 	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
@@ -78,7 +79,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 18> kIniKeys{ {
+	constexpr std::array<IniKey, 19> kIniKeys{ {
 		{ kIniSection, kFollowersAndSpouseKey, L"Full",
 			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
 			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
@@ -115,6 +116,9 @@ namespace
 			L"In game this is Exclude equipped items, reversed." },
 		{ kWindowSection, kShowSlotColumnKey, L"0",
 			L"1 = the item list shows a Slot column: each item's body slot numbers (32, 34)." },
+		{ kWindowSection, kItemChestsKey, L"0",
+			L"1 = Livery has a Chests tab: a chest holds any number of items, such as the variants of one armor,\n"
+			L"and you pick from it when dressing. Chests are kept in chests.json beside outfits.json." },
 		{ kTransferSection, kMoveFromPlayerKey, L"1",
 			L"1 = Apply on an NPC transfers the ticked items from your inventory, enchantments and tempering included.\n"
 			L"0 = the NPC gets plain copies and you keep yours." },
@@ -180,6 +184,7 @@ namespace
 	std::atomic<bool>          g_showPlayerInventory{ true };
 	std::atomic<bool>          g_showPlayerWorn{ false };
 	std::atomic<bool>          g_showSlotColumn{ false };
+	std::atomic<bool>          g_itemChests{ false };
 	std::atomic<bool>          g_protectFavorites{ true };
 	std::atomic<bool>          g_moveFromPlayer{ true };
 	std::atomic<bool>          g_notifySituationChanges{ false };
@@ -438,6 +443,8 @@ namespace
 		SaveFlag(kTransferSection, kProtectFavoritesKey, true);
 		g_showSlotColumn = false;
 		SaveFlag(kWindowSection, kShowSlotColumnKey, false);
+		g_itemChests = false;
+		SaveFlag(kWindowSection, kItemChestsKey, false);
 		g_menuSounds = true;
 		SaveMenuSounds(true);
 		logger::info("Settings restored to their defaults (SKSE Menu Framework)");
@@ -729,6 +736,19 @@ namespace
 		}
 		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\nDefault: OFF");
 
+		SettingGap();
+
+		// Takes effect the next time the window opens.
+		bool itemChests = g_itemChests.load();
+		if (ImGuiMCP::Checkbox("Item chests", &itemChests)) {
+			g_itemChests = itemChests;
+			SaveFlag(kWindowSection, kItemChestsKey, itemChests);
+			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
+		}
+		ImGuiMCP::SetItemTooltip(
+			"Adds a Chests tab to Livery. A chest holds any number of items, such as the variants of one armor, and you pick from it when dressing.\n"
+			"Default: OFF");
+
 		Heading("Appearance");
 
 		RenderWindowSkin();
@@ -842,6 +862,11 @@ namespace Settings
 		::GetPrivateProfileStringW(kWindowSection, kShowSlotColumnKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
 		g_showSlotColumn = std::wstring_view{ value } == L"1";
 		logger::info("ShowSlotColumn = {}", g_showSlotColumn.load());
+
+		// A missing key keeps the default (off).
+		::GetPrivateProfileStringW(kWindowSection, kItemChestsKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		g_itemChests = std::wstring_view{ value } == L"1";
+		logger::info("ItemChests = {}", g_itemChests.load());
 
 		// A missing key keeps the default (off).
 		::GetPrivateProfileStringW(kSituationsSection, kNotifyChangesKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
@@ -969,6 +994,11 @@ namespace Settings
 	bool ShowSlotColumn()
 	{
 		return g_showSlotColumn.load();
+	}
+
+	bool ItemChests()
+	{
+		return g_itemChests.load();
 	}
 
 	bool MoveFromPlayer()
