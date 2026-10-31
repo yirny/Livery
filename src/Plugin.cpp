@@ -756,7 +756,7 @@ namespace
 	// How the armor they wear differs from what Livery put on them, by `inventory`
 	// (CollectArmor): `notWorn`, Livery's pieces they wear no copy of (taken back in the trade
 	// menu, or taken off by another mod or by the player in their own inventory); `extra`, worn
-	// armor Livery did not put on (the Inventory page's Outfit (Unmanaged)). Both 0 when Livery
+	// armor Livery did not put on (the Dress page's Outfit (Unmanaged)). Both 0 when Livery
 	// has nothing on them.
 	struct WornGaps
 	{
@@ -824,7 +824,7 @@ namespace
 		return choices->wornOutfit ? Library::Find(choices->wornOutfit) : nullptr;
 	}
 
-	// The Inventory page's Apply after the move: `picked` as the actor's Default, `outfit` its
+	// The Dress page's Apply after the move: `picked` as the actor's Default, `outfit` its
 	// library outfit (0 for none), without the pieces that did not move (MovePlayerPieces).
 	// Contract: game thread; no preview is on (DressCaptured, or the window closed).
 	void AssignMoved(RE::Actor& target, std::vector<RE::TESObjectARMO*> picked, const std::vector<RE::TESObjectARMO*>& notMoved, std::uint32_t outfit)
@@ -1117,7 +1117,7 @@ namespace
 	// popup the worn library outfit takes the ticks before. Ticks that are all or some of the
 	// worn library outfit's items keep it on the row it is worn for, the unticked ones left
 	// off there (Assignments::Change with `excluded`). The window stays open: they are
-	// dressed with no preview on (DressCaptured), and the Inventory page follows what they
+	// dressed with no preview on (DressCaptured), and the Dress page follows what they
 	// wear. Restore, shown while Livery has pieces on them, ends what Livery chose for them;
 	// it closes the window first, so the preview has put back what they wore before.
 	// Contract: game thread; `armors` matches request.pieces index for index, `offered` are the
@@ -1202,7 +1202,7 @@ namespace
 		const auto actorID = actor.GetFormID();
 		// When they wear the outfit, it is dressed again as RedressFor does, at once, Live
 		// Preview on or off (RedressCaptured keeps the preview in step, on the outfit as edited,
-		// and the Inventory page follows what they wear). Update and Apply instead dresses them
+		// and the Dress page follows what they wear). Update and Apply instead dresses them
 		// as Apply does (ApplyOutfit).
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
@@ -1223,7 +1223,7 @@ namespace
 		};
 		// The outfit leaves every row, and a Default this leaves wearing nothing keeps its
 		// pieces (Assignments::ForgetOutfit); one HUD message sums it up. The captured actor,
-		// redressed at once, is shown as they are now, and the Inventory page follows.
+		// redressed at once, is shown as they are now, and the Dress page follows.
 		request.onManageRemove = [handle, actorID, armors, offered](std::uint32_t outfit) {
 			const auto* stored = Library::Find(outfit);
 			// Read before Remove, which leaves `stored` stale. The armor forms stay valid.
@@ -1251,7 +1251,7 @@ namespace
 		};
 		// Apply to #{Name}: the outfit as the library has it goes to the row the window chose,
 		// its unticked items left off there, and on (ApplyOutfit), the window staying open; the
-		// Inventory page follows what they wear.
+		// Dress page follows what they wear.
 		request.onManageApply = [handle, actorID, armors, offered, name = request.actorName](std::uint32_t outfit, std::size_t row,
 									const std::vector<std::uint32_t>& excluded) {
 			const auto target = handle.get();

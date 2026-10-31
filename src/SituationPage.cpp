@@ -236,7 +236,7 @@ namespace CaptureWindow::Internal
 		// --- Situation List ---------------------------------------------------
 
 		// Back from an outfit's details: the right pane shows what it showed before them, and
-		// the preview the Inventory page's ticks again.
+		// the preview the Dress page's ticks again.
 		void CloseOutfitView(State& a_state)
 		{
 			a_state.situationForm.viewedOutfit = 0;
@@ -957,7 +957,7 @@ namespace CaptureWindow::Internal
 	// The Situation List on the left; on the right the outfit list, the selected situation or
 	// an outfit's details (ShownPane). Every change is an edit until Save Changes, but Remove
 	// and Restore Presets, which write at once after their popups. The preview shows the
-	// Inventory page's ticks, or the outfit whose details show.
+	// Dress page's ticks, or the outfit whose details show.
 	void DrawSituationPage(State& a_state)
 	{
 		auto& form = a_state.situationForm;

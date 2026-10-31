@@ -41,7 +41,7 @@ selected chest again by id.
 ### Chests tab
 
 The fifth tab (a chest: a box with a domed lid), between Situations and Appearance, while
-`offersChests`. Its heading's subtitle: `Items in a chest can be loaded on the Inventory page.`
+`offersChests`. Its heading's subtitle: `Items in a chest can be loaded on the Dress page.`
 Under `Select a chest to open` the page lists the chests by name over a count line; a click
 opens the editor on that chest. `Create New Chest` opens the `New chest` popup: a name field (`Chest Name` on
 hover), `Create` (Enter) and `Cancel` (Escape); Create hands the name to `onChestCreate`, which
@@ -53,7 +53,7 @@ under the list. `Exit` or Escape closes the window.
 Reached from the Chests page; no tab column. Title `Edit "#{Chest}"`. The name field, then two
 columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the Wardrobe page's:
 
-- Left, `Items` (the backpack before the label): the items someone carries that are not in the chest, under the Inventory
+- Left, `Items` (the backpack before the label): the items someone carries that are not in the chest, under the Dress
   page's group headings in its order (`State::pieceOrder`), each row its icon and name; then,
   under `Taken out of chest` (the chest icon), the items taken out that nobody carries, listed
   until the page is left. A click puts the item in. On one line under the list, at the column's
@@ -69,21 +69,21 @@ columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the
   editor returns to the Chests page. `Back` or Escape returns; with unsaved edits the
   unsaved-changes alert comes first (`You have unsaved changes for "#{Chest}".`, the rename and
   the items put in and taken out, Save Changes / Discard Changes / Back).
-- The editor dresses nobody and changes no tick: the preview keeps showing the Inventory page's
+- The editor dresses nobody and changes no tick: the preview keeps showing the Dress page's
   ticks. Dressing from inventory only (`Request::carriedOnly`) does not apply here.
 
 ### Using a chest when dressing
 
-- The Inventory page's and the Edit page's count line end in `Add from Wardrobe...`; while
+- The Dress page's and the Edit page's count line end in `Add from Wardrobe...`; while
   `offersChests`, `Add from Chest...` (greyed with `No chests yet.`) is right-aligned on the
   line below it (`Theme::LinkLine::kNext`, 4px further apart). Each link has its icon before
   the last word, `[+] Add from <icon> Wardrobe...` (`Theme::LabelLink`'s `icon` and `afterIcon`):
-  the Wardrobe tab's form, the chest. On the Inventory page both are hidden for the
+  a bare form, the chest. On the Dress page both are hidden for the
   player while they dress from their inventory only, as before. The chest link opens
   the Load page with the chests listed (`LoadSource::kChests`): a plain list by name on the
   left, the selected chest's name and items on the right, no preview change, `Load` greyed while
   none of its items is loaded.
-- On the Inventory page, `Load` lists the chest's items under the heading over the pieces nobody
+- On the Dress page, `Load` lists the chest's items under the heading over the pieces nobody
   carries and ticks none: the ticks stay, so the listed pieces nobody carries that are ticked
   stay listed and the unticked ones go (`DrawPieceRows`' contract: a piece that is not listed
   is never ticked). The heading names what the list came from, `"Guard", "Visors"`
@@ -121,7 +121,7 @@ uses), `src/OutfitPages.cpp` (the Load page's chest mode and targets), `src/Capt
 - Setting on: Chests tab; Create New Chest writes `chests.json` with the empty chest; the editor
   moves items between the columns, Update writes them, Back with edits asks; Remove takes the
   chest out of the file.
-- Inventory page: `Add from Chest...` lists the chest's items unticked under their
+- Dress page: `Add from Chest...` lists the chest's items unticked under their
   heading; ticking one unticks the item on its slot; Apply dresses the NPC in it (HUD message,
-  the window's Inventory page follows).
+  the window's Dress page follows).
 - Load a save: nothing changes for anyone (chests are never assigned).
