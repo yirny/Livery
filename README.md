@@ -78,7 +78,7 @@ With the cursor over the game rather than the window:
 | Right drag    | Pans.                                                                   |
 | Mouse wheel   | Zooms.                                                                  |
 
-`SpeedPercent` scales all four.
+`SpeedPercent` scales all four. The camera stays near where the character stood when the preview started: it stops with them at the edge of the view, and just short of passing through them.
 
 The preview dresses every character through their inventory: items they carry are put on, items they lack are added for the preview only. Every close of the window, a save included, ends the preview, takes those copies back, and the character goes back to the very items they wore when it opened, so armor the game picked at random for them, such as a bandit's, stays as it was. An outfit Livery keeps on an NPC is left alone by the preview and is back on when it ends.
 
