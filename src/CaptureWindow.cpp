@@ -308,11 +308,26 @@ namespace CaptureWindow::Internal
 	}
 
 	// The Inventory page's list: its ticks, the pieces nobody carries that a Load listed
-	// (State::inventoryShown) under the heading naming where they came from.
+	// (State::inventoryShown) under the heading naming where they came from, with the chest
+	// icon while a chest was loaded last.
 	PieceList InventoryPieces(const State& a_state)
 	{
 		return { a_state.pieceTicked.get(), &a_state.inventoryShown, &a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)],
-			a_state.inventoryShownFromChest ? Theme::HeadingIcon::kChest : Theme::HeadingIcon::kBareForm };
+			!a_state.inventorySources.empty() && a_state.inventorySources.back().chest ? Theme::HeadingIcon::kChest : Theme::HeadingIcon::kBareForm };
+	}
+
+	void SetInventoryShown(State& a_state)
+	{
+		auto&                    shown = a_state.inventoryShown;
+		std::vector<std::string> names;
+		shown.clear();
+		for (const auto& source : a_state.inventorySources) {
+			shown.insert(shown.end(), source.pieces.begin(), source.pieces.end());
+			names.push_back(source.name);
+		}
+		std::ranges::sort(shown);
+		shown.erase(std::ranges::unique(shown).begin(), shown.end());
+		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = EditShownHeading(names);
 	}
 
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list)
@@ -862,11 +877,33 @@ namespace CaptureWindow::Internal
 		request.wornSituation = a_pieces.wornSituation;
 		request.wornFor = a_pieces.wornFor;
 		a_state.loadedOutfit = -1;
-		a_state.inventoryShown.clear();
-		a_state.inventoryShownNames.clear();
-		a_state.inventoryShownFromChest = false;
-		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)].clear();
+		a_state.inventorySources.clear();
+		SetInventoryShown(a_state);
 		SortPieces(a_state);
+	}
+
+	// After SetOutfits: what the Inventory page has loaded follows the library and the chests.
+	// A whole one brings its pieces as they are now, one a later Load narrowed those it still
+	// has; one that is gone or brings nothing leaves, its name with it.
+	void FollowInventorySources(State& a_state)
+	{
+		auto& sources = a_state.inventorySources;
+		for (auto& source : sources) {
+			const int index = source.chest ? IndexOfChest(a_state, source.id) : IndexOfOutfit(a_state, source.id);
+			if (index < 0) {
+				source.pieces.clear();
+				continue;
+			}
+			const auto& pieces = source.chest ? ChestAt(a_state, index).pieces : OutfitAt(a_state, index).pieces;
+			source.name = source.chest ? ChestAt(a_state, index).name : OutfitAt(a_state, index).name;
+			if (source.whole) {
+				source.pieces = pieces;
+			} else {
+				std::erase_if(source.pieces, [&pieces](std::size_t a_piece) { return !std::ranges::binary_search(pieces, a_piece); });
+			}
+		}
+		std::erase_if(sources, [](const ShownSource& a_source) { return a_source.pieces.empty(); });
+		SetInventoryShown(a_state);
 	}
 
 	// After SetOutfits: the pieces Livery put on from Request::wornOutfit keep their heading
@@ -2137,9 +2174,8 @@ namespace CaptureWindow
 			state.loadTarget = LoadTarget::kInventory;
 			state.loadSource = LoadSource::kOutfits;
 			state.loadedOutfit = -1;
+			state.inventorySources.clear();
 			state.inventoryShown.clear();
-			state.inventoryShownNames.clear();
-			state.inventoryShownFromChest = false;
 			state.chest = {};
 			for (auto* browser : { &state.loadBrowser, &state.updateBrowser, &state.manageBrowser, &state.situationBrowser }) {
 				OutfitBrowser::Reset(*browser, state.request);
@@ -2275,16 +2311,20 @@ namespace CaptureWindow
 		FillSituationForm(state, situationsBefore);
 		FollowWornOutfit(state);
 		SetGroupHeadings(state);
-		state.headings[GroupIndex(PieceGroup::kNotCarried)] = EditShownHeading(state.inventoryShownNames);
+		FollowInventorySources(state);
 		// DrawPieceRows' contract: a piece the Inventory page does not list is never ticked.
 		const auto inventory = InventoryPieces(state);
+		bool       dropped = false;
 		for (std::size_t i = 0; i < request.pieces.size(); ++i) {
 			if (inventory.ticked[i] && !IsListed(state, inventory, i)) {
 				inventory.ticked[i] = false;
+				dropped = true;
 			}
 		}
 		FillManageForm(state, IndexOfOutfit(state, managed));
-		if (managed != 0 && state.manage.outfit < 0 && !redressed) {
+		// The preview follows the ticks when the page shows them and a tick just went.
+		const bool managedGone = managed != 0 && state.manage.outfit < 0;
+		if (!redressed && (managedGone || (dropped && !PagePreview(state, state.page)))) {
 			QueuePreview(state, TickedPieces(state));
 		}
 		state.discardFor = -1;

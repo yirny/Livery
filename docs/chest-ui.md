@@ -83,7 +83,9 @@ columns and `Update` / `Remove` / `Back`:
   carries and ticks none: the ticks stay, so the listed pieces nobody carries that are ticked
   stay listed and the unticked ones go (`DrawPieceRows`' contract: a piece that is not listed
   is never ticked). The heading names what the list came from, `"Guard", "Visors"`
-  (`State::inventoryShownNames`), and has the chest icon while a chest was loaded last, the bare
+  (`State::inventorySources`, found again by id at `SetOutfits`, so the list and the heading
+  follow a rename, an edit or a removal made with the window open, and a tick on an item that
+  leaves the list goes), and has the chest icon while a chest was loaded last, the bare
   form after an outfit's Load. Loading an outfit still replaces every tick with its items
   and lists them alone. Ticking a chest item unticks the ticked items on its body slots, as any
   tick does; Apply then dresses the actor as it would in any ticked items (an NPC gets a copy of

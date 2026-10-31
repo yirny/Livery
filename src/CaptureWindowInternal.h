@@ -204,6 +204,17 @@ namespace CaptureWindow::Internal
 		std::array<char, kNameCapacity> newName{};  // the New chest popup's field
 	};
 
+	// An outfit or a chest loaded on the Inventory page, found again by id at SetOutfits, so the
+	// list follows a rename, an edit or a removal made with the window open.
+	struct ShownSource
+	{
+		bool                     chest = false;  // `id` is a chest's; else a library outfit's
+		std::uint32_t            id = 0;
+		std::string              name;
+		std::vector<std::size_t> pieces;        // what it brings to the list: indices into request.pieces, ascending
+		bool                     whole = true;  // all its pieces; false once a later Load left only its ticked ones
+	};
+
 	// Where leaving a page with unsaved edits goes once they are saved or dropped: the
 	// window's close (Exit, Escape), or a tab's page; the Wardrobe page with `manageOutfit`, the
 	// library outfit to select there (the Situations page's Edit; 0 keeps its selection).
@@ -240,15 +251,14 @@ namespace CaptureWindow::Internal
 		LoadTarget               loadTarget = LoadTarget::kInventory;  // the page the Load page was opened from, which its Load returns to
 		LoadSource               loadSource = LoadSource::kOutfits;
 		int                      loadedOutfit = -1;  // the last one loaded: index into request.existingOutfits, -1 for none
-		// The Inventory page's listed pieces nobody carries: the outfit's at its Load, a chest's
-		// items at its Load with the ticked ones kept; ascending. `inventoryShownNames` are the
-		// outfits and chests they came from, for the heading over them (EditShownHeading).
+		// What the Inventory page has loaded, in load order: an outfit's Load replaces them, a
+		// chest's joins those with a ticked piece. `inventoryShown` is every piece they bring,
+		// ascending, and the heading over those nobody carries names them (SetInventoryShown).
+		std::vector<ShownSource> inventorySources;
 		std::vector<std::size_t> inventoryShown;
-		std::vector<std::string> inventoryShownNames;
-		bool                     inventoryShownFromChest = false;  // a chest was loaded last, so their heading has the chest icon
-		OutfitBrowser::State     loadBrowser;                      // search, filter and sort of the Load page's outfit list
-		OutfitBrowser::State     updateBrowser;                    // the Save page's Update tab's
-		OutfitBrowser::State     manageBrowser;                    // the Wardrobe page's
+		OutfitBrowser::State     loadBrowser;    // search, filter and sort of the Load page's outfit list
+		OutfitBrowser::State     updateBrowser;  // the Save page's Update tab's
+		OutfitBrowser::State     manageBrowser;  // the Wardrobe page's
 		ManageForm               manage;
 		ChestForm                chest;
 		IconPicker               iconPicker;
@@ -310,6 +320,7 @@ namespace CaptureWindow::Internal
 	};
 
 	PieceList                InventoryPieces(const State& a_state);
+	void                     SetInventoryShown(State& a_state);  // State::inventoryShown and the heading over it, from State::inventorySources
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
 	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
