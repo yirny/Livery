@@ -245,21 +245,23 @@ namespace CaptureWindow::Internal
 		// outfits and chests they came from, for the heading over them (EditShownHeading).
 		std::vector<std::size_t> inventoryShown;
 		std::vector<std::string> inventoryShownNames;
-		OutfitBrowser::State     loadBrowser;    // search, filter and sort of the Load page's outfit list
-		OutfitBrowser::State     updateBrowser;  // the Save page's Update tab's
-		OutfitBrowser::State     manageBrowser;  // the Wardrobe page's
+		bool                     inventoryShownFromChest = false;  // a chest was loaded last, so their heading has the chest icon
+		OutfitBrowser::State     loadBrowser;                      // search, filter and sort of the Load page's outfit list
+		OutfitBrowser::State     updateBrowser;                    // the Save page's Update tab's
+		OutfitBrowser::State     manageBrowser;                    // the Wardrobe page's
 		ManageForm               manage;
 		ChestForm                chest;
 		IconPicker               iconPicker;
-		int                      discardFor = -1;   // the outfit to select once Discard changes is chosen: index, -1 for none
-		std::string              manageApplyLabel;  // "Apply to #{Name}"
-		std::string              manageApplyTip;    // its tooltip, what it dresses them for (FillManageForm); "" with no outfit selected
-		std::unique_ptr<bool[]>  editTicked;        // the Edit page's ticks, one per request.pieces
-		std::vector<std::size_t> editShown;         // the edited pieces it opened with and those loaded since, so those nobody carries stay listed
-		std::string              editTitle;         // "Edit \"#{Outfit}\""
-		std::vector<std::string> editOutfitNames;   // the outfits those come from: the edited one, then those loaded that brought one
-		std::string              editShownHeading;  // over those nobody carries: "\"#{Outfit}\", \"#{Loaded}\""
-		OutfitBrowser::State     situationBrowser;  // the Situations page's outfit list
+		int                      discardFor = -1;             // the outfit to select once Discard changes is chosen: index, -1 for none
+		std::string              manageApplyLabel;            // "Apply to #{Name}"
+		std::string              manageApplyTip;              // its tooltip, what it dresses them for (FillManageForm); "" with no outfit selected
+		std::unique_ptr<bool[]>  editTicked;                  // the Edit page's ticks, one per request.pieces
+		std::vector<std::size_t> editShown;                   // the edited pieces it opened with and those loaded since, so those nobody carries stay listed
+		std::string              editTitle;                   // "Edit \"#{Outfit}\""
+		std::vector<std::string> editOutfitNames;             // the outfits those come from: the edited one, then those loaded that brought one
+		bool                     editShownFromChest = false;  // a chest brought one last, so that heading has the chest icon
+		std::string              editShownHeading;            // over those nobody carries: "\"#{Outfit}\", \"#{Loaded}\""
+		OutfitBrowser::State     situationBrowser;            // the Situations page's outfit list
 		SituationForm            situationForm;
 		std::string              situationsTitle;  // "#{Name}'s Situational Outfits"
 		// Set while the unsaved-changes alert is open, and while its Save Changes saves.
@@ -290,16 +292,17 @@ namespace CaptureWindow::Internal
 	// it opened with. Pieces someone carries are always listed.
 	struct PieceList
 	{
-		bool*                           ticked;   // one per request.pieces (bool* for Theme::TickRow)
-		const std::vector<std::size_t>* shown;    // the other pieces listed: indices into request.pieces, ascending; null for none
-		const std::string*              heading;  // over those that nobody carries
+		bool*                           ticked;                                     // one per request.pieces (bool* for Theme::TickRow)
+		const std::vector<std::size_t>* shown;                                      // the other pieces listed: indices into request.pieces, ascending; null for none
+		const std::string*              heading;                                    // over those that nobody carries
+		Theme::HeadingIcon              shownIcon = Theme::HeadingIcon::kBareForm;  // that heading's: the chest's when a chest brought them last
 	};
 
 	// --- Shared helpers (CaptureWindow.cpp) -----------------------------------
 
-	// The links at the end of a piece list's count line, which open the Load page: Add items
-	// from Wardrobe... (Request::offersWardrobe) and Add items from Chest... (with
-	// Request::offersChests too). Each is true the frame it is clicked.
+	// The links under a piece list, which open the Load page: Add from Wardrobe...
+	// (Request::offersWardrobe) and Add from Chest... (with Request::offersChests too). Each is
+	// true the frame it is clicked.
 	struct CountLinks
 	{
 		bool wardrobe = false;
@@ -310,15 +313,16 @@ namespace CaptureWindow::Internal
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
 	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
-	bool                     DrawCountLink(const char* a_label, const char* a_reason);  // a count line's link, greyed with `a_reason` (its hover text)
-	void                     DrawPreviewToggle(State& a_state, const PieceList& a_list);
-	std::string              Trimmed(const char* a_text);
-	void                     DrawError(const std::string& a_message);
-	void                     RequestCancel();
-	bool                     DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
+	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text).
+	bool        DrawCountLink(const char* a_label, const char* a_reason, Theme::LinkLine a_line = Theme::LinkLine::kSame, float a_reserveRight = 0.0f);
+	void        DrawPreviewToggle(State& a_state, const PieceList& a_list);
+	std::string Trimmed(const char* a_text);
+	void        DrawError(const std::string& a_message);
+	void        RequestCancel();
+	bool        DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
 		bool* a_iconClicked = nullptr, const char* a_hint = "Outfit Name");
-	bool                     BeginModal(const char* a_id);
-	void                     SetGroupHeadings(State& a_state);
+	bool        BeginModal(const char* a_id);
+	void        SetGroupHeadings(State& a_state);
 
 	// Choose icon (OutfitPages.cpp), opened as kIconPopup with State::iconPicker set: returns
 	// the choice on OK, else nullopt. `a_keepOpen` false closes it (its outfit is gone).

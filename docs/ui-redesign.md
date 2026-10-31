@@ -30,7 +30,7 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
   slots; a longer list ends in an ellipsis. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
   come first; Name ascending to start.
-- The count line `x of y item(s) selected` moves under the list, ending in `Add items from
+- The count line `x of y item(s) selected` moves under the list, ending in `Add from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview stays as it is.
 - Assign for and `Situations...` go, with the Situations page (§4 covers assignment).
 - Buttons: `Save` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
