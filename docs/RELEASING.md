@@ -4,6 +4,14 @@
 
 The version lives in two places: `CMakeLists.txt` (`project(... VERSION x.y.z)`) and `vcpkg.json` (`version-string`). Bump both together.
 
+## Before the first release
+
+Hide the chests (docs/chest-ui.md), with no way to turn them on; a later update brings them in. Today these show or turn them on:
+
+- The settings page's `Item chests` tick (`src/Settings.cpp`).
+- `[Window] ItemChests` in `Livery.ini`, read by `Settings::ItemChests` (`src/Settings.cpp`).
+- `README.md` and `docs/nexus-page.md`, which describe them.
+
 ## Publishing a release
 
 1. Run `./scripts/release.sh <major|minor|patch|X.Y.Z>` on `main`. It bumps `CMakeLists.txt` and `vcpkg.json` on a `chore/release-X.Y.Z` branch, opens a PR (labeled `ignore-for-release`), waits for its checks, squash-merges it, then tags and pushes `vX.Y.Z`. That push triggers `release.yml` to build the plugin, package it via `scripts/package.sh`, and publish a GitHub Release with the zip and PDB. The `CMakeLists.txt` version is also embedded in the DLL through the `SKSEPlugin_Version` that `add_commonlibsse_plugin` generates, and `release.yml` names the zip after the tag. Keep all three (files, tag, DLL) in lockstep. Requires the GitHub CLI (`gh`), authenticated with push/merge access.
