@@ -674,6 +674,23 @@ namespace CaptureWindow::Internal
 		}
 	}
 
+	// `a_title` over the actor's summary line.
+	void DrawSummaryHeading(const char* a_title, const CaptureWindow::ActorSummary& a_summary)
+	{
+		if (a_summary.outfit.empty()) {
+			Theme::HeadingText(a_title, a_summary.lead.c_str());
+			return;
+		}
+		const std::array<Theme::SubtitleRun, 5> runs{ {
+			{ .text = a_summary.lead.c_str() },
+			{ .text = a_summary.outfit.c_str(), .rowIcon = RowIconOf(a_summary.icon) },
+			{ .text = a_summary.link.c_str() },
+			{ .text = a_summary.situation.c_str(), .icon = a_summary.situationIsDefault ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar },
+			{ .text = a_summary.tail.c_str() },
+		} };
+		Theme::HeadingText(a_title, runs);
+	}
+
 	// The page's heading: the Dress page's own title over the summary line; Manage
 	// Wardrobe's, the Situations page's and the Edit page's with no summary line; the Load page's the actor's name over the summary line;
 	// Appearance's over where the other settings are. The Save page's tabs are its heading (DrawSaveTabs).
@@ -681,7 +698,7 @@ namespace CaptureWindow::Internal
 	{
 		switch (a_state.page) {
 		case Page::kCapture:
-			Theme::HeadingText(a_state.captureTitle.c_str(), a_state.request.actorSummary.c_str());
+			DrawSummaryHeading(a_state.captureTitle.c_str(), a_state.request.actorSummary);
 			break;
 		case Page::kManage:
 			Theme::HeadingText("Wardrobe");
@@ -693,13 +710,20 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(a_state.editTitle.c_str());
 			break;
 		case Page::kChests:
-			Theme::HeadingText("Chests", "Items in a chest can be loaded on the Dress page.");
-			break;
+			{
+				const std::array<Theme::SubtitleRun, 3> subtitle{ {
+					{ .text = "Items in a chest can be loaded on the " },
+					{ .text = "Dress", .icon = Theme::HeadingIcon::kBareForm },
+					{ .text = " page." },
+				} };
+				Theme::HeadingText("Chests", subtitle);
+				break;
+			}
 		case Page::kChestEdit:
 			Theme::HeadingText(a_state.chest.chest >= 0 ? std::format("Edit \"{}\"", ChestAt(a_state, a_state.chest.chest).name).c_str() : "Edit");
 			break;
 		case Page::kLoad:
-			Theme::HeadingText(a_state.request.actorName.c_str(), a_state.request.actorSummary.c_str());
+			DrawSummaryHeading(a_state.request.actorName.c_str(), a_state.request.actorSummary);
 			break;
 		case Page::kAppearance:
 			Theme::HeadingText("Appearance", "Other settings are in Livery.ini or on the SKSE Menu Framework page.");

@@ -128,7 +128,7 @@ says so), so a lock would be needed anyway.
   vanilla picker until the player assigns again. The window counts the pieces Livery
   put on that the actor wears no copy of, and the worn armor it did not put on (`GapsOf` in `Plugin.cpp`, read as it opens
   and after each dressing with it open, no preview on): the summary line then says the
-  outfit is only assigned, `Assigned "X" as Default, 1 item not worn.`, an extra piece
+  outfit is only assigned, `Assigned X as Default, 1 item not worn.`, an extra piece
   is added as `, 1 extra item worn`, and the Wardrobe page's Apply is not greyed as worn
   already; it dresses them again, a copy added for a piece they no longer carry (§2 step 2),
   the extra pieces taken off (step 4).
