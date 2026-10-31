@@ -118,7 +118,7 @@ namespace
 			L"1 = the item list shows a Slot column: each item's body slot numbers (32, 34)." },
 		{ kWindowSection, kItemChestsKey, L"0",
 			L"1 = Livery has a Chests tab: a chest holds any number of items, several for one body slot too,\n"
-			L"which you can load on the Inventory page. Chests are kept in chests.json beside outfits.json." },
+			L"which you can load on the Dress page. Chests are kept in chests.json beside outfits.json." },
 		{ kTransferSection, kMoveFromPlayerKey, L"1",
 			L"1 = Apply on an NPC transfers the ticked items from your inventory, enchantments and tempering included.\n"
 			L"0 = the NPC gets plain copies and you keep yours." },
@@ -746,7 +746,7 @@ namespace
 			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Adds a Chests tab to Livery. A chest holds any number of items, several for one body slot too, which you can load on the Inventory page. "
+			"Adds a Chests tab to Livery. A chest holds any number of items, several for one body slot too, which you can load on the Dress page. "
 			"Handy for keeping the variants of an item together.\n"
 			"Default: OFF");
 

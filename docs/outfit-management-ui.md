@@ -3,12 +3,12 @@
 Written 2026-10-20 for the AI that implements it, from the user's draft and the decisions
 made on it; current spec only. Three steps, each built, checked in game and committed
 before the next, each with CLAUDE.md §1 approval first: (1) the outfit list and the
-Inventory page's buttons, (2) the tab column and the Wardrobe page with Update,
+Dress page's buttons, (2) the tab column and the Wardrobe page with Update,
 (3) Remove. Docs follow the code in the step that makes them stale: design.md, README, and
 CLAUDE.md §2.1 (step 2 adds the Wardrobe page's Update path, step 3 the window's delete).
 
-The Inventory page is today's Capture page (`Page::kCapture`), titled `#{Name}'s Inventory`.
-Docs call it the Inventory page; code identifiers stay.
+The Dress page is today's Capture page (`Page::kCapture`), titled `#{Name}'s Inventory`.
+Docs call it the Dress page; code identifiers stay.
 
 Window-wide look: field labels, list headings (folding ones included) and column labels
 are drawn in ASCII capitals (`Theme`'s `Caps`), the strings in code staying as
@@ -67,7 +67,7 @@ page. Each page keeps its own search and sort.
   (after Nordic's arrow), then the label; Modern a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
   of them: a dressed form (a gown on the stand) for the outfit the actor wears now
-  (`Request::wornOutfit`), else a bare form (the Wardrobe page's tab icon) for one their
+  (`Request::wornOutfit`), else a bare form (the Dress tab's icon) for one their
   Default holds; a star (point down, lines from its centre to its inner corners, the upper left face filled) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
@@ -97,10 +97,10 @@ page. Each page keeps its own search and sort.
 - The order and the situation mark text are computed when the list is refreshed, never per
   frame.
 
-## 2. Inventory page (step 1)
+## 2. Dress page (step 1)
 
 - Each group heading of the piece list starts with an icon (`Theme::HeadingIcon`), an 18px
-  square at 1080p in every skin, in its grey, centred on the text's line: the Inventory tab's
+  square at 1080p in every skin, in its grey, centred on the text's line: a
   backpack over `Inventory` and
   `#{Player}'s Inventory`, the dressed form of an outfit row's current-outfit mark over the
   three `Outfit (...)` headings, the bare form over the loaded outfit's, the chest over a
@@ -145,9 +145,11 @@ page. Each page keeps its own search and sort.
 ## 3. Tab column (step 2)
 
 - A column of icon tabs at the window's left edge, a rule between it and the page:
-  Inventory (a backpack), the Wardrobe page (a bare dress form: a padded torso on a stand,
-  each shoulder one arc), the Situations page (the star, point down, of the outfit rows'
-  situation mark; docs/situation-management-ui.md §3) and Appearance (a painter's palette: a
+  the Dress page (a bare dress form: a padded torso on a stand, each shoulder one arc), the
+  Wardrobe page (a wardrobe: a cornice wider than the body, rising to a crest, above two doors
+  with a knob each, clear of the seam between them, on two short legs), the Situations page
+  (the star, point down, of the outfit rows' situation mark;
+  docs/situation-management-ui.md §3) and Appearance (a painter's palette: a
   round board with a bite out of its lower right, three dabs of paint across from it, smaller
   towards the upper right, each as far from the rim and from the next).
 - Icons only, drawn as ImDrawList lines, so they scale with the resolution and take the
@@ -156,9 +158,9 @@ page. Each page keeps its own search and sort.
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
 - Each tab is centred between the window's left edge and the rule. Nordic's start 8px
   lower, clear of the corner knot.
-- Shown on the Inventory, the Wardrobe page, the Situations page and Appearance pages only; the
+- Shown on the Dress page, the Wardrobe page, the Situations page and Appearance pages only; the
   Load, Save, Select and Edit pages have none.
-- Switching tabs keeps the Inventory page's ticks until the window closes. Leaving Manage
+- Switching tabs keeps the Dress page's ticks until the window closes. Leaving Manage
   Wardrobe or the Situations page with unsaved edits asks first (§4,
   docs/situation-management-ui.md §6).
 - The rule: Modern, 1px in its rule colour (Tailor 3.0's sidebar divider). Vanilla, 2px in its
@@ -170,7 +172,7 @@ page. Each page keeps its own search and sort.
 ### Appearance page
 
 - The SKSE Menu Framework page's Appearance section inside the window, so the look can be
-  changed without that framework and seen at once. One column, as wide as the Inventory page.
+  changed without that framework and seen at once. One column, as wide as the Dress page.
 - Heading `Appearance`, its summary line `Other settings are in Livery.ini or on the SKSE
   Menu Framework page.`
 - `Window skin`: a dropdown of the palettes, as wide as its longest name, as the settings
@@ -204,7 +206,7 @@ page. Each page keeps its own search and sort.
     popup for the new outfit's icon (docs/ui-redesign.md).
   - 4px of extra room, then its pieces under a count line ending in `Edit`
     (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
-    stay in the outfit. The pieces are the Inventory page's tick rows (`Theme::TickRow`, with
+    stay in the outfit. The pieces are the Dress page's tick rows (`Theme::TickRow`, with
     their icons, no column labels): the ticked ones are what Apply dresses the actor in, the
     unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
     They start as that row leaves them, the row the actor wears the outfit for now, else the
@@ -220,7 +222,7 @@ page. Each page keeps its own search and sort.
   has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Update's
   popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
-  selected, the Inventory page's ticks.
+  selected, the Dress page's ticks.
 - Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (step 3) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`).
   - Update: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
@@ -234,7 +236,7 @@ page. Each page keeps its own search and sort.
     selected (found by id), and the captured actor is redressed when they wear it (§6).
   - Apply to #{Name}: changes what the actor wears now. The outfit goes to one row in one
     `Assignments::Change`, its unticked pieces left off there (none unticked: all its items),
-    the window staying open as after the Inventory page's Apply (§6); nothing moves from the
+    the window staying open as after the Dress page's Apply (§6); nothing moves from the
     player's inventory. The Save page's Create and Apply always gives every item. The row, from `Request::wornFor` (what
     `Request::wornOutfit` is worn for):
     - They wear another library outfit for a situation now: a popup (`Apply outfit?`) says
@@ -276,12 +278,12 @@ page. Each page keeps its own search and sort.
 
 ### Edit page
 
-- Reached from `Edit`: the Inventory page's piece list (headings, columns, sorting) with the
+- Reached from `Edit`: the Dress page's piece list (headings, columns, sorting) with the
   outfit's edited pieces listed and ticked exactly, those nobody carries under their own
-  heading, as after Load. Its ticks are its own; the Inventory page's stay as they were.
+  heading, as after Load. Its ticks are its own; the Dress page's stay as they were.
 - Title `Edit "#{Outfit}"`, no summary line, no tab column. It has the window's Live Preview
   tick; the preview shows this page's ticks.
-- The count line ends in `Add from Wardrobe...`, as on the Inventory page (§2): the
+- The count line ends in `Add from Wardrobe...`, as on the Dress page (§2): the
   Load page opens, and Load adds the selected outfit's pieces to this page's ticks instead
   of replacing them: a ticked piece sharing a body slot with one of them is unticked, as a
   tick would untick it. Its pieces nobody carries stay listed, and their heading names every
@@ -309,8 +311,8 @@ page. Each page keeps its own search and sort.
   memory at their next situation change; a random row with others on its list picks again
   from them. A Default worn from it stays on.
 - Afterwards the list is rebuilt without it and nothing is selected; the preview shows the
-  Inventory page's ticks, or, when the captured actor was redressed, what they wear now, the
-  Inventory page following them (§6). The Inventory page's loaded
+  Dress page's ticks, or, when the captured actor was redressed, what they wear now, the
+  Dress page following them (§6). The Dress page's loaded
   outfit and the Save page's chosen outfit are cleared when they were it.
 - Other saves change nothing at load: their rows keep the removed outfit's id, which counts
   as not on the row and never shows (docs/situation-management-ui.md §1), and restoring
@@ -327,7 +329,7 @@ Assignments run only with no preview on, since the preview restores what it foun
   state is what the preview later restores. The camera and the movement hold stay. When
   Begin refuses, the Live Preview tick greys with the reason, as at Open. With it off, the
   assignment runs in the game the window froze, and the NPC's model is rebuilt at once
-  (`Dressing::RefreshModel`; docs/design.md §6). Then the Inventory page follows what they wear, as Open would list
+  (`Dressing::RefreshModel`; docs/design.md §6). Then the Dress page follows what they wear, as Open would list
   it now (`CaptureWindow::OutfitList::actorPieces`): each piece's heading, the worn pieces
   ticked (the user's ticks replaced), the heading of Livery's outfit named after the one now
   on them, the loaded outfit let go. Armor the window did not list at Open cannot be listed,
@@ -342,10 +344,10 @@ adds them (an NPC gets a copy of a piece they lack); nothing moves from the play
 inventory. Not worn now: nothing, since every row reads its outfit from the library each
 time it goes on. Remove: §5.
 
-An Apply (the Inventory page's, Apply to #{Name}, Update and Apply) dresses the captured
+An Apply (the Dress page's, Apply to #{Name}, Update and Apply) dresses the captured
 actor at once, Live Preview on or off, as above, and the window stays on its page; with
-Live Preview on the preview begins again on what they wear now (the Inventory page) or the
-outfit the Wardrobe page has selected. The Inventory page follows what they wear
+Live Preview on the preview begins again on what they wear now (the Dress page) or the
+outfit the Wardrobe page has selected. The Dress page follows what they wear
 (`actorPieces`), and `Restore` shows while Livery dresses them
 (`OutfitList::dressed`). The Save page's Create and Apply and Restore close the window
 first.

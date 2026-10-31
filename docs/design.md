@@ -51,7 +51,7 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 A library outfit given to a row is dressed less the items it leaves off on that row
 (`OutfitRows::Exclusion`, per actor, row and outfit): those unticked in its piece list on
 The Wardrobe page when Apply gave it the row, on the Situations page in its details opened
-from the row, or on the Inventory page when its Apply dressed the actor in some of the
+from the row, or on the Dress page when its Apply dressed the actor in some of the
 outfit they wore (below). The outfit's other items, those added to it later included, are worn; when
 the items left off are all it has, it is dressed whole. The library outfit itself never
 changes for this.
@@ -169,7 +169,7 @@ group has an access in `[General]` (`Settings::AccessOf`), defaults in brackets:
 
 - `Full`: the whole window. `Off`: a HUD message, no window.
 - `SaveOnly` (`Request::saveOnly`): the window lists only the worn armor with its ticks fixed,
-  has the Inventory and Appearance tabs, no Apply, Restore, Create and Apply or link to the
+  has the Dress and Appearance tabs, no Apply, Restore, Create and Apply or link to the
   Wardrobe, and writes the library only through the Save page. Its Live Preview is the camera
   alone and never calls `OutfitPreview`, so the inventory stays untouched. An Update of the
   outfit the NPC wears still redresses them, as for every wearer of an updated outfit.
@@ -497,7 +497,7 @@ Each stage ends with an in-game check before the next starts.
    page: done. Step 2, the Save page: done. Step 3, Apply (its popup and the transfer from
    the player): done.
 7. Outfit management in the capture window (docs/outfit-management-ui.md): step 1, the
-   outfit list and the Inventory page's buttons: done. Step 2, the tab column and the
+   outfit list and the Dress page's buttons: done. Step 2, the tab column and the
    The Wardrobe page with Update, the captured actor redressed while the window is open
    (§6 there): done. Step 3, Remove, which deals with the assignments and situation
    choices that name the outfit: done.

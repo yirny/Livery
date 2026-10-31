@@ -90,7 +90,7 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   while not being typed in; a failed save's error instead).
 - `Create New Outfit`: the icon field and the name, as the Wardrobe page's (its `Choose icon`
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
-  NNN`, then the ticked pieces read only, with the Inventory page's icons, under their count
+  NNN`, then the ticked pieces read only, with the Dress page's icons, under their count
   line, as the Wardrobe page shows an outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
 - The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it while
   the window is open (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
@@ -115,7 +115,7 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   outfit list (docs/outfit-management-ui.md §1, with its own search and sort), `CURRENT
   ITEMS` (the chosen outfit's pieces as the library has them, its count line counting those
   of unloaded plugins; `Select an outfit to update` while none is chosen) and `NEW ITEMS`
-  (the ticked pieces), each piece with the Inventory page's icon. Each column's list grows with its rows up to `kMaxListHeightRatio`,
+  (the ticked pieces), each piece with the Dress page's icon. Each column's list grows with its rows up to `kMaxListHeightRatio`,
   then scrolls. The tab opens with its outfit, or else the one last loaded, or else the
   library outfit Livery has on the actor, chosen. A click on an outfit chooses it, fills the
   name from it and shows it on the preview; a second click unchooses it, which greys the name

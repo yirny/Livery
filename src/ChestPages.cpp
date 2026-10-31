@@ -10,7 +10,7 @@
 //                  editor on that chest; Create New Chest (the New chest popup: a name, then
 //                  Create / Cancel, handed to onChestCreate); Exit
 //   Chest editor - the chest's name and two columns: left the items someone carries that are
-//                  not in the chest, under the Inventory page's group headings in its order,
+//                  not in the chest, under the Dress page's group headings in its order,
 //                  then the items taken out that nobody carries under their own heading, a
 //                  click putting an item in; right the chest's items, a click taking one out;
 //                  Add from Wardrobe... / Add from Chest... open the Load page, whose Add puts
@@ -300,7 +300,7 @@ namespace CaptureWindow::Internal
 		return clicked;
 	}
 
-	// Left column: the items outside the chest under the Inventory page's group headings, in
+	// Left column: the items outside the chest under the Dress page's group headings, in
 	// its order (State::pieceOrder), then the taken-out items. Returns the item clicked.
 	std::optional<std::size_t> DrawItemsOutside(const State& a_state, float a_height)
 	{
@@ -346,7 +346,7 @@ namespace CaptureWindow::Internal
 		return clicked;
 	}
 
-	// Right column: the chest's items in the Inventory page's order. Returns the item clicked.
+	// Right column: the chest's items in the Dress page's order. Returns the item clicked.
 	std::optional<std::size_t> DrawItemsInside(const State& a_state, float a_height)
 	{
 		const auto&                inside = a_state.chest.pieces;

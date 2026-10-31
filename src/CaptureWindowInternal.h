@@ -2,7 +2,7 @@
 #pragma once
 
 // The capture window's constants, state and shared helpers, private to CaptureWindow.cpp
-// (the window and its tab column, the Inventory and Save pages), OutfitPages.cpp (the
+// (the window and its tab column, the Dress and Save pages), OutfitPages.cpp (the
 // outfit browser and lists, the Load, the Wardrobe page and Edit pages) and
 // SituationPage.cpp (the Situations page). The helpers are defined in
 // CaptureWindow.cpp, the pages in OutfitPages.cpp and SituationPage.cpp; each definition
@@ -103,7 +103,7 @@ namespace CaptureWindow::Internal
 
 	enum class Page
 	{
-		kCapture,  // the Inventory page
+		kCapture,  // the Dress page
 		kSave,
 		kLoad,
 		kManage,      // the Wardrobe page
@@ -117,7 +117,7 @@ namespace CaptureWindow::Internal
 	// Where the Load page's Load goes, and what its list offers.
 	enum class LoadTarget
 	{
-		kInventory,  // the Inventory page: an outfit's items replace the ticks, a chest's are listed
+		kInventory,  // the Dress page: an outfit's items replace the ticks, a chest's are listed
 		kEdit,       // the Edit page: an outfit's items join the ticks, a chest's are listed
 		kChest       // the chest editor: the items join the chest's
 	};
@@ -205,7 +205,7 @@ namespace CaptureWindow::Internal
 		std::array<char, kNameCapacity> newName{};  // the New chest popup's field
 	};
 
-	// An outfit or a chest loaded on the Inventory page, found again by id at SetOutfits, so the
+	// An outfit or a chest loaded on the Dress page, found again by id at SetOutfits, so the
 	// list follows a rename, an edit or a removal made with the window open.
 	struct ShownSource
 	{
@@ -252,7 +252,7 @@ namespace CaptureWindow::Internal
 		LoadTarget               loadTarget = LoadTarget::kInventory;  // the page the Load page was opened from, which its Load returns to
 		LoadSource               loadSource = LoadSource::kOutfits;
 		int                      loadedOutfit = -1;  // the last one loaded: index into request.existingOutfits, -1 for none
-		// What the Inventory page has loaded, in load order: an outfit's Load replaces them, a
+		// What the Dress page has loaded, in load order: an outfit's Load replaces them, a
 		// chest's joins those with a ticked piece. `inventoryShown` is every piece they bring,
 		// ascending, and the heading over those nobody carries names them (SetInventoryShown).
 		std::vector<ShownSource> inventorySources;
@@ -298,7 +298,7 @@ namespace CaptureWindow::Internal
 		std::optional<OutfitIcons::Icon> createIcon;
 	};
 
-	// The piece list a page shows (DrawPieceRows): the Inventory page's ticks with the
+	// The piece list a page shows (DrawPieceRows): the Dress page's ticks with the
 	// pieces of the outfit last loaded, or the Edit page's own ticks with the edited pieces
 	// it opened with. Pieces someone carries are always listed.
 	struct PieceList
@@ -326,7 +326,7 @@ namespace CaptureWindow::Internal
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
 	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
 	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text):
-	// "[+] Add from <a_icon> <a_name>", with the Wardrobe tab's form or the Chests tab's chest.
+	// "[+] Add from <a_icon> <a_name>", with a bare form or the Chests tab's chest.
 	bool        DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame,
 		float a_reserveRight = 0.0f);
 	void        DrawPreviewToggle(State& a_state, const PieceList& a_list);
@@ -380,7 +380,7 @@ namespace CaptureWindow::Internal
 	// Goes without asking: closes the window, or switches to the tab's page, which keeps every
 	// page's ticks and edits but the Situations page's outfit details, which close; with
 	// `manageOutfit`, the Wardrobe page first selects it. The preview shows the Wardrobe page's
-	// selected outfit as edited there, the Inventory page's ticks on the other tabs.
+	// selected outfit as edited there, the Dress page's ticks on the other tabs.
 	void Leave(State& a_state, const PendingLeave& a_leave);
 
 	enum class LeaveChoice
@@ -479,7 +479,7 @@ namespace CaptureWindow::Internal
 	// least.
 	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces, float a_bottom = FLT_MAX);
 
-	// An outfit's pieces (indices into request.pieces) as the Inventory page's tick rows, with
+	// An outfit's pieces (indices into request.pieces) as the Dress page's tick rows, with
 	// their icons: a ticked one is worn with the outfit, an unticked one left off, its armor in
 	// `a_excluded` (FormIDs, ascending). A click ticks or unticks one, but the last ticked one
 	// stays ticked. The list ends by screen Y `a_bottom` and scrolls when it needs more; one row

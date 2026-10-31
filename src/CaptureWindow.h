@@ -213,7 +213,7 @@ namespace CaptureWindow
 		bool movesFromPlayer = true;
 		// The player's favorites are left out of PieceGroup::kPlayer (quest items always are).
 		bool protectsFavorites = true;
-		// The Inventory page's count line ends in `Add from Wardrobe...`; off for the
+		// The Dress page's count line ends in `Add from Wardrobe...`; off for the
 		// player while they dress from their inventory only (Settings::PlayerAddsMissingPieces).
 		bool offersWardrobe = true;
 		// The player dresses from their inventory only (Settings::PlayerAddsMissingPieces off):
@@ -329,7 +329,7 @@ namespace CaptureWindow
 	};
 
 	// The captured actor's pieces after they were redressed while the window is open: what the
-	// Inventory page lists, as Open would list it now.
+	// Dress page lists, as Open would list it now.
 	struct ActorPieces
 	{
 		std::vector<PieceGroup>  groups;          // one per Request::pieces
@@ -355,7 +355,7 @@ namespace CaptureWindow
 		std::size_t                 piecesNotWorn = 0;  // as Request::piecesNotWorn
 		std::size_t                 extraWorn = 0;      // as Request::extraWorn
 		// Set when the change redressed the captured actor (with Live Preview on, the handler
-		// began the preview again); the Inventory page then follows what they wear.
+		// began the preview again); the Dress page then follows what they wear.
 		std::optional<ActorPieces> actorPieces;
 	};
 
@@ -369,14 +369,14 @@ namespace CaptureWindow
 	// edit again, Restore shown while `list.dressed`. The pages'
 	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
 	// when gone; the Update tab is left when the wardrobe is empty), each
-	// list keeps its search, sort and folded headings, the Inventory page drops ticks on
+	// list keeps its search, sort and folded headings, the Dress page drops ticks on
 	// pieces it no longer lists, the Situations page's edits start again from the rows and the
 	// situations (its selected situation and folded headings found again by key), and Manage
 	// Wardrobe's edits start again from the library, or
-	// the preview shows the Inventory page's ticks when its outfit is gone. The heading of the pieces Livery put on
+	// the preview shows the Dress page's ticks when its outfit is gone. The heading of the pieces Livery put on
 	// from Request::wornOutfit takes the outfit's name now; when the outfit is gone they
 	// join the other worn pieces and Apply no longer offers to update it.
-	// With `list.actorPieces` the Inventory page lists the pieces as they say, its ticks become
+	// With `list.actorPieces` the Dress page lists the pieces as they say, its ticks become
 	// the pieces worn, the loaded outfit is let go, and the preview is left as the handler
 	// began it.
 	// Contract: `list.actorPieces->groups` has one group per Request::pieces.

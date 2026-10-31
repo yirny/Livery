@@ -31,7 +31,7 @@ Per actor, per row:
   today).
 - `excluded`: per outfit on `outfits`, the armor FormIDs it leaves off for this actor
   (`OutfitRows::Exclusion`; design.md §2). Set by Apply to #{Name} from the Wardrobe page's
-  ticks and by the ticks of an outfit's details opened from the row (§5); the Inventory
+  ticks and by the ticks of an outfit's details opened from the row (§5); the Dress
   page's Apply and Create and Apply give the outfit with all its items. An outfit that
   leaves `outfits` (taken off, or replaced as `chosen`) loses them. Kept in the co-save's
   `EXCL` record (design.md §5).
@@ -67,7 +67,7 @@ Changes:
   outfit chosen before random went on; with none, the first of the list.
 - Taking an outfit off a row (a drag off it on the page; `OutfitRows::Take`) takes it off
   `outfits`; `chosen` becomes 0 if it was that.
-- The Inventory page's Apply popup: `No, apply as is (?)` (was `No, just apply`). The ticks
+- The Dress page's Apply popup: `No, apply as is (?)` (was `No, just apply`). The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
   `The ticked pieces become #{Name}'s Default as they are, without being added to the
   wardrobe.`, then, while a situation row holds an outfit, `While a situational outfit is
@@ -144,11 +144,11 @@ outfit for Town any more`.
 
 - The third tab of the tab column (docs/outfit-management-ui.md §3): the star, point down,
   that marks a situational outfit in the outfit list, tooltip `Situations`. The tab
-  column shows on the Inventory, the Wardrobe page, the Situations page and Appearance pages.
+  column shows on the Dress page, the Wardrobe page, the Situations page and Appearance pages.
 - Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on the Wardrobe page:
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
-- The preview shows the Inventory page's ticks, or the outfit whose details show (§5).
+- The preview shows the Dress page's ticks, or the outfit whose details show (§5).
 - Every change on the page is an edit until Save Changes (§6), except the details' Remove
   and Restore Presets, which write at once after their popups.
 
@@ -265,7 +265,7 @@ The situation's details, its fields evenly spaced with no headings:
 An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its icon and name
 with no label (`Theme::OutfitNameText`), `SITUATIONS (#{Name})`, its label starting with the
 star as the Name label's does, with the rows the page's edits
-give it (`Default, Town`, or `None`), then its pieces, with the Inventory page's icons, under
+give it (`Default, Town`, or `None`), then its pieces, with the Dress page's icons, under
 their count line. Clicked under a
 situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved with Save Changes, and the last
@@ -277,7 +277,7 @@ room, then `Edit` and `Back` centred. The details grow with the pieces, moving t
 buttons down when taller than the Situation List, as the Wardrobe page's selection does; the
 pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every
 list keeps to, `kMaxListHeightRatio`), so the window stays on screen. Back, and Escape, show
-what the right pane showed before and the Inventory page's ticks on the preview. Edit goes to
+what the right pane showed before and the Dress page's ticks on the preview. Edit goes to
 The Wardrobe page with the outfit selected and on the preview, through the unsaved-changes
 alert when the page has edits (§6). A click on a situation's heading closes the details and
 shows the situation's.
