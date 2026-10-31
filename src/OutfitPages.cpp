@@ -17,7 +17,10 @@
 //                  the preview, and a second click on it, or Back, shows the ticks again
 //   Load page    - library outfits and the selected one's details; Load ticks its
 //                  pieces and returns (greyed while none of them is loaded); opened from
-//                  the Edit page, it adds them to that page's ticks
+//                  the Edit page, it adds them to that page's ticks; opened by Add items
+//                  from Chest..., it lists the chests instead (ChestPages.cpp) and Load lists
+//                  the selected one's items, ticking none; opened from the chest editor, Add
+//                  puts the selection's items in the chest
 //   the Wardrobe page - the tab beside the Inventory page: library outfits and the selected
 //                  one's icon (Choose icon popup), name and pieces (ticked as Apply would
 //                  dress the actor in them, from the row they wear it for or the Default),
@@ -436,14 +439,25 @@ namespace CaptureWindow::Internal
 
 	// Load / Back centred below a gap. a_escapeTaken: the browser used this
 	// frame's Escape. An outfit with no loaded piece would tick nothing.
+	// The page lists chests in place of outfits (State::loadSource).
+	bool LoadsChests(const State& a_state)
+	{
+		return a_state.loadSource == LoadSource::kChests;
+	}
+
+	// Load (Add from the chest editor) and Back. Load is greyed while nothing is selected or
+	// none of the selection's items is loaded.
 	LoadAction DrawLoadButtons(const State& a_state, bool a_escapeTaken)
 	{
-		const char* noLoad = kNeedOutfit;
-		if (a_state.previewedOutfit >= 0) {
+		const char* label = a_state.loadTarget == LoadTarget::kChest ? "Add" : "Load";
+		const char* noLoad = LoadsChests(a_state) ? kNeedChest : kNeedOutfit;
+		if (LoadsChests(a_state) && a_state.previewedChest >= 0) {
+			noLoad = ChestAt(a_state, a_state.previewedChest).pieces.empty() ? kNoLoadedPiece : nullptr;
+		} else if (!LoadsChests(a_state) && a_state.previewedOutfit >= 0) {
 			noLoad = OutfitAt(a_state, a_state.previewedOutfit).pieces.empty() ? kNoLoadedPiece : nullptr;
 		}
-		BeginButtonRow({ "Load", "Back" });
-		const bool load = ReasonButton("Load", noLoad);
+		BeginButtonRow({ label, "Back" });
+		const bool load = ReasonButton(label, noLoad);
 		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken);
 
@@ -462,61 +476,129 @@ namespace CaptureWindow::Internal
 			a_state.pieceTicked[i] = HasPiece(outfit, i);
 		}
 		a_state.loadedOutfit = a_state.previewedOutfit;
-		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = std::format("\"{}\"", outfit.name);
+		a_state.inventoryShown = outfit.pieces;
+		a_state.inventoryShownNames = { outfit.name };
+		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = EditShownHeading(a_state.inventoryShownNames);
 	}
 
-	// A load opened from the Edit page adds to that page's ticks (Edit page section).
+	// Lists the selected chest's items on the Inventory page and ticks none: the ticks stay, so
+	// the listed pieces nobody carries that are ticked stay listed too (DrawPieceRows' contract)
+	// and the unticked ones go. The heading names what the list came from.
+	void LoadChest(State& a_state)
+	{
+		const auto& chest = ChestAt(a_state, a_state.previewedChest);
+		std::erase_if(a_state.inventoryShown, [&a_state](std::size_t a_piece) { return !a_state.pieceTicked[a_piece]; });
+		auto& names = a_state.inventoryShownNames;
+		if (a_state.inventoryShown.empty()) {
+			names.clear();
+		}
+		std::vector<std::size_t> shown;
+		std::ranges::set_union(a_state.inventoryShown, chest.pieces, std::back_inserter(shown));
+		a_state.inventoryShown = std::move(shown);
+		if (std::ranges::find(names, chest.name) == names.end()) {
+			names.push_back(chest.name);
+		}
+		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] = EditShownHeading(names);
+	}
+
+	// A load opened from the Edit page adds to that page's ticks or list (Edit page section).
 	std::vector<std::size_t> EditPreview(const State& a_state);
 	void                     AddToEdit(State& a_state);
+	void                     AddChestToEdit(State& a_state);
 
-	// The Load page's preview: the selected outfit, or with none the ticks it goes back to;
-	// opened from the Edit page, that page's ticks with the selected outfit added.
+	// The Load page's preview, with outfits listed: the selected outfit, or with none the ticks
+	// it goes back to; opened from the Edit page, that page's ticks with the selected outfit
+	// added. Chests, and the chest editor's loads, change nothing on the preview.
 	void PreviewLoad(const State& a_state)
 	{
-		if (a_state.loadIntoEdit) {
+		if (LoadsChests(a_state) || a_state.loadTarget == LoadTarget::kChest) {
+			return;
+		}
+		if (a_state.loadTarget == LoadTarget::kEdit) {
 			QueuePreview(a_state, EditPreview(a_state));
 		} else {
 			PreviewOutfitOrTicks(a_state, a_state.previewedOutfit);
 		}
 	}
 
+	// What Load does with the selection, by the page it returns to (State::loadTarget) and what
+	// the page lists.
+	void LoadSelection(State& a_state)
+	{
+		switch (a_state.loadTarget) {
+		case LoadTarget::kInventory:
+			if (LoadsChests(a_state)) {
+				LoadChest(a_state);
+			} else {
+				LoadOutfit(a_state);
+			}
+			break;
+		case LoadTarget::kEdit:
+			if (LoadsChests(a_state)) {
+				AddChestToEdit(a_state);
+			} else {
+				AddToEdit(a_state);
+			}
+			break;
+		case LoadTarget::kChest:
+			AddToChest(a_state, LoadsChests(a_state) ? ChestAt(a_state, a_state.previewedChest).pieces : OutfitAt(a_state, a_state.previewedOutfit).pieces);
+			break;
+		}
+	}
+
 	// Selecting an outfit shows it on the preview; a second click on it, or Back,
 	// shows the ticks again. Nothing here changes the ticks until Load. Opened from the Edit
-	// page, Load adds to that page's ticks and both go back there.
+	// page, Load adds to that page's ticks and both go back there; from the chest editor, Add
+	// puts the selection's items in the chest. With chests listed (Add items from Chest...),
+	// selecting one shows its items in the right column, and Load lists them.
 	void DrawLoadPage(State& a_state)
 	{
+		const bool      chests = LoadsChests(a_state);
 		BrowserControls controls;
 		int             clicked = -1;
 		if (BeginColumns("outfits")) {
 			ImGui::TableNextColumn();
-			controls = DrawBrowserControls(a_state, a_state.loadBrowser);
-			clicked = DrawOutfitList(a_state, a_state.loadBrowser, a_state.previewedOutfit, controls.height);
+			if (chests) {
+				// The chest being edited is left out of its own Add from Chest... list.
+				const int except = a_state.loadTarget == LoadTarget::kChest ? a_state.chest.chest : -1;
+				clicked = DrawChestList(a_state, a_state.previewedChest, except, 0.0f);
+			} else {
+				controls = DrawBrowserControls(a_state, a_state.loadBrowser);
+				clicked = DrawOutfitList(a_state, a_state.loadBrowser, a_state.previewedOutfit, controls.height);
+			}
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
-			DrawOutfitDetails(a_state, a_state.previewedOutfit, "Select an outfit to load");
+			if (chests) {
+				DrawChestDetails(a_state, a_state.previewedChest, "Select a chest");
+			} else {
+				DrawOutfitDetails(a_state, a_state.previewedOutfit, "Select an outfit to load");
+			}
 			EndColumns();
 		}
-		if (clicked >= 0) {
+		if (clicked >= 0 && chests) {
+			a_state.previewedChest = clicked == a_state.previewedChest ? -1 : clicked;
+		} else if (clicked >= 0) {
 			a_state.previewedOutfit = clicked == a_state.previewedOutfit ? -1 : clicked;
 			PreviewLoad(a_state);
 		}
 
 		const auto action = DrawLoadButtons(a_state, controls.escapeTaken);
 		EndButtonRow();
-		const Page from = a_state.loadIntoEdit ? Page::kEdit : Page::kCapture;
+		Page from = Page::kCapture;
+		if (a_state.loadTarget == LoadTarget::kEdit) {
+			from = Page::kEdit;
+		} else if (a_state.loadTarget == LoadTarget::kChest) {
+			from = Page::kChestEdit;
+		}
 		switch (action) {
 		case LoadAction::kLoad:
 			QueueMenuSound(kOkSound);
-			if (a_state.loadIntoEdit) {
-				AddToEdit(a_state);
-			} else {
-				LoadOutfit(a_state);
-			}
+			LoadSelection(a_state);
 			GoToPage(a_state, from);
 			break;
 		case LoadAction::kBack:
 			QueueMenuSound(kCancelSound);
-			if (a_state.previewedOutfit >= 0) {
+			if (!chests && a_state.previewedOutfit >= 0) {
 				a_state.previewedOutfit = -1;
 				PreviewLoad(a_state);  // the ticks it goes back to
 			}
@@ -1419,6 +1501,25 @@ namespace CaptureWindow::Internal
 		}
 	}
 
+	// The Load page's selected chest's items listed on the page, none of them ticked; the
+	// heading over those nobody carries names the chest when it brings one.
+	// Contract: a chest is selected on the Load page.
+	void AddChestToEdit(State& a_state)
+	{
+		const auto&              chest = ChestAt(a_state, a_state.previewedChest);
+		const bool               bringsUncarried = std::ranges::any_of(chest.pieces, [&a_state](std::size_t a_piece) {
+			return a_state.request.pieces[a_piece].group == CaptureWindow::PieceGroup::kNotCarried && !std::ranges::binary_search(a_state.editShown, a_piece);
+		});
+		std::vector<std::size_t> shown;
+		std::ranges::set_union(a_state.editShown, chest.pieces, std::back_inserter(shown));
+		a_state.editShown = std::move(shown);
+		auto& names = a_state.editOutfitNames;
+		if (bringsUncarried && std::ranges::find(names, chest.name) == names.end()) {
+			names.push_back(chest.name);
+			a_state.editShownHeading = EditShownHeading(names);
+		}
+	}
+
 	// Ticks exactly the edited pieces, which the preview already shows; they stay listed
 	// while the page is open, those nobody carries under the outfit's heading. The
 	// Inventory page's ticks stay as they were.
@@ -1444,7 +1545,7 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const auto list = EditPieces(a_state);
 		DrawPieceRows(a_state, list);
-		const bool load = DrawPieceCount(a_state, list, true);
+		const auto links = DrawPieceCount(a_state, list, true);
 		DrawPreviewToggle(a_state, list);
 		BeginButtonRow({ "Use Ticked Items", "Back" });
 		const auto ticked = Ticked(a_state, list);
@@ -1454,10 +1555,12 @@ namespace CaptureWindow::Internal
 		EndButtonRow();
 		ImGui::EndDisabled();
 
-		if (load) {
+		if (links.wardrobe || links.chest) {
 			QueueMenuSound(kOkSound);
 			a_state.previewedOutfit = -1;
-			a_state.loadIntoEdit = true;
+			a_state.previewedChest = -1;
+			a_state.loadTarget = LoadTarget::kEdit;
+			a_state.loadSource = links.chest ? LoadSource::kChests : LoadSource::kOutfits;
 			GoToPage(a_state, Page::kLoad);
 		} else if (use) {
 			QueueMenuSound(kOkSound);
