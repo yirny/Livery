@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Signatures - the bytes expected at each call site, from SPID, and the search for them
+//   Signatures - the bytes expected at each call site, from SPID (CallSite searches for them)
 //   Thunks     - the original call with Livery's copies marked as outfit items (Assignments)
 //   Install    - per runtime, the sites and SPID's offsets; signature check, then the
 //                trampoline call
@@ -16,65 +16,25 @@
 #include "TradeFilter.h"
 
 #include "Assignments.h"
+#include "CallSite.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <optional>
 
 namespace
 {
 	// --- Signatures -----------------------------------------------------------
 	//
-	// The call itself, then the instructions after it. A site is hooked only where its
-	// signature matches: at SPID's offset, else at the one place in the function's first
-	// kScanBytes where it matches, so a game build that moved the call is still filtered and
-	// the log says where the call is now. SPID's offsets are all under 0x160.
+	// A site is hooked only where its signature matches: at SPID's offset, else at the one place
+	// in the function's first CallSite::kScanBytes where it matches, so a game build that moved
+	// the call is still filtered and the log says where the call is now. SPID's offsets are all
+	// under 0x160.
 
-	constexpr std::size_t kScanBytes = 0x400;
-
-	template <SKSE::stl::nttp::string S>
-	struct CallSignature
-	{
-		static constexpr auto        pattern = REL::make_pattern<S>();
-		static constexpr std::size_t length = (S.length() + 1) / 3;  // "E8 ?? 90" is 3 bytes
-	};
-
-	using FillListSignature = CallSignature<"E8 ?? ?? ?? ?? 90 48 85 DB">;
-	using AddEntrySignatureAE = CallSignature<"E8 ?? ?? ?? ?? 48 83 C7 08 EB 9C">;
-	using AddEntrySignatureSE = CallSignature<"E8 ?? ?? ?? ?? 48 83 C7 08 48 8D 94 24 98 00 00 00">;  // AE up to 1.6.629 too
-
-	// Whether the signature is at `a_address`, every byte of it inside the executable's code.
-	template <class Signature>
-	bool MatchesAt(std::uintptr_t a_address)
-	{
-		const auto text = REL::Module::get().segment(REL::Segment::textx);
-		return a_address >= text.address() && a_address + Signature::length <= text.address() + text.size() &&
-		       Signature::pattern.match(a_address);
-	}
-
-	// The call's offset in the function at `a_function`: `a_expected` when the signature is
-	// there, else the only offset in the first kScanBytes where it is. nullopt when it is
-	// nowhere, or in several places.
-	template <class Signature>
-	std::optional<std::ptrdiff_t> FindCall(std::uintptr_t a_function, std::ptrdiff_t a_expected)
-	{
-		if (MatchesAt<Signature>(a_function + a_expected)) {
-			return a_expected;
-		}
-		std::optional<std::ptrdiff_t> found;
-		for (std::size_t offset = 0; offset < kScanBytes; ++offset) {
-			if (!MatchesAt<Signature>(a_function + offset)) {
-				continue;
-			}
-			if (found) {
-				return std::nullopt;
-			}
-			found = static_cast<std::ptrdiff_t>(offset);
-		}
-		return found;
-	}
+	using FillListSignature = CallSite::Signature<"E8 ?? ?? ?? ?? 90 48 85 DB">;
+	using AddEntrySignatureAE = CallSite::Signature<"E8 ?? ?? ?? ?? 48 83 C7 08 EB 9C">;
+	using AddEntrySignatureSE = CallSite::Signature<"E8 ?? ?? ?? ?? 48 83 C7 08 48 8D 94 24 98 00 00 00">;  // AE up to 1.6.629 too
 
 	// --- Thunks ---------------------------------------------------------------
 
@@ -124,16 +84,16 @@ namespace
 	// --- Install --------------------------------------------------------------
 
 	// Writes the call into the function at Address Library `a_id`, at `a_offset` or where
-	// FindCall finds it. Returns whether it did; a call found nowhere is logged and the site
-	// left as it is.
+	// CallSite::Find finds it. Returns whether it did; a call found nowhere is logged and the
+	// site left as it is.
 	template <class Hook, class Signature>
 	bool InstallAt(SKSE::Trampoline& a_trampoline, std::uint64_t a_id, std::ptrdiff_t a_offset)
 	{
 		const REL::Relocation<std::uintptr_t> function{ REL::ID(a_id) };
-		const auto                            offset = FindCall<Signature>(function.address(), a_offset);
+		const auto                            offset = CallSite::Find<Signature>(function.address(), a_offset);
 		if (!offset) {
 			logger::warn("Trade-menu filter: no single call matching the signature in the first {:#x} bytes of {} (SPID's offset {:#x}); that menu list is not filtered",
-				kScanBytes, a_id, a_offset);
+				CallSite::kScanBytes, a_id, a_offset);
 			return false;
 		}
 		if (*offset != a_offset) {
