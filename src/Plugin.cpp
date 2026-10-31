@@ -211,7 +211,7 @@ namespace
 	// their side at the left or right edge, their chest at the bottom, their knees at the top.
 	FreeCamera::MoveLimits PreviewMoveLimits()
 	{
-		constexpr float kMinDistance = 40.0f;  // just short of passing through them
+		constexpr float kMinDistance = 30.0f;  // just short of passing through them
 		constexpr float kMaxDistance = 240.0f;
 		constexpr float kSideSlope = 0.75f;
 		constexpr float kChestHeight = 0.75f;  // of the actor's height
