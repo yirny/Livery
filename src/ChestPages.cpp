@@ -14,8 +14,9 @@
 //                  then the items taken out that nobody carries under their own heading, a
 //                  click putting an item in; right the chest's items, a click taking one out;
 //                  Add from Wardrobe... / Add from Chest... open the Load page, whose Add puts
-//                  an outfit's or another chest's items in; Update (onChestUpdate), Remove
-//                  (Remove chest?, onChestRemove) and Back; Back or Escape with unsaved edits
+//                  an outfit's or another chest's items in; Update (onChestUpdate) and Back,
+//                  Remove (Remove chest?, onChestRemove) at the row's right end; Back or
+//                  Escape with unsaved edits
 //                  shows the unsaved-changes alert. Nothing here dresses anyone.
 #include "PCH.h"
 
@@ -176,6 +177,7 @@ namespace CaptureWindow::Internal
 	void DrawChestsPage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		Theme::LabelText("Select a chest to open");
 		const int clicked = DrawChestList(a_state, -1, -1, 0.0f);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
@@ -387,18 +389,18 @@ namespace CaptureWindow::Internal
 		kBack
 	};
 
+	// Update and Back centred, Remove a link at the row's right end, as the Wardrobe page's.
 	ChestAction DrawChestButtons(const State& a_state)
 	{
-		BeginButtonRow({ "Update", "Remove", "Back" });
+		BeginButtonRow({ "Update", "Back" });
 		ImGui::BeginDisabled(!a_state.request.onChestUpdate);
 		const bool update = ReasonButton("Update", UpdateChestReason(a_state));
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		ImGui::BeginDisabled(!a_state.request.onChestRemove);
-		const bool remove = Theme::Button("Remove");
-		ImGui::EndDisabled();
-		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		ImGui::BeginDisabled(!a_state.request.onChestRemove);
+		const bool remove = Theme::LineLink("Remove");
+		ImGui::EndDisabled();
 		if (update) {
 			return ChestAction::kUpdate;
 		}
@@ -504,9 +506,9 @@ namespace CaptureWindow::Internal
 			Theme::CountText(std::format("{} item(s)", CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
 			// Together at the column's right end: the first starts the line under the list.
-			links.wardrobe = DrawCountLink("Add from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::LinkLine::kNext,
-				Theme::LabelLinkWidth(kAddFromChest));
-			links.chest = DrawCountLink(kAddFromChest, a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr);
+			links.wardrobe = DrawCountLink("Add from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kBareForm,
+				Theme::LinkLine::kNext, Theme::LabelLinkWidth(kAddFromChest, Theme::HeadingIcon::kChest));
+			links.chest = DrawCountLink(kAddFromChest, a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			Theme::LabelText("In Chest", Theme::HeadingIcon::kChest);
