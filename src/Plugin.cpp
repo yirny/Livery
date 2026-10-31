@@ -43,6 +43,7 @@
 #include "ArmorInfo.h"
 #include "Assignments.h"
 #include "CaptureWindow.h"
+#include "Chests.h"
 #include "Dressing.h"
 #include "Library.h"
 #include "MovementHold.h"
@@ -1525,6 +1526,7 @@ namespace
 		case SKSE::MessagingInterface::kDataLoaded:
 			SituationStore::Load();  // before any co-save load, which drops the rows of removed situations
 			Library::Load();         // pieces resolve against the loaded plugins, so not before this
+			Chests::Load();          // the same; read whether or not the Item chests setting is on
 			PieceIcons::Load();      // its rule files go by the loaded plugins' names
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
 			Assignments::RegisterSinks();
