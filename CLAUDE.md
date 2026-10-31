@@ -39,7 +39,7 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 - **Ask first:** `.github/`, `scripts/`, `lefthook.yml`, lint configs (`.clang-format`, `.clang-tidy`, `.vale*`, `dprint.json`).
 - **Never touch outside the repo:** the Skyrim install, MO2 mods / profiles / overwrite, other mods' data files — give the user steps instead. Deploy only to `build/msvc/deploy/` unless the user set `DEPLOY_DIR_OVERRIDE`.
 - `lib/commonlibsse-ng/CLAUDE.md` and `AGENTS.md` describe upstream library development; they do not apply here. Read the rest of `lib/` only as reference.
-- `lib/sarrai-common` is the user's own library (overlay hooks, window skins, free camera, skin fonts and textures), shared with Tableau. Change it in its own repo (`../sarrai-common`, whose `CLAUDE.md` applies), then pull it into the submodule here and commit the bump on a branch. A fresh clone of it needs `git -c protocol.file.allow=always submodule update --init lib/sarrai-common`.
+- `lib/sarrai-common` is the user's own library (overlay hooks, window skins, free camera, skin fonts and textures), shared with Tableau. Change it in its own repo (`../sarrai-common`, whose `CLAUDE.md` applies), then pull it into the submodule here and commit the bump on a branch.
 
 ### 2.1 Outfit library safety
 
