@@ -240,7 +240,6 @@ namespace CaptureWindow::Internal
 		std::vector<InputRecord> pending;
 		bool                     resetImGui = false;  // set by Open, handled on the next frame
 		Page                     page = Page::kCapture;
-		std::string              captureTitle;       // the Capture page's title line
 		std::string              applyTooltip;       // "Dress #{Name} in the ticked items."
 		GroupHeadings            headings;           // over each group's pieces (CaptureWindow::PieceGroup)
 		std::vector<std::size_t> pieceOrder;         // indices into request.pieces as the list shows them (SortPieces)
