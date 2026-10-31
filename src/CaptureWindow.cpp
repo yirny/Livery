@@ -7,16 +7,17 @@
 //   Input        - QueueInput translates engine events and moves the game's cursor;
 //                  FeedInput hands them and the cursor position to ImGui
 //   Draw         - page switching, shared list and button-row helpers; the tab column
-//                  (Inventory, the Wardrobe page, the Situations page, Appearance) and its rule beside
-//                  those pages; leaving a page with unsaved edits through the unsaved-changes alert
-//                  (Save Changes, Discard Changes, Back); mouse and key input over the game
-//                  goes to onViewInput
+//                  (Inventory, the Wardrobe page, the Situations page, the Chests page while
+//                  Request::offersChests, Appearance) and its rule beside those pages; leaving a
+//                  page with unsaved edits through the unsaved-changes alert (Save Changes,
+//                  Discard Changes, Back); mouse and key input over the game goes to onViewInput
 //   Capture page - the Inventory page: the actor's pieces under a heading per group (their
-//                  Livery outfit, other worn, carried, the player's, the loaded outfit's), in
-//                  Name / Type / Slot (Settings) columns sorted by a click on a column label (the piece
-//                  list the Edit page shows too, PieceList), each tick handed to
-//                  onPieceToggled; under the list the count line, ending in Add pieces from
-//                  Wardrobe... (the Load page; greyed while the library has no outfits); the
+//                  Livery outfit, other worn, carried, the player's, the loaded outfit's or
+//                  chest's), in Name / Type / Slot (Settings) columns sorted by a click on a
+//                  column label (the piece list the Edit page shows too, PieceList), each tick
+//                  handed to onPieceToggled; under the list the count line, ending in Add items
+//                  from Wardrobe... and Add items from Chest... (the Load page; each greyed while
+//                  it has nothing to offer); the
 //                  Live Preview tick, handed to onPreviewOn / onPreviewOff in an SKSE task that
 //                  also freezes or unfreezes the game; Save / Apply / Exit, with Restore
 //                  at the row's right end while Livery dresses the actor; Apply leaves off
@@ -33,7 +34,8 @@
 //   Appearance   - Window skin, Restore original palette and Play menu sounds, written to the
 //                  INI at once (Settings); the window is drawn in a new skin from the next frame
 //   Outfit pages - the outfit browser and lists, the Load, the Wardrobe page and Edit pages:
-//                  OutfitPages.cpp; the Situations page: SituationPage.cpp
+//                  OutfitPages.cpp; the Situations page: SituationPage.cpp; the Chests page and
+//                  the chest editor: ChestPages.cpp
 //   Menu sounds  - the game's menu sounds on Open and on clicks, unless turned off in Settings
 #include "PCH.h"
 
@@ -305,12 +307,11 @@ namespace CaptureWindow::Internal
 		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
-	// The Inventory page's list: its ticks, the loaded outfit's pieces nobody carries under
-	// the heading LoadOutfit set.
+	// The Inventory page's list: its ticks, the pieces nobody carries that a Load listed
+	// (State::inventoryShown) under the heading naming where they came from.
 	PieceList InventoryPieces(const State& a_state)
 	{
-		const auto* loaded = a_state.loadedOutfit >= 0 ? &OutfitAt(a_state, a_state.loadedOutfit).pieces : nullptr;
-		return { a_state.pieceTicked.get(), loaded, &a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] };
+		return { a_state.pieceTicked.get(), &a_state.inventoryShown, &a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)] };
 	}
 
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list)
@@ -497,15 +498,16 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([] { CaptureWindow::Close(); });
 	}
 
-	// The Inventory page, the Wardrobe page, the Situations page and Appearance have the tab column
-	// at the window's left edge; the pages they lead to do not.
+	// The Inventory page, the Wardrobe page, the Situations page, the Chests page and Appearance
+	// have the tab column at the window's left edge; the pages they lead to do not.
 	bool HasTabs(Page a_page)
 	{
-		return a_page == Page::kCapture || a_page == Page::kManage || a_page == Page::kSituations || a_page == Page::kAppearance;
+		return a_page == Page::kCapture || a_page == Page::kManage || a_page == Page::kSituations || a_page == Page::kChests || a_page == Page::kAppearance;
 	}
 
-	// Inventory, the Wardrobe page, the Situations page, then Appearance, each centred between the
-	// window's left edge and the rule. A click on another tab leaves the page for it (RequestLeave).
+	// Inventory, the Wardrobe page, the Situations page, the Chests page (Request::offersChests),
+	// then Appearance, each centred between the window's left edge and the rule. A click on
+	// another tab leaves the page for it (RequestLeave).
 	void DrawTabColumn(State& a_state)
 	{
 		struct TabOption
@@ -514,10 +516,11 @@ namespace CaptureWindow::Internal
 			const char*    name;
 			Page           page;
 		};
-		constexpr std::array<TabOption, 4> kTabs{ {
+		constexpr std::array<TabOption, 5> kTabs{ {
 			{ Theme::TabIcon::kInventory, "Inventory", Page::kCapture },
 			{ Theme::TabIcon::kOutfits, "Wardrobe", Page::kManage },
 			{ Theme::TabIcon::kSituations, "Situations", Page::kSituations },
+			{ Theme::TabIcon::kChests, "Chests", Page::kChests },
 			{ Theme::TabIcon::kAppearance, "Appearance", Page::kAppearance },
 		} };
 
@@ -527,6 +530,9 @@ namespace CaptureWindow::Internal
 		ImGui::SetCursorScreenPos(ImVec2(left, origin.y + Theme::TabTopGap()));
 		for (const auto& tab : kTabs) {
 			if (a_state.request.saveOnly && (tab.page == Page::kManage || tab.page == Page::kSituations)) {
+				continue;
+			}
+			if (tab.page == Page::kChests && !a_state.request.offersChests) {
 				continue;
 			}
 			const bool selected = a_state.page == tab.page;
@@ -541,7 +547,8 @@ namespace CaptureWindow::Internal
 
 	void RequestLeave(State& a_state, PendingLeave a_leave)
 	{
-		const bool edits = (a_state.page == Page::kManage && HasManageEdits(a_state)) || (a_state.page == Page::kSituations && HasSituationEdits(a_state));
+		const bool edits = (a_state.page == Page::kManage && HasManageEdits(a_state)) || (a_state.page == Page::kSituations && HasSituationEdits(a_state)) ||
+		                   (a_state.page == Page::kChestEdit && HasChestEdits(a_state));
 		if (edits) {
 			a_state.leave = a_leave;
 			a_state.openLeave = true;  // the page opens the alert in its own ID scope
@@ -668,6 +675,12 @@ namespace CaptureWindow::Internal
 			break;
 		case Page::kEdit:
 			Theme::HeadingText(a_state.editTitle.c_str());
+			break;
+		case Page::kChests:
+			Theme::HeadingText("Chests");
+			break;
+		case Page::kChestEdit:
+			Theme::HeadingText(a_state.chest.chest >= 0 ? std::format("Edit \"{}\"", ChestAt(a_state, a_state.chest.chest).name).c_str() : "Edit");
 			break;
 		case Page::kLoad:
 			Theme::HeadingText(a_state.request.actorName.c_str(), a_state.request.actorSummary.c_str());
@@ -848,6 +861,9 @@ namespace CaptureWindow::Internal
 		request.wornSituation = a_pieces.wornSituation;
 		request.wornFor = a_pieces.wornFor;
 		a_state.loadedOutfit = -1;
+		a_state.inventoryShown.clear();
+		a_state.inventoryShownNames.clear();
+		a_state.headings[GroupIndex(CaptureWindow::PieceGroup::kNotCarried)].clear();
 		SortPieces(a_state);
 	}
 
@@ -1044,29 +1060,39 @@ namespace CaptureWindow::Internal
 		Theme::EndList();
 	}
 
-	// The count line under the list; on the Inventory and Edit pages (`a_withWardrobeLink`) it
-	// ends in `Add pieces from Wardrobe...`, which opens the Load page and is greyed while the
-	// library is empty. Returns true when that link is clicked.
-	bool DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withWardrobeLink)
+	// A link of the count line, greyed with `a_reason` (shown on hover). Returns true when clicked.
+	bool DrawCountLink(const char* a_label, const char* a_reason)
+	{
+		ImGui::BeginDisabled(a_reason != nullptr);
+		const bool clicked = Theme::LabelLink(a_label);
+		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		ImGui::EndDisabled();
+		// After EndDisabled, so the tooltip is not drawn faded.
+		if (a_reason && hovered) {
+			Theme::Tooltip(a_reason);
+		}
+		return clicked;
+	}
+
+	// The count line under the list; on the Inventory and Edit pages (`a_withLinks`) it ends in
+	// `Add items from Wardrobe...`, which opens the Load page and is greyed while the library is
+	// empty, and with Request::offersChests `Add items from Chest...`, greyed while there is no
+	// chest. Returns which link was clicked.
+	CountLinks DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
 		Theme::CountText(std::format("{} of {} item(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
-		bool add = false;
-		if (a_withWardrobeLink) {
-			const bool empty = a_state.request.existingOutfits.empty();
-			ImGui::BeginDisabled(empty);
-			add = Theme::LabelLink("Add items from Wardrobe...");
-			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-			ImGui::EndDisabled();
-			// After EndDisabled, so the tooltip is not drawn faded.
-			if (empty && hovered) {
-				Theme::Tooltip(kNoOutfits);
+		CountLinks links;
+		if (a_withLinks) {
+			links.wardrobe = DrawCountLink("Add items from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr);
+			if (a_state.request.offersChests) {
+				links.chest = DrawCountLink("Add items from Chest...", a_state.request.chests.empty() ? kNoChests : nullptr);
 			}
 		}
 		if (ticked == 0) {
 			ImGui::TextDisabled(kNeedPiece);
 		}
-		return add;
+		return links;
 	}
 
 	// Restore and its "(?)" at the right end of the button row, while Livery dresses
@@ -1432,12 +1458,12 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const auto list = InventoryPieces(a_state);
 		DrawPieceRows(a_state, list);
-		const bool load = DrawPieceCount(a_state, list, a_state.request.offersWardrobe);
+		const auto links = DrawPieceCount(a_state, list, a_state.request.offersWardrobe);
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
 		DrawPreviewToggle(a_state, list);
-		const auto action = DrawCaptureButtons(a_state, load);
+		const auto action = DrawCaptureButtons(a_state, links.wardrobe || links.chest);
 		EndButtonRow();
 		ImGui::EndDisabled();
 
@@ -1460,7 +1486,9 @@ namespace CaptureWindow::Internal
 		case CaptureAction::kLoadPage:
 			QueueMenuSound(kOkSound);
 			a_state.previewedOutfit = -1;
-			a_state.loadIntoEdit = false;
+			a_state.previewedChest = -1;
+			a_state.loadTarget = LoadTarget::kInventory;
+			a_state.loadSource = links.chest ? LoadSource::kChests : LoadSource::kOutfits;
 			GoToPage(a_state, Page::kLoad);
 			break;
 		case CaptureAction::kSavePage:
@@ -1609,7 +1637,7 @@ namespace CaptureWindow::Internal
 	// the line: with `a_iconClicked` (the Wardrobe page, the Create tab) it says `Outfit Icon` on
 	// hover and `*a_iconClicked` says whether it was clicked; without (the Update tab, which
 	// keeps the outfit's icon) it only shows the icon.
-	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked)
+	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked, const char* a_hint)
 	{
 		Theme::SectionGap();  // a field with no label
 		if (a_icon) {
@@ -1637,7 +1665,7 @@ namespace CaptureWindow::Internal
 				Theme::Tooltip(a_state.error.c_str());
 			}
 		} else if (ImGui::IsItemHovered() && !ImGui::IsItemActive()) {
-			Theme::Tooltip("Outfit Name");
+			Theme::Tooltip(a_hint);
 		}
 		return enter && !Trimmed(a_name.data()).empty();
 	}
@@ -2103,7 +2131,13 @@ namespace CaptureWindow
 			state.showSlots = Settings::ShowSlotColumn();
 			SortPieces(state);
 			state.previewedOutfit = -1;
+			state.previewedChest = -1;
+			state.loadTarget = LoadTarget::kInventory;
+			state.loadSource = LoadSource::kOutfits;
 			state.loadedOutfit = -1;
+			state.inventoryShown.clear();
+			state.inventoryShownNames.clear();
+			state.chest = {};
 			for (auto* browser : { &state.loadBrowser, &state.updateBrowser, &state.manageBrowser, &state.situationBrowser }) {
 				OutfitBrowser::Reset(*browser, state.request);
 			}
@@ -2199,12 +2233,16 @@ namespace CaptureWindow
 		const auto loaded = idOf(state.loadedOutfit);
 		const auto chosen = idOf(state.chosenOutfit);
 		const auto managed = idOf(state.manage.outfit);
+		const auto chestIdOf = [&state](int a_index) { return a_index >= 0 ? ChestAt(state, a_index).id : std::uint32_t{ 0 }; };
+		const auto previewedChest = chestIdOf(state.previewedChest);
+		const auto editedChest = chestIdOf(state.chest.chest);
 
 		auto& request = state.request;
 		request.assigned = std::move(a_list.assigned);
 		const auto situationsBefore = std::exchange(request.situations, std::move(a_list.situations));
 		request.restoreChanges = std::move(a_list.restoreChanges);
 		request.existingOutfits = std::move(a_list.existingOutfits);
+		request.chests = std::move(a_list.chests);
 		request.categories = std::move(a_list.categories);
 		request.actorSummary = std::move(a_list.actorSummary);
 		request.dressed = a_list.dressed;
@@ -2212,7 +2250,14 @@ namespace CaptureWindow
 		request.extraWorn = a_list.extraWorn;
 
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
+		state.previewedChest = IndexOfChest(state, previewedChest);
 		state.loadedOutfit = IndexOfOutfit(state, loaded);
+		// The chest editor's edits start again from the chest as written; a chest gone (Remove)
+		// sends the editor back to the Chests page.
+		FillChestForm(state, IndexOfChest(state, editedChest));
+		if (state.page == Page::kChestEdit && state.chest.chest < 0) {
+			GoToPage(state, Page::kChests);
+		}
 		const bool redressed = a_list.actorPieces.has_value();
 		if (redressed) {
 			FollowActorPieces(state, *a_list.actorPieces);
@@ -2227,9 +2272,7 @@ namespace CaptureWindow
 		FillSituationForm(state, situationsBefore);
 		FollowWornOutfit(state);
 		SetGroupHeadings(state);
-		if (state.loadedOutfit >= 0) {
-			state.headings[GroupIndex(PieceGroup::kNotCarried)] = std::format("\"{}\"", OutfitAt(state, state.loadedOutfit).name);
-		}
+		state.headings[GroupIndex(PieceGroup::kNotCarried)] = EditShownHeading(state.inventoryShownNames);
 		// DrawPieceRows' contract: a piece the Inventory page does not list is never ticked.
 		const auto inventory = InventoryPieces(state);
 		for (std::size_t i = 0; i < request.pieces.size(); ++i) {
@@ -2337,7 +2380,7 @@ namespace CaptureWindow
 		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, the Wardrobe page and the Situations pages
 		constexpr float kWideWidthRatio = 1.05f;    // of the screen height, for the Save page's Update tab and its three columns
 		constexpr float kNarrowWidthRatio = 0.53f;  // of the screen height, for the one-column pages
-		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kManage || state.page == Page::kSituations;
+		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kManage || state.page == Page::kSituations || state.page == Page::kChestEdit;
 		float           ratio = twoColumns ? kWindowWidthRatio : kNarrowWidthRatio;
 		if (state.page == Page::kSave && state.updateTab) {
 			ratio = kWideWidthRatio;
@@ -2398,6 +2441,12 @@ namespace CaptureWindow
 			break;
 		case Page::kSituations:
 			DrawSituationPage(state);
+			break;
+		case Page::kChests:
+			DrawChestsPage(state);
+			break;
+		case Page::kChestEdit:
+			DrawChestEditPage(state);
 			break;
 		case Page::kAppearance:
 			DrawAppearancePage(state);
