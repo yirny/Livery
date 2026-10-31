@@ -57,7 +57,8 @@ the items left off are all it has, it is dressed whole. The library outfit itsel
 changes for this.
 
 Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
-put on armor they own there (a helmet, a shield). Accepted for now.
+put on armor they own there (a helmet, a shield). Accepted for now. Their own outfit items
+stay off there too while one of them contests a locked piece (Keeping the outfit on).
 
 Pieces from the player's inventory (the window's `Player's Inventory`) move to an NPC
 at Apply, before the dressing, when `[Transfer] MoveFromPlayer` is on
@@ -348,6 +349,12 @@ can come later if sharing across characters is wanted.
   does not hold, stayed locked. With their own outfit items as the worn locked pieces, only the
   weapon was equipped in the trade menu and the locks stayed. As their 3D loaded those items went
   on again and read unlocked; `Dressing::PutBackOn` locked them again.
+- The own-outfit guard (2026-10-31, runtime 1.6.1170, SPID 7.3.3): `Own-outfit guard installed
+  at UpdateWornGear+0x25e`, and the follower above kept the outfit on with better armor given
+  in trade, the armor staying in the inventory, unworn; doors and fast travel changed nothing.
+  In the log only the weapon was equipped at a give and at their 3D load, the three pieces
+  stayed locked, and Restore put their own items back on. With a cuirass-only outfit, their own
+  boots stayed off, after a cell change too.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
 - Situation outfits on a follower (§7): Town in a town and the default outside it; Cold
