@@ -326,7 +326,7 @@ namespace CaptureWindow::Internal
 	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
 	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
 	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text):
-	// "[+] Add from <a_icon> <a_name>", with a bare form or the Chests tab's chest.
+	// "[+] Add from <a_icon> <a_name>", with the Wardrobe tab's wardrobe or the Chests tab's chest.
 	bool        DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame,
 		float a_reserveRight = 0.0f);
 	void        DrawPreviewToggle(State& a_state, const PieceList& a_list);

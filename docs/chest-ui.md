@@ -78,7 +78,7 @@ columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the
   `offersChests`, `Add from Chest...` (greyed with `No chests yet.`) is right-aligned on the
   line below it (`Theme::LinkLine::kNext`, 4px further apart). Each link has its icon before
   the last word, `[+] Add from <icon> Wardrobe...` (`Theme::LabelLink`'s `icon` and `afterIcon`):
-  a bare form, the chest. On the Dress page both are hidden for the
+  the Wardrobe tab's wardrobe, the chest. On the Dress page both are hidden for the
   player while they dress from their inventory only, as before. The chest link opens
   the Load page with the chests listed (`LoadSource::kChests`): a plain list by name on the
   left, the selected chest's name and items on the right, no preview change, `Load` greyed while

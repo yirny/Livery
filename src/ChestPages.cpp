@@ -506,7 +506,7 @@ namespace CaptureWindow::Internal
 			Theme::CountText(std::format("{} item(s)", CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
 			// Together at the column's right end: the first starts the line under the list.
-			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kBareForm,
+			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe,
 				Theme::LinkLine::kNext, Theme::LabelLinkWidth(kAddFrom, Theme::HeadingIcon::kChest, kChestLink));
 			links.chest = DrawCountLink(kChestLink, a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest);
 			ImGui::TableNextColumn();
