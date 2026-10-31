@@ -8,7 +8,7 @@ code: design.md §7 and §8, README, and CLAUDE.md §2.1 change in the step that
 
 ## 1. Capture page (today's Pieces page)
 
-- Title: `#{Name}'s Inventory`, `#{Name}` the actor's name. The summary line under it stays.
+- Title: `#{Name}`, the actor's name. The summary line under it stays.
 - The piece list is grouped under headings, in this fixed order, a heading with no piece hidden:
   1. `Outfit ("#{Outfit}")`: worn pieces Livery put on from a library outfit,
      named by the outfit worn now (the default's or the worn situation's).

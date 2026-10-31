@@ -7,7 +7,7 @@ Dress page's buttons, (2) the tab column and the Wardrobe page with Update,
 (3) Remove. Docs follow the code in the step that makes them stale: design.md, README, and
 CLAUDE.md §2.1 (step 2 adds the Wardrobe page's Update path, step 3 the window's delete).
 
-The Dress page is today's Capture page (`Page::kCapture`), titled `#{Name}'s Inventory`.
+The Dress page is today's Capture page (`Page::kCapture`), titled `#{Name}`.
 Docs call it the Dress page; code identifiers stay.
 
 Window-wide look: field labels, list headings (folding ones included) and column labels
