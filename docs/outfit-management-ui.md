@@ -100,8 +100,10 @@ page. Each page keeps its own search and sort.
 ## 2. Dress page (step 1)
 
 - Each group heading of the piece list starts with an icon (`Theme::HeadingIcon`), an 18px
-  square at 1080p in every skin, in its grey, centred on the text's line: a
-  backpack over `Inventory` and
+  square at 1080p in every skin, in its grey, centred on the text's line. In Vanilla and Nordic
+  a heading starts on the list's indent, in line with the label and the count line around the
+  list; in Modern it clears the accent rule, as the rows do. The icons: a backpack over
+  `Inventory` and
   `#{Player}'s Inventory`, the dressed form of an outfit row's current-outfit mark over the
   three `Outfit (...)` headings, the bare form over the loaded outfit's, the chest over a
   loaded chest's (docs/chest-ui.md).
