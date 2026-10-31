@@ -36,7 +36,7 @@
 //                    Release everyone goes to Assignments
 //   Event sinks    - crosshair target, the capture hotkey
 //   Messaging      - situation data, outfit library and piece icon rules, settings page, sink and menu registration,
-//                    ready state, the situation poll (Situations) around loads
+//                    the own-outfit guard's hook, ready state, the situation poll (Situations) around loads
 //   Entry          - log, settings, co-save, trampoline, hooks (overlay, trade-menu filter)
 #include "PCH.h"
 
@@ -48,6 +48,7 @@
 #include "MovementHold.h"
 #include "NpcReaction.h"
 #include "OutfitPreview.h"
+#include "OwnOutfitGuard.h"
 #include "PieceIcons.h"
 #include "Settings.h"
 #include "SituationStore.h"
@@ -1528,6 +1529,7 @@ namespace
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
 			Assignments::RegisterSinks();
 			Overlay::RegisterMenu();
+			OwnOutfitGuard::Install();  // not before this: it has to wrap the hook SPID makes at kPostLoad
 			break;
 
 		case SKSE::MessagingInterface::kPreLoadGame:
@@ -1599,8 +1601,8 @@ namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
-	// Five write_call<5> hooks (two in sarrai-common's Overlay.cpp, three in TradeFilter.cpp) need 14 bytes each;
-	// 128 leaves room to grow.
+	// Six write_call<5> hooks (two in sarrai-common's Overlay.cpp, three in TradeFilter.cpp, one in
+	// OwnOutfitGuard.cpp) need 14 bytes each; 128 leaves room to grow.
 	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 128 });
 	SetupLog();
 	logger::info("Livery loaded");

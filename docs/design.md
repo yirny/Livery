@@ -35,8 +35,9 @@ An outfit is a list of armor base forms. Dressing an actor in it:
 3. Equip each chosen instance with `ActorEquipManager::EquipObject(..., a_forceEquip =
    true)`. `forceEquip` is the game's PreventRemoval flag: the engine puts
    `ExtraCannotWear` on the worn instance and its best-gear pass (`UpdateWornGear`)
-   skips that slot, so better armor the player gives later stays in the inventory.
-   A piece already worn gets the flag added directly (`ExtraDataList::Add(new
+   skips that slot, so better armor the player gives later stays in the inventory, as
+   long as the NPC's own outfit items do not take the piece off first (Keeping the outfit
+   on). A piece already worn gets the flag added directly (`ExtraDataList::Add(new
    RE::ExtraCannotWear())` + `AddChange(kInventory)`), Tailor's way for wigs.
 4. Take off worn armor that is not part of the outfit, except non-playable armor and
    pieces another mod locked (a lock already on a worn piece is never claimed). Only
@@ -92,6 +93,18 @@ says so), so a lock would be needed anyway.
 ### Keeping the outfit on
 
 - `ExtraCannotWear` is saved with the instance, so nothing is re-applied on load.
+- `UpdateWornGear`, seen when an item reaches the NPC and as their 3D loads, starts by equipping
+  their own outfit items. That takes a locked piece in the same slot off and clears its lock
+  (§6), and the pass's best-armor step then fills the slot. `src/OwnOutfitGuard.cpp` hooks
+  that first call (SPID's `24234+0x1C3` on SE, `418622+0x25E` on AE, found as in §3; the 1.5.97,
+  1.6.1170, 1.6.1179, 1.7.99 and 1.7.104 tables hold the ID) and leaves it out for a managed
+  NPC while an outfit item they carry unworn shares a body slot with a worn locked piece
+  (`Dressing::OutfitItemContestsLock`; any `ExtraOutfitItem`, since SPID's distributed outfits
+  mark their items with another id). The hook writes nothing, so it leaves no residue. SPID
+  replaces the same call at `kPostLoad` and never calls the original, so Livery's goes in at
+  `kDataLoaded` and calls SPID's in turn. Skyrim VR, AE before 1.6.640 (SPID's oldest, older
+  tables unchecked, and a missing ID is fatal) and a build where the signature is not found
+  run without it; their pieces go back on at the next 3D load.
 - On `TESObjectLoadedEvent` for a managed NPC: if the instance chosen for a piece is
   still in the inventory but not worn (another mod took it off; taking off clears the
   lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
@@ -308,8 +321,8 @@ can come later if sharing across characters is wanted.
 
 ## 6. Verified facts (2026-10-19, in game, runtime 1.6.1170)
 
-- `ExtraCannotWear` on an NPC's worn pieces: better armor given in trade is not put on;
-  survives save/load and fast travel.
+- `ExtraCannotWear` on an NPC's worn pieces, their own outfit items: better armor given in
+  trade is not put on; survives save/load and fast travel.
 - `EquipObject(..., forceEquip = true)` on a fresh copy: worn at once, and the engine
   added `ExtraCannotWear` itself. Equipping a copy of the same armor the NPC wears
   worked first time, unlike the DOFT preview path.
@@ -327,6 +340,14 @@ can come later if sharing across characters is wanted.
   same slots: the window listed both, the 3D showed only Livery's, and the trade menu
   showed neither (Livery's copies filtered, their own outfit items hidden by the
   engine). A load door and waiting an hour did not do it; the next dressing took them off.
+- Armor given in the trade menu with Skyrim Souls keeping time running (2026-10-31, log, SPID
+  7.3.3 installed, no own-outfit guard yet): a follower in three locked pieces, with their own
+  outfit's body and feet items unworn in the inventory. At the give those items went on, which
+  took the locked cuirass and boots off and cleared their locks; then the given cuirass and the
+  outfit's boots went on as the best armor, unlocked. The gauntlets, in a slot their own outfit
+  does not hold, stayed locked. With their own outfit items as the worn locked pieces, only the
+  weapon was equipped in the trade menu and the locks stayed. As their 3D loaded those items went
+  on again and read unlocked; `Dressing::PutBackOn` locked them again.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
 - Situation outfits on a follower (§7): Town in a town and the default outside it; Cold

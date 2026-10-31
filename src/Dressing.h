@@ -8,12 +8,13 @@
 // Dresses an actor in a set of armor by handing them the items and equipping them,
 // never through their outfit record (docs/design.md §2). With the lock, each worn
 // piece gets PreventRemoval (ExtraCannotWear), so the engine's best-gear pass leaves
-// that slot alone and better armor given later stays in the inventory. For the trade-menu
-// filter it disguises the copies it added as outfit items (docs/design.md §3).
+// that slot alone and better armor given later stays in the inventory, as long as
+// OwnOutfitGuard keeps the NPC's own outfit items from taking the piece off first. For the
+// trade-menu filter it disguises the copies it added as outfit items (docs/design.md §3).
 //
-// Contract: every function runs on the game thread (SKSE task). The inventory is read
-// again after every native call; an instance is found again only by the ExtraUniqueID
-// this module gives it.
+// Contract: every function but OutfitItemContestsLock runs on the game thread (SKSE task).
+// The inventory is read again after every native call; an instance is found again only by
+// the ExtraUniqueID this module gives it.
 namespace Dressing
 {
 	// One inventory instance of an armor: the armor and the ExtraUniqueID on its extra list.
@@ -61,6 +62,13 @@ namespace Dressing
 	// the locked pieces, with the 3D unchanged (docs/design.md §6). Non-playable armor and a
 	// piece another mod locked stay, as in Dress. Returns how many came off.
 	std::size_t TakeOffOverlapping(RE::Actor& actor, const std::vector<Piece>& pieces);
+
+	// Whether an outfit item they carry unworn shares a body slot with a worn locked piece:
+	// putting that item on would take the piece off and clear its lock (docs/design.md §6). Any
+	// ExtraOutfitItem counts, since SPID's distributed outfits mark their items with another id.
+	// Contract: the pass in OwnOutfitGuard calls this on a thread that is not documented, so it
+	// only reads their inventory, as the pass itself does next.
+	bool OutfitItemContestsLock(RE::Actor& actor);
 
 	// Puts on again, locked, each piece that was theirs or the player's (not `added`) and
 	// that they no longer carry (taken from them in a menu): a copy of that armor they carry,
