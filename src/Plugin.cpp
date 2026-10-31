@@ -206,6 +206,30 @@ namespace
 		}
 	}
 
+	// Keeps the preview camera around the actor, so the preview cannot scout ahead. The distances
+	// are the game's units; the slopes and heights place the actor at the edge of a 16:9 view:
+	// their side at the left or right edge, their chest at the bottom, their knees at the top.
+	FreeCamera::MoveLimits PreviewMoveLimits()
+	{
+		constexpr float kMinDistance = 40.0f;  // just short of passing through them
+		constexpr float kMaxDistance = 240.0f;
+		constexpr float kSideSlope = 0.75f;
+		constexpr float kChestHeight = 0.75f;  // of the actor's height
+		constexpr float kKneeHeight = 0.28f;   // of the actor's height
+		constexpr float kRiseSlope = 0.47f;
+		constexpr float kZoomShare = 0.15f;  // of the distance, per wheel step
+
+		FreeCamera::MoveLimits limits;
+		limits.minActorDistance = kMinDistance;
+		limits.maxActorDistance = kMaxDistance;
+		limits.sideSlope = kSideSlope;
+		limits.upperHeight = kChestHeight;
+		limits.lowerHeight = kKneeHeight;
+		limits.riseSlope = kRiseSlope;
+		limits.zoomShare = kZoomShare;
+		return limits;
+	}
+
 	// The live preview of a Save only window: the camera and the running game, nothing else.
 	// Contract: game thread. It never calls OutfitPreview, so it cannot touch the inventory, and
 	// leaves onPieceToggled and onPreviewPieces empty (Request::saveOnly).
@@ -220,7 +244,7 @@ namespace
 			return {};
 		};
 		request.onPreviewOff = [] { FreeCamera::End(); };
-		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale()); };
+		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits()); };
 		if (Settings::LivePreview()) {
 			request.previewNote = request.onPreviewOn({});
 			request.previewOn = request.previewNote.empty();
@@ -258,7 +282,7 @@ namespace
 		// These three do nothing while Live Preview is off: no preview, no camera.
 		request.onPieceToggled = [armors](std::size_t index, bool on) { OutfitPreview::SetPiece(armors[index], on); };
 		request.onPreviewPieces = [armors](const std::vector<std::size_t>& pieces) { OutfitPreview::Show(PickPieces(armors, pieces)); };
-		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale()); };
+		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits()); };
 
 		if (Settings::LivePreview()) {
 			std::vector<std::size_t> ticked;
