@@ -3,7 +3,7 @@
 // FILE MAP
 //   Constants   - the player's reference, co-save ids
 //   Records     - one assignment per actor, with its rows (OutfitRows); g_managed mirrors the
-//                 NPCs for the event sinks
+//                 NPCs for the event sinks and OwnOutfitGuard
 //   Dressing    - which row a situation resolves to and the outfit it wears (a random row's
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
@@ -16,7 +16,7 @@
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, MenuOpenCloseEvent
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
-//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu
+//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsManagedNpc
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -86,9 +86,9 @@ namespace
 	// Contract: game thread only. Draws the random rows' picks.
 	std::mt19937 g_random{ std::random_device{}() };
 
-	// Contract: the assigned NPCs, for the event sinks. The thread that sends
-	// TESObjectLoadedEvent and TESDeathEvent is not documented, so the sinks read only
-	// this, under its lock, and queue the work as SKSE tasks.
+	// Contract: the assigned NPCs, for the event sinks and OwnOutfitGuard. The thread that sends
+	// TESObjectLoadedEvent and TESDeathEvent is not documented, nor is the worn-gear pass's, so
+	// the sinks read only this, under its lock, and queue the work as SKSE tasks.
 	std::mutex              g_managedLock;
 	std::vector<RE::FormID> g_managed;
 
@@ -1419,5 +1419,10 @@ namespace Assignments
 		if (id != kPlayerRef && FindAssignment(id)) {
 			g_shownInMenu.store(id);
 		}
+	}
+
+	bool IsManagedNpc(RE::FormID a_actor)
+	{
+		return IsManaged(a_actor);
 	}
 }
