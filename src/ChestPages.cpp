@@ -279,14 +279,18 @@ namespace CaptureWindow::Internal
 	}
 
 	// Both columns' lists are as tall as the taller one's rows (one row at least), capped as
-	// FittedListHeight caps it.
+	// FittedListHeight caps it. With the rows' spacing, none, pushed here: FittedListHeight takes
+	// the current spacing off the rows' height, and the page's own would leave a scroll bar.
 	float EditorListHeight(const State& a_state)
 	{
 		const float rowHeight = Theme::OutfitRowHeight();
 		const auto  outside = CountOutside(a_state);
 		const float left = static_cast<float>(outside.rows) * rowHeight + static_cast<float>(outside.headings) * Theme::ListHeadingHeight();
 		const float right = static_cast<float>(a_state.chest.pieces.size()) * rowHeight;
-		return FittedListHeight((std::max)({ left, right, rowHeight }), rowHeight);
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+		const float height = FittedListHeight((std::max)({ left, right, rowHeight }), rowHeight);
+		ImGui::PopStyleVar();
+		return height;
 	}
 
 	// An item's row: its icon and name, `a_striped` every other row. Returns true when clicked.
