@@ -57,8 +57,8 @@ columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the
   page's group headings in its order (`State::pieceOrder`), each row its icon and name; then,
   under `Taken out of chest` (the chest icon), the items taken out that nobody carries, listed
   until the page is left. A click puts the item in. On one line under the list, at the column's
-  right end, `Add from Wardrobe...` (the Wardrobe tab's form in place of the link's plus) and `Add from
-  Chest...` (the chest) open the Load page (`LoadTarget::kChest`) listing the outfits or the other
+  right end, `Add from Wardrobe...` and `Add from Chest...` (each with its icon before the last word)
+  open the Load page (`LoadTarget::kChest`) listing the outfits or the other
   chests; its `Add` puts the selection's items in and returns. `No other chests.` greys the
   second link while this is the only chest.
 - Right, `In Chest` (the chest icon before the label): the chest's items as edited, in the same order, over a count line that
@@ -76,8 +76,9 @@ columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the
 
 - The Inventory page's and the Edit page's count line end in `Add from Wardrobe...`; while
   `offersChests`, `Add from Chest...` (greyed with `No chests yet.`) is right-aligned on the
-  line below it (`Theme::LinkLine::kNext`, 4px further apart). Each link has its icon in
-  place of the plus, on the same square: the Wardrobe tab's form, the chest. On the Inventory page both are hidden for the
+  line below it (`Theme::LinkLine::kNext`, 4px further apart). Each link has its icon before
+  the last word, `[+] Add from <icon> Wardrobe...` (`Theme::LabelLink`'s `icon` and `afterIcon`):
+  the Wardrobe tab's form, the chest. On the Inventory page both are hidden for the
   player while they dress from their inventory only, as before. The chest link opens
   the Load page with the chests listed (`LoadSource::kChests`): a plain list by name on the
   left, the selected chest's name and items on the right, no preview change, `Load` greyed while
