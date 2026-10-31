@@ -1125,7 +1125,7 @@ namespace CaptureWindow::Internal
 		if (a_withLinks) {
 			constexpr float kLinkRowGap = 4.0f;  // pixels at 1080p, between the two links, on top of a next line's own gap
 
-			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kBareForm);
+			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe);
 			if (a_state.request.offersChests) {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
 				links.chest = DrawCountLink("Chest...", a_state.request.chests.empty() ? kNoChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
