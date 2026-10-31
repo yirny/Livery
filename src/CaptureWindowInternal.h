@@ -49,6 +49,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedPiece = "Tick at least one item.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kAddFrom = "Add from";  // the words of the links under a piece list, before their icon (DrawCountLink)
+	constexpr float       kLinkRowGap = 4.0f;     // pixels at 1080p, between those two links, on top of a next line's own gap
 	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
 	// The Chests page's and the chest editor's (docs/chest-ui.md).
@@ -200,6 +201,7 @@ namespace CaptureWindow::Internal
 	{
 		int                             chest = -1;  // index into request.chests; -1 for none
 		std::array<char, kNameCapacity> name{};
+		std::string                     titleName;  // the page's title: the name as last entered, not while it is typed nor when left empty
 		std::vector<std::size_t>        pieces;     // its items as edited: indices into request.pieces, ascending
 		std::vector<std::size_t>        takenOut;   // items taken out that nobody carries, listed left under their own heading until the page is left; ascending
 		std::array<char, kNameCapacity> newName{};  // the New chest popup's field
@@ -267,7 +269,7 @@ namespace CaptureWindow::Internal
 		std::string              manageApplyTip;              // its tooltip, what it dresses them for (FillManageForm); "" with no outfit selected
 		std::unique_ptr<bool[]>  editTicked;                  // the Edit page's ticks, one per request.pieces
 		std::vector<std::size_t> editShown;                   // the edited pieces it opened with and those loaded since, so those nobody carries stay listed
-		std::string              editTitle;                   // "Edit \"#{Outfit}\""
+		std::string              editTitle;                   // the name in its title (OpenEditPage)
 		std::vector<std::string> editOutfitNames;             // the outfits those come from: the edited one, then those loaded that brought one
 		bool                     editShownFromChest = false;  // a chest brought one last, so that heading has the chest icon
 		std::string              editShownHeading;            // over those nobody carries: "\"#{Outfit}\", \"#{Loaded}\""
@@ -326,8 +328,7 @@ namespace CaptureWindow::Internal
 	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
 	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text):
 	// "[+] Add from <a_icon> <a_name>", with the Wardrobe tab's wardrobe or the Chests tab's chest.
-	bool        DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame,
-		float a_reserveRight = 0.0f);
+	bool        DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame);
 	void        DrawPreviewToggle(State& a_state, const PieceList& a_list);
 	std::string Trimmed(const char* a_text);
 	void        DrawError(const std::string& a_message);
@@ -427,7 +428,7 @@ namespace CaptureWindow::Internal
 	// The chest list (the Chests page's, the Load page's with LoadSource::kChests): every chest
 	// but `a_except` (an index into request.chests; -1 for none), `a_selected` highlighted, over
 	// its count line. Returns the index into request.chests of the one clicked, or -1.
-	int DrawChestList(const State& a_state, int a_selected, int a_except, float a_reserved);
+	int DrawChestList(const State& a_state, int a_selected, int a_except, float a_reserved, Theme::Grip a_grip);
 
 	// The chest's name and its items, read only, as the Load page's right column; `a_hint` as a
 	// field label while `a_index` is -1.

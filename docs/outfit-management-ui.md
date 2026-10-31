@@ -158,7 +158,8 @@ page. Each page keeps its own search and sort.
   skin's colours: the selected tab in the text colour on the selected row's fill (its corners
   rounded 2px), the others in
   LabelText's grey, lit on hover. Hover shows the tab's name as a tooltip.
-- Each tab is centred between the window's left edge and the rule. Nordic's start 8px
+- Each tab is centred between the window's left edge and the rule, each drawing on its own
+  middle down the tab, except the palette, on its frame's. Nordic's start 8px
   lower, clear of the corner knot.
 - Shown on the Dress page, the Wardrobe page, the Situations page and Appearance pages only; the
   Load, Save, Select and Edit pages have none.
@@ -283,7 +284,9 @@ page. Each page keeps its own search and sort.
 - Reached from `Edit`: the Dress page's piece list (headings, columns, sorting) with the
   outfit's edited pieces listed and ticked exactly, those nobody carries under their own
   heading, as after Load. Its ticks are its own; the Dress page's stay as they were.
-- Title `Edit "#{Outfit}"`, no summary line, no tab column. It has the window's Live Preview
+- Title `Edit <outfit icon> #{Outfit}` (`Theme::HeadingRunText`), the icon and the name in the
+  palette's emphasis, the name and icon as edited on the Wardrobe page (the saved name while its
+  field is empty), no summary line, no tab column. It has the window's Live Preview
   tick; the preview shows this page's ticks.
 - The count line ends in `Add from Wardrobe...`, as on the Dress page (§2): the
   Load page opens, and Load adds the selected outfit's pieces to this page's ticks instead

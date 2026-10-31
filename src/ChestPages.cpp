@@ -62,8 +62,10 @@ namespace CaptureWindow::Internal
 		return FittedListHeight(static_cast<float>((std::max)(a_rows, std::size_t{ 1 })) * rowHeight, rowHeight, a_reserved + countLine);
 	}
 
-	int DrawChestList(const State& a_state, int a_selected, int a_except, float a_reserved)
+	int DrawChestList(const State& a_state, int a_selected, int a_except, float a_reserved, Theme::Grip a_grip)
 	{
+		constexpr Theme::RowIcon kChestIcon{ .line = Theme::HeadingIcon::kChest };
+
 		const auto&       chests = a_state.request.chests;
 		const std::size_t listed = chests.size() - (a_except >= 0 ? 1 : 0);
 		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
@@ -72,7 +74,7 @@ namespace CaptureWindow::Internal
 		int clicked = -1;
 		if (Theme::BeginList("chests", RowListHeight(listed, a_reserved))) {
 			if (listed == 0) {
-				Theme::HintRow(a_except >= 0 ? "No other chests." : kNoChests);
+				Theme::HintRow(a_except >= 0 ? "No other chests." : kNoChests, a_grip);
 			}
 			std::size_t drawn = 0;
 			for (std::size_t i = 0; i < chests.size(); ++i) {
@@ -81,7 +83,7 @@ namespace CaptureWindow::Internal
 					continue;
 				}
 				ImGui::PushID(index);
-				if (Theme::OutfitRow(chests[i].name.c_str(), a_selected == index, {}, drawn % 2 == 1, Theme::Grip::kNone, nullptr)) {
+				if (Theme::OutfitRow(chests[i].name.c_str(), a_selected == index, {}, drawn % 2 == 1, a_grip, &kChestIcon)) {
 					clicked = index;
 				}
 				ImGui::PopID();
@@ -118,11 +120,13 @@ namespace CaptureWindow::Internal
 		auto& form = a_state.chest;
 		form.chest = a_index;
 		form.name.fill('\0');
+		form.titleName.clear();
 		form.pieces.clear();
 		form.takenOut.clear();
 		if (a_index >= 0) {
 			const auto& chest = ChestAt(a_state, a_index);
 			std::strncpy(form.name.data(), chest.name.c_str(), kNameCapacity - 1);
+			form.titleName = chest.name;
 			form.pieces = chest.pieces;
 		}
 	}
@@ -178,7 +182,7 @@ namespace CaptureWindow::Internal
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		Theme::LabelText("Select a chest to open");
-		const int clicked = DrawChestList(a_state, -1, -1, 0.0f);
+		const int clicked = DrawChestList(a_state, -1, -1, 0.0f, Theme::Grip::kFlush);  // never selects a row
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
@@ -299,7 +303,7 @@ namespace CaptureWindow::Internal
 		const auto&          piece = a_state.request.pieces[a_piece];
 		const Theme::RowIcon icon{ piece.icon, piece.iconColor };
 		ImGui::PushID(static_cast<int>(a_piece));
-		const bool clicked = Theme::OutfitRow(piece.name.c_str(), false, {}, a_striped, Theme::Grip::kNone, &icon);
+		const bool clicked = Theme::OutfitRow(piece.name.c_str(), false, {}, a_striped, Theme::Grip::kFlush, &icon);
 		ImGui::PopID();
 		return clicked;
 	}
@@ -342,7 +346,7 @@ namespace CaptureWindow::Internal
 				}
 			}
 			if (listed == 0) {
-				Theme::HintRow("No items to put in.");
+				Theme::HintRow("No items to put in.", Theme::Grip::kFlush);
 			}
 		}
 		ImGui::PopStyleVar();
@@ -358,7 +362,7 @@ namespace CaptureWindow::Internal
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 		if (Theme::BeginList("inside", a_height)) {
 			if (inside.empty()) {
-				Theme::HintRow("Empty.");
+				Theme::HintRow("Empty.", Theme::Grip::kFlush);
 			}
 			std::size_t drawn = 0;
 			for (const auto i : a_state.pieceOrder) {
@@ -490,7 +494,6 @@ namespace CaptureWindow::Internal
 	void DrawChestEditPage(State& a_state)
 	{
 		constexpr const char* kNoOtherChests = "No other chests.";
-		constexpr const char* kChestLink = "Chest...";
 
 		if (std::exchange(a_state.openLeave, false)) {
 			ImGui::OpenPopup(kLeavePopup);
@@ -498,6 +501,13 @@ namespace CaptureWindow::Internal
 		auto& form = a_state.chest;
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		DrawNameField(a_state, form.name, nullptr, nullptr, "Chest Name");
+		// The title takes the name once it is entered: Enter or the field losing focus. Polled,
+		// as a link's click can leave the page in the frame the field lets go.
+		if (!ImGui::IsItemActive()) {
+			if (auto entered = Trimmed(form.name.data()); !entered.empty() && entered != form.titleName) {
+				form.titleName = std::move(entered);
+			}
+		}
 		std::optional<std::size_t> putIn;
 		std::optional<std::size_t> takeOut;
 		CountLinks                 links;
@@ -509,10 +519,9 @@ namespace CaptureWindow::Internal
 			Theme::AfterFieldGap();
 			Theme::CountText(std::format("{} item(s)", CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
-			// Together at the column's right end: the first starts the line under the list.
-			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe,
-				Theme::LinkLine::kNext, Theme::LabelLinkWidth(kAddFrom, Theme::HeadingIcon::kChest, kChestLink));
-			links.chest = DrawCountLink(kChestLink, a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest);
+			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
+			links.chest = DrawCountLink("Chest...", a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			Theme::LabelText("In Chest", Theme::HeadingIcon::kChest);

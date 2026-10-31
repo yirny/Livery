@@ -707,8 +707,14 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(a_state.situationsTitle.c_str());
 			break;
 		case Page::kEdit:
-			Theme::HeadingText(a_state.editTitle.c_str());
-			break;
+			{
+				const std::array<Theme::SubtitleRun, 2> title{ {
+					{ .text = "Edit " },
+					{ .text = a_state.editTitle.c_str(), .rowIconKey = a_state.manage.icon.key },
+				} };
+				Theme::HeadingRunText(title);
+				break;
+			}
 		case Page::kChests:
 			{
 				const std::array<Theme::SubtitleRun, 3> subtitle{ {
@@ -720,8 +726,14 @@ namespace CaptureWindow::Internal
 				break;
 			}
 		case Page::kChestEdit:
-			Theme::HeadingText(a_state.chest.chest >= 0 ? std::format("Edit \"{}\"", ChestAt(a_state, a_state.chest.chest).name).c_str() : "Edit");
-			break;
+			{
+				const std::array<Theme::SubtitleRun, 2> title{ {
+					{ .text = "Edit " },
+					{ .text = a_state.chest.titleName.c_str(), .icon = Theme::HeadingIcon::kChest },
+				} };
+				Theme::HeadingRunText(title);
+				break;
+			}
 		case Page::kLoad:
 			DrawSummaryHeading(a_state.request.actorName.c_str(), a_state.request.actorSummary);
 			break;
@@ -1124,10 +1136,10 @@ namespace CaptureWindow::Internal
 	}
 
 	// A link of the count line, greyed with `a_reason` (shown on hover). Returns true when clicked.
-	bool DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line, float a_reserveRight)
+	bool DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line)
 	{
 		ImGui::BeginDisabled(a_reason != nullptr);
-		const bool clicked = Theme::LabelLink(kAddFrom, a_line, a_reserveRight, a_icon, a_name);
+		const bool clicked = Theme::LabelLink(kAddFrom, a_line, a_icon, a_name);
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
@@ -1147,8 +1159,6 @@ namespace CaptureWindow::Internal
 		Theme::CountText(std::format("{} of {} item(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		CountLinks links;
 		if (a_withLinks) {
-			constexpr float kLinkRowGap = 4.0f;  // pixels at 1080p, between the two links, on top of a next line's own gap
-
 			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe);
 			if (a_state.request.offersChests) {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
