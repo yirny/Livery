@@ -1100,10 +1100,10 @@ namespace CaptureWindow::Internal
 	}
 
 	// A link of the count line, greyed with `a_reason` (shown on hover). Returns true when clicked.
-	bool DrawCountLink(const char* a_label, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line, float a_reserveRight)
+	bool DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line, float a_reserveRight)
 	{
 		ImGui::BeginDisabled(a_reason != nullptr);
-		const bool clicked = Theme::LabelLink(a_label, a_line, a_reserveRight, a_icon);
+		const bool clicked = Theme::LabelLink(kAddFrom, a_line, a_reserveRight, a_icon, a_name);
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
@@ -1125,10 +1125,10 @@ namespace CaptureWindow::Internal
 		if (a_withLinks) {
 			constexpr float kLinkRowGap = 4.0f;  // pixels at 1080p, between the two links, on top of a next line's own gap
 
-			links.wardrobe = DrawCountLink("Add from Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kBareForm);
+			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kBareForm);
 			if (a_state.request.offersChests) {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
-				links.chest = DrawCountLink("Add from Chest...", a_state.request.chests.empty() ? kNoChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
+				links.chest = DrawCountLink("Chest...", a_state.request.chests.empty() ? kNoChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
 			}
 		}
 		if (ticked == 0) {
