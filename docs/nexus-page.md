@@ -113,8 +113,7 @@ Rename an outfit, change its icon or remove it on the same page.
 [b]Set situational outfits[/b]
 [list=1]
 [*]Pick the Situations tab on the left edge of the window.
-[*]Drag outfits from the list on the right onto the situations on the left.
-[*]Save Changes.
+[*]Drag outfits from the list on the right onto the situations on the left. They are saved as you go.
 [/list]
 Drag an outfit back to the list to clear it. Situational outfits are saved per character.
 

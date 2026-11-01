@@ -411,8 +411,8 @@ for, or the Default. While the player dresses from their inventory only
 its popup and any library write: OK goes on, greyed when they carry none of the ticked items;
 Back changes nothing.
 The Situations page (docs/situation-management-ui.md §3-§6) edits every row of the captured
-actor by drag and drop, the random flags included, and the situations' names; its Save
-Changes writes `situations.json` first, then replaces the rows
+actor by drag and drop, the random flags included, and the situations' names; each save,
+0.5 s after the last edit or as the page is left, writes `situations.json` first, then replaces the rows
 (`Assignments::SetRows`, the record only) and dresses them once (`Assignments::Refresh`,
 at once, Live Preview on or off; a random row worn now wears the outfit it gained
 first). Removing a situation writes `situations.json`, then clears the situation's rows

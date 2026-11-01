@@ -60,7 +60,7 @@ namespace Assignments
 	// Contract: game thread; no preview is on (OutfitPreview::End ran); no row is in both lists.
 	void Change(RE::Actor& a_actor, const Changes& a_changes);
 
-	// the Situations page's Save Changes: their rows become `a_rows` (the rows of situations
+	// the Situations page's save: their rows become `a_rows` (the rows of situations
 	// removed in situations.json stay empty), and with `a_dropDefaultPieces` the Default's
 	// pieces go. Nobody is dressed here: Refresh with the returned pick dresses them for the new
 	// rows, and ends the record when that leaves nothing on them and no situation row holding

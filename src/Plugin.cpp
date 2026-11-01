@@ -1297,7 +1297,7 @@ namespace
 		return rows;
 	}
 
-	// the Situations page's Save Changes, Remove (a situation) and Restore Presets. Each writes
+	// the Situations page's save, Remove (a situation) and Restore Presets. Each writes
 	// situations.json first; a refused or failed write changes no row and redresses no one
 	// (CLAUDE.md §2.1). Then the captured actor's rows change and the actors are redressed
 	// (RedressCaptured, QueueRedress), and the window, still open, shows the situations and
@@ -1323,7 +1323,7 @@ namespace
 					CaptureWindow::SetError(*error);
 					return;
 				}
-				Notify("Livery: saved the situations' names.");
+				logger::info("Saved the situations' names.");  // no HUD message: the page saves as it is edited
 			}
 			const auto                                target = handle.get();
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};
@@ -1408,7 +1408,7 @@ namespace
 			if (unloaded) {
 				text += std::format("; {} item(s) from plugins that are not loaded stay in it", unloaded);
 			}
-			Notify(text + ".");
+			logger::info("{}.", text);  // no HUD message: the editor saves as it is edited
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
 		request.onChestRemove = [actorID, armors](std::uint32_t id) {

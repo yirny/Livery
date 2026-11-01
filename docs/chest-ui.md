@@ -53,10 +53,10 @@ under the list. `Exit` or Escape closes the window.
 
 Reached from the Chests page; no tab column. Title `Edit <chest icon> #{Chest}`
 (`Theme::HeadingRunText`), the icon and the name in the palette's emphasis; the name follows the
-field once it is entered, by Enter or the field losing focus, before anything is saved, and stays
-as it was while the field is empty. Both lists' rows start at the list's left edge
+field once it is entered, by Enter or the field losing focus. A name left empty, or one another
+chest has (ASCII case ignored), gives way to the name as saved, with no message. Both lists' rows start at the list's left edge
 (`Theme::Grip::kFlush`), level with the group headings. The name field, then two
-columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the Wardrobe page's:
+columns, `Back` and `Remove` as a link at the row's right end, as the Wardrobe page's:
 
 - Left, `Items` (the backpack before the label): the items someone carries that are not in the chest, under the Dress
   page's group headings in its order (`State::pieceOrder`), each row its icon and name; then,
@@ -68,12 +68,15 @@ columns, `Update` / `Back` and `Remove` as a link at the row's right end, as the
   second link while this is the only chest.
 - Right, `In Chest` (the chest icon before the label): the chest's items as edited, in the same order, over a count line that
   counts the items not loaded. A click takes the item out.
-- `Update` (greyed with `Enter a name.` or `No changes to save.`) hands the name and items to
-  `onChestUpdate`; the editor stays on the chest as written. `Remove` asks
-  (`Remove the chest "#{Chest}"?`, Remove / Cancel) and hands the chest to `onChestRemove`; the
-  editor returns to the Chests page. `Back` or Escape returns; with unsaved edits the
-  unsaved-changes alert comes first (`You have unsaved changes for "#{Chest}".`, the rename and
-  the items put in and taken out, Save Changes / Discard Changes / Back).
+- Saving: each edit (an item put in or taken out, the Load page's `Add`, a name entered) starts
+  the wait of `kAutosaveDelay` (0.5 s) again (`ScheduleAutosave`); then the name and items go to
+  `onChestUpdate`, the page greyed while the write runs, and the editor stays on the chest as
+  written, the taken-out items still listed. The name being typed, an open popup or the Load
+  page holds the save until it ends. The HUD says nothing of it; the log does.
+- `Back` or Escape saves edits not saved yet and returns once the write took; a refused save
+  stays and shows the error, and leaving again with the error showing drops the edits and
+  returns. `Remove` asks (`Remove the chest "#{Chest}"?`, Remove / Cancel) and hands the chest to
+  `onChestRemove`; the editor returns to the Chests page.
 - The editor dresses nobody and changes no tick: the preview keeps showing the Dress page's
   ticks. Dressing from inventory only (`Request::carriedOnly`) does not apply here.
 
@@ -125,8 +128,9 @@ uses), `src/OutfitPages.cpp` (the Load page's chest mode and targets), `src/Capt
   after; `ItemChests = 1` once the setting is on.
 - Setting off: the window has four tabs and no `Add from Chest...` link.
 - Setting on: Chests tab; Create New Chest writes `chests.json` with the empty chest; the editor
-  moves items between the columns, Update writes them, Back with edits asks; Remove takes the
-  chest out of the file.
+  moves items between the columns and about 0.5 s later they are in the file; Back right after
+  an edit saves it with no alert; a name left empty or taken goes back to the saved one; Remove
+  takes the chest out of the file.
 - Dress page: `Add from Chest...` lists the chest's items unticked under their
   heading; ticking one unticks the item on its slot; Apply dresses the NPC in it (HUD message,
   the window's Dress page follows).
