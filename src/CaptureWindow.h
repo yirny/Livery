@@ -23,7 +23,7 @@ namespace RE
 // QueueInput runs on the game thread from the input dispatch hook. All state is
 // guarded by one mutex. Nothing here touches the outfit library or the
 // assignments: the Save page's Create and Update hand the outfit (and Create and Apply
-// the row it is worn for) to Request::onSave, the Wardrobe page's Update and Remove the outfit to
+// the row it is worn for) to Request::onSave, the Wardrobe page's Save and Remove the outfit to
 // Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
 // the Situations page's edits as they are saved, Remove (a situation) and Restore Presets go to
 // Request::onSituationsSave, onSituationRemove and onRestorePresets,
@@ -154,8 +154,8 @@ namespace CaptureWindow
 		std::optional<std::vector<std::size_t>> previewPieces;
 	};
 
-	// What the Save page and the Wardrobe page's Update hand over: the outfit to write, and for
-	// Create and Apply or the Wardrobe page's Update and Apply the one row (an index into
+	// What the Save page and the Wardrobe page's Save hand over: the outfit to write, and for
+	// Create and Apply or the Wardrobe page's Save and Apply the one row (an index into
 	// Request::assigned) that gets it and is dressed for.
 	struct SaveRequest
 	{
@@ -263,11 +263,11 @@ namespace CaptureWindow
 		// `dressed`. Empty hides it. It must end by calling Close() or SetError().
 		std::function<void()> onRestore;
 
-		// Runs on the game thread when the user confirms the Wardrobe page's Update: `edit` holds
+		// Runs on the game thread when the user confirms the Wardrobe page's Save: `edit` holds
 		// the outfit, its new name and pieces; no row changes. The library
 		// write comes first; a refused or failed write assigns nothing. The window stays open: it
 		// must end by calling SetOutfits() with the library as written, or SetError(). With
-		// `apply` (Update and Apply, from Apply to #{Name} with unsaved edits) it then dresses
+		// `apply` (Save and Apply, from Apply to #{Name} with unsaved edits) it then dresses
 		// the actor as onManageApply does, for `edit.applyRow`, and hands
 		// SetOutfits() their pieces as they are dressed now. Empty greys Update.
 		std::function<void(const SaveRequest& edit, bool apply)> onManageUpdate;

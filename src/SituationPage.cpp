@@ -16,7 +16,7 @@
 //                     either pane shows its details and puts it on the preview
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
-//                     Outfit List with Remove; or an outfit's details with Edit and Back, its
+//                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
 //                     pieces ticked as the row it was clicked under wears them
 //   Buttons, popups - Exit, Restore Presets (?); Remove's and Restore Presets' popups, each
 //                     handing its write to the Request's handler
@@ -50,11 +50,7 @@ namespace CaptureWindow::Internal
 		// --- Constants --------------------------------------------------------
 
 		// How long a drag hovers a folded heading before it opens (seconds).
-		constexpr double kDragExpandDelay = 1.0;
-		// Room above a button row in the right pane (Show Outfit List; an outfit's Edit and Back),
-		// beyond the item spacing (pixels at 1080p).
-		constexpr float kPaneButtonGap = 12.0f;
-
+		constexpr double      kDragExpandDelay = 1.0;
 		constexpr const char* kRemoveSituationPopup = "Remove situation?";
 		constexpr const char* kRestorePresetsPopup = "Restore presets?";
 		// Reasons a button is greyed out, shown on hover.
@@ -535,13 +531,6 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
-		// kPaneButtonGap, then the cursor placed so a row of these buttons is centred in the pane.
-		void BeginPaneButtonRow(std::initializer_list<RowButton> a_buttons)
-		{
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
-			CentreButtonRow(a_buttons);
-		}
-
 		// The settings every actor shares: the name, its label with the situation star (read
 		// only for the Default, which says so on hover), and the conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
@@ -626,7 +615,7 @@ namespace CaptureWindow::Internal
 		enum class OutfitViewAction
 		{
 			kNone,
-			kEdit,
+			kOpenWardrobe,
 			kBack
 		};
 
@@ -646,7 +635,9 @@ namespace CaptureWindow::Internal
 		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits) as Manage
 		// Wardrobe lays it out (DrawOutfitSummary), its rows as the page's edits have them, its
 		// pieces ticked as the row it was clicked under wears them, a tick an edit of that row
-		// (read only from the outfit list, or once the row lost it); then Edit and Back centred.
+		// (read only from the outfit list, or once the row lost it); then Open in Wardrobe and Back
+		// centred, one over the other when the pane leaves them no item spacing on either side,
+		// as far apart as buttons side by side are.
 		// It grows with the pieces, moving the page's buttons when taller than the Situation
 		// List; its pieces' list scrolls only to keep the whole view
 		// within kMaxListHeightRatio of the screen, as every list's column keeps, so the window
@@ -654,8 +645,12 @@ namespace CaptureWindow::Internal
 		// Contract: ShownPane is RightPane::kOutfit; called at the top of the right pane.
 		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, bool& a_escapeTaken)
 		{
-			const float buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight();  // under the pieces' list
-			const float bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;            // the view's lowest
+			const float     spacing = ImGui::GetStyle().ItemSpacing.x;
+			const RowButton open{ "Open in Wardrobe", Theme::HeadingIcon::kWardrobe };
+			const bool      stacked = ButtonRowWidth({ open, "Back" }) + spacing * 2.0f > ImGui::GetContentRegionAvail().x;
+			const float     buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight() +
+			                            (stacked ? spacing + Theme::ButtonHeight() : 0.0f);                               // under the pieces' list
+			const float     bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;  // the view's lowest
 			ImGui::PushID("outfitView");
 			auto&      form = a_state.situationForm;
 			const auto edited = EditedRow(form);
@@ -666,15 +661,24 @@ namespace CaptureWindow::Internal
 				QueuePreview(a_state, ViewedOutfitPieces(a_state));
 				ScheduleAutosave(a_state);
 			}
-			BeginPaneButtonRow({ "Edit", "Back" });
-			const bool edit = Theme::Button("Edit");
-			ImGui::SameLine();
+			if (stacked) {
+				BeginPaneButtonRow({ open });
+			} else {
+				BeginPaneButtonRow({ open, "Back" });
+			}
+			const bool openWardrobe = Theme::Button(open.icon, open.label);
+			if (stacked) {
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + spacing - ImGui::GetStyle().ItemSpacing.y);
+				CentreButtonRow({ "Back" });
+			} else {
+				ImGui::SameLine();
+			}
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 			const bool back = Theme::Button("Back") || escape;
 			ImGui::PopID();
 			a_escapeTaken = a_escapeTaken || escape;
-			if (edit) {
-				return OutfitViewAction::kEdit;
+			if (openWardrobe) {
+				return OutfitViewAction::kOpenWardrobe;
 			}
 			return back ? OutfitViewAction::kBack : OutfitViewAction::kNone;
 		}
@@ -1009,7 +1013,7 @@ namespace CaptureWindow::Internal
 		if (outfitView == OutfitViewAction::kBack) {
 			QueueMenuSound(kCancelSound);
 			CloseOutfitView(a_state);
-		} else if (outfitView == OutfitViewAction::kEdit) {
+		} else if (outfitView == OutfitViewAction::kOpenWardrobe) {
 			QueueMenuSound(kOkSound);
 			RequestLeave(a_state, { .page = Page::kManage, .manageOutfit = form.viewedOutfit });
 		}

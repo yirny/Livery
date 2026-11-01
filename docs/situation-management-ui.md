@@ -256,19 +256,21 @@ The situation's details, its fields evenly spaced with no headings:
 An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its icon and name
 with no label (`Theme::OutfitNameText`), `SITUATIONS (#{Name})`, its label starting with the
 star as the Name label's does, with the rows the page's edits
-give it (`Default, Town`, or `None`), then its pieces, with the Dress page's icons, under
-their count line. Clicked under a
-situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
+give it (`Default, Town`, or `None`), then its pieces, with the Dress page's icons, under the
+`Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
+under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
 ticked piece cannot be unticked. Clicked on the outfit list, or once that row no longer
-holds the outfit, they are read only. The outfit's row in the Situation List is drawn
+holds the outfit, they are read only: every row ticked, taking no click, drawn ungreyed. The outfit's row in the Situation List is drawn
 selected only under the heading it was clicked under. The preview shows the outfit less its
 unticked pieces. 12px of extra
-room, then `Edit` and `Back` centred. The details grow with the pieces, moving the page's
+room, then `Open in Wardrobe` (wardrobe icon before its label) and `Back` centred; when they
+would leave less than one item spacing on either side (`ItemSpacing.x`), they go one over the
+other, as far apart as buttons side by side are. The details grow with the pieces, moving the page's
 buttons down when taller than the Situation List, as the Wardrobe page's selection does; the
 pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every
 list keeps to, `kMaxListHeightRatio`), so the window stays on screen. Back, and Escape, show
-what the right pane showed before and the Dress page's ticks on the preview. Edit goes to
+what the right pane showed before and the Dress page's ticks on the preview. Open in Wardrobe goes to
 the Wardrobe page with the outfit selected and on the preview, once the page's edits are saved
 (§6). A click on a situation's heading closes the details and
 shows the situation's.
@@ -302,7 +304,7 @@ shows the situation's.
   runs (a save, Remove, Restore Presets) the page takes no input, Remove and Restore Presets
   greying it, and Escape does nothing,
   here or as an outfit's Back.
-- Exit, Escape, another tab or an outfit's Edit with edits not saved yet saves them at once
+- Exit, Escape, another tab or an outfit's Open in Wardrobe with edits not saved yet saves them at once
   and goes once the write took; no alert asks. A refused save stays and shows the error, and
   leaving again with the error showing drops the edits and goes, so a write that keeps failing
   cannot hold the window open.
@@ -348,7 +350,7 @@ shows the situation's.
   HUD read ` for Town`; the summary line `as Default` for the Default.
 - The page: each drop of §4's table; the 1 s open; Show Outfit List's scroll and open; Edit and
   a click on the selected heading with the outfit list showing; an outfit's details from
-  either pane, with Back, Escape and Edit, and the preview; several drops in a row redressing
+  either pane, with Back, Escape and Open in Wardrobe, the labels' sort, both button layouts, and the preview; several drops in a row redressing
   once, about 0.5 s after the last (Live Preview on and off); Random Outfit on, picks at situation changes;
   rename refused when empty or taken; Remove and its popup, the rows gone; Restore Presets brings it back empty; the
   Exit, Escape and a tab right after an edit, saving before they go; the three skins.

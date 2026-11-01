@@ -459,6 +459,13 @@ namespace CaptureWindow::Internal
 		CentreButtonRow(a_buttons);
 	}
 
+	// kPaneButtonGap, then the cursor placed so a row of these buttons is centred in the column.
+	void BeginPaneButtonRow(std::initializer_list<RowButton> a_buttons)
+	{
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
+		CentreButtonRow(a_buttons);
+	}
+
 	// Room between the last button row (and any status line under it) and the
 	// window's bottom edge, on top of the window padding. The item spacing
 	// below the last item already counts toward it.
@@ -2216,6 +2223,7 @@ namespace CaptureWindow
 			SetGroupHeadings(state);
 			state.sortColumn = kNameColumn;
 			state.sortDescending = false;
+			state.outfitPieceOrder = {};
 			state.showSlots = Settings::ShowSlotColumn();
 			SortPieces(state);
 			state.previewedOutfit = -1;

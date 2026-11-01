@@ -2,7 +2,7 @@
 
 Written 2026-10-20 for the AI that implements it, from the user's draft and the decisions
 made on it; current spec only: the outfit list, the Dress page's buttons, the tab column,
-the Wardrobe page with Update and Remove, and the redress while the window is open. The
+the Wardrobe page with Save and Remove, and the redress while the window is open. The
 Dress page's piece list and the Save page are in docs/ui-redesign.md, the Situations page in
 docs/situation-management-ui.md, the chests in docs/chest-ui.md.
 
@@ -207,30 +207,35 @@ the Situations page. Each page keeps its own search and sort.
     as the icons, a 1px rim while hovered and 2px while chosen; then `OK` / `Cancel`.
     While the mouse is over a colour, every icon shows in it; a click chooses an icon or a
     colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
-    leaves it. Nothing is written until Update. The Save page's Create tab opens the same
+    leaves it. Nothing is written until Save. The Save page's Create tab opens the same
     popup for the new outfit's icon (docs/ui-redesign.md).
-  - 4px of extra room, then its pieces under a count line ending in `Edit`
-    (`Theme::LabelLink`). The count includes pieces from plugins that are not loaded, which
-    stay in the outfit. The pieces are the Dress page's tick rows (`Theme::TickRow`, with
-    their icons, no column labels): the ticked ones are what Apply dresses the actor in, the
-    unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
+  - 4px of extra room, then its pieces under `Name` and `Type` column labels
+    (`Theme::HeaderRow`), which sort them as the Dress page's do: a click sorts by the column,
+    a second reverses it, from Name ascending at each open. This order is display only and
+    shared with the Situations page's outfit details (`OutfitPieceOrder`), apart from the Dress
+    page's; the outfit's own list keeps its order, so sorting is no edit. Under the list, the
+    count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page; the count includes
+    pieces from plugins that are not loaded, which stay in the outfit. Then `Save`, centred
+    in the column 12px lower, not shown with no outfit selected. The pieces are the Dress
+    page's tick rows (`Theme::TickRow`, with their icons): the ticked ones are what Apply
+    dresses the actor in, the unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
     They start as that row leaves them, the row the actor wears the outfit for now, else the
     Default (all ticked when it does not have the outfit); the last ticked piece cannot be
     unticked. A tick is not an unsaved edit: selecting an outfit, or a change the window
-    takes (`SetOutfits`), starts the ticks again from the rows; Update and Remove ignore
-    them. The Load page's details and the Save page's piece columns keep the
-    same room before their count line. Their read-only piece rows have the same icons
+    takes (`SetOutfits`), starts the ticks again from the rows; Save and Remove ignore
+    them. The Load page's details and the Save page's piece columns keep the same room before
+    their count line, which stays over their list. Their read-only piece rows have the same icons
     (`Theme::TextRow`), and the outfit's name over the Load page's details, and over the
     Situations page's outfit details, its icon as the outfit list draws it (`Theme::OutfitNameText`).
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
-  has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Update's
+  has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Save's
   popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
   selected, the Dress page's ticks.
-- Buttons `Apply to #{Name}` (dressed form before its label), `Update` (wardrobe), `Exit`, then `Remove` (§5) at the row's right
-  end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`).
-  - Update: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
+- Buttons `Apply to #{Name}` (dressed form before its label), `Exit`, then `Remove` (§5) at the row's right
+  end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`). `Save` is in the right column, above.
+  - Save: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
     with an empty name (`kNeedName`). A popup (`Save changes?`) lists
     what changes (pieces, rename, `Its icon changes.`), as the Save page's Update tab does; the
     buttons are `Confirm` / `Cancel`. The window hands the edits to
@@ -261,7 +266,7 @@ the Situations page. Each page keeps its own search and sort.
     Default whose worn outfit it replaces, random off: `Apply "#{Outfit}" as #{Name}'s
     Default?` (`... to #{Name} for Town?`), with library edits `Save your changes to
     "#{Outfit}", then apply it ...?` and their lines, then `The current Default, "C", will be
-    replaced.` when it is; buttons `Apply` (`Update and Apply` with library edits) /
+    replaced.` when it is; buttons `Apply` (`Save and Apply` with library edits) /
     `Cancel`. With nothing to say it dresses at once. Its tooltip says which: `Dress #{Name}
     in this outfit as their Town outfit, or make it their Default.` / `... for Town.` /
     `... as their Default.` With library edits it goes through `onManageUpdate` with
@@ -276,9 +281,9 @@ the Situations page. Each page keeps its own search and sort.
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
 - Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
-  "#{Outfit}".` with the lines Update's popup lists, then `Save Changes` /
+  "#{Outfit}".` with the lines Save's popup lists, then `Save Changes` /
   `Discard Changes` / `Back`: Save Changes opens
-  Update's popup, and its Confirm saves, then goes once the write took (a refused one stays;
+  Save's popup, and its Confirm saves, then goes once the write took (a refused one stays;
   Cancel stays); Discard Changes starts the edits again from the library and goes; Back stays.
 
 ### Edit page
@@ -345,13 +350,13 @@ Assignments run only with no preview on, since the preview restores what it foun
   after the preview ended.
 - A load closing the window (`kPreLoadGame`) drops the queue.
 
-What redresses the captured actor: Update of the outfit they wear, for any row,
+What redresses the captured actor: a save of the outfit they wear, for any row,
 `Assignments::Refresh`, which reads it from the library again. Pieces are added as Assign
 adds them (an NPC gets a copy of a piece they lack); nothing moves from the player's
 inventory. Not worn now: nothing, since every row reads its outfit from the library each
 time it goes on. Remove: §5.
 
-An Apply (the Dress page's, Apply to #{Name}, Update and Apply) dresses the captured
+An Apply (the Dress page's, Apply to #{Name}, Save and Apply) dresses the captured
 actor at once, Live Preview on or off, as above, and the window stays on its page; with
 Live Preview on the preview begins again on what they wear now (the Dress page) or the
 outfit the Wardrobe page has selected. The Dress page follows what they wear
@@ -388,16 +393,16 @@ first.
 ## 8. Checks
 
 - Outfit list: each sort's order; Load from its button; the three skins.
-- Wardrobe page: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
-  rebuilt list; a taken name refused; Edit, Use Selected Items and Back; the three warnings;
-  Update of the outfit the captured actor wears, at once with Live Preview on and off (the
+- Wardrobe page: switching tabs keeps the ticks and the edits; Save's popup, HUD message and
+  rebuilt list; sorting by Name and Type leaving Save greyed; a taken name refused; Edit, Use Selected Items and Back; the three warnings;
+  Save of the outfit the captured actor wears, at once with Live Preview on and off (the
   frozen game showing the new outfit, no empty torso); the three skins.
 - Remove: Remove of an outfit in use lists its users; the captured actor wearing it for a
   situation changes at once, Live Preview on or off; a default from it keeps its
   pieces; the assignments survive save and load.
 - Situations and Apply: ticking a free situation and Default, then one that wears another
-  outfit (`"B" replaces "A"`, Confirm, Cancel) and saving with Update, Live Preview on (at once) and off
-  (at close); Apply to #{Name} with nothing to say, with edits (Update and Apply; a taken
+  outfit (`"B" replaces "A"`, Confirm, Cancel) and saving with Save, Live Preview on (at once) and off
+  (at close); Apply to #{Name} with nothing to say, with edits (Save and Apply; a taken
   name refused, nothing assigned), for ticked rows and as a replaced Default; the row marks
   and their tooltips; Restore's popup; the heading's `(?)`; Exit with and without edits;
   leaving for another tab with edits, Save Changes, Discard Changes and Back.

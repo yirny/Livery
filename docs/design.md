@@ -402,7 +402,7 @@ outfit (`OutfitRows::Give`) with random on puts it at the front of the list; wit
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
 the list keeps its length. The Save page changes no row but by Create and Apply, which gives
 the new outfit the row the Wardrobe page's Apply would (below) in one `Assignments::Change`, after
-the library write, with one forced redress. The Wardrobe page's Update changes no row; its `Apply to #{Name}` changes
+the library write, with one forced redress. The Wardrobe page's Save changes no row; its `Apply to #{Name}` changes
 what the actor wears now: while they wear another outfit for a situation, its popup gives
 the outfit that row (Yes, `OutfitRows::Give`, worn now) or the Default (Apply as Default,
 the situation's outfit staying on); else the outfit goes to the situation they wear it
