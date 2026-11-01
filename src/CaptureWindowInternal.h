@@ -46,7 +46,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kLeavePopup = "Unsaved changes";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
-	constexpr const char* kNeedPiece = "Tick at least one item.";
+	constexpr const char* kNeedPiece = "Select at least one item.";
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kAddFrom = "Add from";  // the words of the links under a piece list, before their icon (DrawCountLink)
 	constexpr float       kLinkRowGap = 4.0f;     // pixels at 1080p, between those two links, on top of a next line's own gap
@@ -85,6 +85,16 @@ namespace CaptureWindow::Internal
 
 	// What an outfit row of the Situations page carries while it is dragged (OfferOutfitDrag).
 	constexpr const char* kOutfitPayload = "LiveryOutfit";
+	// A button of a centred row: its label and the icon before it, if any (Theme::Button).
+	struct RowButton
+	{
+		RowButton(const char* a_label, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone) :
+			label(a_label), icon(a_icon) {}
+
+		const char*        label;
+		Theme::HeadingIcon icon;
+	};
+
 	struct OutfitPayload
 	{
 		int           from = -1;   // the situation it is dragged from: index into request.situations; -1 for the outfit list
@@ -244,11 +254,12 @@ namespace CaptureWindow::Internal
 		std::vector<InputRecord> pending;
 		bool                     resetImGui = false;  // set by Open, handled on the next frame
 		Page                     page = Page::kCapture;
-		std::string              applyTooltip;       // "Dress #{Name} in the ticked items."
-		GroupHeadings            headings;           // over each group's pieces (CaptureWindow::PieceGroup)
-		std::vector<std::size_t> pieceOrder;         // indices into request.pieces as the list shows them (SortPieces)
-		int                      sortColumn = 0;     // the piece list's sorted column: Name, Type or Slot
-		bool                     showSlots = false;  // the piece list has the Slot column (Settings::ShowSlotColumn at Open)
+		std::string              applyTooltip;            // "Dress #{Name} in the selected items."
+		std::string              applyFromPlayerTooltip;  // that, then what happens to the player's items among them
+		GroupHeadings            headings;                // over each group's pieces (CaptureWindow::PieceGroup)
+		std::vector<std::size_t> pieceOrder;              // indices into request.pieces as the list shows them (SortPieces)
+		int                      sortColumn = 0;          // the piece list's sorted column: Name, Type or Slot
+		bool                     showSlots = false;       // the piece list has the Slot column (Settings::ShowSlotColumn at Open)
 		bool                     sortDescending = false;
 		int                      previewedOutfit = -1;                 // on the Load page: index into request.existingOutfits, -1 for none
 		int                      previewedChest = -1;                  // on the Load page with LoadSource::kChests: index into request.chests, -1 for none
@@ -277,7 +288,7 @@ namespace CaptureWindow::Internal
 		std::string              editShownHeading;            // over those nobody carries: "\"#{Outfit}\", \"#{Loaded}\""
 		OutfitBrowser::State     situationBrowser;            // the Situations page's outfit list
 		SituationForm            situationForm;
-		std::string              situationsTitle;  // "#{Name}'s Situational Outfits"
+		std::string              situationsTitle;  // "Situational Outfits (#{Name})"
 		// Set while the Wardrobe page's unsaved-changes alert is open, and while a save a leave waits for runs.
 		std::optional<PendingLeave> leave;
 		bool                        leaveAfterSave = false;    // a save is running: the leave follows a save that took
@@ -358,9 +369,9 @@ namespace CaptureWindow::Internal
 	float                                FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved = 0.0f);
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
 	void                                 PushListRowSpacing();
-	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr);
-	void                                 CentreButtonRow(std::initializer_list<const char*> a_labels);
-	void                                 BeginButtonRow(std::initializer_list<const char*> a_labels);
+	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone);
+	void                                 CentreButtonRow(std::initializer_list<RowButton> a_buttons);
+	void                                 BeginButtonRow(std::initializer_list<RowButton> a_buttons);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
 	bool                                 BeginColumns(const char* a_id, int a_count = 2);

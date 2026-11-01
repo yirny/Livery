@@ -63,7 +63,7 @@ Changes:
   `outfits`; `chosen` becomes 0 if it was that.
 - The Dress page's Apply popup: `No, apply as is (?)`. The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
-  `The ticked pieces become #{Name}'s Default as they are, without being added to the
+  `The selected items become #{Name}'s Default as they are, without being added to the
   wardrobe.`, then, while a situation row holds an outfit, `While a situational outfit is
   worn, the new Default shows only when that situation ends.`
 - Remove (`Assignments::ForgetOutfit`): the outfit leaves every row's `outfits`; a `chosen`
@@ -134,7 +134,7 @@ outfit for Town any more`.
 
 - The third tab of the tab column (docs/outfit-management-ui.md §3): the star, point down,
   that marks a situational outfit in the outfit list, tooltip `Situations`.
-- Title `#{Name}'s Situational Outfits`, no summary line. Two panes as on the Wardrobe page:
+- Title `Situational Outfits (#{Name})` after the star, no summary line. Two panes as on the Wardrobe page:
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
 - The preview shows the Dress page's ticks, or the outfit whose details show (§5).

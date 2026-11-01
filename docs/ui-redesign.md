@@ -33,8 +33,8 @@ dressing itself.
   come first; Name ascending to start.
 - The count line `x of y item(s) selected` sits under the list, ending in `Add from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview follows it.
-- Buttons: `Create / Update Outfit` (needs a ticked piece; opens the Save page), `Apply` (needs a ticked piece),
-  `Exit`. `Restore` at the right end of the button row: a borderless text
+- Buttons: `Apply` (needs a ticked piece), `Save to Wardrobe...` (needs a ticked piece; opens the Save page),
+  `Exit`. `Restore Outfit` at the right end of the Live Preview line: a borderless text
   button lit on hover, with a `(?)`, shown only while Livery dresses the actor. It ends
   Livery's dressing of them. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
   situational outfits. Items moved from your inventory stay with them."
@@ -66,14 +66,14 @@ INI + SKSE Menu Framework, nothing in the window.
 - The NPC's inventory is read again after the moves. A piece that did not move is dropped
   from Dress's list and counted in the HUD message; never a silent copy.
 - A moved instance is not `added`: Restore leaves it with the NPC, as a traded item.
-- The preview and Create / Update Outfit move nothing; Create and Apply moves as Apply does.
+- The preview and Save to Wardrobe... move nothing; Create and Apply moves as Apply does.
 
 Checks: an enchanted piece moves with its enchantment; a quest item and a favorite are not
 listed; the HUD counts moved pieces; the NPC keeps the piece after Restore.
 
 ## 4. Save page
 
-Reached from `Create / Update Outfit` with the ticked pieces, which both tabs save. The page
+Reached from `Save to Wardrobe...` with the ticked pieces, which both tabs save. The page
 writes the library; only Create and Apply gives the outfit a row. Giving an outfit to a
 situation is the Situations page's job (docs/situation-management-ui.md).
 
@@ -122,7 +122,7 @@ situation is the Situations page's job (docs/situation-management-ui.md).
 - The name may be changed: a name must be unused, ASCII case ignored, by any other outfit
   (CLAUDE.md §2.1); `Library::Update` takes the name.
 - Update's confirm popup (`Replace items?`): `Replace the N item(s) of "A"` / `with the M
-  ticked item(s)?`, a line for the pieces of unloaded plugins that stay in it and one for a
+  selected item(s)?`, a line for the pieces of unloaded plugins that stay in it and one for a
   rename, then `Confirm` / `Cancel`. No row changes.
 - Order: the library write; on failure `SetError` and nothing assigned; on success Close (the
   preview restores), then Create and Apply's row in one call that redresses once, or after
@@ -142,7 +142,7 @@ when they wear it; a failed write assigns nothing.
   else, Apply asks nothing: X goes to the row it is worn for in one `Assignments::Change`,
   the unticked pieces left off there (`OutfitRows::Exclusion`, as the Wardrobe page's Apply
   leaves them; none unticked wears all its items). The library does not change.
-- Modal `Update "X" with the ticked items?` when the ticks hold a piece X does not. For a
+- Modal `Update "X" with the selected items?` when the ticks hold a piece X does not. For a
   situation it adds `"X" is #{Name}'s Town outfit.`
   - `Yes`: `Library::Update(X, pieces = ticks, name kept)`. Default
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced

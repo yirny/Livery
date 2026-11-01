@@ -109,23 +109,23 @@ the Situations page. Each page keeps its own search and sort.
 - The count line ends in `Add from Wardrobe...` (`Theme::LabelLink`, its plus mark
   first), which opens the Load page; greyed while the library is empty, showing
   `kNoOutfits` on hover. Not shown for the player while `Dress yourself from inventory only`
-  is ticked (`Request::offersWardrobe`). The buttons are `Create / Update Outfit`, `Apply`, `Exit`.
+  is ticked (`Request::offersWardrobe`). The buttons are `Apply` (dressed form before its label), `Save to Wardrobe...` (wardrobe), `Exit`.
 - Tooltips on hover while enabled; a greyed button shows its reason instead:
-  - Create / Update Outfit: `Save the ticked items as a new outfit, or into an existing one.`
-  - Apply: `Dress #{Name} in the ticked items.`
+  - Apply: `Dress #{Name} in the selected items.`; with a piece under `#{Player}'s Inventory` ticked, a second line: `Items from your inventory move to #{Name}.` (or `#{Name} gets a new copy of each item from your inventory; yours stay with you.`).
+  - Save to Wardrobe...: `Save the selected items as a new outfit, or into an existing one.`
   - Exit: none.
-- `Restore (?)`, while Livery dresses the actor, sits at the right end of the button
-  row (`Theme::LineHelpLink`), its text centred on the buttons' height, in the count
+- `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the Live
+  Preview line (`Theme::LineHelpLink`), its text centred on the line's height, in the count
   line's font and colour, lit on hover; the `(?)` is inside its click area and hovering it
   shows the help. A click asks `Restore #{Name}'s original outfit?` / `This takes Livery's
   outfit off #{Name} and forgets every situational outfit chosen for them.` with `Restore` /
   `Cancel`.
 - The `Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
-  is over that mark alone: `"Apply" moves the ticked items from your inventory to #{Name}.`
-  (or `"Apply" gives #{Name} a new copy of each ticked item; yours stay with you.`), then
+  is over that mark alone: `"Apply" moves the selected items from your inventory to #{Name}.`
+  (or `"Apply" gives #{Name} a new copy of each selected item; yours stay with you.`), then
   `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
   are not listed.`
-- The Apply popup's `No, apply as is (?)` help: `The ticked pieces become #{Name}'s Default
+- The Apply popup's `No, apply as is (?)` help: `The selected items become #{Name}'s Default
   as they are, without being added to the wardrobe.`, then, while a situation row of #{Name}
   holds an outfit, `While a situational outfit is worn, the new Default shows only when that
   situation ends.` A button
@@ -145,6 +145,9 @@ the Situations page. Each page keeps its own search and sort.
 
 ## 3. Tab column
 
+- Each page's heading starts with its tab's icon, in the text colour (`Theme::HeadingText` with an icon): the Dress and Load pages the bare form before the actor's name, Wardrobe the wardrobe, Situations the star, Chests the chest, Appearance the palette. Each is drawn as `Theme::HeadingRunText` draws a line icon.
+- Player-visible text says `select` for the piece list's ticks (`Select at least one item.`, `the selected items`); specs and code keep `tick`, as `selected` already names the outfit row in the lists.
+- A button or link that needs more input before it acts (a name, a choice on another page) ends in `...`; one that only asks for confirmation does not.
 - A column of icon tabs at the window's left edge, a rule between it and the page:
   the Dress page (a bare dress form: a padded torso on a stand, each shoulder one arc), the
   Wardrobe page (a wardrobe: a cornice wider than the body, rising to a crest, above two doors
@@ -225,7 +228,7 @@ the Situations page. Each page keeps its own search and sort.
   popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
   selected, the Dress page's ticks.
-- Buttons `Update`, `Apply to #{Name}`, `Exit`, then `Remove` (§5) at the row's right
+- Buttons `Apply to #{Name}` (dressed form before its label), `Update` (wardrobe), `Exit`, then `Remove` (§5) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`).
   - Update: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
     with an empty name (`kNeedName`). A popup (`Save changes?`) lists
@@ -294,7 +297,7 @@ the Situations page. Each page keeps its own search and sort.
   outfit they come from (`"A", "B"`). While the Load page is open the
   preview shows this page's ticks with the selected outfit added; Load and Back return to
   this page, nothing written.
-- `Use Ticked Items` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
+- `Use Selected Items` (needs a tick, `kNeedPiece`): the ticks become the outfit's edited
   pieces and the page returns to the Wardrobe page, its unticked pieces among them staying
   unticked (all ticked again when they were all); nothing is written. `Back` and Escape
   return with the edited pieces as they were.
@@ -386,7 +389,7 @@ first.
 
 - Outfit list: each sort's order; Load from its button; the three skins.
 - Wardrobe page: switching tabs keeps the ticks and the edits; Update's popup, HUD message and
-  rebuilt list; a taken name refused; Edit, Use Ticked Items and Back; the three warnings;
+  rebuilt list; a taken name refused; Edit, Use Selected Items and Back; the three warnings;
   Update of the outfit the captured actor wears, at once with Live Preview on and off (the
   frozen game showing the new outfit, no empty torso); the three skins.
 - Remove: Remove of an outfit in use lists its users; the captured actor wearing it for a

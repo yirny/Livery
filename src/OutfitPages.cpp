@@ -37,7 +37,7 @@
 //                  Exit, Escape or another tab with unsaved edits shows the unsaved-changes
 //                  alert, whose Save Changes goes through Update's popup
 //   Edit page    - the edited pieces as the Dress page's piece list with its own ticks,
-//                  Add from Wardrobe... and Live Preview; Use Ticked Pieces makes
+//                  Add from Wardrobe... and Live Preview; Use Selected Items makes
 //                  them the edited pieces, Back leaves them; nothing is written
 #include "PCH.h"
 
@@ -822,7 +822,7 @@ namespace CaptureWindow::Internal
 		return Trimmed(a_state.manage.name.data()).empty() ? kNeedName : nullptr;
 	}
 
-	// Update / Apply to #{Name} / Exit centred below a gap, then Remove at the row's right
+	// Apply to #{Name} / Update / Exit centred below a gap, then Remove at the row's right
 	// end, a link as Restore is. Update needs Request::onManageUpdate (UpdateReason);
 	// Remove needs Request::onManageRemove and a selected outfit; Apply needs
 	// Request::onManageApply (ApplyReason), and says what it dresses the actor for on hover.
@@ -831,13 +831,13 @@ namespace CaptureWindow::Internal
 	{
 		const char* noUpdate = UpdateReason(a_state);
 		const char* apply = a_state.manageApplyLabel.c_str();
-		BeginButtonRow({ "Update", apply, "Exit" });
-		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
-		const bool update = ReasonButton("Update", noUpdate);
+		BeginButtonRow({ { apply, Theme::HeadingIcon::kDressedForm }, { "Update", Theme::HeadingIcon::kWardrobe }, "Exit" });
+		ImGui::BeginDisabled(!a_state.request.onManageApply);
+		const bool applied = ReasonButton(apply, ApplyReason(a_state), a_state.manageApplyTip.c_str(), Theme::HeadingIcon::kDressedForm);
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		ImGui::BeginDisabled(!a_state.request.onManageApply);
-		const bool applied = ReasonButton(apply, ApplyReason(a_state), a_state.manageApplyTip.c_str());
+		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
+		const bool update = ReasonButton("Update", noUpdate, nullptr, Theme::HeadingIcon::kWardrobe);
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
@@ -1539,7 +1539,7 @@ namespace CaptureWindow::Internal
 		GoToPage(a_state, Page::kEdit);
 	}
 
-	// Use Ticked Pieces makes the ticks the edited pieces, which the preview already shows;
+	// Use Selected Items makes the ticks the edited pieces, which the preview already shows;
 	// Back and Escape leave them, and the preview shows them again. Nothing is written.
 	// Add from Wardrobe... opens the Load page, whose Load adds to the ticks.
 	void DrawEditPage(State& a_state)
@@ -1549,9 +1549,9 @@ namespace CaptureWindow::Internal
 		DrawPieceRows(a_state, list);
 		const auto links = DrawPieceCount(a_state, list, true);
 		DrawPreviewToggle(a_state, list);
-		BeginButtonRow({ "Use Ticked Items", "Back" });
+		BeginButtonRow({ "Use Selected Items", "Back" });
 		const auto ticked = Ticked(a_state, list);
-		const bool use = ReasonButton("Use Ticked Items", ticked.empty() ? kNeedPiece : nullptr);
+		const bool use = ReasonButton("Use Selected Items", ticked.empty() ? kNeedPiece : nullptr);
 		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 		EndButtonRow();

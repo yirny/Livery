@@ -152,7 +152,7 @@ namespace
 			return problem;
 		}
 		if (a_pieces.empty()) {
-			return "Tick at least one item.";
+			return "Select at least one item.";
 		}
 		return std::nullopt;
 	}

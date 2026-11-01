@@ -535,12 +535,11 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
-		// kPaneButtonGap, then the cursor placed so a row of buttons with these labels is
-		// centred in the pane.
-		void BeginPaneButtonRow(std::initializer_list<const char*> a_labels)
+		// kPaneButtonGap, then the cursor placed so a row of these buttons is centred in the pane.
+		void BeginPaneButtonRow(std::initializer_list<RowButton> a_buttons)
 		{
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
-			CentreButtonRow(a_labels);
+			CentreButtonRow(a_buttons);
 		}
 
 		// The settings every actor shares: the name, its label with the situation star (read
