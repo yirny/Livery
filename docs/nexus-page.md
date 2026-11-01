@@ -155,7 +155,7 @@ Drag an outfit back to the list to clear it. Situational outfits are saved per c
 
 [list]
 [*]Skyrim VR is not supported.
-[*]No ESP/ESL and no scripts, so it sits beside any other mod; its co-save record is simply skipped once Livery is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
+[*]No ESP/ESL and no scripts, so it sits beside any other mod without setting your PC on fire; its co-save record is simply skipped once Livery is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
 [*][b]Nether's Follower Framework[/b]: fine, as long as you don't use its outfit features on the followers Livery dresses.
 [*][b]Tailor[/b]: fine for wigs; leave the outfits to one of the two.
 [*][b]Devious Devices[/b]: not tested. Don't dress a character wearing devices.
@@ -202,10 +202,10 @@ Only ASCII can be typed into the name field for now (see Roadmap).
 [*]Custom situations: add your own, and edit their conditions.
 [*]Non-ASCII names, so you can name an outfit in your own language.
 [*]Livery API, so other mods can use its dressing and outfits.
-[*]Item chests: fill a chest with items ahead of time and open it while dressing someone. Handy for armor mods that come with many variants.
+[*]Item Chests: Organise equipment into custom chests you can access while dressing characters. Handy for armor mods with lots of variants.
 [/list]
 
-[b]Ideas, not planned (ask, and they move up)[/b]
+[b]Ideas, not planned yet (tell me which you'd use)[/b]
 [list]
 [*]Partial outfits that go on over the current one, e.g. a hood and cloak for cold weather. Handy, but a second kind of outfit to keep track of. For now, save a copy of an outfit with the hood and cloak added and give it to Cold.
 [*]Tags on outfits, like Light Armor or Casual. Easier to find things, but busier lists. For now, icons and colours are the way to organise.
