@@ -283,6 +283,7 @@ namespace CaptureWindow::Internal
 		bool                        leaveAfterSave = false;    // a save is running: the leave follows a save that took
 		bool                        openLeave = false;         // open the alert on the next frame, in the page's ID scope
 		double                      autosaveAt = 0.0;          // ImGui::GetTime() seconds when the Situations page or the chest editor saves its edits; 0 for no save waiting
+		bool                        quietSave = false;         // the running write is a save made as the page is edited: the page keeps its look (BeginPageDisabled)
 		const char*                 popupAfterSave = nullptr;  // the Situations page's popup to open once the running save took; nullptr for none
 		int                         recentreFrames = 0;        // frames left to pin the window to its place
 		std::optional<ImVec2>       placeCentre;               // where a pinned window's centre goes; none for the start place
@@ -332,7 +333,7 @@ namespace CaptureWindow::Internal
 	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
 	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text):
 	// "[+] Add from <a_icon> <a_name>", with the Wardrobe tab's wardrobe or the Chests tab's chest.
-	bool        DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame);
+	bool        DrawCountLink(const State& a_state, const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame);
 	void        DrawPreviewToggle(State& a_state, const PieceList& a_list);
 	std::string Trimmed(const char* a_text);
 	void        DrawError(const std::string& a_message);
@@ -409,8 +410,40 @@ namespace CaptureWindow::Internal
 		a_state.autosaveAt = ImGui::GetTime() + kAutosaveDelay;
 	}
 
+	// The page takes no input while a write runs, and greys, but for a save made as it is edited
+	// (State::quietSave), which runs after each edit and would make it flicker.
+	inline void BeginPageDisabled(const State& a_state)
+	{
+		const float alpha = ImGui::GetStyle().Alpha;
+		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, a_state.quietSave ? alpha : ImGui::GetStyle().Alpha);
+	}
+
+	inline void EndPageDisabled()
+	{
+		ImGui::PopStyleVar();
+		ImGui::EndDisabled();
+	}
+
+	// BeginDisabled for an item greyed on its own inside BeginPageDisabled.
+	// Contract: BeginDisabled nested in a disabled block fades nothing, so under a quiet save
+	// the item fades here, or it would light up for as long as the save runs.
+	inline void BeginItemDisabled(const State& a_state, bool a_disabled)
+	{
+		const auto& style = ImGui::GetStyle();
+		const float alpha = a_state.quietSave && a_disabled ? style.Alpha * style.DisabledAlpha : style.Alpha;
+		ImGui::BeginDisabled(a_disabled);
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, a_state.quietSave ? alpha : style.Alpha);
+	}
+
+	inline void EndItemDisabled()
+	{
+		ImGui::PopStyleVar();
+		ImGui::EndDisabled();
+	}
+
 	// Whether the wait for a save is over, which ends it. A drag or an open popup holds it: a
-	// save greys the page and starts its edits again from the request.
+	// save blocks the page and starts its edits again from the request.
 	inline bool TakeAutosaveDue(State& a_state)
 	{
 		if (a_state.autosaveAt <= 0.0 || a_state.status != Status::kEditing || ImGui::GetTime() < a_state.autosaveAt) {
@@ -445,7 +478,7 @@ namespace CaptureWindow::Internal
 	bool HasChestEdits(const State& a_state);
 
 	// Saves the chest editor's edits now, an unusable name given up first. Returns whether a
-	// save is on its way; the page is greyed until it ends.
+	// save is on its way; the page takes no input until it ends.
 	bool SaveChestEdits(State& a_state);
 
 	// Starts the editor's edits of chest `a_index` (-1 for none) from the chest; the items
@@ -572,7 +605,7 @@ namespace CaptureWindow::Internal
 	bool HasSituationEdits(const State& a_state);
 
 	// Saves the page's edits now, a name still being typed ended first. Returns whether a save
-	// is on its way; the page is greyed until it ends.
+	// is on its way; the page takes no input until it ends.
 	bool SaveSituationEdits(State& a_state);
 
 	// The star's tooltip from the page's edits, as OutfitBrowser::State::situations from the

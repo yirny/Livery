@@ -405,13 +405,14 @@ namespace CaptureWindow::Internal
 	}
 
 	// Hands the edits to onChestUpdate; until the handler ends with SetOutfits or SetError the
-	// page is greyed. Contract: as RequestChestCreate's.
+	// page takes no input. Contract: as RequestChestCreate's.
 	void RequestChestUpdate(State& a_state)
 	{
 		const auto& form = a_state.chest;
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
 		a_state.autosaveAt = 0.0;
+		a_state.quietSave = true;
 		CaptureWindow::ChestEdit edit{ .chest = ChestAt(a_state, form.chest).id, .name = Trimmed(form.name.data()), .pieces = form.pieces };
 		auto                     onUpdate = a_state.request.onChestUpdate;
 		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit)] { onUpdate(edit); });
@@ -494,7 +495,7 @@ namespace CaptureWindow::Internal
 		constexpr const char* kNoOtherChests = "No other chests.";
 
 		auto& form = a_state.chest;
-		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		BeginPageDisabled(a_state);
 		DrawNameField(a_state, form.name, nullptr, nullptr, "Chest Name");
 		// The name counts once it is entered: Enter or the field losing focus. Polled, as a
 		// link's click can leave the page in the frame the field lets go.
@@ -513,9 +514,9 @@ namespace CaptureWindow::Internal
 			Theme::AfterFieldGap();
 			Theme::CountText(std::format("{} item(s)", CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
-			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
+			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
-			links.chest = DrawCountLink("Chest...", a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
+			links.chest = DrawCountLink(a_state, "Chest...", a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			Theme::LabelText("In Chest", Theme::HeadingIcon::kChest);
@@ -529,7 +530,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto action = DrawChestButtons(a_state);
 		EndButtonRow();
-		ImGui::EndDisabled();
+		EndPageDisabled();
 		// While a write runs only Escape gets past BeginDisabled; it does nothing then, as the
 		// greyed buttons do nothing.
 		if (a_state.status != Status::kEditing) {

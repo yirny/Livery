@@ -553,7 +553,7 @@ namespace CaptureWindow::Internal
 			auto&      entry = form.entries[a_entry];
 			const bool isDefault = a_entry == 0;
 			Theme::LabelText("Name", true, true);
-			ImGui::BeginDisabled(isDefault);
+			BeginItemDisabled(a_state, isDefault);
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
 			if (ImGui::IsItemActivated()) {
@@ -562,7 +562,7 @@ namespace CaptureWindow::Internal
 				form.nameField = ImGui::GetItemID();
 			}
 			const bool nameHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-			ImGui::EndDisabled();
+			EndItemDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (isDefault && nameHovered) {
 				Theme::Tooltip(kDefaultName);
@@ -705,11 +705,11 @@ namespace CaptureWindow::Internal
 			const bool exit = Theme::Button("Exit") || escape;
 
 			const bool installed = request.restoreChanges.empty();
-			ImGui::BeginDisabled(installed || !request.onRestorePresets);
+			BeginItemDisabled(a_state, installed || !request.onRestorePresets);
 			bool       helpHovered = false;
 			const bool restore = Theme::LineHelpLink("Restore Presets", &helpHovered);
 			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-			ImGui::EndDisabled();
+			EndItemDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (installed && hovered) {
 				Theme::Tooltip(kAsInstalled);
@@ -786,7 +786,7 @@ namespace CaptureWindow::Internal
 
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
 		// when any changed, and the outfit whose details show, which stays on
-		// the preview. Until the handler ends with SetOutfits or SetError the page is greyed.
+		// the preview. Until the handler ends with SetOutfits or SetError the page takes no input.
 		// Contract: the handler writes situations.json first and changes no row for a refused
 		// or failed write (CLAUDE.md §2.1).
 		void RequestSituationsSave(State& a_state)
@@ -813,6 +813,7 @@ namespace CaptureWindow::Internal
 			a_state.status = Status::kSaving;
 			a_state.error.clear();
 			a_state.autosaveAt = 0.0;
+			a_state.quietSave = true;
 			auto onSave = request.onSituationsSave;
 			SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
 		}
@@ -970,7 +971,7 @@ namespace CaptureWindow::Internal
 			a_state.popupAfterSave = nullptr;
 		}
 		EndInactiveNameEdit(a_state);
-		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		BeginPageDisabled(a_state);
 		bool escapeTaken = false;
 		auto details = DetailsAction::kNone;
 		auto outfitView = OutfitViewAction::kNone;
@@ -998,7 +999,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto action = DrawSituationButtons(a_state, escapeTaken);
 		EndButtonRow();
-		ImGui::EndDisabled();
+		EndPageDisabled();
 		// While a write runs (Status::kSaving) only Escape, as Back or Exit, gets past
 		// BeginDisabled; it does nothing then, as the greyed buttons do nothing.
 		if (a_state.status != Status::kEditing) {

@@ -288,7 +288,8 @@ shows the situation's.
 - Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a name entered)
   starts the wait of `kAutosaveDelay` (0.5 s) again, so a burst of edits writes and redresses
   once (`ScheduleAutosave`, `TakeAutosaveDue`). A drag, an open popup or a name being typed
-  holds the save until it ends. The page is greyed while a save runs, and the HUD says nothing
+  holds the save until it ends. The page takes no input while a save runs but keeps its look
+  (`BeginPageDisabled`, `State::quietSave`), and the HUD says nothing
   of a rename (the log does); the redress has its usual HUD message. A save writes the global edits to `situations.json` first, when there are any; a
   refused or failed write changes no row and shows the error. Then, when a row changed, it
   replaces the captured actor's rows at once (`Assignments::SetRows`, so the page shows them
@@ -298,7 +299,8 @@ shows the situation's.
   row they wear wears the outfit it gained first. The page stays, an outfit's details
   too, and the edits start again from what was saved.
 - Exit closes the window; Escape does what Exit does, first clearing a search. While a write
-  runs (a save, Remove, Restore Presets) the page is greyed and Escape does nothing,
+  runs (a save, Remove, Restore Presets) the page takes no input, Remove and Restore Presets
+  greying it, and Escape does nothing,
   here or as an outfit's Back.
 - Exit, Escape, another tab or an outfit's Edit with edits not saved yet saves them at once
   and goes once the write took; no alert asks. A refused save stays and shows the error, and

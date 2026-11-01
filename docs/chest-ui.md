@@ -70,7 +70,7 @@ columns, `Back` and `Remove` as a link at the row's right end, as the Wardrobe p
   counts the items not loaded. A click takes the item out.
 - Saving: each edit (an item put in or taken out, the Load page's `Add`, a name entered) starts
   the wait of `kAutosaveDelay` (0.5 s) again (`ScheduleAutosave`); then the name and items go to
-  `onChestUpdate`, the page greyed while the write runs, and the editor stays on the chest as
+  `onChestUpdate`, the page taking no input while the write runs but keeping its look, and the editor stays on the chest as
   written, the taken-out items still listed. The name being typed, an open popup or the Load
   page holds the save until it ends. The HUD says nothing of it; the log does.
 - `Back` or Escape saves edits not saved yet and returns once the write took; a refused save
