@@ -6,7 +6,7 @@
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
 //   API       - RefreshModel / Dress / PutBackOn / TakeOffOverlapping / OutfitItemContestsLock / Replenish /
-//               Release / PutBack / MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
+//               Upgrade / Release / PutBack / MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cstring>
 #include <optional>
+#include <utility>
 
 namespace
 {
@@ -177,33 +178,53 @@ namespace
 		RE::ExtraDataList* extra = nullptr;  // nullptr: a plain copy
 	};
 
-	// Ranked as docs/design.md §2 says: worn, enchanted, most tempered, plain; any other
-	// copy last. nullopt when they carry none. An unworn locked copy cannot be equipped
-	// and is skipped.
+	// Enchanted first, then the most tempered; a higher rank is the better copy.
+	using Rank = std::pair<bool, float>;
+
+	Rank RankOf(const RE::ExtraDataList& extra)
+	{
+		const auto* health = extra.GetByType<RE::ExtraHealth>();
+		return { extra.HasType<RE::ExtraEnchantment>(), health ? health->health : 1.0f };  // 1 = not tempered
+	}
+
+	bool IsWellMade(const Rank& rank)
+	{
+		return rank.first || rank.second > 1.0f;
+	}
+
+	// Whether they carry an unworn copy that could go on and outranks `worn`. Equal ranks are
+	// no reason to swap, so a swap settles: the copy it puts on is then the best one.
+	bool HasBetterCopy(RE::Actor& actor, const RE::TESObjectARMO& armor, const RE::ExtraDataList& worn)
+	{
+		const auto rank = RankOf(worn);
+		return std::ranges::any_of(Copies(actor, &armor), [&rank](const Copy& copy) {
+			return !copy.extra->GetWorn() && !IsLocked(*copy.extra) && RankOf(*copy.extra) > rank;
+		});
+	}
+
+	// Ranked as docs/design.md §2 says: enchanted, most tempered, worn, plain; any other copy
+	// last. The worn copy stays when no unworn one outranks it, or when it is locked: Wear
+	// releases Livery's locks before it dresses, so a lock here is another mod's. nullopt when
+	// they carry none. An unworn locked copy cannot be equipped and is skipped.
 	std::optional<Instance> PickInstance(RE::Actor& actor, RE::TESObjectARMO& armor)
 	{
+		if (const auto worn = WornCopy(actor, armor); worn.extra && (IsLocked(*worn.extra) || !HasBetterCopy(actor, armor, *worn.extra))) {
+			return Instance{ worn.extra };
+		}
 		RE::ExtraDataList* best = nullptr;
-		bool               bestEnchanted = false;
-		float              bestHealth = 0.0f;
+		Rank               bestRank;
 		std::int32_t       listed = 0;  // copies on extra lists, skipped ones included
 		for (const auto& copy : Copies(actor, &armor)) {
 			listed += copy.extra->GetCount();
-			if (copy.extra->GetWorn()) {
-				return Instance{ copy.extra };
-			}
-			if (IsLocked(*copy.extra)) {
+			if (copy.extra->GetWorn() || IsLocked(*copy.extra)) {
 				continue;
 			}
-			const bool  enchanted = copy.extra->HasType<RE::ExtraEnchantment>();
-			const auto* health = copy.extra->GetByType<RE::ExtraHealth>();
-			const float tempered = health ? health->health : 1.0f;  // 1 = not tempered
-			if (!best || enchanted > bestEnchanted || (enchanted == bestEnchanted && tempered > bestHealth)) {
+			if (const auto rank = RankOf(*copy.extra); !best || rank > bestRank) {
 				best = copy.extra;
-				bestEnchanted = enchanted;
-				bestHealth = tempered;
+				bestRank = rank;
 			}
 		}
-		if (best && (bestEnchanted || bestHealth > 1.0f)) {
+		if (best && IsWellMade(bestRank)) {
 			return Instance{ best };
 		}
 		if (CountOf(actor, armor) > listed) {
@@ -222,8 +243,7 @@ namespace
 	{
 		RE::ExtraDataList* best = nullptr;
 		RE::ExtraDataList* worn = nullptr;
-		bool               bestEnchanted = false;
-		float              bestHealth = 0.0f;
+		Rank               bestRank;
 		std::int32_t       listed = 0;  // copies on extra lists, skipped ones included
 		for (const auto& copy : Copies(player, &armor)) {
 			listed += copy.extra->GetCount();
@@ -234,16 +254,12 @@ namespace
 			if (IsLocked(*copy.extra)) {
 				continue;
 			}
-			const bool  enchanted = copy.extra->HasType<RE::ExtraEnchantment>();
-			const auto* health = copy.extra->GetByType<RE::ExtraHealth>();
-			const float tempered = health ? health->health : 1.0f;  // 1 = not tempered
-			if (!best || enchanted > bestEnchanted || (enchanted == bestEnchanted && tempered > bestHealth)) {
+			if (const auto rank = RankOf(*copy.extra); !best || rank > bestRank) {
 				best = copy.extra;
-				bestEnchanted = enchanted;
-				bestHealth = tempered;
+				bestRank = rank;
 			}
 		}
-		if (best && (bestEnchanted || bestHealth > 1.0f)) {
+		if (best && IsWellMade(bestRank)) {
 			return Instance{ best };
 		}
 		if (CountOf(player, armor) > listed) {
@@ -264,6 +280,30 @@ namespace
 		kNotCarried,
 		kRefused
 	};
+
+	// Takes the worn copy off and puts the best copy on in its place; when that does not go on,
+	// the worn copy goes back on. Taken off first so no equip call depends on what the engine
+	// does with two copies of one armor; the pick is read again because the unequip can
+	// rebuild the extra lists. Returns whether the better copy is on: WornCopy then finds it.
+	// Contract: `worn` is unlocked, and HasBetterCopy said yes.
+	bool SwapForBetter(RE::Actor& actor, RE::TESObjectARMO& armor, const Copy& worn, bool lock, RE::ActorEquipManager& equipManager)
+	{
+		const auto wornKey = Tag(actor, worn);
+		equipManager.UnequipObject(&actor, &armor, worn.extra, 1, nullptr, false, false, false, true);
+		if (WornCopy(actor, armor).extra) {
+			return false;  // it would not come off
+		}
+		if (const auto better = PickInstance(actor, armor)) {
+			equipManager.EquipObject(&actor, &armor, better->extra, 1, nullptr, false, lock, false, true);
+			if (WornCopy(actor, armor).extra) {
+				return true;
+			}
+		}
+		if (const auto back = Find(actor, wornKey); back.extra) {
+			equipManager.EquipObject(&actor, &armor, back.extra, 1, nullptr, false, lock, false, true);
+		}
+		return false;
+	}
 
 	// Puts one piece on and fills `piece` when it is worn. A copy added for a piece the
 	// engine refuses goes straight back.
@@ -288,8 +328,13 @@ namespace
 			piece = { Tag(actor, { &armor, extra }), false, lockHere };
 			return Outcome::kWorn;
 		}
-		// forceEquip is PreventRemoval: the engine puts ExtraCannotWear on the copy it equips.
-		equipManager.EquipObject(&actor, &armor, instance->extra, 1, nullptr, false, lock, false, true);
+		// A worn copy here was not picked, so a better one was: PickInstance keeps a locked one.
+		if (const auto current = WornCopy(actor, armor); current.extra) {
+			SwapForBetter(actor, armor, current, lock, equipManager);
+		} else {
+			// forceEquip is PreventRemoval: the engine puts ExtraCannotWear on the copy it equips.
+			equipManager.EquipObject(&actor, &armor, instance->extra, 1, nullptr, false, lock, false, true);
+		}
 		const auto worn = WornCopy(actor, armor);
 		if (!worn.extra) {
 			if (added) {
@@ -365,7 +410,8 @@ namespace Dressing
 			TakeOffOthers(actor, result.worn, *equipManager);
 			for (const auto& key : before) {
 				const auto copy = Find(actor, key);
-				const bool inOutfit = std::ranges::any_of(result.worn, [&key](const Piece& piece) { return piece.key == key; });
+				// By armor: a copy a better one replaced is no piece of theirs to put back on.
+				const bool inOutfit = std::ranges::any_of(result.worn, [&key](const Piece& piece) { return piece.key.armor == key.armor; });
 				if (copy.extra && !copy.extra->GetWorn() && !inOutfit) {
 					result.takenOff.push_back(key);
 				}
@@ -471,6 +517,44 @@ namespace Dressing
 			if (armor && PutOn(actor, *armor, true, true, *equipManager, piece) == Outcome::kWorn) {
 				++count;
 			}
+		}
+		return count;
+	}
+
+	std::size_t Upgrade(RE::Actor& actor, std::vector<Piece>& pieces)
+	{
+		auto* equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!equipManager) {
+			return 0;
+		}
+		std::size_t count = 0;
+		for (auto& piece : pieces) {
+			const auto worn = Find(actor, piece.key);
+			// A piece not worn is PutBackOn's; a lock this module did not set is another mod's.
+			if (!worn.extra || !worn.extra->GetWorn() || (IsLocked(*worn.extra) && !piece.locked) || !HasBetterCopy(actor, *worn.armor, *worn.extra)) {
+				continue;
+			}
+			if (piece.locked) {
+				worn.extra->RemoveByType(RE::ExtraDataType::kCannotWear);
+				actor.AddChange(RE::TESObjectREFR::ChangeFlags::kInventory);
+			}
+			const auto oldKey = piece.key;
+			if (!SwapForBetter(actor, *worn.armor, worn, true, *equipManager)) {
+				const auto old = Find(actor, oldKey);
+				const bool oldWorn = old.extra && old.extra->GetWorn();
+				if (oldWorn && !IsLocked(*old.extra)) {
+					Lock(actor, *old.extra);
+				}
+				piece.locked = oldWorn;
+				continue;
+			}
+			const auto now = WornCopy(actor, *worn.armor);
+			const bool wasAdded = piece.added;
+			piece = { Tag(actor, now), false, IsLocked(*now.extra) };  // a better copy is never one this module added
+			if (const auto old = Find(actor, oldKey); wasAdded && old.extra) {
+				actor.RemoveItem(old.armor, 1, RE::ITEM_REMOVE_REASON::kRemove, old.extra, nullptr);
+			}
+			++count;
 		}
 		return count;
 	}
