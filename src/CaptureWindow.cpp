@@ -542,7 +542,7 @@ namespace CaptureWindow::Internal
 
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
 		const float  left = origin.x + Theme::TabOffsetX();
-		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		BeginPageDisabled(a_state);
 		ImGui::SetCursorScreenPos(ImVec2(left, origin.y + Theme::TabTopGap()));
 		for (const auto& tab : kTabs) {
 			if (a_state.request.saveOnly && (tab.page == Page::kManage || tab.page == Page::kSituations)) {
@@ -558,7 +558,7 @@ namespace CaptureWindow::Internal
 			}
 			ImGui::SetCursorScreenPos(ImVec2(left, ImGui::GetCursorScreenPos().y));  // a new line starts at the content's left edge
 		}
-		ImGui::EndDisabled();
+		EndPageDisabled();
 	}
 
 	void RequestLeave(State& a_state, PendingLeave a_leave)
@@ -1148,12 +1148,12 @@ namespace CaptureWindow::Internal
 	}
 
 	// A link of the count line, greyed with `a_reason` (shown on hover). Returns true when clicked.
-	bool DrawCountLink(const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line)
+	bool DrawCountLink(const State& a_state, const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line)
 	{
-		ImGui::BeginDisabled(a_reason != nullptr);
+		BeginItemDisabled(a_state, a_reason != nullptr);
 		const bool clicked = Theme::LabelLink(kAddFrom, a_line, a_icon, a_name);
 		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-		ImGui::EndDisabled();
+		EndItemDisabled();
 		// After EndDisabled, so the tooltip is not drawn faded.
 		if (a_reason && hovered) {
 			Theme::Tooltip(a_reason);
@@ -1171,10 +1171,10 @@ namespace CaptureWindow::Internal
 		Theme::CountText(std::format("{} of {} item(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		CountLinks links;
 		if (a_withLinks) {
-			links.wardrobe = DrawCountLink("Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe);
+			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe);
 			if (a_state.request.offersChests) {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
-				links.chest = DrawCountLink("Chest...", a_state.request.chests.empty() ? kNoChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
+				links.chest = DrawCountLink(a_state, "Chest...", a_state.request.chests.empty() ? kNoChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
 			}
 		}
 		if (ticked == 0) {
@@ -2234,6 +2234,7 @@ namespace CaptureWindow
 			state.leaveAfterSave = false;
 			state.openLeave = false;
 			state.autosaveAt = 0.0;
+			state.quietSave = false;
 			state.popupAfterSave = nullptr;
 			state.situationForm = {};
 			FillSituationForm(state, state.request.situations);
@@ -2300,6 +2301,7 @@ namespace CaptureWindow
 		const std::scoped_lock lock(state.mutex);
 		if (state.status == Status::kSaving) {
 			state.status = Status::kEditing;
+			state.quietSave = false;
 			state.error = a_message;
 			state.focusNameField = true;
 		}
@@ -2384,6 +2386,7 @@ namespace CaptureWindow
 		}
 		state.discardFor = -1;
 		state.status = Status::kEditing;
+		state.quietSave = false;
 	}
 
 	void RefusePreview(const std::string& a_reason)
