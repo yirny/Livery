@@ -574,7 +574,7 @@ namespace CaptureWindow::Internal
 	// (OutfitPieceOrder), as the Dress page's tick rows, with their icons: a ticked one is worn
 	// with the outfit, an unticked one left off, its armor in `a_excluded` (FormIDs, ascending).
 	// A click ticks or unticks one, but the last ticked one stays ticked. With no `a_excluded`
-	// every row is ticked and takes no click. The list ends by screen Y `a_bottom` and scrolls
+	// every row is unticked and takes no click. The list ends by screen Y `a_bottom` and scrolls
 	// when it needs more; one row shows at least. Returns true when `a_excluded` changed.
 	bool DrawPieceChoices(State& a_state, const std::vector<std::size_t>& a_pieces, std::vector<std::uint32_t>* a_excluded, float a_bottom = FLT_MAX);
 
