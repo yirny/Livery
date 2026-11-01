@@ -44,7 +44,7 @@ The fifth tab (a chest: a box with a domed lid), between Situations and Appearan
 `offersChests`. Its heading's subtitle: `Items in a chest can be loaded on the Dress page.`
 Under `Select a chest to open` the page lists the chests by name over a count line, each after
 the chest icon in the text colour, at the list's left edge (`Theme::Grip::kFlush`: Modern keeps
-its padding); a click opens the editor on that chest. `Create New Chest` opens the `New chest` popup: a name field (`Chest Name` on
+its padding); a click opens the editor on that chest. `Create New Chest...` (the chest icon before its label) opens the `New chest` popup: a name field (`Chest Name` on
 hover), `Create` (Enter) and `Cancel` (Escape); Create hands the name to `onChestCreate`, which
 adds an empty chest, and the list shows it. A taken or empty name is refused with the message
 under the list. `Exit` or Escape closes the window.
@@ -127,7 +127,7 @@ uses), `src/OutfitPages.cpp` (the Load page's chest mode and targets), `src/Capt
 - Log: `No chests.json yet; no chests` on the first start, `Loaded N chest(s) from chests.json`
   after; `ItemChests = 1` once the setting is on.
 - Setting off: the window has four tabs and no `Add from Chest...` link.
-- Setting on: Chests tab; Create New Chest writes `chests.json` with the empty chest; the editor
+- Setting on: Chests tab; Create New Chest... writes `chests.json` with the empty chest; the editor
   moves items between the columns and about 0.5 s later they are in the file; Back right after
   an edit saves it with no alert; a name left empty or taken goes back to the saved one; Remove
   takes the chest out of the file.

@@ -88,7 +88,7 @@ namespace
 		{ kIniSection, kOtherNpcsKey, L"Off",
 			L"The same, for every other adult NPC." },
 		{ kIniSection, kLivePreviewKey, L"1",
-			L"1 = Livery opens with Live Preview on: the game keeps running and the character wears the ticked items.\n"
+			L"1 = Livery opens with Live Preview on: the game keeps running and the character wears the selected items.\n"
 			L"0 = it opens with Live Preview off and the game paused." },
 		{ kIniSection, kNpcReactionKey, L"1",
 			L"1 = with Live Preview on, the NPC turns toward you and greets you when Livery opens." },
@@ -120,7 +120,7 @@ namespace
 			L"1 = Livery has a Chests tab: a chest holds any number of items, several for one body slot too,\n"
 			L"which you can load on the Dress page. Chests are kept in chests.json beside outfits.json." },
 		{ kTransferSection, kMoveFromPlayerKey, L"1",
-			L"1 = Apply on an NPC transfers the ticked items from your inventory, enchantments and tempering included.\n"
+			L"1 = Apply on an NPC transfers the selected items from your inventory, enchantments and tempering included.\n"
 			L"0 = the NPC gets plain copies and you keep yours." },
 		{ kTransferSection, kProtectFavoritesKey, L"1",
 			L"1 = your inventory list in an NPC's window leaves out your favorites. Quest items are always left out." },

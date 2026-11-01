@@ -7,7 +7,7 @@
 //   Chest list   - the chests by name (the Chests page's, the Load page's with
 //                  LoadSource::kChests) and a chest's items read only
 //   Chests page  - the tab while Request::offersChests: the chest list, a click opening the
-//                  editor on that chest; Create New Chest (the New chest popup: a name, then
+//                  editor on that chest; Create New Chest... (the New chest popup: a name, then
 //                  Create / Cancel, handed to onChestCreate); Exit
 //   Chest editor - the chest's name and two columns: left the items someone carries that are
 //                  not in the chest, under the Dress page's group headings in its order,
@@ -177,19 +177,21 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([onCreate, name = Trimmed(a_state.chest.newName.data())] { onCreate(name); });
 	}
 
-	// A click on a chest opens the editor on it. Create New Chest asks for a name and creates
+	// A click on a chest opens the editor on it. Create New Chest... asks for a name and creates
 	// an empty chest; the editor fills it.
 	void DrawChestsPage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
+		constexpr const char* kCreateChest = "Create New Chest...";
+
 		Theme::LabelText("Select a chest to open");
 		const int clicked = DrawChestList(a_state, -1, -1, 0.0f, Theme::Grip::kFlush);  // never selects a row
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
-		BeginButtonRow({ "Create New Chest", "Exit" });
+		BeginButtonRow({ { kCreateChest, Theme::HeadingIcon::kChest }, "Exit" });
 		ImGui::BeginDisabled(!a_state.request.onChestCreate);
-		const bool create = Theme::Button("Create New Chest");
+		const bool create = Theme::Button(Theme::HeadingIcon::kChest, kCreateChest);
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		const bool exit = Theme::Button("Exit") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));

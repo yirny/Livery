@@ -43,7 +43,7 @@ Livery is built on three principles: simplicity, immersion and fair gameplay.
 
 [b]Simple and Streamlined[/b]
 [list]
-[*]Intuitive interface: aim, press the hotkey, tick the items, Apply.
+[*]Intuitive interface: aim, press the hotkey, select the items, Apply.
 [*]Lightweight by design: an SKSE plugin only. No ESP or ESM in your load order, no Papyrus scripts in the background, nothing that can corrupt a save.
 [/list]
 
@@ -89,7 +89,7 @@ Dressing yourself uses only items you carry. A setting lifts that, but it's not 
 [b]Dress a follower or your spouse[/b]
 [list=1]
 [*]Open Livery on the NPC.
-[*]Tick the items you want them to wear.
+[*]Select the items you want them to wear.
 [*]Apply, then Exit.
 [/list]
 Add from Wardrobe puts a saved outfit's items on the list. Items Livery put on stay on.
@@ -97,7 +97,7 @@ Add from Wardrobe puts a saved outfit's items on the list. Items Livery put on s
 [b]Save an outfit[/b]
 [list=1]
 [*]Dress the character in what you want to save, or open Livery on a friend wearing something you like.
-[*]Press Create / Update Outfit.
+[*]Press Save to Wardrobe...
 [*]Name it, pick an icon, Create.
 [/list]
 To change an existing outfit, use the Update tab. A friend's window only saves what they wear; it can't change it.
@@ -119,9 +119,9 @@ Drag an outfit back to the list to clear it. Situational outfits are saved per c
 
 [b]Keep variants in a chest[/b] (optional: turn on Item chests in the settings)
 [list=1]
-[*]Pick the Chests tab, Create New Chest, and click it to fill it: the visor open and closed, a wig in each colour.
+[*]Pick the Chests tab, Create New Chest..., and click it to fill it: the visor open and closed, a wig in each colour.
 [*]When dressing someone, use Add from Chest under the list and Load the chest.
-[*]Tick the variant you want, Apply.
+[*]Select the variant you want, Apply.
 [/list]
 A chest is never worn as a whole, so it needs no outfit per variant. Chests are shared by every save.
 
