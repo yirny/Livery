@@ -30,10 +30,10 @@ Built as an SKSE plugin, it pairs a streamlined interface with a focus on perfor
 Change an NPC's equipment through a dedicated interface, using items from their inventory or yours. What you put on stays on: no swapping it for the "better" armor you asked them to carry, no drifting back to their old outfit.
 
 [b]Save Outfits[/b]
-Save what you or an NPC are wearing as an outfit, and put it on anyone, any time, from a Wardrobe shared by all your characters. No rebuilding it piece by piece, and your enchanted or tempered copies are used when you have them.
+Turn what you or an NPC are wearing into an outfit, straight from their equipment. It goes into a Wardrobe shared by all your characters, and your enchanted or tempered copies are used when you have them.
 
 [b]Situational Outfits[/b]
-Give a character a different outfit for Town, Castle, Home, Sleep or Cold (rain and snow outdoors). Livery changes them automatically, and remembers it per character.
+Give a character a different outfit for Town, Castle, Home, Sleep or Cold (rain, snow, or the snowy north). Livery changes them automatically, and remembers it per character.
 
 [line]
 
@@ -44,7 +44,7 @@ Livery is built on three principles: simplicity, immersion and fair gameplay.
 [b]Simple and Streamlined[/b]
 [list]
 [*]Intuitive interface: aim, press the hotkey, select the items, Apply.
-[*]Lightweight by design: an SKSE plugin only. No ESP or ESM in your load order, no Papyrus scripts in the background, nothing that can corrupt a save.
+[*]Lightweight by design: an SKSE plugin only. No ESP or ESM in your load order, no Papyrus scripts in the background.
 [/list]
 
 [b]Immersion-Conscious[/b]
@@ -60,7 +60,7 @@ Convenient outfit management shouldn't feel like stepping out of Skyrim.
 
 [i]Respect for the game's rules[/i]
 [list]
-[*]By default, Livery dresses only you, your followers and your spouse. Friends you can't dress, but you can save what they wear. (Configurable)
+[*]By default, Livery dresses only you, your followers and your spouse. You can't dress friends, but you can save what they wear. (Configurable)
 [*]An outfit is built from equipment that actually exists in someone's inventory, or from the NPC's current outfit, never from a plugin's item list.
 [*]By default, you can only wear items you actually carry. (Configurable)
 [/list]
@@ -83,7 +83,7 @@ Every setting is on the Livery page of SKSE Menu Framework, where it takes effec
 
 [b]Opening Livery[/b]
 Press the hotkey (Shift + X by default). Aim at an NPC to open Livery on them; aim at nothing to open it on yourself.
-What the window lets you do depends on who they are. By default, you can dress your followers and spouse, save what your friends wear, and nothing else. (Configurable)
+What the window lets you do depends on who they are. By default, you can dress your followers and spouse and save what your friends wear. Other NPCs are off limits. (Configurable)
 Dressing yourself uses only items you carry. A setting lifts that, but it's not recommended for normal play.
 
 [b]Dress a follower or your spouse[/b]
@@ -117,20 +117,13 @@ Rename an outfit, change its icon or remove it on the same page.
 [/list]
 Drag an outfit back to the list to clear it. Situational outfits are saved per character.
 
-[b]Keep variants in a chest[/b] (optional: turn on Item chests in the settings)
-[list=1]
-[*]Pick the Chests tab, Create New Chest..., and click it to fill it: the visor open and closed, a wig in each colour.
-[*]When dressing someone, use Add from Chest under the list and Load the chest.
-[*]Select the variant you want, Apply.
-[/list]
-A chest is never worn as a whole, so it needs no outfit per variant. Chests are shared by every save.
-
 [line]
 
 <!-- generated:start -->
 [size=4][b][color=#B8953E]Requirements[/color][/b][/size]
 
 [list]
+[*]Skyrim SE or AE. Tested on 1.6.1170. Built for SE 1.5.97 and AE 1.6.x and 1.7.x; reports from other versions welcome.
 [*][url=https://skse.silverlock.org/]SKSE64[/url]
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] for SE and AE
 [*]Optional: SKSE Menu Framework, for changing the settings in game
@@ -141,6 +134,7 @@ A chest is never worn as a whole, so it needs no outfit per variant. Chests are 
 [size=4][b][color=#B8953E]Installation[/color][/b][/size]
 
 [b]Mod manager (recommended):[/b]
+
 [list=1]
 [*]Install the requirements above.
 [*]Install Livery via your mod manager.
@@ -148,9 +142,10 @@ A chest is never worn as a whole, so it needs no outfit per variant. Chests are 
 [/list]
 
 [b]Manual:[/b]
+
 [list=1]
 [*]Install the requirements above.
-[*]Copy the [font=Courier New]SKSE[/font] folder from the archive into [font=Courier New]Data\[/font] (it holds [font=Courier New]livery.dll[/font] and the fonts, textures and palettes of the window skins).
+[*]Copy the [font=Courier New]SKSE[/font] folder from the archive into [font=Courier New]Data\[/font] (it holds [font=Courier New]livery.dll[/font] and the fonts and textures of the window skins; Livery writes the palettes on first start).
 [*]Launch Skyrim via SKSE.
 [/list]
 
@@ -159,8 +154,8 @@ A chest is never worn as a whole, so it needs no outfit per variant. Chests are 
 [size=4][b][color=#B8953E]Compatibility[/color][/b][/size]
 
 [list]
-[*]Skyrim SE and AE. Skyrim VR is not supported.
-[*]No ESP/ESL. Livery will not corrupt a save or set your PC on fire next to any other mod: no scripts, and its co-save record is skipped when it is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
+[*]Skyrim VR is not supported.
+[*]No ESP/ESL and no scripts, so it sits beside any other mod; its co-save record is simply skipped once Livery is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
 [*][b]Nether's Follower Framework[/b]: fine, as long as you don't use its outfit features on the followers Livery dresses.
 [*][b]Tailor[/b]: fine for wigs; leave the outfits to one of the two.
 [*][b]Devious Devices[/b]: not tested. Don't dress a character wearing devices.
@@ -171,7 +166,7 @@ A chest is never worn as a whole, so it needs no outfit per variant. Chests are 
 
 [size=4][b][color=#B8953E]Uninstall[/color][/b][/size]
 
-Safe to uninstall at any time: Livery adds no plugin file, so removing it can't break your save. NPCs you dressed keep their outfit locked on and the items Livery gave them become lootable; press [b]Release everyone[/b] on the settings page first to undo that.
+Press [b]Release everyone[/b] on the settings page first: it unlocks every NPC Livery dressed and takes back the items it gave them. Then remove Livery; it adds no plugin file, so your save loads without it. Skip that step and the NPCs keep their outfit locked on, with Livery's items lootable.
 
 [line]
 
@@ -184,7 +179,7 @@ By design. Livery puts the outfit back on when the NPC's 3D loads or their situa
 You can only wear items you carry; the message on screen names the missing ones. Untick "Dress yourself from inventory only" to let Livery add them.
 
 [b]Does Livery keep my enchantments and tempering?[/b]
-An outfit stores only which items it has. When it goes on, Livery picks the best copy the character carries: the one they wear, else a player-enchanted one, else the most tempered one, else a plain one. The same goes for items you hand to an NPC. Enchanted items from a plugin, like a Ring of Alchemy, are items in their own right and keep their effect.
+An outfit stores only which items it has. When it goes on, Livery picks the copy the character carries in this order: the one they wear, a player-enchanted one, the most tempered one, a plain one. The same goes for items you hand to an NPC. Enchanted items from a plugin, like a Ring of Alchemy, are items in their own right and keep their effect.
 
 [b]My Sleep outfit never goes on.[/b]
 The game's own beds just pass the time. It goes on with a mod that actually puts you into bed.
@@ -207,6 +202,7 @@ Only ASCII can be typed into the name field for now (see Roadmap).
 [*]Custom situations: add your own, and edit their conditions.
 [*]Non-ASCII names, so you can name an outfit in your own language.
 [*]Livery API, so other mods can use its dressing and outfits.
+[*]Item chests: fill a chest with items ahead of time and open it while dressing someone. Handy for armor mods that come with many variants.
 [/list]
 
 [b]Ideas, not planned (ask, and they move up)[/b]
@@ -215,7 +211,7 @@ Only ASCII can be typed into the name field for now (see Roadmap).
 [*]Tags on outfits, like Light Armor or Casual. Easier to find things, but busier lists. For now, icons and colours are the way to organise.
 [*]A wardrobe per save. No outfits from items this character never found, but an outfit saved before a death is lost with the save. For now, move outfits.json aside before a new game.
 [*]Opening Livery from dialogue. More immersive, but it needs an ESP.
-[*]A middle ground for wearing items you don't own. "Dress yourself from inventory only" is strict; turning it off hands you a free armoury. Something between the two might fit better: items Livery creates could be unsellable and vanish when taken off, or count as stolen, as if you'd lifted the missing ones somewhere. Each is a rule of its own to learn, so: which, if any, would you use? Let me know.
+[*]A middle ground for wearing items you don't own: today it's a free armoury or nothing. Spawned items could vanish when taken off, or count as stolen, as if you'd lifted them somewhere.
 [*]Poses for the NPC while you dress them. Nice for checking the fit, but drifting away from what Livery is for. For now, the greeting turns them to face you.
 [/list]
 
@@ -236,12 +232,12 @@ Only ASCII can be typed into the name field for now (see Roadmap).
 [list]
 [*]CommonLibSSE-NG, SKSE Menu Framework
 [*]Fonts: Jost, Oswald, Sovngarde (SIL Open Font License)
-[*]NORDIC UI by Dopesan: the Nordic skin's ornaments
-[*]SkyUI Team: list heading rule. PsychoSteve and Jelidity: item icons
+[*]NORDIC UI by Dopesan: the Nordic skin's ornaments, used under the permissions on its mod page
+[*]SkyUI Team: list heading rule, used under the permissions on its mod page. PsychoSteve and Jelidity: item icons, used with their permission
 [*]Edge UI: the look the Modern skin is modelled on
 [/list]
 
-Licensed under GPL v3.
+Source code licensed under GPL v3.
 
 [b]Special thanks[/b]
 (to be filled in)
