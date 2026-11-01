@@ -385,10 +385,10 @@ namespace CaptureWindow::Internal
 		const float listHeight = (std::max)(rowHeight, (std::min)(ListHeight(a_pieces.size(), rowHeight), room));
 		if (Theme::BeginList("outfitPieces", listHeight)) {
 			for (const auto i : a_state.outfitPieceOrder.shown) {
-				bool                             on = !isOff(i);
+				bool                             on = !locked && !isOff(i);
 				const std::array<const char*, 2> cells{ pieces[i].name.c_str(), pieces[i].type.c_str() };
 				ImGui::PushID(static_cast<int>(i));
-				// Read only: the row takes no click and shows no hover, yet does not grey (DisabledAlpha 1).
+				// Read only: unticked, so nothing marks it as chosen; it takes no click and shows no hover, yet does not grey (DisabledAlpha 1).
 				ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, locked ? 1.0f : ImGui::GetStyle().DisabledAlpha);
 				ImGui::BeginDisabled(locked);
 				const bool faded = FadesNotCarried(a_state, i);

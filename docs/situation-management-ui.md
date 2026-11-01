@@ -261,7 +261,7 @@ give it (`Default, Town`, or `None`), then its pieces, with the Dress page's ico
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
 ticked piece cannot be unticked. Clicked on the outfit list, or once that row no longer
-holds the outfit, they are read only: every row ticked, taking no click, drawn ungreyed. The outfit's row in the Situation List is drawn
+holds the outfit, they are read only: no row ticked, none taking a click, drawn ungreyed. The outfit's row in the Situation List is drawn
 selected only under the heading it was clicked under. The preview shows the outfit less its
 unticked pieces. 12px of extra
 room, then `Open in Wardrobe` (wardrobe icon before its label) and `Back` centred; when they
