@@ -447,7 +447,8 @@ namespace
 	}
 
 	// The pieces the player took from them in the menu that just closed go on again, as
-	// copies when they carry none, so the outfit does not change by itself.
+	// copies when they carry none, so the outfit does not change by itself; then a better
+	// copy the player gave them goes on in place of a worn piece.
 	void ReplenishTaken(RE::FormID a_actor)
 	{
 		if (a_actor == g_suspended) {
@@ -460,6 +461,9 @@ namespace
 		}
 		if (const auto count = Dressing::Replenish(*actor, assignment->pieces); count > 0) {
 			logger::info("Replenished {} piece(s) on {:08X} taken in a menu", count, a_actor);
+		}
+		if (const auto count = Dressing::Upgrade(*actor, assignment->pieces); count > 0) {
+			logger::info("Upgraded {} piece(s) on {:08X} to a better copy", count, a_actor);
 		}
 	}
 

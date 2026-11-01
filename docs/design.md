@@ -23,10 +23,13 @@ filter `src/TradeFilter.cpp`, the situations and their poll `src/Situations.cpp`
 An outfit is a list of armor base forms. Dressing an actor in it:
 
 1. For each piece, pick an instance already in the actor's inventory, in this order:
-   worn copy, enchanted copy, highest-tempered copy, plain copy. Player enchantments
+   enchanted copy, highest-tempered copy, worn copy, plain copy. Player enchantments
    (`ExtraEnchantment`) and tempering (`ExtraHealth`) live on the instance, so the
-   player's own gear keeps them. Tailor's player wardrobe uses the same order. An
-   unworn instance that carries `ExtraCannotWear` cannot be equipped and is skipped.
+   player's own gear keeps them. Equal ranks keep the worn copy, so a swap happens once
+   and then settles. A swap takes the worn copy off before the better one goes on, and
+   the worn copy goes back on if the better one does not; a worn copy another mod locked
+   stays. An unworn instance that carries `ExtraCannotWear` cannot be equipped and is
+   skipped.
 2. When the actor has none, add a plain copy (`AddObjectToContainer`), give it an
    `ExtraUniqueID` (`InventoryChanges::GetNextUniqueID`) and record the key in the
    co-save (§5). Copies that stay are made only here, at assignment time, and when a
@@ -44,7 +47,8 @@ An outfit is a list of armor base forms. Dressing an actor in it:
    when at least one piece went on: otherwise nothing is assigned and the actor keeps
    what they wear. Every copy worn before step 1 is tagged (`ExtraUniqueID`) first; the
    ones that are off at the end, taken off here or by the engine for a slot a piece
-   filled, are recorded as the actor's own pieces (§5) and go back on at release. An
+   filled, are recorded as the actor's own pieces (§5) and go back on at release, unless
+   a better copy of the same armor replaced them in step 1. An
    earlier assignment of the same actor is released first, its own pieces back on, so
    they are what the new one records.
 
@@ -125,7 +129,12 @@ says so), so a lock would be needed anyway.
   name compares. The note is not cleared at opening, since whether the list fills before
   that event is not documented; only those two menus list an NPC's inventory. A piece still missing (refused, a runtime where the
   filter found no call site, another mod's inventory access) leaves the slot to the
-  vanilla picker until the player assigns again. The window counts the pieces Livery
+  vanilla picker until the player assigns again. After that replacing, the same task
+  swaps each worn piece for a better copy the NPC now carries (`Dressing::Upgrade`, step 1's
+  ranks): the piece's lock comes off, the better copy goes on locked and the piece names
+  it, and a replaced copy Livery added is taken back; a piece another mod locked stays.
+  `GiftMenu` is not one of these menus, so a gift waits for the next dressing.
+  The window counts the pieces Livery
   put on that the actor wears no copy of, and the worn armor it did not put on (`GapsOf` in `Plugin.cpp`, read as it opens
   and after each dressing with it open, no preview on): the summary line then says the
   outfit is only assigned, `Assigned X as Default, 1 item not worn.`, an extra piece

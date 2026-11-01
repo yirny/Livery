@@ -179,7 +179,7 @@ By design. Livery puts the outfit back on when the NPC's 3D loads or their situa
 You can only wear items you carry; the message on screen names the missing ones. Untick "Dress yourself from inventory only" to let Livery add them.
 
 [b]Does Livery keep my enchantments and tempering?[/b]
-An outfit stores only which items it has. When it goes on, Livery picks the copy the character carries in this order: the one they wear, a player-enchanted one, the most tempered one, a plain one. The same goes for items you hand to an NPC. Enchanted items from a plugin, like a Ring of Alchemy, are items in their own right and keep their effect.
+An outfit stores only which items it has. When it goes on, Livery picks the copy the character carries in this order: a player-enchanted one, the most tempered one, the one they wear, a plain one. Give an NPC a better copy of something they wear, and they put it on as the trade menu closes. Enchanted items from a plugin, like a Ring of Alchemy, are items in their own right and keep their effect.
 
 [b]My Sleep outfit never goes on.[/b]
 The game's own beds just pass the time. It goes on with a mod that actually puts you into bed.
