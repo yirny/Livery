@@ -274,7 +274,7 @@ the Situations page. Each page keeps its own search and sort.
     Load page).
 - Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
   "#{Outfit}".` with the lines Update's popup lists, then `Save Changes` /
-  `Discard Changes` / `Back` (docs/situation-management-ui.md §6): Save Changes opens
+  `Discard Changes` / `Back`: Save Changes opens
   Update's popup, and its Confirm saves, then goes once the write took (a refused one stays;
   Cancel stays); Discard Changes starts the edits again from the library and goes; Back stays.
 

@@ -14,14 +14,15 @@
 //                  then the items taken out that nobody carries under their own heading, a
 //                  click putting an item in; right the chest's items, a click taking one out;
 //                  Add from Wardrobe... / Add from Chest... open the Load page, whose Add puts
-//                  an outfit's or another chest's items in; Update (onChestUpdate) and Back,
-//                  Remove (Remove chest?, onChestRemove) at the row's right end; Back or
-//                  Escape with unsaved edits
-//                  shows the unsaved-changes alert. Nothing here dresses anyone.
+//                  an outfit's or another chest's items in; Back, Remove (Remove chest?,
+//                  onChestRemove) at the row's right end. An edit is saved shortly after the
+//                  last one, or as Back or Escape leaves (onChestUpdate). Nothing here dresses
+//                  anyone.
 #include "PCH.h"
 
 #include "CaptureWindowInternal.h"
 
+#include "Utils.h"
 #include "sarrai/Theme.h"
 
 #include <imgui.h>
@@ -223,6 +224,7 @@ namespace CaptureWindow::Internal
 			form.pieces.insert(at, a_piece);
 		}
 		std::erase(form.takenOut, a_piece);
+		ScheduleAutosave(a_state);
 	}
 
 	// Takes item `a_piece` out; one nobody carries stays listed left, under Taken out of chest,
@@ -231,6 +233,7 @@ namespace CaptureWindow::Internal
 	{
 		auto& form = a_state.chest;
 		std::erase(form.pieces, a_piece);
+		ScheduleAutosave(a_state);
 		if (a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kNotCarried) {
 			return;
 		}
@@ -380,38 +383,21 @@ namespace CaptureWindow::Internal
 		return clicked;
 	}
 
-	// Why Update is greyed, or nullptr.
-	const char* UpdateChestReason(const State& a_state)
-	{
-		if (Trimmed(a_state.chest.name.data()).empty()) {
-			return kNeedName;
-		}
-		return HasChestEdits(a_state) ? nullptr : kNoChanges;
-	}
-
 	enum class ChestAction
 	{
 		kNone,
-		kUpdate,
 		kRemove,
 		kBack
 	};
 
-	// Update and Back centred, Remove a link at the row's right end, as the Wardrobe page's.
+	// Back centred, Remove a link at the row's right end, as the Wardrobe page's.
 	ChestAction DrawChestButtons(const State& a_state)
 	{
-		BeginButtonRow({ "Update", "Back" });
-		ImGui::BeginDisabled(!a_state.request.onChestUpdate);
-		const bool update = ReasonButton("Update", UpdateChestReason(a_state));
-		ImGui::EndDisabled();
-		ImGui::SameLine();
+		BeginButtonRow({ "Back" });
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 		ImGui::BeginDisabled(!a_state.request.onChestRemove);
 		const bool remove = Theme::LineLink("Remove");
 		ImGui::EndDisabled();
-		if (update) {
-			return ChestAction::kUpdate;
-		}
 		if (remove) {
 			return ChestAction::kRemove;
 		}
@@ -425,6 +411,7 @@ namespace CaptureWindow::Internal
 		const auto& form = a_state.chest;
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
+		a_state.autosaveAt = 0.0;
 		CaptureWindow::ChestEdit edit{ .chest = ChestAt(a_state, form.chest).id, .name = Trimmed(form.name.data()), .pieces = form.pieces };
 		auto                     onUpdate = a_state.request.onChestUpdate;
 		SKSE::GetTaskInterface()->AddTask([onUpdate, edit = std::move(edit)] { onUpdate(edit); });
@@ -439,29 +426,39 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([onRemove, chest = ChestAt(a_state, a_state.chest.chest).id] { onRemove(chest); });
 	}
 
-	// The unsaved-changes alert's lines: the rename, the items put in and taken out.
-	void DrawChestChangeLines(const State& a_state)
+	// The name as entered: an empty one, or one another chest has (ASCII case ignored), gives
+	// way to the name as saved, with no message. A new name goes to the title and is saved as
+	// any edit is. Contract: the field is not being typed in.
+	void SettleChestName(State& a_state)
 	{
-		const auto& form = a_state.chest;
-		const auto& chest = ChestAt(a_state, form.chest);
-		if (const auto name = Trimmed(form.name.data()); name != chest.name) {
-			ImGui::BulletText("%s", std::format("Renamed \"{}\".", name).c_str());
+		auto& form = a_state.chest;
+		if (form.chest < 0) {
+			return;
 		}
-		std::vector<std::size_t> putIn;
-		std::ranges::set_difference(form.pieces, chest.pieces, std::back_inserter(putIn));
-		std::vector<std::size_t> takenOut;
-		std::ranges::set_difference(chest.pieces, form.pieces, std::back_inserter(takenOut));
-		if (!putIn.empty()) {
-			ImGui::BulletText("%s", std::format("{} item(s) put in.", putIn.size()).c_str());
+		const auto& saved = ChestAt(a_state, form.chest);
+		auto        entered = Trimmed(form.name.data());
+		const bool  taken = std::ranges::any_of(a_state.request.chests, [&saved, &entered](const CaptureWindow::ChestInfo& a_chest) {
+			return a_chest.id != saved.id && ExampleMod::CaseInsensitiveEqual(a_chest.name, entered);
+		});
+		if (entered.empty() || taken) {
+			entered = saved.name;
+			form.name.fill('\0');
+			std::strncpy(form.name.data(), entered.c_str(), kNameCapacity - 1);
 		}
-		if (!takenOut.empty()) {
-			ImGui::BulletText("%s", std::format("{} item(s) taken out.", takenOut.size()).c_str());
+		if (entered != form.titleName) {
+			form.titleName = std::move(entered);
+			ScheduleAutosave(a_state);
 		}
 	}
 
-	std::string UnsavedChestText(const State& a_state)
+	bool SaveChestEdits(State& a_state)
 	{
-		return a_state.chest.chest >= 0 ? std::format("You have unsaved changes for \"{}\".", ChestAt(a_state, a_state.chest.chest).name) : std::string{};
+		SettleChestName(a_state);
+		if (!a_state.request.onChestUpdate || !HasChestEdits(a_state)) {
+			return false;
+		}
+		RequestChestUpdate(a_state);
+		return true;
 	}
 
 	// Names the chest, then Remove / Cancel. Returns true on Remove.
@@ -489,24 +486,21 @@ namespace CaptureWindow::Internal
 		return remove;
 	}
 
-	// The name field, the two columns and their links, then Update / Remove / Back. A click on
-	// an item moves it to the other column; nothing is written until Update.
+	// The name field, the two columns and their links, then Back / Remove. A click on an item
+	// moves it to the other column; every edit is saved shortly after the last one, or as the
+	// page is left.
 	void DrawChestEditPage(State& a_state)
 	{
 		constexpr const char* kNoOtherChests = "No other chests.";
 
-		if (std::exchange(a_state.openLeave, false)) {
-			ImGui::OpenPopup(kLeavePopup);
-		}
 		auto& form = a_state.chest;
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		DrawNameField(a_state, form.name, nullptr, nullptr, "Chest Name");
-		// The title takes the name once it is entered: Enter or the field losing focus. Polled,
-		// as a link's click can leave the page in the frame the field lets go.
-		if (!ImGui::IsItemActive()) {
-			if (auto entered = Trimmed(form.name.data()); !entered.empty() && entered != form.titleName) {
-				form.titleName = std::move(entered);
-			}
+		// The name counts once it is entered: Enter or the field losing focus. Polled, as a
+		// link's click can leave the page in the frame the field lets go.
+		const bool nameActive = ImGui::IsItemActive();
+		if (!nameActive) {
+			SettleChestName(a_state);
 		}
 		std::optional<std::size_t> putIn;
 		std::optional<std::size_t> takeOut;
@@ -536,6 +530,11 @@ namespace CaptureWindow::Internal
 		const auto action = DrawChestButtons(a_state);
 		EndButtonRow();
 		ImGui::EndDisabled();
+		// While a write runs only Escape gets past BeginDisabled; it does nothing then, as the
+		// greyed buttons do nothing.
+		if (a_state.status != Status::kEditing) {
+			return;
+		}
 
 		if (putIn) {
 			QueueMenuSound(kFocusSound);
@@ -553,18 +552,12 @@ namespace CaptureWindow::Internal
 			GoToPage(a_state, Page::kLoad);
 		}
 		switch (action) {
-		case ChestAction::kUpdate:
-			QueueMenuSound(kOkSound);
-			RequestChestUpdate(a_state);
-			break;
 		case ChestAction::kRemove:
 			QueueMenuSound(kOkSound);
 			ImGui::OpenPopup(kChestRemovePopup);
 			break;
 		case ChestAction::kBack:
-			if (!HasChestEdits(a_state)) {
-				QueueMenuSound(kCancelSound);
-			}
+			QueueMenuSound(kCancelSound);
 			RequestLeave(a_state, { .page = Page::kChests });
 			break;
 		case ChestAction::kNone:
@@ -573,18 +566,10 @@ namespace CaptureWindow::Internal
 		if (DrawChestRemovePopup(a_state)) {
 			RequestChestRemove(a_state);
 		}
-		switch (DrawLeavePopup(a_state, UnsavedChestText(a_state), UpdateChestReason(a_state), DrawChestChangeLines)) {
-		case LeaveChoice::kSave:
-			RequestChestUpdate(a_state);
-			a_state.leaveAfterSave = true;
-			break;
-		case LeaveChoice::kDiscard:
-			FillChestForm(a_state, form.chest);
-			Leave(a_state, *std::exchange(a_state.leave, std::nullopt));
-			break;
-		case LeaveChoice::kBack:
-		case LeaveChoice::kNone:
-			break;
+		// Contract: not while the name is typed, as a save would write it half typed, nor once a
+		// link went to the Load page, whose Add a save's SetOutfits could undo; back here it runs.
+		if (a_state.page == Page::kChestEdit && !nameActive && TakeAutosaveDue(a_state)) {
+			SaveChestEdits(a_state);
 		}
 	}
 }

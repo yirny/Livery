@@ -563,15 +563,27 @@ namespace CaptureWindow::Internal
 
 	void RequestLeave(State& a_state, PendingLeave a_leave)
 	{
-		const bool edits = (a_state.page == Page::kManage && HasManageEdits(a_state)) || (a_state.page == Page::kSituations && HasSituationEdits(a_state)) ||
-		                   (a_state.page == Page::kChestEdit && HasChestEdits(a_state));
-		if (edits) {
+		if (a_state.page == Page::kManage && HasManageEdits(a_state)) {
 			a_state.leave = a_leave;
 			a_state.openLeave = true;  // the page opens the alert in its own ID scope
 			return;
 		}
 		if (a_leave.exit) {
 			QueueMenuSound(kCancelSound);
+		}
+		const bool situations = a_state.page == Page::kSituations;
+		const bool chest = a_state.page == Page::kChestEdit;
+		if (!a_state.error.empty()) {
+			// The last write was refused, and leaving again gives its edits up.
+			if (situations) {
+				FillSituationForm(a_state, a_state.request.situations);
+			} else if (chest) {
+				FillChestForm(a_state, a_state.chest.chest);
+			}
+		} else if ((situations && SaveSituationEdits(a_state)) || (chest && SaveChestEdits(a_state))) {
+			a_state.leave = a_leave;
+			a_state.leaveAfterSave = true;  // FinishLeave goes once the write took
+			return;
 		}
 		Leave(a_state, a_leave);
 	}
@@ -660,8 +672,8 @@ namespace CaptureWindow::Internal
 		return choice;
 	}
 
-	// The alert's Save Changes: once the save is over, the leave follows when it took; a
-	// refused save stays, with its error.
+	// A save a leave waits for: once it is over, the leave follows when it took; a refused save
+	// stays, with its error.
 	void FinishLeave(State& a_state)
 	{
 		if (!a_state.leaveAfterSave || a_state.status != Status::kEditing) {
@@ -2221,6 +2233,8 @@ namespace CaptureWindow
 			state.leave.reset();
 			state.leaveAfterSave = false;
 			state.openLeave = false;
+			state.autosaveAt = 0.0;
+			state.popupAfterSave = nullptr;
 			state.situationForm = {};
 			FillSituationForm(state, state.request.situations);
 			state.situationsTitle = std::format("{}'s Situational Outfits", state.request.actorName);
@@ -2327,9 +2341,14 @@ namespace CaptureWindow
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
 		state.previewedChest = IndexOfChest(state, previewedChest);
 		state.loadedOutfit = IndexOfOutfit(state, loaded);
-		// The chest editor's edits start again from the chest as written; a chest gone (Remove)
-		// sends the editor back to the Chests page.
+		// The chest editor's edits start again from the chest as written, its taken-out items
+		// staying listed, as each save ends here; a chest gone (Remove) sends the editor back to
+		// the Chests page.
+		auto takenOut = std::move(state.chest.takenOut);
 		FillChestForm(state, IndexOfChest(state, editedChest));
+		if (state.chest.chest >= 0) {
+			state.chest.takenOut = std::move(takenOut);
+		}
 		if (state.page == Page::kChestEdit && state.chest.chest < 0) {
 			GoToPage(state, Page::kChests);
 		}

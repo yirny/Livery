@@ -18,9 +18,10 @@
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Edit and Back, its
 //                     pieces ticked as the row it was clicked under wears them
-//   Buttons, popups - Save Changes, Exit, Restore Presets (?); Remove's and Restore Presets'
-//                     popups and the unsaved-changes alert, each handing its write to the
-//                     Request's handler
+//   Buttons, popups - Exit, Restore Presets (?); Remove's and Restore Presets' popups, each
+//                     handing its write to the Request's handler
+//   Saving          - an edit is saved shortly after the last one, or as the page is left
+//                     (ScheduleAutosave, SaveSituationEdits)
 #include "PCH.h"
 
 #include "CaptureWindowInternal.h"
@@ -57,11 +58,9 @@ namespace CaptureWindow::Internal
 		constexpr const char* kRemoveSituationPopup = "Remove situation?";
 		constexpr const char* kRestorePresetsPopup = "Restore presets?";
 		// Reasons a button is greyed out, shown on hover.
-		constexpr const char* kNothingChanged = "Nothing has changed.";
 		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
 		// The name a situation gets when neither the one typed nor the one before can be used.
 		constexpr const char* kUnnamed = "Unnamed Situation";
-		constexpr const char* kDiscardNote = "Your unsaved changes are discarded.";
 		// A line in an outfit row's place under a heading.
 		constexpr const char* kPiecesLine = "Items not in the wardrobe";
 
@@ -122,14 +121,17 @@ namespace CaptureWindow::Internal
 		}
 
 		// A name field that is no longer active ends its edit, before anything this frame reads
-		// the name; it may have gone from view, its situation unselected.
-		void EndInactiveNameEdit(SituationForm& a_form)
+		// the name; it may have gone from view, its situation unselected. The name so entered
+		// is saved as any edit is.
+		void EndInactiveNameEdit(State& a_state)
 		{
-			if (a_form.nameEditing >= 0 && ImGui::GetActiveID() != a_form.nameField) {
-				if (static_cast<std::size_t>(a_form.nameEditing) < a_form.entries.size()) {
-					EndNameEdit(a_form, static_cast<std::size_t>(a_form.nameEditing));
+			auto& form = a_state.situationForm;
+			if (form.nameEditing >= 0 && ImGui::GetActiveID() != form.nameField) {
+				if (static_cast<std::size_t>(form.nameEditing) < form.entries.size()) {
+					EndNameEdit(form, static_cast<std::size_t>(form.nameEditing));
+					ScheduleAutosave(a_state);
 				}
-				a_form.nameEditing = -1;
+				form.nameEditing = -1;
 			}
 		}
 
@@ -214,6 +216,7 @@ namespace CaptureWindow::Internal
 				form.defaultPieces = false;
 			}
 			FollowViewedPieces(a_state, before);
+			ScheduleAutosave(a_state);
 		}
 
 		// A drag from the Situation List dropped on the outfit list: the outfit leaves its row
@@ -224,6 +227,7 @@ namespace CaptureWindow::Internal
 			if (a_payload.from < 0) {
 				return;
 			}
+			ScheduleAutosave(a_state);
 			if (a_payload.outfit == 0) {
 				form.defaultPieces = false;
 				return;
@@ -596,6 +600,7 @@ namespace CaptureWindow::Internal
 			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
 				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
+				ScheduleAutosave(a_state);
 				// An outfit the Default wears with random off drops its pieces, as a drop does.
 				if (selected == 0 && !random && entry.row.chosen != 0) {
 					form.defaultPieces = false;
@@ -660,6 +665,7 @@ namespace CaptureWindow::Internal
 			if (DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, form.viewedOutfit), bottom - buttonRow, row ? &excluded : nullptr)) {
 				OutfitRows::SetExcluded(*row, form.viewedOutfit, std::move(excluded));
 				QueuePreview(a_state, ViewedOutfitPieces(a_state));
+				ScheduleAutosave(a_state);
 			}
 			BeginPaneButtonRow({ "Edit", "Back" });
 			const bool edit = Theme::Button("Edit");
@@ -680,13 +686,12 @@ namespace CaptureWindow::Internal
 		{
 			kNone,
 			kRestore,
-			kSave,
 			kExit
 		};
 
-		// Save Changes, greyed until something changed, and Exit, centred as the other pages'
-		// buttons, then Restore Presets (?) at the row's right end, a link as the details' Remove
-		// and Restore are, greyed while every preset is as installed. a_escapeTaken: the
+		// Exit, centred as the other pages' buttons, then Restore Presets (?) at the row's right
+		// end, a link as the details' Remove and Restore are, greyed while every preset is as
+		// installed. a_escapeTaken: the
 		// browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
@@ -695,11 +700,7 @@ namespace CaptureWindow::Internal
 				"gets its name back. Nobody's outfits change.";
 
 			const auto& request = a_state.request;
-			BeginButtonRow({ "Save Changes", "Exit" });
-			ImGui::BeginDisabled(!request.onSituationsSave);
-			const bool save = ReasonButton("Save Changes", HasSituationEdits(a_state) ? nullptr : kNothingChanged);
-			ImGui::EndDisabled();
-			ImGui::SameLine();
+			BeginButtonRow({ "Exit" });
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 			const bool exit = Theme::Button("Exit") || escape;
 
@@ -718,9 +719,6 @@ namespace CaptureWindow::Internal
 
 			if (restore) {
 				return SituationAction::kRestore;
-			}
-			if (save) {
-				return SituationAction::kSave;
 			}
 			return exit ? SituationAction::kExit : SituationAction::kNone;
 		}
@@ -741,9 +739,8 @@ namespace CaptureWindow::Internal
 			return confirm;
 		}
 
-		// `Remove "Town"?`, who has outfits on it in this save, what Restore Presets brings
-		// back, and with unsaved edits that they are discarded; Remove / Cancel. Returns true on
-		// Remove.
+		// `Remove "Town"?`, who has outfits on it in this save, and what Restore Presets brings
+		// back; Remove / Cancel. Returns true on Remove.
 		bool DrawRemoveSituationPopup(const State& a_state)
 		{
 			if (!BeginModal(kRemoveSituationPopup)) {
@@ -766,16 +763,13 @@ namespace CaptureWindow::Internal
 			} else {
 				ImGui::TextUnformatted(std::format("Restore Presets brings \"{}\" back.", saved.name).c_str());
 			}
-			if (HasSituationEdits(a_state)) {
-				ImGui::TextUnformatted(kDiscardNote);
-			}
 			const bool remove = DrawPopupButtons("Remove");
 			ImGui::EndPopup();
 			return remove;
 		}
 
-		// What Restore Presets changes, one line per situation, and with unsaved edits that
-		// they are discarded; Restore / Cancel. Returns true on Restore.
+		// What Restore Presets changes, one line per situation; Restore / Cancel. Returns true
+		// on Restore.
 		bool DrawRestorePresetsPopup(const State& a_state)
 		{
 			if (!BeginModal(kRestorePresetsPopup)) {
@@ -785,15 +779,12 @@ namespace CaptureWindow::Internal
 			for (const auto& line : a_state.request.restoreChanges) {
 				ImGui::BulletText("%s", line.c_str());
 			}
-			if (HasSituationEdits(a_state)) {
-				ImGui::TextUnformatted(kDiscardNote);
-			}
 			const bool restore = DrawPopupButtons("Restore");
 			ImGui::EndPopup();
 			return restore;
 		}
 
-		// Hands Save Changes' edits to onSituationsSave: the names that changed, every row
+		// Hands the page's edits to onSituationsSave: the names that changed, every row
 		// when any changed, and the outfit whose details show, which stays on
 		// the preview. Until the handler ends with SetOutfits or SetError the page is greyed.
 		// Contract: the handler writes situations.json first and changes no row for a refused
@@ -821,6 +812,7 @@ namespace CaptureWindow::Internal
 			}
 			a_state.status = Status::kSaving;
 			a_state.error.clear();
+			a_state.autosaveAt = 0.0;
 			auto onSave = request.onSituationsSave;
 			SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
 		}
@@ -846,9 +838,19 @@ namespace CaptureWindow::Internal
 			SKSE::GetTaskInterface()->AddTask([onRestore] { onRestore(); });
 		}
 
-		// The page's popups, each opened by the page in its own ID scope. The unsaved-changes
-		// alert's Save Changes saves as the button does, and the leave follows once the save
-		// took (Draw); Discard Changes starts the edits again from the request.
+		// Opens `a_popup` over what is saved: at once with nothing to save, else once the save
+		// took (DrawSituationPage); a refused save opens nothing and shows its error.
+		// Contract: in the page's ID scope, as the popups are drawn there.
+		void OpenAfterSave(State& a_state, const char* a_popup)
+		{
+			if (SaveSituationEdits(a_state)) {
+				a_state.popupAfterSave = a_popup;
+			} else {
+				ImGui::OpenPopup(a_popup);
+			}
+		}
+
+		// The page's popups, each opened by the page in its own ID scope.
 		void DrawSituationPopups(State& a_state)
 		{
 			if (DrawRemoveSituationPopup(a_state)) {
@@ -856,20 +858,6 @@ namespace CaptureWindow::Internal
 			}
 			if (DrawRestorePresetsPopup(a_state)) {
 				RequestRestorePresets(a_state);
-			}
-			const char* noSave = a_state.request.onSituationsSave ? nullptr : kNothingChanged;
-			switch (DrawLeavePopup(a_state, "You have unsaved changes.", noSave)) {
-			case LeaveChoice::kSave:
-				RequestSituationsSave(a_state);
-				a_state.leaveAfterSave = true;
-				break;
-			case LeaveChoice::kDiscard:
-				FillSituationForm(a_state, a_state.request.situations);
-				Leave(a_state, *std::exchange(a_state.leave, std::nullopt));
-				break;
-			case LeaveChoice::kBack:
-			case LeaveChoice::kNone:
-				break;
 			}
 		}
 	}
@@ -919,6 +907,20 @@ namespace CaptureWindow::Internal
 		return NamesChanged(a_state) || RowsChanged(a_state);
 	}
 
+	bool SaveSituationEdits(State& a_state)
+	{
+		auto& form = a_state.situationForm;
+		if (form.nameEditing >= 0 && static_cast<std::size_t>(form.nameEditing) < form.entries.size()) {
+			EndNameEdit(form, static_cast<std::size_t>(form.nameEditing));
+		}
+		form.nameEditing = -1;
+		if (!a_state.request.onSituationsSave || !HasSituationEdits(a_state)) {
+			return false;
+		}
+		RequestSituationsSave(a_state);
+		return true;
+	}
+
 	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit)
 	{
 		const auto& entries = a_state.situationForm.entries;
@@ -955,16 +957,19 @@ namespace CaptureWindow::Internal
 	}
 
 	// The Situation List on the left; on the right the outfit list, the selected situation or
-	// an outfit's details (ShownPane). Every change is an edit until Save Changes, but Remove
-	// and Restore Presets, which write at once after their popups. The preview shows the
-	// Dress page's ticks, or the outfit whose details show.
+	// an outfit's details (ShownPane). Every change is an edit, saved shortly after the last one
+	// or as the page is left; Remove and Restore Presets save them, then write after their
+	// popups. The preview shows the Dress page's ticks, or the outfit whose details show.
 	void DrawSituationPage(State& a_state)
 	{
 		auto& form = a_state.situationForm;
-		if (std::exchange(a_state.openLeave, false)) {
-			ImGui::OpenPopup(kLeavePopup);
+		if (a_state.popupAfterSave && a_state.status == Status::kEditing) {
+			if (a_state.error.empty()) {
+				ImGui::OpenPopup(a_state.popupAfterSave);
+			}
+			a_state.popupAfterSave = nullptr;
 		}
-		EndInactiveNameEdit(form);
+		EndInactiveNameEdit(a_state);
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		bool escapeTaken = false;
 		auto details = DetailsAction::kNone;
@@ -1015,16 +1020,12 @@ namespace CaptureWindow::Internal
 			form.scrollToSelected = true;
 		} else if (details == DetailsAction::kRemove) {
 			QueueMenuSound(kOkSound);
-			ImGui::OpenPopup(kRemoveSituationPopup);
+			OpenAfterSave(a_state, kRemoveSituationPopup);
 		}
 		switch (action) {
 		case SituationAction::kRestore:
 			QueueMenuSound(kOkSound);
-			ImGui::OpenPopup(kRestorePresetsPopup);
-			break;
-		case SituationAction::kSave:
-			QueueMenuSound(kOkSound);
-			RequestSituationsSave(a_state);
+			OpenAfterSave(a_state, kRestorePresetsPopup);
 			break;
 		case SituationAction::kExit:
 			RequestLeave(a_state, { .exit = true });
@@ -1033,5 +1034,10 @@ namespace CaptureWindow::Internal
 			break;
 		}
 		DrawSituationPopups(a_state);
+		// Contract: not while a name is typed: a save would write it half typed, and SetOutfits
+		// would replace the field being typed in.
+		if (form.nameEditing < 0 && TakeAutosaveDue(a_state)) {
+			SaveSituationEdits(a_state);
+		}
 	}
 }

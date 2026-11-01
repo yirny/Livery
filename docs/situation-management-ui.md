@@ -6,8 +6,7 @@ made on it; current spec only:
 - The rows: per-row outfit lists, the random flag, the chosen outfit (§1); the co-save
   record that keeps them is in design.md §5.
 - `situations.json`: situation names, removed situations, the names in sentences (§2).
-- The Situations page (§3-§6), and the Wardrobe page's unsaved-changes alert aligned with
-  it.
+- The Situations page (§3-§6).
 
 Terms: a *row* is the Default or one situation, per actor. The *preset situations* are
 the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::kChoosable`
@@ -76,7 +75,7 @@ Changes:
   outfits.json brings it back. Until then the id counts as not on the row
   (`OutfitRows::WithoutGone`): the window never shows it or names it, Remove Situation's
   popup does not count it, a random row never picks it, and a situation row with only such
-  ids is passed over as one without an outfit. Save Changes keeps it (`OutfitRows::KeepGone`);
+  ids is passed over as one without an outfit. The page's save keeps it (`OutfitRows::KeepGone`);
   an outfit given in its `chosen` place leaves it on the list.
 - Update of an outfit: whoever wears it, for any row, wears the new pieces at their next
   redress; the captured actor at once by docs/outfit-management-ui.md §6.
@@ -139,8 +138,9 @@ outfit for Town any more`.
   the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
   right.
 - The preview shows the Dress page's ticks, or the outfit whose details show (§5).
-- Every change on the page is an edit until Save Changes (§6), except the details' Remove
-  and Restore Presets, which write at once after their popups.
+- Every change on the page is an edit, saved shortly after the last one or as the page is
+  left (§6); the details' Remove and Restore Presets save the edits, then write after their
+  popups.
 
 ## 4. Situation List (left pane)
 
@@ -217,7 +217,7 @@ List; else the outfit list.
 
 The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
 search and sort, each row with the drag grip, and nothing under the list. Its star and
-Default marks (and the star's `For Town, Cold`) follow the page's unsaved rows and names at
+Default marks (and the star's `For Town, Cold`) follow the page's edits, saved or not, at
 once; in the Situation List too, the Default mark does. While
 an outfit's details show, the
 selected situation's heading is drawn unselected (no fill, no mark); closing them brings it
@@ -229,7 +229,8 @@ The situation's details, its fields evenly spaced with no headings:
   Situations tab, a square of the label's line height in its grey, and 6px (`Theme::LabelText`'s
   `star`). Ending the edit with it empty, or with a
   name another situation has (ASCII case ignored), puts the previous name back; with that
-  empty too, `Unnamed Situation`. The Default's is read only, greyed, and says `The Default's
+  empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
+  is saved as any edit is; no save starts while it is being typed. The Default's is read only, greyed, and says `The Default's
   name cannot be changed.` on hover.
 - `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule in
   grey, as the README words it (Town: `A city, town, settlement, inn or other inhabited
@@ -245,12 +246,12 @@ The situation's details, its fields evenly spaced with no headings:
   the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove "Town"?`, then under `It is used by:` the
   actors in this save with outfits on their Town row's list, hidden ones included
   (`Lydia: 2 outfit(s)`, the length of `outfits`; a FormID when not in memory), `Restore
-  Presets brings "Town" back, without them.` (`... back.` when nobody has any), and with
-  unsaved edits `Your unsaved changes are discarded.`; `Remove` / `Cancel`. Remove writes `situations.json` first; a refused or
+  Presets brings "Town" back, without them.` (`... back.` when nobody has any); `Remove` /
+  `Cancel`. The page's edits are saved first, and a refused save opens no popup. Remove writes `situations.json` first; a refused or
   failed write changes nothing and shows the error. Then `Assignments::ForgetSituation`
   clears the row for every actor in this save, and those wearing it are redressed by
   docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
-  The edits are dropped, nothing is selected and the right pane shows the outfit list.
+  Nothing is selected and the right pane shows the outfit list.
 
 An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its icon and name
 with no label (`Theme::OutfitNameText`), `SITUATIONS (#{Name})`, its label starting with the
@@ -258,7 +259,7 @@ star as the Name label's does, with the rows the page's edits
 give it (`Default, Town`, or `None`), then its pieces, with the Dress page's icons, under
 their count line. Clicked under a
 situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
-outfit; a tick is an edit of that row (§1 `excluded`), saved with Save Changes, and the last
+outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
 ticked piece cannot be unticked. Clicked on the outfit list, or once that row no longer
 holds the outfit, they are read only. The outfit's row in the Situation List is drawn
 selected only under the heading it was clicked under. The preview shows the outfit less its
@@ -268,24 +269,27 @@ buttons down when taller than the Situation List, as the Wardrobe page's selecti
 pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every
 list keeps to, `kMaxListHeightRatio`), so the window stays on screen. Back, and Escape, show
 what the right pane showed before and the Dress page's ticks on the preview. Edit goes to
-the Wardrobe page with the outfit selected and on the preview, through the unsaved-changes
-alert when the page has edits (§6). A click on a situation's heading closes the details and
+the Wardrobe page with the outfit selected and on the preview, once the page's edits are saved
+(§6). A click on a situation's heading closes the details and
 shows the situation's.
 
 ## 6. Buttons and leaving
 
-- `Save Changes` and `Exit` where the other pages put their buttons, and at the row's right
+- `Exit` where the other pages put their buttons, and at the row's right
   end `Restore Presets (?)`, a link drawn as the details' Remove and Restore are, its
   `(?)` inside its click area, its text centred on the buttons' height
   (`Theme::LineHelpLink`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
   Its help: `Brings the preset situations back as installed: a removed one returns, empty,
   and a renamed one gets its name back. Nobody's outfits change.` It always asks: the
-  changes (`Town: restored`, `Home: name reset`) and, with unsaved edits, `Your unsaved changes are discarded.`; `Restore` /
-  `Cancel`. Restore writes `situations.json` (a refused or failed write changes nothing and
-  shows the error), drops the edits and keeps the selection.
-- Save Changes: greyed with `Nothing has changed.` until the edits differ from what is
-  saved. It writes the global edits to `situations.json` first, when there are any; a
+  changes (`Town: restored`, `Home: name reset`); `Restore` / `Cancel`. The page's edits are
+  saved first, and a refused save opens no popup. Restore writes `situations.json` (a refused
+  or failed write changes nothing and shows the error) and keeps the selection.
+- Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a name entered)
+  starts the wait of `kAutosaveDelay` (0.5 s) again, so a burst of edits writes and redresses
+  once (`ScheduleAutosave`, `TakeAutosaveDue`). A drag, an open popup or a name being typed
+  holds the save until it ends. The page is greyed while a save runs, and the HUD says nothing
+  of a rename (the log does); the redress has its usual HUD message. A save writes the global edits to `situations.json` first, when there are any; a
   refused or failed write changes no row and shows the error. Then, when a row changed, it
   replaces the captured actor's rows at once (`Assignments::SetRows`, so the page shows them
   even before the redress) and dresses them once (`Assignments::Refresh`), by
@@ -294,15 +298,12 @@ shows the situation's.
   row they wear wears the outfit it gained first. The page stays, an outfit's details
   too, and the edits start again from what was saved.
 - Exit closes the window; Escape does what Exit does, first clearing a search. While a write
-  runs (Save Changes, Remove, Restore Presets) the page is greyed and Escape does nothing,
+  runs (a save, Remove, Restore Presets) the page is greyed and Escape does nothing,
   here or as an outfit's Back.
-- Exit, Escape or another tab with unsaved edits asks `You have unsaved changes.` with
-  `Save Changes` / `Discard Changes` / `Back`: Save Changes saves as the button does, then
-  goes; a refused save stays. Discard Changes drops the edits and goes. Back stays.
-- the Wardrobe page asks the same on Exit, Escape and another tab, its line naming the
-  outfit (`You have unsaved changes for "#{Outfit}".`); its Save Changes runs Update, popup
-  included, and Update's Cancel stays. Its `Discard changes` / `Keep editing` on selecting
-  another outfit stays.
+- Exit, Escape, another tab or an outfit's Edit with edits not saved yet saves them at once
+  and goes once the write took; no alert asks. A refused save stays and shows the error, and
+  leaving again with the error showing drops the edits and goes, so a write that keeps failing
+  cannot hold the window open.
 
 ## 7. Code
 
@@ -319,8 +320,8 @@ shows the situation's.
   `test/OutfitRowsTests.cpp` reaches.
 - `src/SituationPage.cpp`: the page, its drag and drop, popups and buttons;
   `CaptureWindowInternal.h` holds the page and its state. `CaptureWindow.cpp` has the tab
-  column's tabs and the unsaved-changes alert the pages share (`RequestLeave`,
-  `DrawLeavePopup`).
+  column's tabs and what leaving a page does (`RequestLeave`, `FinishLeave`), with the
+  Wardrobe page's unsaved-changes alert (`DrawLeavePopup`).
 - `src/OutfitRows.h`: `Place`, a drop at a place in a row's list (`Give` is a drop at the
   front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick.
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
@@ -345,10 +346,10 @@ shows the situation's.
   HUD read ` for Town`; the summary line `as Default` for the Default.
 - The page: each drop of §4's table; the 1 s open; Show Outfit List's scroll and open; Edit and
   a click on the selected heading with the outfit list showing; an outfit's details from
-  either pane, with Back, Escape and Edit, and the preview; Save Changes greyed
-  and saved (Live Preview on and off); Random Outfit on, picks at situation changes;
+  either pane, with Back, Escape and Edit, and the preview; several drops in a row redressing
+  once, about 0.5 s after the last (Live Preview on and off); Random Outfit on, picks at situation changes;
   rename refused when empty or taken; Remove and its popup, the rows gone; Restore Presets brings it back empty; the
-  unsaved alert on Exit, Escape and both tabs, on both pages; the three skins.
+  Exit, Escape and a tab right after an edit, saving before they go; the three skins.
 
 ## 9. Later
 

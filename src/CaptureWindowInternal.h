@@ -42,7 +42,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNotCarriedPopup = "Items not carried";
 	constexpr const char* kIconPopup = "Choose icon";
 	constexpr const char* kRestorePopup = "Restore original outfit?";
-	// The unsaved-changes alert of the Wardrobe page and the Situations page (DrawLeavePopup).
+	// The Wardrobe page's unsaved-changes alert (DrawLeavePopup).
 	constexpr const char* kLeavePopup = "Unsaved changes";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
 	constexpr const char* kNeedName = "Enter a name.";
@@ -58,6 +58,8 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedChest = "Select a chest.";
 	constexpr const char* kNoChests = "No chests yet.";
 	constexpr const char* kNoChanges = "No changes to save.";
+	// Seconds after the last edit before the Situations page and the chest editor save (ScheduleAutosave).
+	constexpr double      kAutosaveDelay = 0.5;
 	constexpr const char* kWornAlready = "Already worn as is.";
 	// A piece list row of an item the player would not get (Request::carriedOnly): its opacity
 	// and its hover text. Shared by the piece lists of CaptureWindow.cpp and OutfitPages.cpp.
@@ -194,9 +196,9 @@ namespace CaptureWindow::Internal
 		float                       outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
 	};
 
-	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), kept until the
-	// page is left; Update saves them, and a change the handler made (SetOutfits) starts them
-	// again from the chest.
+	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), saved as they are
+	// made (ScheduleAutosave); a change the handler made (SetOutfits) starts them again from
+	// the chest.
 	struct ChestForm
 	{
 		int                             chest = -1;  // index into request.chests; -1 for none
@@ -276,13 +278,15 @@ namespace CaptureWindow::Internal
 		OutfitBrowser::State     situationBrowser;            // the Situations page's outfit list
 		SituationForm            situationForm;
 		std::string              situationsTitle;  // "#{Name}'s Situational Outfits"
-		// Set while the unsaved-changes alert is open, and while its Save Changes saves.
+		// Set while the Wardrobe page's unsaved-changes alert is open, and while a save a leave waits for runs.
 		std::optional<PendingLeave> leave;
-		bool                        leaveAfterSave = false;  // the alert's Save Changes is saving: the leave follows a save that took
-		bool                        openLeave = false;       // open the alert on the next frame, in the page's ID scope
-		int                         recentreFrames = 0;      // frames left to pin the window to its place
-		std::optional<ImVec2>       placeCentre;             // where a pinned window's centre goes; none for the start place
-		ImVec2                      windowPos{};             // of the window in the last frame drawn
+		bool                        leaveAfterSave = false;    // a save is running: the leave follows a save that took
+		bool                        openLeave = false;         // open the alert on the next frame, in the page's ID scope
+		double                      autosaveAt = 0.0;          // ImGui::GetTime() seconds when the Situations page or the chest editor saves its edits; 0 for no save waiting
+		const char*                 popupAfterSave = nullptr;  // the Situations page's popup to open once the running save took; nullptr for none
+		int                         recentreFrames = 0;        // frames left to pin the window to its place
+		std::optional<ImVec2>       placeCentre;               // where a pinned window's centre goes; none for the start place
+		ImVec2                      windowPos{};               // of the window in the last frame drawn
 		ImVec2                      windowSize{};
 		bool                        userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
 		unsigned                    session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
@@ -374,8 +378,10 @@ namespace CaptureWindow::Internal
 	std::string HeldOutfitName(const State& a_state, std::size_t a_row);
 	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
 
-	// Leaving a page: Exit, Escape or a tab. With unsaved edits (the Wardrobe page, Manage
-	// Situations) the page first shows the unsaved-changes alert (kLeavePopup); else it goes.
+	// Leaving a page: Exit, Escape or a tab. With unsaved edits the Wardrobe page first shows the
+	// unsaved-changes alert (kLeavePopup). The Situations page and the chest editor save theirs
+	// and go once the write took; after a refused write (State::error) they drop them and go,
+	// so a write that keeps failing cannot hold the window open. Else it goes.
 	void RequestLeave(State& a_state, PendingLeave a_leave);
 	// Goes without asking: closes the window, or switches to the tab's page, which keeps every
 	// page's ticks and edits but the Situations page's outfit details, which close; with
@@ -395,6 +401,27 @@ namespace CaptureWindow::Internal
 	// with nullptr), then Save Changes (greyed with `a_noSave`, which shows on hover), Discard
 	// Changes and Back. Back and Escape forget the leave; the page acts on the other two.
 	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave, void (*a_drawDetails)(const State&) = nullptr);
+
+	// An edit on the Situations page or in the chest editor: the page saves kAutosaveDelay after
+	// the last one, so a burst of drops or clicks writes and redresses once.
+	inline void ScheduleAutosave(State& a_state)
+	{
+		a_state.autosaveAt = ImGui::GetTime() + kAutosaveDelay;
+	}
+
+	// Whether the wait for a save is over, which ends it. A drag or an open popup holds it: a
+	// save greys the page and starts its edits again from the request.
+	inline bool TakeAutosaveDue(State& a_state)
+	{
+		if (a_state.autosaveAt <= 0.0 || a_state.status != Status::kEditing || ImGui::GetTime() < a_state.autosaveAt) {
+			return false;
+		}
+		if (ImGui::GetDragDropPayload() || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId)) {
+			return false;
+		}
+		a_state.autosaveAt = 0.0;
+		return true;
+	}
 
 	// --- Pages (OutfitPages.cpp) ----------------------------------------------
 
@@ -416,6 +443,10 @@ namespace CaptureWindow::Internal
 
 	// The chest editor's name or items differ from the chest.
 	bool HasChestEdits(const State& a_state);
+
+	// Saves the chest editor's edits now, an unusable name given up first. Returns whether a
+	// save is on its way; the page is greyed until it ends.
+	bool SaveChestEdits(State& a_state);
 
 	// Starts the editor's edits of chest `a_index` (-1 for none) from the chest; the items
 	// taken out are forgotten.
@@ -539,6 +570,10 @@ namespace CaptureWindow::Internal
 
 	// A situation's name differs from situations.json, or a row from the actor's.
 	bool HasSituationEdits(const State& a_state);
+
+	// Saves the page's edits now, a name still being typed ended first. Returns whether a save
+	// is on its way; the page is greyed until it ends.
+	bool SaveSituationEdits(State& a_state);
 
 	// The star's tooltip from the page's edits, as OutfitBrowser::State::situations from the
 	// actor's rows: "For Town, Cold", the situations (never Default) whose edited row holds

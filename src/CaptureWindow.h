@@ -25,7 +25,7 @@ namespace RE
 // assignments: the Save page's Create and Update hand the outfit (and Create and Apply
 // the row it is worn for) to Request::onSave, the Wardrobe page's Update and Remove the outfit to
 // Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
-// the Situations page's Save Changes, Remove (a situation) and Restore Presets go to
+// the Situations page's edits as they are saved, Remove (a situation) and Restore Presets go to
 // Request::onSituationsSave, onSituationRemove and onRestorePresets,
 // Apply and Restore go to
 // Request::onApply and Request::onRestore, each piece tick to
@@ -100,7 +100,7 @@ namespace CaptureWindow
 		std::uint32_t            id = 0;              // Chests' id, handed back in ChestEdit::chest
 	};
 
-	// What the chest editor's Update hands over.
+	// What the chest editor saves.
 	struct ChestEdit
 	{
 		std::uint32_t            chest = 0;
@@ -142,7 +142,7 @@ namespace CaptureWindow
 		OutfitRows::Row       row;
 	};
 
-	// What the Situations page's Save Changes hands over.
+	// What the Situations page saves.
 	struct SituationSave
 	{
 		std::vector<SituationEdit> edits;                      // the situations whose name changed; empty for none
@@ -288,8 +288,9 @@ namespace CaptureWindow
 		std::function<void(std::uint32_t outfit, std::size_t row, const std::vector<std::uint32_t>& excluded)> onManageApply;
 
 		// Run on the game thread from the Situations page (docs/situation-management-ui.md §5, §6):
-		// onSituationsSave with Save Changes' edits, onSituationRemove with the situation Remove
-		// Situation's popup confirmed, onRestorePresets after Restore Presets' popup. Each writes
+		// onSituationsSave with the page's edits, shortly after the last one or as the page is
+		// left, onSituationRemove with the situation Remove Situation's popup confirmed,
+		// onRestorePresets after Restore Presets' popup. Each writes
 		// situations.json first, when it has anything to write, and a refused or failed write
 		// changes no row; each must end by calling SetOutfits() or SetError(). Empty greys the
 		// button.
@@ -299,7 +300,8 @@ namespace CaptureWindow
 
 		// Run on the game thread from the Chests page and the chest editor (docs/chest-ui.md):
 		// onChestCreate with the New chest popup's name (an empty chest), onChestUpdate with the
-		// editor's Update, onChestRemove with the Remove popup confirmed. Each writes chests.json
+		// editor's edits, shortly after the last one or as the editor is left, onChestRemove with
+		// the Remove popup confirmed. Each writes chests.json
 		// first; a refused or failed write changes nothing. No chest is ever worn, so no row
 		// changes. Each must end by calling SetOutfits(), with `chests` as written, or SetError().
 		// Empty greys the button.
