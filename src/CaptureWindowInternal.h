@@ -58,6 +58,9 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedChest = "Select a chest.";
 	constexpr const char* kNoChests = "No chests yet.";
 	constexpr const char* kNoChanges = "No changes to save.";
+	// Room above a button row in a column (Show Outfit List; an outfit's Open in Wardrobe and
+	// Back; the Wardrobe page's Save), beyond the item spacing (pixels at 1080p).
+	constexpr float kPaneButtonGap = 12.0f;
 	// Seconds after the last edit before the Situations page and the chest editor save (ScheduleAutosave).
 	constexpr double      kAutosaveDelay = 0.5;
 	constexpr const char* kWornAlready = "Already worn as is.";
@@ -93,6 +96,17 @@ namespace CaptureWindow::Internal
 
 		const char*        label;
 		Theme::HeadingIcon icon;
+	};
+
+	// How an outfit's details list its pieces (the Wardrobe page's, the Situations page's). Only
+	// the display order: the outfit's own list keeps its order, which goes into the library and
+	// decides what counts as an unsaved edit.
+	struct OutfitPieceOrder
+	{
+		int                      column = kNameColumn;  // kNameColumn or kTypeColumn
+		bool                     descending = false;
+		std::vector<std::size_t> source;  // the list last sorted
+		std::vector<std::size_t> shown;   // `source` as the rows show it
 	};
 
 	struct OutfitPayload
@@ -261,6 +275,7 @@ namespace CaptureWindow::Internal
 		int                      sortColumn = 0;          // the piece list's sorted column: Name, Type or Slot
 		bool                     showSlots = false;       // the piece list has the Slot column (Settings::ShowSlotColumn at Open)
 		bool                     sortDescending = false;
+		OutfitPieceOrder         outfitPieceOrder;                     // kept until the window closes; set again at Open
 		int                      previewedOutfit = -1;                 // on the Load page: index into request.existingOutfits, -1 for none
 		int                      previewedChest = -1;                  // on the Load page with LoadSource::kChests: index into request.chests, -1 for none
 		LoadTarget               loadTarget = LoadTarget::kInventory;  // the page the Load page was opened from, which its Load returns to
@@ -370,8 +385,11 @@ namespace CaptureWindow::Internal
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
 	void                                 PushListRowSpacing();
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone);
+	float                                ButtonRowWidth(std::initializer_list<RowButton> a_buttons);
 	void                                 CentreButtonRow(std::initializer_list<RowButton> a_buttons);
 	void                                 BeginButtonRow(std::initializer_list<RowButton> a_buttons);
+	void                                 BeginPaneButtonRow(std::initializer_list<RowButton> a_buttons);
+	int                                  CompareColumn(const CaptureWindow::Piece& a_left, const CaptureWindow::Piece& a_right, int a_column);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
 	bool                                 BeginColumns(const char* a_id, int a_count = 2);
@@ -539,27 +557,26 @@ namespace CaptureWindow::Internal
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
 	// Outfit `a_index` (into request.existingOutfits) in the Wardrobe page's order: its name,
-	// `a_situations` under the "SITUATIONS (#{Name})" label, then its pieces under their count
-	// line, their list ending by screen Y `a_bottom` and scrolling when they need more (one row
-	// shows at least). Read only with no `a_excluded`; else the pieces tick (DrawPieceChoices),
-	// and it returns true when `a_excluded` changed.
-	bool DrawOutfitSummary(const State& a_state, int a_index, const std::string& a_situations, float a_bottom,
+	// `a_situations` under the "SITUATIONS (#{Name})" label, then its pieces (DrawPieceChoices)
+	// over their count line, which ends by screen Y `a_bottom`; the list scrolls when it needs
+	// more (one row shows at least). Returns true when `a_excluded` changed.
+	bool DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom,
 		std::vector<std::uint32_t>* a_excluded = nullptr);
 
 	// An outfit's piece count line, the pieces whose plugin is not loaded included.
 	std::string PieceCountText(std::size_t a_loaded, std::size_t a_unloaded);
 
 	// Pieces' names (indices into request.pieces) in read-only rows laid out as the outfit
-	// list's, ending by screen Y `a_bottom` and scrolling when they need more; one row shows at
-	// least.
-	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces, float a_bottom = FLT_MAX);
+	// list's.
+	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces);
 
-	// An outfit's pieces (indices into request.pieces) as the Dress page's tick rows, with
-	// their icons: a ticked one is worn with the outfit, an unticked one left off, its armor in
-	// `a_excluded` (FormIDs, ascending). A click ticks or unticks one, but the last ticked one
-	// stays ticked. The list ends by screen Y `a_bottom` and scrolls when it needs more; one row
-	// shows at least. Returns true when `a_excluded` changed.
-	bool DrawPieceChoices(const State& a_state, const std::vector<std::size_t>& a_pieces, std::vector<std::uint32_t>& a_excluded, float a_bottom = FLT_MAX);
+	// An outfit's pieces (indices into request.pieces) under Name and Type labels that sort them
+	// (OutfitPieceOrder), as the Dress page's tick rows, with their icons: a ticked one is worn
+	// with the outfit, an unticked one left off, its armor in `a_excluded` (FormIDs, ascending).
+	// A click ticks or unticks one, but the last ticked one stays ticked. With no `a_excluded`
+	// every row is ticked and takes no click. The list ends by screen Y `a_bottom` and scrolls
+	// when it needs more; one row shows at least. Returns true when `a_excluded` changed.
+	bool DrawPieceChoices(State& a_state, const std::vector<std::size_t>& a_pieces, std::vector<std::uint32_t>* a_excluded, float a_bottom = FLT_MAX);
 
 	// `a_pieces` less those whose armor `a_excluded` names, or all of them when that leaves
 	// none, as dressing wears them (OutfitRows::WornPieces).
@@ -575,7 +592,7 @@ namespace CaptureWindow::Internal
 	{
 		std::string   name;        // as the library has it, or as it is created
 		std::uint32_t id = 0;      // its library id; 0 for one not created yet
-		std::string   applyLabel;  // the button of the popup that offers no situation: "Apply", "Update and Apply", "Create and Apply"
+		std::string   applyLabel;  // the button of the popup that offers no situation: "Apply", "Save and Apply", "Create and Apply"
 		// What is saved first, which the question starts with (`Save your changes to "A"`,
 		// `Create "A"`), and its sentence in Apply as Default's help; "" for nothing.
 		std::string saveFirst;

@@ -20,7 +20,7 @@
 //                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
 //                    and dresses them (Assignments) with the window open (DressCaptured), as
 //                    the Wardrobe page's Apply does; Restore goes to Assignments;
-//                    the Wardrobe page's Update writes the library and redresses the actor when they
+//                    the Wardrobe page's Save writes the library and redresses the actor when they
 //                    wear the outfit; its Remove writes the library, clears the outfit from the
 //                    assignments (Assignments::ForgetOutfit) and takes those wearing it for a
 //                    situation out of it: the captured actor at once, the others at the
@@ -1198,7 +1198,7 @@ namespace
 		}
 	}
 
-	// the Wardrobe page's Update, Remove and Apply. Update and Remove write the library first; a
+	// the Wardrobe page's Save, Remove and Apply. Save and Remove write the library first; a
 	// refused or failed write changes nothing, assigns nothing and redresses no one (CLAUDE.md
 	// §2.1). Then the actors are redressed (RedressCaptured, QueueRedress, ApplyOutfit), and
 	// the window, still open, shows the library as written. Apply writes nothing to the library.
@@ -1209,7 +1209,7 @@ namespace
 		const auto actorID = actor.GetFormID();
 		// When they wear the outfit, it is dressed again as RedressFor does, at once, Live
 		// Preview on or off (RedressCaptured keeps the preview in step, on the outfit as edited,
-		// and the Dress page follows what they wear). Update and Apply instead dresses them
+		// and the Dress page follows what they wear). Save and Apply instead dresses them
 		// as Apply does (ApplyOutfit).
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
