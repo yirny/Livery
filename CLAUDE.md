@@ -71,6 +71,7 @@ The library (`outfits.json`, `src/Library.cpp`) is shared by every save and char
 - **Constants:** used in one function → local `constexpr`; shared in a file → anonymous-namespace `constexpr` at file top (`kName`); user-tunable → ask where it lives (INI etc.). Check single-use before hoisting. User says "constant" → follow.
 - **Style:** `.clang-format` (CI checks `src/` and `test/`). Format only what you change.
 - **Git:** commit each verified change on a branch (not `main`); Conventional Commits `feat|fix|chore|refactor` (defined in `lefthook.yml`; lefthook is not installed on this PC, so follow it by hand), English. Never push unless asked — `origin` is github.com/yirny/Livery, `upstream` the template repo.
+- **Two machines:** a branch made on the Mac (no MSVC, no game) is pushed to `origin` on request and built, checked in game and merged into `main` on the Windows PC; `git branch -r --no-merged origin/main` lists what is pending, and a merged branch is deleted. Every branch starts from `main`: before creating one, check `git branch --show-current`, and if it is not `main`, warn and ask instead of stacking (only when the user asks for a branch on top of another, and say so in its first commit message).
 
 ## 4. Readability
 
