@@ -26,19 +26,13 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 2. Install Livery via your mod manager.
 3. Launch Skyrim via SKSE.
 
-**Manual:**
-
-1. Install the requirements above.
-2. Copy the `SKSE` folder from the archive into `Data\` (it holds `livery.dll` and the fonts and textures of the window skins; Livery writes the palettes on first start).
-3. Launch Skyrim via SKSE.
-
 ## Compatibility
 
-- Skyrim VR is not supported.
 - No ESP/ESL and no scripts, so it sits beside any other mod without setting your PC on fire; its co-save record is simply skipped once Livery is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
 - **Nether's Follower Framework**: fine, as long as you don't use its outfit features on the followers Livery dresses.
 - **Tailor**: fine for wigs; leave the outfits to one of the two.
 - **Devious Devices**: not tested. Don't dress a character wearing devices.
+- Skyrim VR is not supported.
 
 <!-- nexus:end -->
 
