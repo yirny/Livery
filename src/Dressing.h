@@ -43,12 +43,13 @@ namespace Dressing
 		std::vector<RE::TESObjectARMO*> refused;     // the engine would not put it on (race, a slot another mod locked)
 	};
 
-	// Puts `outfit` on them, per piece the instance they carry (worn, else enchanted,
-	// else the most tempered, else plain), else a new plain copy when `addMissing`.
-	// With `lock`, every piece gets PreventRemoval. Once a piece is on, worn armor outside
-	// the outfit comes off, except non-playable armor and pieces another mod locked.
-	// Every copy worn before is tagged first, so those that are off at the end, taken off
-	// here or by the engine for a slot a piece filled, are listed in `takenOff`.
+	// Puts `outfit` on them, per piece the instance they carry (enchanted, else the most
+	// tempered, else the one they wear, else plain), else a new plain copy when `addMissing`.
+	// A worn copy another mod locked stays. With `lock`, every piece gets PreventRemoval. Once
+	// a piece is on, worn armor outside the outfit comes off, except non-playable armor and
+	// pieces another mod locked. Every copy worn before is tagged first, so those that are off
+	// at the end, taken off here or by the engine for a slot a piece filled, are listed in
+	// `takenOff`, unless a better copy of the same armor took their place.
 	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing);
 
 	// Puts on again, with PreventRemoval, the pieces they still carry but no longer wear
@@ -76,6 +77,14 @@ namespace Dressing
 	// that is gone stays gone, so taking it again and again makes no new copies. Returns how
 	// many it put on.
 	std::size_t Replenish(RE::Actor& actor, std::vector<Piece>& pieces);
+
+	// Puts on, locked, an unworn better copy of each worn piece (enchanted over not, then the
+	// more tempered), as Dress would pick it, and takes the replaced copy back when this module
+	// added it. The piece then names the copy worn; a piece another mod locked stays. A copy
+	// that does not go on leaves the piece as it was. Returns how many it swapped.
+	// Contract: not for the player, whose pieces are not locked, and not while the preview has
+	// the NPC's locks off.
+	std::size_t Upgrade(RE::Actor& actor, std::vector<Piece>& pieces);
 
 	// Takes off the locks this module set; with `removeCopies`, also takes back the
 	// copies it added. Instances that were the actor's own stay with them.
