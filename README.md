@@ -20,8 +20,6 @@ Built with [CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG), [CMak
 
 ## Installation
 
-**Mod manager (recommended):**
-
 1. Install the requirements above.
 2. Install Livery via your mod manager.
 3. Launch Skyrim via SKSE.
