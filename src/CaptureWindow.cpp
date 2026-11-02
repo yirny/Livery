@@ -267,7 +267,8 @@ namespace CaptureWindow::Internal
 	// The gap follows the screen height, as the NPC in front does (the view
 	// widens sideways on a wider screen, so ultrawide keeps the same gap). The centre is kept so the page's width and the last frame's
 	// height fit the screen; one taller than the screen keeps its top edge on
-	// it. Unpinned, the window stays where the user left it. Returns whether
+	// it. Unpinned, the window stays where the user left it until its height
+	// changes, which pins it again on its centre (Draw). Returns whether
 	// it was pinned this frame.
 	bool PlaceWindow(State& a_state, const ImGuiIO& a_io, float a_width)
 	{
@@ -2521,7 +2522,13 @@ namespace CaptureWindow
 			state.userMoved = true;
 		}
 		state.windowPos = pos;
-		state.windowSize = ImGui::GetWindowSize();
+		// Unpinned, a new height (a Load lengthening the Dress page's list, a note) pins the
+		// window from the next frame on its centre at the old height, kept on the screen.
+		const ImVec2 size = ImGui::GetWindowSize();
+		if (!pinned && size.y != state.windowSize.y) {
+			HoldCentre(state);
+		}
+		state.windowSize = size;
 		Theme::DecorateWindow();
 
 		// The tab column, then the page in a group beside it, so the page's own widths and
