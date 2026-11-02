@@ -136,8 +136,6 @@ Every setting is on the Livery page of SKSE Menu Framework, where it takes effec
 
 [size=4][b][color=#B8953E]Installation[/color][/b][/size]
 
-[b]Mod manager (recommended):[/b]
-
 [list=1]
 [*]Install the requirements above.
 [*]Install Livery via your mod manager.
