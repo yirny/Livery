@@ -350,7 +350,7 @@ namespace CaptureWindow
 	struct ActorPieces
 	{
 		std::vector<PieceGroup>  groups;          // one per Request::pieces
-		std::vector<std::size_t> ticked;          // the listed pieces they wear (wigs left out, as at Open), ascending
+		std::vector<std::size_t> ticked;          // the listed pieces they wear, ascending
 		std::string              outfitName;      // as Request::outfitName
 		std::uint32_t            wornOutfit = 0;  // as Request::wornOutfit
 		std::string              wornSituation;   // as Request::wornSituation
