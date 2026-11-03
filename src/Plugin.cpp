@@ -312,8 +312,11 @@ namespace
 	}
 
 	// Whether the game ranks the actor and the player Friend or better (Friend, Confidant, Ally,
-	// Lover), by their relationship record; none is Acquaintance. A leveled actor's record is on
-	// its template. Runs at a hotkey press only, so the log can show what the game answered.
+	// Lover), by their relationship record; none is Acquaintance. Runs at a hotkey press only, so
+	// the log can show what the game answered.
+	// Contract: relationship data is not stored for templated actors, and what scripts set on one
+	// is gone when the game session ends (CK wiki, GetRelationshipRank), so such an NPC may count
+	// as Other NPCs after a restart.
 	bool IsPlayerFriend(RE::Actor& actor)
 	{
 		using Level = RE::BGSRelationship::RELATIONSHIP_LEVEL;
