@@ -41,9 +41,6 @@ namespace Settings
 	// Safe from any thread.
 	NpcAccess AccessOf(NpcGroup a_group);
 
-	// The group's name as the settings page and the HUD show it.
-	const char* NameOf(NpcGroup a_group);
-
 	// Whether the capture window opens with Live Preview on. Safe from any thread.
 	bool LivePreview();
 

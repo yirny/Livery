@@ -913,11 +913,6 @@ namespace Settings
 		return g_npcAccess[static_cast<std::size_t>(a_group)].load();
 	}
 
-	const char* NameOf(NpcGroup a_group)
-	{
-		return kNpcGroups[static_cast<std::size_t>(a_group)].label;
-	}
-
 	bool LivePreview()
 	{
 		return g_livePreview.load();
