@@ -1491,7 +1491,7 @@ namespace
 		if (saveOnly) {
 			request.saveOnly = true;
 			request.offersWardrobe = false;
-			request.actorSummary.lead = std::format("You can save {}'s equipped items as a new outfit, but not change what they wear.", request.actorName);
+			request.actorSummary.lead = std::format("{} dresses as they please. You can save what they wear, but not change it.", request.actorName);
 			AttachSaveOnlyPreview(request, actor);
 		} else {
 			AttachAssignment(request, actor, armors, offered, choices);
@@ -1561,7 +1561,7 @@ namespace
 			const auto group = GroupOf(*actor);
 			access = Settings::AccessOf(group);
 			if (access == Settings::NpcAccess::kDisabled) {
-				Notify(std::format("Livery: {} are disabled (see Settings).", Settings::NameOf(group)));
+				Notify(std::format("Livery: {} keeps their own wardrobe (see Settings).", actor->GetName() ? actor->GetName() : "NPC"));
 				return;
 			}
 		}
