@@ -178,7 +178,7 @@ An outfit stores only which items it has. When it goes on, Livery picks the best
 The game's own beds just pass the time. It goes on with a mod that actually puts you into bed.
 
 [b]My sleep mod has its own sleepwear. Which should I use?[/b]
-Either, but one per character: two mods changing clothes at bedtime get in each other's way. Turn the other mod's sleepwear off for the characters Livery dresses, or leave their Sleep situation empty.
+Either, but one per character. Turn the other mod's sleepwear off for the characters Livery dresses, or leave their Sleep situation empty.
 
 [b]Where are my outfits stored?[/b]
 [font=Courier New]Data\SKSE\Plugins\Livery\outfits.json[/font], shared by all saves. Items are stored by plugin name and FormID, so outfits survive a load order change. Back it up with your saves.
