@@ -69,6 +69,7 @@ namespace CaptureWindow
 		std::string   icon;           // PieceIcons' key of the icon left of its name; "" for none
 		std::uint32_t iconColor = 0;  // the icon's tint, 0xRRGGBB
 		std::uint32_t armor = 0;      // the armor's FormID, which the items a row's outfit leaves off name (OutfitRows::Exclusion)
+		std::string   enchantment;    // the hover text of the mark after an enchanted piece's name; "" for none (no mark)
 	};
 
 	// One frame of mouse and key input over the game rather than the window,
