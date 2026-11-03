@@ -531,6 +531,14 @@ setting, off by default). Open:
 - While the player dresses from their inventory only (`Request::carriedOnly`), every piece
   list draws the rows of `PieceGroup::kNotCarried` at half opacity, with the reason on hover.
   Their ticks and what they do stay as they are.
+- The tick rows (the Dress page's and the Wardrobe page's) draw a lightning bolt in SkyUI's
+  enchantment blue `#A2BEFF` after an enchanted piece's name (`Theme::RowMark`, drawn in
+  code), and over the bolt alone show the game's description of the enchantment
+  (`MagicSystem::GetMagicItemDescription`, read when the window lists the pieces). The
+  enchantment is that of the copy the row stands for: of a piece the actor carries, the worn
+  copy's, else an unworn copy's (`ExtraEnchantment`); under Player's Inventory, the copy the
+  player would hand over, an unworn one before the worn one; failing those, and for a piece
+  nobody carries, the armor's own (`formEnchanting`).
 - Livery ships the PNGs for SkyUI's labels (PsychoSteve's art from
   `icons_item_psychosteve.swf`) and for `I4IconAddon/icons` `clothing_cloak` and
   `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their
