@@ -850,6 +850,14 @@ namespace CaptureWindow::Internal
 		return a_state.request.carriedOnly && a_state.request.pieces[a_piece].group == CaptureWindow::PieceGroup::kNotCarried;
 	}
 
+	// A blue lightning bolt on an enchanted piece, as SkyUI marks one; none on others.
+	Theme::RowMark PieceMark(const CaptureWindow::Piece& a_piece)
+	{
+		constexpr std::uint32_t kEnchantedColor = 0xA2BEFF;  // SkyUI's enchantment mark's
+
+		return a_piece.enchantment.empty() ? Theme::RowMark{} : Theme::RowMark{ Theme::HeadingIcon::kLightning, kEnchantedColor };
+	}
+
 	std::size_t GroupIndex(CaptureWindow::PieceGroup a_group)
 	{
 		return static_cast<std::size_t>(a_group);
@@ -1128,12 +1136,15 @@ namespace CaptureWindow::Internal
 				if (faded) {
 					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
 				}
-				const bool toggled = Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor });
+				const bool toggled =
+					Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor }, PieceMark(pieces[i]));
 				if (faded) {
 					ImGui::PopStyleVar();
-					if (ImGui::IsItemHovered()) {
-						Theme::Tooltip(kNotCarriedHint);
-					}
+				}
+				if (Theme::RowMarkHovered()) {
+					Theme::Tooltip(pieces[i].enchantment.c_str());
+				} else if (faded && ImGui::IsItemHovered()) {
+					Theme::Tooltip(kNotCarriedHint);
 				}
 				ImGui::EndDisabled();
 				ImGui::PopStyleVar();
