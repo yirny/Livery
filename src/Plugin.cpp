@@ -59,7 +59,6 @@
 #include "sarrai/Overlay.h"
 
 #include <algorithm>
-#include <array>
 #include <bit>
 #include <cstdint>
 #include <cstring>
@@ -544,43 +543,6 @@ namespace
 		return worn;
 	}
 
-	// Wigs occupy the Hair slot, sometimes with Long Hair, and nothing else;
-	// vanilla helmets and hoods mostly add Circlet, Head or Body. The vanilla
-	// ones on Hair alone are listed by form. Wigs are offered unticked so a
-	// captured outfit does not replace another character's hair by default.
-	bool LooksLikeWig(const RE::TESObjectARMO& armor)
-	{
-		struct PluginForm
-		{
-			std::string_view plugin;
-			RE::FormID       localID;
-		};
-		constexpr std::array<PluginForm, 7> kHairOnlyHeadwear{ {
-			{ "Skyrim.esm", 0x1019CA },     // ArmorDraugrHelmetUnplayable
-			{ "Skyrim.esm", 0x04C3CB },     // ArmorFAlmerHelmet
-			{ "Skyrim.esm", 0x0DA750 },     // ArmorBoneCrown
-			{ "Skyrim.esm", 0x0D3EAA },     // ArmorPenitusHelmet
-			{ "Skyrim.esm", 0x0CF8B2 },     // ClothesExecutionerHood
-			{ "Skyrim.esm", 0x036A45 },     // ClothesRobesGreybeardHood
-			{ "Dawnguard.esm", 0x017E9B },  // DLC1VCClothesWarlockHoodUnplayable
-		} };
-
-		using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
-		auto others = armor.GetSlotMask();
-		others.reset(Slot::kHair, Slot::kLongHair);
-		if (!armor.HasPartOf(Slot::kHair) || others) {
-			return false;
-		}
-		auto* dataHandler = RE::TESDataHandler::GetSingleton();
-		if (!dataHandler) {
-			return true;
-		}
-		// LookupFormID returns 0 for a plugin that is not loaded, which matches no armor.
-		return std::ranges::none_of(kHairOnlyHeadwear, [&](const PluginForm& form) {
-			return dataHandler->LookupFormID(form.localID, form.plugin) == armor.GetFormID();
-		});
-	}
-
 	// The body slots of `mask` as the Creation Kit numbers them, lowest first: "32, 34"; "" for none.
 	std::string SlotText(std::uint32_t mask)
 	{
@@ -629,12 +591,6 @@ namespace
 		}
 		const bool byLivery = choices && std::ranges::find(choices->wornArmor, piece.armor->GetFormID()) != choices->wornArmor.end();
 		return !byLivery ? Group::kUnmanaged : (livery ? Group::kLiveryOutfit : Group::kNotInLibrary);
-	}
-
-	// Worn pieces start ticked, wigs (LooksLikeWig) not.
-	bool StartsTicked(const InventoryArmor& piece)
-	{
-		return piece.worn && !LooksLikeWig(*piece.armor);
 	}
 
 	// Index of the armor in `armors`; armor not there yet is appended to both
@@ -1070,7 +1026,7 @@ namespace
 				continue;
 			}
 			pieces.groups[i] = OwnPieceGroup(*own, choices, livery);
-			if (StartsTicked(*own)) {
+			if (own->worn) {
 				pieces.ticked.push_back(i);
 			}
 		}
@@ -1530,7 +1486,7 @@ namespace
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& piece : inventory) {
-			request.pieces.push_back(MakePiece(*piece.armor, OwnPieceGroup(piece, choices, livery), StartsTicked(piece), piece.enchantment));
+			request.pieces.push_back(MakePiece(*piece.armor, OwnPieceGroup(piece, choices, livery), piece.worn, piece.enchantment));
 			armors.push_back(piece.armor);
 		}
 		const auto offered = saveOnly ? std::vector<RE::TESObjectARMO*>{} : AddPlayerPieces(actor, armors, request.pieces);
