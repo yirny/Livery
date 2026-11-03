@@ -397,6 +397,7 @@ namespace CaptureWindow::Internal
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
 	Theme::HeadingIcon                   GroupIcon(CaptureWindow::PieceGroup a_group);  // the icon of a group's heading
 	bool                                 FadesNotCarried(const State& a_state, std::size_t a_piece);
+	Theme::RowMark                       PieceMark(const CaptureWindow::Piece& a_piece);  // the mark after its name in a tick row
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
 	void                                 DrawHelpTooltip(const std::string& a_text);
 	std::size_t                          RowCount(const State& a_state);
