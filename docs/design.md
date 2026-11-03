@@ -171,9 +171,11 @@ on the player as on an NPC, unlocked like the default, and not in beast form.
 
 The player is always Full management. An NPC falls in the first group that fits, read at the
 hotkey press (`GroupOf` in `src/Plugin.cpp`): followers and spouse (teammate flag or
-`PlayerMarriedFaction`), friends (`BGSRelationship::GetRelationship` of the actor's template
-base and the player's base at Friend or better; no record is Acquaintance), other NPCs. Each
-group has an access in `[General]` (`Settings::AccessOf`), defaults in brackets:
+`PlayerMarriedFaction`), friends (`BGSRelationship::GetRelationship` of `Actor::GetTemplateBase`
+and the player's base at Friend or better; no record is Acquaintance), other NPCs. Relationship
+data is not stored for templated actors and what scripts set on one is gone when the game
+session ends (CK wiki, GetRelationshipRank), so such an NPC may count as other NPCs after a
+restart. Each group has an access in `[General]` (`Settings::AccessOf`), defaults in brackets:
 `FollowersAndSpouse` (`Full`), `Friends` (`SaveOnly`), `OtherNPCs` (`Off`). Children are refused first.
 
 - `Full`: the whole window. `Off`: a HUD message, no window.
