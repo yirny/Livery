@@ -80,7 +80,7 @@ Drag an outfit back to the list to clear it. Situational outfits are saved per c
 - **Sleep**: going to bed, in it or getting up.
 - **Cold**: outdoors in rain or snow, or anywhere outdoors in a snowy region.
 
-The **Default** outfit is worn where no situation applies, and in every fight. A castle or home without an outfit of its own uses the Town one. With **Random Outfit** on, a situation picks one of its outfits each time it begins. You can rename or remove a situation on the same page; **Restore Presets** brings them back.
+The **Default** outfit is worn where no situation applies, and in every fight. A castle or home without an outfit of its own uses the Town one. With **Random Outfit** on, a situation picks one of its outfits each time it begins; click the die beside the situation worn now to switch to another of its outfits at once. You can rename or remove a situation on the same page; **Restore Presets** brings them back.
 
 ### Use item chests
 
