@@ -2507,7 +2507,7 @@ namespace CaptureWindow
 		FinishLeave(state);  // before the page's width, which a switch changes
 
 		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
-		constexpr float kWindowWidthRatio = 0.80f;  // of the screen height, for the two-column Load, the Wardrobe page and the Situations pages
+		constexpr float kWindowWidthRatio = 0.72f;  // of the screen height, for the two-column Load, the Wardrobe page and the Situations pages
 		constexpr float kWideWidthRatio = 1.05f;    // of the screen height, for the Save page's Update tab and its three columns
 		constexpr float kNarrowWidthRatio = 0.53f;  // of the screen height, for the one-column pages
 		const bool      twoColumns = state.page == Page::kLoad || state.page == Page::kManage || state.page == Page::kSituations || state.page == Page::kChestEdit;
