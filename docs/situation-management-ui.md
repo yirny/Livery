@@ -153,28 +153,27 @@ outfit for Town any more`.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
   order. Each: the star of the Situations tab, a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
-  random on, a die (a hexagon split into three faces with one, three and two pips, a square 4px
-  short of the name's line height, grey) and `(n)`, the length of `outfits`, in the small heading style,
-  the die's outline as far from the name and from `(n)` as `(n)` is from a name without it
-  (`ItemInnerSpacing.x`); with random on and anything showing under it, a chevron, pointing
+  random on, `(n)`, the length of `outfits`, in the small heading style, `ItemInnerSpacing.x`
+  after the name; with random on and anything showing under it, a chevron, pointing
   down while open and right while folded, grey, lit while hovered (white in Vanilla and
-  Nordic, the accent in Modern); then, 12px on, a rule in the list's rule colour, and 12px on
-  `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
+  Nordic, the accent in Modern); then, 12px on, a rule in the list's rule colour; 12px on,
+  with random on, a die (a hexagon split into three faces with one, three and two pips, a
+  square 4px short of the name's line height, grey), its square ending 8px short of `Edit`;
+  and `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
-- Click areas: from the chevron (with its padding) to Edit, rule included, folds; left of it
-  selects (with no chevron, everything left of Edit selects); Edit with its padding to the
-  right end. A click on the name selects the situation (the single-choice row highlight of the
+- Click areas: from the chevron (with its padding) to the die (to Edit with no die), rule
+  included, folds; left of it selects (with no chevron, everything left of the die or Edit
+  selects); the die with 4px on each side; Edit with its padding to the right end. A click on the name selects the situation (the single-choice row highlight of the
   skin) and shows its details on the right; a click on the selected one while its details
   show unselects it and the right pane shows the outfit list. Edit always selects the
   situation and shows its details.
-- The die (random on) is a button of its own, the die's square wide and the heading tall,
-  over the select area, while the actor wears an outfit of the row's list (as edited) for it
-  and another is on the list: lit as the chevron while hovered, with `Dress #{Name} in
+- The die's area (random on) is a button while the actor wears an outfit of the row's list
+  (as edited) for it and another is on the list: lit as the chevron while hovered, with `Dress #{Name} in
   another outfit from this list, picked at random.` on hover. A click saves the page's edits
   with it (Saving below), then puts on another outfit of the list, picked at random, never
-  the one worn; an outfit's details close, so the preview shows what they wear. Else it
-  stays part of the select area, and hovering it shows why: `#{Name} is not wearing an
+  the one worn; an outfit's details close, so the preview shows what they wear. Else a click
+  there does nothing, the die stays grey, and hovering it shows why: `#{Name} is not wearing an
   outfit from this list now.` or `Only one outfit is on this list.`
 - Under a heading, its outfits as rows of the outfit list (name, the form marks but no
   star, since each is chosen for a situation), each with a drag grip: two columns of three
