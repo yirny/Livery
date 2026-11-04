@@ -433,14 +433,15 @@ namespace
 			logger::info("Put {} piece(s) back on or locked again on {:08X}", count, a_actor);
 		}
 		// After PutBackOn, so the pieces it put on again count as worn.
-		if (const auto count = Dressing::TakeOffOverlapping(*actor, assignment->pieces); count > 0) {
-			logger::info("Took off {} item(s) worn over Livery's pieces on {:08X}", count, a_actor);
+		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
+			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
 		}
 	}
 
 	// The pieces the player took from them in the menu that just closed go on again, as
 	// copies when they carry none, so the outfit does not change by itself; then a better
-	// copy the player gave them goes on in place of a worn piece.
+	// copy the player gave them goes on in place of a worn piece, and armor the engine put on
+	// them outside the pieces (a helmet given for a slot the outfit leaves empty) comes off.
 	void ReplenishTaken(RE::FormID a_actor)
 	{
 		if (a_actor == g_suspended) {
@@ -456,6 +457,10 @@ namespace
 		}
 		if (const auto count = Dressing::Upgrade(*actor, assignment->pieces); count > 0) {
 			logger::info("Upgraded {} piece(s) on {:08X} to a better copy", count, a_actor);
+		}
+		// After Upgrade, so a better copy it put on counts as a piece.
+		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
+			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
 		}
 	}
 

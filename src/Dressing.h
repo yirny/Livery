@@ -58,11 +58,14 @@ namespace Dressing
 	// piece's `locked`; returns how many it put on or locked.
 	std::size_t PutBackOn(RE::Actor& actor, std::vector<Piece>& pieces);
 
-	// Takes off worn armor that is none of the pieces and shares a body slot with a piece they
-	// wear: after fast travel the engine can mark an NPC's own outfit items worn again beside
-	// the locked pieces, with the 3D unchanged (docs/design.md §6). Non-playable armor and a
-	// piece another mod locked stay, as in Dress. Returns how many came off.
-	std::size_t TakeOffOverlapping(RE::Actor& actor, const std::vector<Piece>& pieces);
+	// Takes off worn armor that is none of the pieces and either shares a body slot with a piece
+	// they wear or takes a slot no piece has: after fast travel the engine can mark an NPC's own
+	// outfit items worn again beside the locked pieces (docs/design.md §6), and its best-gear pass
+	// fills a slot the outfit leaves empty with armor given to them (a helmet the outfit has not,
+	// or one it leaves off on the row). Armor only in the slots of pieces they no longer wear
+	// stays. Non-playable armor and a piece another mod locked stay, as in Dress. Nothing with no
+	// pieces (their own clothes). Returns how many came off.
+	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces);
 
 	// Whether an outfit item they carry unworn shares a body slot with a worn locked piece:
 	// putting that item on would take the piece off and clear its lock (docs/design.md §6). Any

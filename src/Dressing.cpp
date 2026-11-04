@@ -5,7 +5,7 @@
 //               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
-//   API       - RefreshModel / Dress / PutBackOn / TakeOffOverlapping / OutfitItemContestsLock / Replenish /
+//   API       - RefreshModel / Dress / PutBackOn / TakeOffExtras / OutfitItemContestsLock / Replenish /
 //               Upgrade / Release / PutBack / MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
@@ -457,34 +457,44 @@ namespace Dressing
 		return count;
 	}
 
-	std::size_t TakeOffOverlapping(RE::Actor& actor, const std::vector<Piece>& pieces)
+	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces)
 	{
 		auto* equipManager = RE::ActorEquipManager::GetSingleton();
-		if (!equipManager) {
-			return 0;
+		if (!equipManager || pieces.empty()) {
+			return 0;  // no pieces: they wear their own clothes, every slot the engine's
 		}
-		std::uint32_t slots = 0;  // the body slots of the pieces they wear
+		std::uint32_t worn = 0;    // the body slots of the pieces they wear
+		std::uint32_t outfit = 0;  // the body slots of every piece, worn or gone
 		for (const auto& piece : pieces) {
+			if (const auto* armor = RE::TESForm::LookupByID<RE::TESObjectARMO>(piece.key.armor)) {
+				outfit |= armor->GetSlotMask().underlying();
+			}
 			if (const auto copy = Find(actor, piece.key); copy.extra && copy.extra->GetWorn()) {
-				slots |= copy.armor->GetSlotMask().underlying();
+				worn |= copy.armor->GetSlotMask().underlying();
 			}
 		}
-		const auto overlapping = [&pieces, slots](const Copy& copy) {
-			if (!copy.extra->GetWorn() || !IsGear(*copy.armor) || IsLocked(*copy.extra) || (copy.armor->GetSlotMask().underlying() & slots) == 0) {
+		const auto extra = [&pieces, worn, outfit](const Copy& copy) {
+			if (!copy.extra->GetWorn() || !IsGear(*copy.armor) || IsLocked(*copy.extra)) {
+				return false;
+			}
+			// Armor only in the slots of pieces gone stays: those slots are the engine's until the
+			// next dressing (docs/design.md §2).
+			const auto slots = copy.armor->GetSlotMask().underlying();
+			if ((slots & worn) == 0 && (slots & ~outfit) == 0) {
 				return false;
 			}
 			const auto key = KeyOf(copy);
 			return !key || std::ranges::none_of(pieces, [&key](const Piece& piece) { return piece.key == *key; });
 		};
-		const auto countOverlapping = [&] { return std::ranges::count_if(Copies(actor), overlapping); };
-		const auto before = countOverlapping();
+		const auto countExtras = [&] { return std::ranges::count_if(Copies(actor), extra); };
+		const auto before = countExtras();
 		if (before == 0) {
 			return 0;
 		}
-		ForEachCopy(actor, overlapping, [&](const Copy& copy) {
+		ForEachCopy(actor, extra, [&](const Copy& copy) {
 			equipManager->UnequipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
 		});
-		const auto after = countOverlapping();
+		const auto after = countExtras();
 		return before > after ? static_cast<std::size_t>(before - after) : 0;
 	}
 
