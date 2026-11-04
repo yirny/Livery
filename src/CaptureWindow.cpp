@@ -435,6 +435,14 @@ namespace CaptureWindow::Internal
 		return clicked && !a_reason;
 	}
 
+	// Read-only text under a field label, where a field's text sits (its frame padding lower):
+	// Theme::LabelText leaves less than the item spacing below it, for a field's frame.
+	void DrawFieldText(const char* a_text)
+	{
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
+		ImGui::TextWrapped("%s", a_text);
+	}
+
 	// Width of a row of these buttons (Theme::Button, one item spacing apart).
 	float ButtonRowWidth(std::initializer_list<RowButton> a_buttons)
 	{
@@ -451,19 +459,19 @@ namespace CaptureWindow::Internal
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - ButtonRowWidth(a_buttons)) * 0.5f));
 	}
 
-	// A gap, then the cursor placed so a row of these buttons is centred.
-	void BeginButtonRow(std::initializer_list<RowButton> a_buttons)
+	// The room BeginButtonRow adds above every button row, a page's or a column's, on top of
+	// the item spacing under the item before it.
+	float ButtonRowGap()
 	{
 		constexpr float kGap = 17.0f;  // pixels at 1080p, on top of one extra item spacing
 
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y + kGap * Theme::Scale());
-		CentreButtonRow(a_buttons);
+		return ImGui::GetStyle().ItemSpacing.y + kGap * Theme::Scale();
 	}
 
-	// kPaneButtonGap, then the cursor placed so a row of these buttons is centred in the column.
-	void BeginPaneButtonRow(std::initializer_list<RowButton> a_buttons)
+	// ButtonRowGap, then the cursor placed so a row of these buttons is centred.
+	void BeginButtonRow(std::initializer_list<RowButton> a_buttons)
 	{
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kPaneButtonGap * Theme::Scale());
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ButtonRowGap());
 		CentreButtonRow(a_buttons);
 	}
 
