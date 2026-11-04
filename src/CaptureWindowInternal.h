@@ -243,12 +243,15 @@ namespace CaptureWindow::Internal
 
 	// Where leaving a page with unsaved edits goes once they are saved or dropped: the
 	// window's close (Exit, Escape), or a tab's page; the Wardrobe page with `manageOutfit`, the
-	// library outfit to select there (the Situations page's Edit; 0 keeps its selection).
+	// library outfit to select there (the Situations page's Edit; 0 keeps its selection); the
+	// Dress page with `loadChest`, the chest to load there (the chest editor's Dress with this
+	// chest...; 0 for none).
 	struct PendingLeave
 	{
 		bool          exit = false;
 		Page          page = Page::kCapture;
 		std::uint32_t manageOutfit = 0;
+		std::uint32_t loadChest = 0;
 	};
 
 	struct State
@@ -414,7 +417,8 @@ namespace CaptureWindow::Internal
 	void RequestLeave(State& a_state, PendingLeave a_leave);
 	// Goes without asking: closes the window, or switches to the tab's page, which keeps every
 	// page's ticks and edits but the Situations page's outfit details, which close; with
-	// `manageOutfit`, the Wardrobe page first selects it. The preview shows the Wardrobe page's
+	// `manageOutfit`, the Wardrobe page first selects it; with `loadChest`, the Dress page first
+	// loads it as its Load does (LoadChest). The preview shows the Wardrobe page's
 	// selected outfit as edited there, the Dress page's ticks on the other tabs.
 	void Leave(State& a_state, const PendingLeave& a_leave);
 
@@ -516,6 +520,10 @@ namespace CaptureWindow::Internal
 	// The Load page's Add for the chest editor: `a_pieces` (indices into request.pieces,
 	// ascending) join the chest's items.
 	void AddToChest(State& a_state, const std::vector<std::size_t>& a_pieces);
+
+	// The Load page's Load of chest `a_chest` (an index into request.chests) for the Dress page
+	// (OutfitPages.cpp): lists its items there, ticking none.
+	void LoadChest(State& a_state, int a_chest);
 
 	// The chest list (the Chests page's, the Load page's with LoadSource::kChests): every chest
 	// but `a_except` (an index into request.chests; -1 for none), `a_selected` highlighted, over
