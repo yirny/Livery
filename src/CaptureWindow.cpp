@@ -635,6 +635,10 @@ namespace CaptureWindow::Internal
 			// the unsaved-changes alert, which saved or dropped them.
 			FillManageForm(a_state, target);
 		}
+		// By id: the chest editor's save before the leave may have moved the chests (SetOutfits).
+		if (const int chest = IndexOfChest(a_state, a_leave.loadChest); chest >= 0 && !ChestAt(a_state, chest).pieces.empty()) {
+			LoadChest(a_state, chest);
+		}
 		if (auto pieces = PagePreview(a_state, a_leave.page)) {
 			QueuePreview(a_state, std::move(*pieces));
 		} else if (ownPreview) {
