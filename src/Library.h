@@ -33,8 +33,7 @@ namespace Library
 
 	// Reads the file. A missing or empty file (nothing but whitespace) is an empty library. A
 	// file that cannot be read, or that a newer version wrote, leaves the library empty and
-	// refuses every change, so the file is never overwritten. An older file's outfit
-	// categories and gender are read past; the file is not written here.
+	// refuses every change, so the file is never overwritten. The file is not written here.
 	void Load();
 
 	// Contract: pointers and references into the library go stale at the next Create, Update

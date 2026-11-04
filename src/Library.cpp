@@ -12,9 +12,8 @@
 //     "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
 //     "name": "Imperial Light Armor" } ] } ] }
 // An outfit with no "icon" or "color", or one that is not a string ("color": "#rrggbb"), gets
-// the default (OutfitIcons), so files older versions wrote read as they are.
-// An outfit's "categories" and "gender" in a file older versions wrote are read past and gone
-// at the next write.
+// the default (OutfitIcons), so a file edited by hand still reads. Other fields are ignored
+// and gone at the next write.
 #include "PCH.h"
 
 #include "Library.h"
