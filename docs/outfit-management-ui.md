@@ -209,8 +209,8 @@ the Situations page. Each page keeps its own search and sort.
   from the next start. The dropdowns list each as `Modern - Edge` (skin, then file), or the
   skin alone for its own palette; the settings page's choice takes effect at the next open.
 - The skins: Modern, dark panels with nearly square frames after Edge UI, in Jost; Vanilla,
-  the game's menus with a light band round the window; Nordic, NORDIC UI with its corner knot
-  and heading rope. Their fonts and textures ship in `Data/SKSE/Plugins/Livery/` with their
+  the game's menus with a light band round the window and the item card's knots at its
+  corners; Nordic, NORDIC UI with its corner knot and heading rope. Their fonts and textures ship in `Data/SKSE/Plugins/Livery/` with their
   licences.
 - `Play menu sounds`, a tick written to `[UI] MenuSounds` at once.
 - Exit, which Escape also is. Nothing here is an unsaved edit, so leaving never asks.
