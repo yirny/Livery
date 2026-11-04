@@ -83,7 +83,7 @@ Changes:
   while it is still on the list, else picks again.
 
 The co-save keeps the rows in the `ASGN` record (version 5, situations by key) and the
-items left off in `EXCL`; the layout and how older versions are read are in design.md §5.
+items left off in `EXCL`; the layout is in design.md §5.
 
 ## 2. Situation data
 
@@ -94,10 +94,10 @@ items left off in `EXCL`; the layout and how older versions are read are in desi
 ```
 
 - `key` is the `Situations::Situation` it is for (`Default`, `Town`, `Castle`, `Home`,
-  `Sleep`, `Cold`; `Warm` is read as `Cold`), never shown or changed. The file holds only rows that differ from
+  `Sleep`, `Cold`), never shown or changed. The file holds only rows that differ from
   the presets; a missing or empty file (nothing but whitespace) means every preset as
-  installed and is not written at load. An entry's other fields (such as a `description`)
-  are ignored, and a rewrite drops them.
+  installed and is not written at load. An entry's other fields are ignored, and a
+  rewrite drops them.
 - Presets: name as the key.
 - Names: never empty; unique among the situations not removed, ASCII case ignored. The
   Default cannot be renamed or removed.
@@ -317,7 +317,7 @@ shows the situation's.
   the file's parse and write, the name rules, Restore's change lines) in
   `src/SituationTable.h`, which `test/SituationStoreTests.cpp` reaches: presets, the name
   rules, a file with unknown keys, Restore's change lines.
-- `src/Assignments.cpp`: the rows, the co-save record and the older versions' read, the
+- `src/Assignments.cpp`: the rows, the co-save record, the
   pick, "has an outfit" and "holds", `ForgetOutfit`'s rules, `ForgetSituation` and the rows
   of removed situations dropped at load. The row rules that need no game (insert at front,
   move, `chosen` on remove, resolve) are in `src/OutfitRows.h`, which
@@ -342,7 +342,7 @@ shows the situation's.
 
 ## 8. Checks
 
-- Rows: an older co-save loads with every assignment as it was; save and load again; Remove
+- Rows: save and load again; Remove
   of a chosen outfit with another hidden behind it wears neither; Remove of the Default's
   outfit keeps its pieces on; `No, apply as is`; Update of an outfit an NPC wears for a
   situation shows at their next change. Unit tests cover the row rules.
