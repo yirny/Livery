@@ -10,9 +10,9 @@ Building from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Requirements
 
-- Skyrim SE or AE. Tested on 1.6.1170. Built for SE 1.5.97 and AE 1.6.x and 1.7.x; reports from other versions welcome.
+- Skyrim SE or AE. Tested on 1.6.1170. Built for SE 1.5.97 and AE 1.6.x and 1.7.x; reports from other versions welcome, with your Livery.log.
 - [SKSE64](https://skse.silverlock.org/)
-- [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) for SE and AE
+- [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) for SE and AE, matching your game version (1.7.x needs a recent release)
 - Optional: SKSE Menu Framework, for changing the settings in game
 
 ## Installation
