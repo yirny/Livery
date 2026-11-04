@@ -22,7 +22,7 @@
 // keeps the table and writes the file; the unit tests reach this header.
 //
 // situations.json, version 1, only the situations that differ from the presets; an entry's
-// other fields, such as a "description", are ignored:
+// other fields are ignored:
 //   { "version": 1, "situations": [ { "key": "Town", "name": "City", "removed": false } ] }
 namespace SituationTable
 {
@@ -107,21 +107,13 @@ namespace SituationTable
 			return true;
 		}
 
-		// An entry under a retired key (Situations::IsRetiredKey) is skipped and its key added to
-		// `a_retired`. One under a situation's earlier key (Situations::FromKey) is read as that
-		// situation's, and a name that is that key becomes the preset's.
-		inline std::optional<std::string> ParseEntry(const nlohmann::json& a_json, std::size_t a_position, Table& a_table, std::vector<bool>& a_seen,
-			std::vector<std::string>& a_retired)
+		inline std::optional<std::string> ParseEntry(const nlohmann::json& a_json, std::size_t a_position, Table& a_table, std::vector<bool>& a_seen)
 		{
 			const auto key = a_json.is_object() ? a_json.find("key") : a_json.end();
 			if (!a_json.is_object() || key == a_json.end() || !key->is_string()) {
 				return std::format("Situation {} has no key.", a_position);
 			}
 			const auto text = key->get<std::string>();
-			if (Situations::IsRetiredKey(text)) {
-				a_retired.push_back(text);
-				return std::nullopt;
-			}
 			const auto situation = Situations::FromKey(text);
 			if (!situation) {
 				return std::format("Situation {} has the unknown key \"{}\".", a_position, text);
@@ -135,9 +127,6 @@ namespace SituationTable
 			if (!ReadOptional(a_json, "name", entry.name) || !ReadOptional(a_json, "removed", entry.removed)) {
 				return std::format("Situation {} has a name that is not text, or a removed that is not true or false.", a_position);
 			}
-			if (text != Situations::Name(*situation) && entry.name == text) {
-				entry.name = Preset(*situation).name;
-			}
 			return std::nullopt;
 		}
 	}
@@ -147,11 +136,9 @@ namespace SituationTable
 	// as no file: the presets. All or nothing otherwise: one entry this version cannot
 	// read (an unknown key, a field of another type) or a name rule broken (CheckNames)
 	// makes the whole file unusable, so a rewrite never drops what this version could not
-	// read; `a_table` is then the presets. Entries of situations this version no longer has
-	// are dropped, their keys added to `a_retired`. Returns why, as a sentence, or nullopt.
-	inline std::optional<std::string> Parse(std::string_view a_text, Table& a_table, std::vector<std::string>* a_retired = nullptr)
+	// read; `a_table` is then the presets. Returns why, as a sentence, or nullopt.
+	inline std::optional<std::string> Parse(std::string_view a_text, Table& a_table)
 	{
-		std::vector<std::string> retired;
 		a_table = Presets();
 		if (ExampleMod::TrimWhitespace(a_text).empty()) {
 			return std::nullopt;
@@ -169,14 +156,11 @@ namespace SituationTable
 		} else {
 			std::vector<bool> seen(kCount, false);
 			for (std::size_t i = 0; i < list->size() && !problem; ++i) {
-				problem = Detail::ParseEntry((*list)[i], i + 1, a_table, seen, retired);
+				problem = Detail::ParseEntry((*list)[i], i + 1, a_table, seen);
 			}
 			if (!problem) {
 				problem = CheckNames(a_table);
 			}
-		}
-		if (a_retired && !problem) {
-			*a_retired = std::move(retired);
 		}
 		if (problem) {
 			a_table = Presets();

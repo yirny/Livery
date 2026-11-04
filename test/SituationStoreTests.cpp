@@ -120,36 +120,13 @@ TEST_CASE("Serialize writes only what differs from the presets, and Parse reads 
 	CHECK(read == table);
 }
 
-TEST_CASE("Parse reads Cold's earlier key and drops a situation this version no longer has", "[situations]")
-{
-	SituationTable::Table table;
-	Lines                 retired;
-	REQUIRE_FALSE(SituationTable::Parse(R"({ "version": 1, "situations": [
-		{ "key": "Warm", "name": "Cloak Weather" },
-		{ "key": "Swimming", "name": "Water", "removed": true } ] })",
-		table, &retired));
-	CHECK(At(table, Situation::kCold) == SituationTable::Entry{ .name = "Cloak Weather" });
-	CHECK(retired == Lines{ "Swimming" });
-
-	// A name that is the earlier key takes the preset's, and the rewrite uses the key now.
-	REQUIRE_FALSE(SituationTable::Parse(R"({ "version": 1, "situations": [ { "key": "Warm", "name": "Warm", "removed": true } ] })", table));
-	CHECK(At(table, Situation::kCold) == SituationTable::Entry{ .name = "Cold", .removed = true });
-	const auto text = SituationTable::Serialize(table);
-	CHECK(text.find("\"Cold\"") != std::string::npos);
-	CHECK(text.find("Warm") == std::string::npos);
-}
-
-TEST_CASE("Keys name each situation once, and earlier ones still find theirs", "[situations]")
+TEST_CASE("Keys name each situation once", "[situations]")
 {
 	for (std::size_t i = 0; i < SituationTable::kCount; ++i) {
 		const auto situation = static_cast<Situation>(i);
 		CHECK(Situations::FromKey(Situations::Name(situation)) == situation);
 	}
-	CHECK(Situations::FromKey("Warm") == Situation::kCold);
-	CHECK_FALSE(Situations::FromKey("Swimming"));
-	CHECK(Situations::IsRetiredKey("Swimming"));
 	CHECK_FALSE(Situations::FromKey("Tavern"));
-	CHECK_FALSE(Situations::IsRetiredKey("Tavern"));
 }
 
 TEST_CASE("RestoreChanges names each situation that differs, under its name now", "[situations]")

@@ -42,7 +42,7 @@ the Situations page. Each page keeps its own search and sort.
   `Not in Wardrobe`).
 - One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
-  the library. An older file's outfit categories are read past and gone at the next write.
+  the library.
 - Each row: the outfit's icon and name, one line high.
 - Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
   colour, graded as a selected row's fill; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI

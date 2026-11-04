@@ -803,7 +803,7 @@ namespace Settings
 		g_npcReaction = std::wstring_view{ value } != L"0";
 		logger::info("NpcReaction = {}", g_npcReaction.load());
 
-		// The palette picks the skin; [UI] Skin of earlier versions is no longer read.
+		// The palette picks the skin.
 		wchar_t chosen[MAX_PATH]{};
 		::GetPrivateProfileStringW(kUiSection, kPaletteKey, kDefaultPalette, chosen, static_cast<DWORD>(std::size(chosen)), g_iniPath.c_str());
 		Palettes::Load(kPaletteDir, chosen, L"Livery");

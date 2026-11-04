@@ -92,25 +92,13 @@ namespace Situations
 		}
 	}
 
-	// A key earlier versions stored for a situation this one no longer has; what was kept
-	// under it is dropped.
-	constexpr bool IsRetiredKey(std::string_view a_key) noexcept
-	{
-		return a_key == "Swimming";
-	}
-
-	// The situation stored under `a_key` (Name), or under the key an earlier version gave it:
-	// "Warm" is Cold's. nullopt for a key this version does not know or no longer has
-	// (IsRetiredKey).
+	// The situation stored under `a_key` (Name). nullopt for a key this version does not know.
 	constexpr std::optional<Situation> FromKey(std::string_view a_key) noexcept
 	{
 		for (std::size_t i = 0; i <= kChoosable.size(); ++i) {
 			if (const auto situation = static_cast<Situation>(i); a_key == Name(situation)) {
 				return situation;
 			}
-		}
-		if (a_key == "Warm") {
-			return Situation::kCold;
 		}
 		return std::nullopt;
 	}
