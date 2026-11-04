@@ -279,13 +279,13 @@ would have to be kept in step).
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`. A file that
   cannot be read leaves the library empty and is never written; `Livery.log` says why
   (`Documents/My Games/Skyrim Special Edition/SKSE/`, `Skyrim Special Edition GOG` for GOG).
-- An outfit has no categories and no gender (the window calls the library the wardrobe). An
-  older file's `categories` and `gender` are read past and gone at the next write. Situations
-  are per actor (§7), not in the library.
+- An outfit has no categories and no gender (the window calls the library the wardrobe).
+  Other fields are ignored and gone at the next write. Situations are per actor (§7), not in
+  the library.
 - An outfit has an icon: `"icon"`, PieceIcons' key of a PNG under `icons/`
   (`skyui/icons_item_psychosteve/armor_body`), and `"color"`, its tint as `#rrggbb`. A
-  missing or unreadable one is the default (`OutfitIcons::kDefaultKey`, `#eaeaea`), so an
-  older file reads as it is; `Library::Create` takes the Save page's Create tab's icon.
+  missing or unreadable one is the default (`OutfitIcons::kDefaultKey`, `#eaeaea`), so a file
+  edited by hand still reads; `Library::Create` takes the Save page's Create tab's icon.
 - `Library::Update` replaces pieces, name and icon; a name is taken when another outfit
   has it (ASCII case ignored). The Save page's Update keeps the icon.
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
@@ -297,9 +297,7 @@ would have to be kept in step).
   presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
   situation key its name and removed flag, only for the situations that
   differ from the presets; a missing or empty file is every preset as installed and is not
-  written at load. An entry under `Warm` is Cold's (a name `Warm` reads as `Cold`); one
-  under `Swimming`, a situation this version no longer has, is dropped with a log line and
-  the file stays writable. The same load and write rules as the library (docs/situation-management-ui.md
+  written at load. The same load and write rules as the library (docs/situation-management-ui.md
   §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
 - Chests (docs/chest-ui.md): `chests.json` beside the library (`src/Chests.cpp`), named sets of
   items that are never worn, several on one body slot too, offered when dressing; a chest may
@@ -315,13 +313,12 @@ would have to be kept in step).
 
 ## 5. Co-save
 
-Co-save id `LVRY`, records `ASGN` (version 5; versions 1 to 4 are still read) and `EXCL`
-(version 2; version 1 is still read), read in the SKSE load callback, cleared on revert. A
+Co-save id `LVRY`, records `ASGN` (version 5) and `EXCL` (version 2), read in the SKSE load
+callback, cleared on revert; a record of another version is skipped with a log line. A
 situation is stored by its key (`Situations::Name`, the key `situations.json` uses): a
 length byte and its characters, so situations can be added or removed without a new
-version. Older versions store it as a number (`kNumberedKeys`: Default, Town, Home, Sleep,
-Swimming, Warm); `Situations::FromKey` reads `Warm` as Cold, and a key the version does not
-have (Swimming) drops its row with a log line, or reads a row worn as the Default.
+version. A key the version does not have drops its row with a log line, or reads a row worn
+as the Default.
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
   library outfit the pieces on them are from (`wornOutfit`, 0 for none or the Default's
@@ -335,13 +332,6 @@ have (Swimming) drops its row with a log line, or reads a row worn as the Defaul
   `chosen` and its library outfit ids. Every row
   reads its outfit from the library each time it goes on; the window names the outfits
   from the ids. A row for a situation the version does not know is dropped with a log line.
-- Version 3 has the default's outfit id and armor and one library outfit id per situation
-  (`kNumberedKeys` order after the Default) instead of the rows. Version 1 has no outfit id and no
-  own pieces; versions 1 and 2 have no default armor and no situations: their pieces'
-  armor becomes the default. At load, a default whose outfit id the library has becomes
-  the Default's row (`outfits = [id]`, `chosen = id`) and its armor is dropped; else its
-  armor becomes the Default's pieces. Each situation id becomes a row of it, chosen; random
-  is off everywhere. The library is loaded at `kDataLoaded`, before any co-save load.
 - A piece, own copy or Default piece whose plugin is gone is dropped at load, and an
   assignment with nothing on the actor and no situation row holding an outfit. Before that
   check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
