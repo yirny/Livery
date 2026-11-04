@@ -544,14 +544,21 @@ setting, off by default). Open:
 - While the player dresses from their inventory only (`Request::carriedOnly`), every piece
   list draws the rows of `PieceGroup::kNotCarried` at half opacity, with the reason on hover.
   Their ticks and what they do stay as they are.
-- The tick rows (the Dress page's and the Wardrobe page's) draw a lightning bolt in SkyUI's
-  enchantment blue `#A2BEFF` after an enchanted piece's name (`Theme::RowMark`, drawn in
-  code), and over the bolt alone show the game's description of the enchantment
-  (`MagicSystem::GetMagicItemDescription`, read when the window lists the pieces). The
-  enchantment is that of the copy the row stands for: of a piece the actor carries, the worn
-  copy's, else an unworn copy's (`ExtraEnchantment`); under Player's Inventory, the copy the
-  player would hand over, an unworn one before the worn one; failing those, and for a piece
-  nobody carries, the armor's own (`formEnchanting`).
+- The tick rows (the Dress page's and the Wardrobe page's) draw marks after a piece's name
+  (`Theme::RowMark`, drawn in code), in this order: a lightning bolt in SkyUI's enchantment
+  blue `#A2BEFF` on an enchanted piece, then a hammer in pale orange `#F2B880` on a tempered
+  one (a hammer alone sits where the bolt would). Over the bolt alone they show the game's
+  description of the enchantment (`MagicSystem::GetMagicItemDescription`); over the hammer
+  alone, its quality as the game names the item: the text inside the name's last parentheses
+  (`Fine` from `Iron Helmet (Fine)`), else the whole name, from an `ExtraTextDisplayData`
+  built apart from the copy, so the inventory does not change. Both are read when the window
+  lists the pieces.
+- Both marks are those of the copy the row stands for, ranked as Dressing ranks copies
+  (enchanted, then most tempered): of a piece the actor carries, the best copy, the worn one
+  on a tie (`ExtraEnchantment`, `ExtraHealth`); under Player's Inventory, the copy the player
+  would hand over, the best unworn one, the worn one only when it is the only copy. A copy
+  without an enchantment of its own, and a piece nobody carries, have the armor's own
+  (`formEnchanting`); a piece nobody carries is never tempered.
 - Livery ships the PNGs for SkyUI's labels (PsychoSteve's art from
   `icons_item_psychosteve.swf`) and for `I4IconAddon/icons` `clothing_cloak` and
   `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their

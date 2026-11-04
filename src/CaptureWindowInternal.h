@@ -24,6 +24,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -93,6 +94,17 @@ namespace CaptureWindow::Internal
 
 		const char*        label;
 		Theme::HeadingIcon icon;
+	};
+
+	// The marks after a piece's name in a tick row (PieceMarksOf), in order, with the hover
+	// text of each.
+	struct PieceMarks
+	{
+		std::array<Theme::RowMark, 2>     marks{};
+		std::array<const std::string*, 2> texts{};  // into the piece's fields
+		std::size_t                       count = 0;
+
+		std::span<const Theme::RowMark> Shown() const { return std::span(marks).first(count); }
 	};
 
 	// How an outfit's details list its pieces (the Wardrobe page's, the Situations page's). Only
@@ -398,7 +410,8 @@ namespace CaptureWindow::Internal
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
 	Theme::HeadingIcon                   GroupIcon(CaptureWindow::PieceGroup a_group);  // the icon of a group's heading
 	bool                                 FadesNotCarried(const State& a_state, std::size_t a_piece);
-	Theme::RowMark                       PieceMark(const CaptureWindow::Piece& a_piece);  // the mark after its name in a tick row
+	PieceMarks                           PieceMarksOf(const CaptureWindow::Piece& a_piece);
+	const std::string*                   HoveredMarkText(const PieceMarks& a_marks);  // of the mark the mouse is over (Theme::RowMarkHovered); nullptr for none
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
 	void                                 DrawHelpTooltip(const std::string& a_text);
 	std::size_t                          RowCount(const State& a_state);

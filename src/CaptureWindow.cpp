@@ -865,12 +865,34 @@ namespace CaptureWindow::Internal
 		return a_state.request.carriedOnly && a_state.request.pieces[a_piece].group == CaptureWindow::PieceGroup::kNotCarried;
 	}
 
-	// A blue lightning bolt on an enchanted piece, as SkyUI marks one; none on others.
-	Theme::RowMark PieceMark(const CaptureWindow::Piece& a_piece)
+	// A blue lightning bolt on an enchanted piece, as SkyUI marks one, then a pale orange hammer
+	// on a tempered one; none on others. The texts point into `a_piece`.
+	PieceMarks PieceMarksOf(const CaptureWindow::Piece& a_piece)
 	{
 		constexpr std::uint32_t kEnchantedColor = 0xA2BEFF;  // SkyUI's enchantment mark's
+		constexpr std::uint32_t kTemperedColor = 0xF2B880;   // Livery's own: SkyUI marks no tempering
 
-		return a_piece.enchantment.empty() ? Theme::RowMark{} : Theme::RowMark{ Theme::HeadingIcon::kLightning, kEnchantedColor };
+		PieceMarks marks;
+		const auto add = [&marks](Theme::HeadingIcon a_icon, std::uint32_t a_rgb, const std::string& a_text) {
+			if (!a_text.empty()) {
+				marks.marks[marks.count] = { a_icon, a_rgb };
+				marks.texts[marks.count] = &a_text;
+				++marks.count;
+			}
+		};
+		add(Theme::HeadingIcon::kLightning, kEnchantedColor, a_piece.enchantment);
+		add(Theme::HeadingIcon::kHammer, kTemperedColor, a_piece.temper);
+		return marks;
+	}
+
+	const std::string* HoveredMarkText(const PieceMarks& a_marks)
+	{
+		for (std::size_t i = 0; i < a_marks.count; ++i) {
+			if (Theme::RowMarkHovered(i)) {
+				return a_marks.texts[i];
+			}
+		}
+		return nullptr;
 	}
 
 	std::size_t GroupIndex(CaptureWindow::PieceGroup a_group)
@@ -1151,13 +1173,14 @@ namespace CaptureWindow::Internal
 				if (faded) {
 					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
 				}
+				const auto marks = PieceMarksOf(pieces[i]);
 				const bool toggled =
-					Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor }, PieceMark(pieces[i]));
+					Theme::TickRow(std::span(cells).first(columns), columnX, &a_list.ticked[i], { pieces[i].icon, pieces[i].iconColor }, marks.Shown());
 				if (faded) {
 					ImGui::PopStyleVar();
 				}
-				if (Theme::RowMarkHovered()) {
-					Theme::Tooltip(pieces[i].enchantment.c_str());
+				if (const auto* hint = HoveredMarkText(marks)) {
+					Theme::Tooltip(hint->c_str());
 				} else if (faded && ImGui::IsItemHovered()) {
 					Theme::Tooltip(kNotCarriedHint);
 				}

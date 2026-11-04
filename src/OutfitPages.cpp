@@ -396,12 +396,13 @@ namespace CaptureWindow::Internal
 					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
 				}
 				// TickRow flips `on`; the last ticked piece stays ticked.
-				const bool toggled = Theme::TickRow(cells, columnX, &on, { pieces[i].icon, pieces[i].iconColor }, PieceMark(pieces[i]));
+				const auto marks = PieceMarksOf(pieces[i]);
+				const bool toggled = Theme::TickRow(cells, columnX, &on, { pieces[i].icon, pieces[i].iconColor }, marks.Shown());
 				if (faded) {
 					ImGui::PopStyleVar();
 				}
-				if (Theme::RowMarkHovered()) {
-					Theme::Tooltip(pieces[i].enchantment.c_str());
+				if (const auto* hint = HoveredMarkText(marks)) {
+					Theme::Tooltip(hint->c_str());
 				} else if (faded && ImGui::IsItemHovered(locked ? ImGuiHoveredFlags_AllowWhenDisabled : ImGuiHoveredFlags_None)) {
 					Theme::Tooltip(kNotCarriedHint);
 				}

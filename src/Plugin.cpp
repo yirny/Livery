@@ -13,7 +13,7 @@
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at) and what its group
 //                    allows (Settings::AccessOf; Save only opens a window that only saves what they wear), collect inventory
 //                    armor (and for an NPC the player's, per the settings), each piece with its group,
-//                    SkyUI's Type and Class (ArmorInfo), its icon (PieceIcons) and its enchantment, detect the class, list the library's outfits (adding
+//                    SkyUI's Type and Class (ArmorInfo), its icon (PieceIcons), its enchantment and its tempering, detect the class, list the library's outfits (adding
 //                    their pieces nobody carries), then open the window with the worn pieces ticked; the window's Save
 //                    writes the library, then Create and Apply gives the outfit a row (Assignments::Change)
 //                    and Update dresses the actor again when they wear it; Apply moves
@@ -349,11 +349,19 @@ namespace
 		return name && *name ? name : std::format("{:08X}", armor.GetFormID());
 	}
 
+	// What marks a piece's row (CaptureWindow::Piece): the enchantment and the tempering of the
+	// copy it stands for.
+	struct CopyMarks
+	{
+		RE::EnchantmentItem* enchantment = nullptr;  // nullptr for none
+		float                health = 1.0f;          // ExtraHealth: 1 for not tempered
+	};
+
 	struct InventoryArmor
 	{
-		RE::TESObjectARMO*   armor;
-		bool                 worn;
-		RE::EnchantmentItem* enchantment = nullptr;  // EnchantmentOf the copy the row stands for; nullptr for none
+		RE::TESObjectARMO* armor;
+		bool               worn;
+		CopyMarks          marks;  // CopyMarksOf the copy the row stands for
 	};
 
 	// The plugin armor an inventory armor is listed as. The library names a piece by its
@@ -369,32 +377,59 @@ namespace
 		return base && !base->IsDynamicForm() ? base : nullptr;
 	}
 
-	// The enchantment of the copy of `armor` a row stands for, from its inventory entry (null
-	// for none) of `count` copies. A player enchantment lives on its copy (ExtraEnchantment);
-	// a plugin's enchanted armor and armor created in game carry their own. `giving`: the copy
-	// the player hands over (Dressing::MoveFromPlayer), an unworn one before the worn one;
-	// otherwise the worn copy first, else an unworn one, which Dressing puts on before a plain
-	// worn copy. nullptr for none.
-	RE::EnchantmentItem* EnchantmentOf(const RE::TESObjectARMO& armor, const RE::InventoryEntryData* entry, std::int32_t count, bool giving)
+	// Enchanted first, then the most tempered, as Dressing ranks copies; a higher rank is the
+	// better copy.
+	std::pair<bool, float> RankOf(const CopyMarks& marks)
 	{
-		RE::EnchantmentItem* worn = nullptr;
-		RE::EnchantmentItem* unworn = nullptr;
+		return { marks.enchantment != nullptr, marks.health };
+	}
+
+	// A player enchantment (ExtraEnchantment) and tempering (ExtraHealth) live on the copy.
+	CopyMarks MarksOfCopy(const RE::ExtraDataList& extra)
+	{
+		const auto* added = extra.GetByType<RE::ExtraEnchantment>();
+		const auto* health = extra.GetByType<RE::ExtraHealth>();
+		return { added ? added->enchantment : nullptr, health ? health->health : 1.0f };
+	}
+
+	// The marks of the copy of `armor` a row stands for, from its inventory entry (null for
+	// none) of `count` copies: the best ranked one (RankOf), which Dressing puts on, the worn
+	// one on a tie. `giving`: the copy the player hands over (Dressing::MoveFromPlayer), the best
+	// unworn one, the worn one only when it is the only copy. Without an enchantment of its
+	// own, the copy has the armor's (formEnchanting): a plugin's enchanted armor and armor
+	// created in game carry their own.
+	CopyMarks CopyMarksOf(const RE::TESObjectARMO& armor, const RE::InventoryEntryData* entry, std::int32_t count, bool giving)
+	{
+		CopyMarks best;  // a plain copy's: one ranked no higher marks nothing
+		CopyMarks worn;
+		bool      found = false;
 		if (entry && entry->extraLists) {
 			for (auto* extra : *entry->extraLists) {
-				const auto* added = extra ? extra->GetByType<RE::ExtraEnchantment>() : nullptr;
-				if (!added || !added->enchantment) {
+				if (!extra) {
 					continue;
 				}
-				if (extra->GetWorn()) {
-					worn = added->enchantment;
-				} else if (!unworn) {
-					unworn = added->enchantment;
+				const auto marks = MarksOfCopy(*extra);
+				const bool isWorn = extra->GetWorn();
+				if (isWorn) {
+					worn = marks;
+				}
+				if (isWorn && giving) {
+					continue;
+				}
+				if (const auto rank = RankOf(marks); rank > RankOf(best) || (found && isWorn && rank == RankOf(best))) {
+					best = marks;
+					found = true;
 				}
 			}
 		}
 		// Giving: the worn copy goes only when it is the only one; else a plain one does.
-		auto* const picked = giving ? (unworn ? unworn : (count <= 1 ? worn : nullptr)) : (worn ? worn : unworn);
-		return picked ? picked : armor.formEnchanting;
+		if (giving && !found && count <= 1) {
+			best = worn;
+		}
+		if (!best.enchantment) {
+			best.enchantment = armor.formEnchanting;
+		}
+		return best;
 	}
 
 	// The hover text of an enchanted piece's mark: the enchantment as the game's item card
@@ -412,6 +447,24 @@ namespace
 		}
 		const auto* name = enchantment->GetName();
 		return name && *name ? name : "Enchanted";
+	}
+
+	// The hover text of a tempered piece's mark: its quality as the game names the item, "Fine"
+	// from "Iron Helmet (Fine)", else that whole name; "" for `health` not tempered (no mark).
+	// Contract: game thread. The display data is built apart from any copy, so no inventory
+	// changes.
+	std::string TemperText(RE::TESObjectARMO& armor, float health)
+	{
+		if (health <= 1.0f) {
+			return {};
+		}
+		RE::ExtraTextDisplayData display;
+		const char* const        name = display.GetDisplayName(&armor, health);
+		const std::string_view   text = name ? name : "";
+		if (const auto open = text.rfind('('); open != std::string_view::npos && text.ends_with(')')) {
+			return std::string(text.substr(open + 1, text.size() - open - 2));
+		}
+		return std::string(text);
 	}
 
 	// How many of the entry's copies are the actor's own outfit items: those whose
@@ -478,16 +531,16 @@ namespace
 				++substituted;
 				logger::info("Using base armor {:08X} for runtime-created armor {:08X}", plugin->GetFormID(), armor->GetFormID());
 			}
-			auto* const enchantment = EnchantmentOf(*armor, entry.get(), count, false);
+			const auto marks = CopyMarksOf(*armor, entry.get(), count, false);
 			armor = plugin;
 			if (const auto found = std::ranges::find(armors, armor, &InventoryArmor::armor); found != armors.end()) {
-				// One row for the plugin armor and those created from it: the worn one's enchantment first.
-				if (enchantment && (worn || !found->enchantment)) {
-					found->enchantment = enchantment;
+				// One row for the plugin armor and those created from it: the better marked copy, the worn one on a tie.
+				if (const auto rank = RankOf(marks); rank > RankOf(found->marks) || (worn && rank == RankOf(found->marks))) {
+					found->marks = marks;
 				}
 				found->worn = found->worn || worn;
 			} else {
-				armors.push_back({ armor, worn, enchantment });
+				armors.push_back({ armor, worn, marks });
 			}
 		}
 
@@ -503,7 +556,7 @@ namespace
 	// The player's armor an NPC's window lists under Player's Inventory, as plugin armor
 	// (PluginArmor), each form once, per the settings: none with ShowPlayerInventory off, never a
 	// quest item, a favorite only with ProtectFavorites off, and a form the player wears only with
-	// ShowPlayerWornPieces on or when they carry another copy of it. Each with the enchantment
+	// ShowPlayerWornPieces on or when they carry another copy of it. Each with the marks
 	// of the copy the player would hand over, from the first entry of its form.
 	std::vector<InventoryArmor> OfferedPlayerArmor(RE::PlayerCharacter& player)
 	{
@@ -529,7 +582,7 @@ namespace
 			}
 			auto* plugin = PluginArmor(*armor);
 			if (plugin && std::ranges::find(offered, plugin, &InventoryArmor::armor) == offered.end()) {
-				offered.push_back({ plugin, entry && entry->IsWorn(), EnchantmentOf(*armor, entry.get(), count, true) });
+				offered.push_back({ plugin, entry && entry->IsWorn(), CopyMarksOf(*armor, entry.get(), count, true) });
 			}
 		}
 		return offered;
@@ -563,9 +616,9 @@ namespace
 	// A row of the window's piece list, with SkyUI's Type (ArmorInfo), its body slots and its
 	// icon. An I4 rule's Type text replaces SkyUI's, as SkyUI with I4 shows it; the sort order
 	// stays the slot's.
-	// `enchantment`: the copy's (EnchantmentOf), which marks its row.
+	// `marks`: the copy's (CopyMarksOf), which mark its row.
 	// Contract: game thread.
-	CaptureWindow::Piece MakePiece(const RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected, RE::EnchantmentItem* enchantment)
+	CaptureWindow::Piece MakePiece(RE::TESObjectARMO& armor, CaptureWindow::PieceGroup group, bool selected, const CopyMarks& marks)
 	{
 		const auto type = ArmorInfo::TypeOf(armor);
 		const auto slots = static_cast<std::uint32_t>(armor.GetSlotMask().underlying());
@@ -581,7 +634,8 @@ namespace
 			.icon = std::move(icon.key),
 			.iconColor = icon.color,
 			.armor = armor.GetFormID(),
-			.enchantment = EnchantmentText(enchantment) };
+			.enchantment = EnchantmentText(marks.enchantment),
+			.temper = TemperText(armor, marks.health) };
 	}
 
 	// The group of a piece the actor carries: worn and put on by Livery from the library
@@ -604,7 +658,7 @@ namespace
 			return static_cast<std::size_t>(found - armors.begin());
 		}
 		armors.push_back(armor);
-		pieces.push_back(MakePiece(*armor, CaptureWindow::PieceGroup::kNotCarried, false, armor->formEnchanting));
+		pieces.push_back(MakePiece(*armor, CaptureWindow::PieceGroup::kNotCarried, false, CopyMarks{ armor->formEnchanting }));
 		return armors.size() - 1;
 	}
 
@@ -1455,7 +1509,7 @@ namespace
 		}
 		for (const auto& offered : OfferedPlayerArmor(*player)) {
 			if (std::ranges::find(armors, offered.armor) == armors.end()) {
-				pieces.push_back(MakePiece(*offered.armor, CaptureWindow::PieceGroup::kPlayer, false, offered.enchantment));
+				pieces.push_back(MakePiece(*offered.armor, CaptureWindow::PieceGroup::kPlayer, false, offered.marks));
 				armors.push_back(offered.armor);
 				added.push_back(offered.armor);
 			}
@@ -1494,7 +1548,7 @@ namespace
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& piece : inventory) {
-			request.pieces.push_back(MakePiece(*piece.armor, OwnPieceGroup(piece, choices, livery), piece.worn, piece.enchantment));
+			request.pieces.push_back(MakePiece(*piece.armor, OwnPieceGroup(piece, choices, livery), piece.worn, piece.marks));
 			armors.push_back(piece.armor);
 		}
 		const auto offered = saveOnly ? std::vector<RE::TESObjectARMO*>{} : AddPlayerPieces(actor, armors, request.pieces);
