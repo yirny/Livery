@@ -195,8 +195,8 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 
 | From | Dropped on | Result |
 | --- | --- | --- |
-| an outfit list row (right) | a heading, its rule, its `Items...` line | added at the front (§1) |
-| an outfit list row (right) | between two outfit rows of a situation | added there |
+| an outfit list row (right), or the name row of an outfit's details (§5) | a heading, its rule, its `Items...` line | added at the front (§1) |
+| an outfit list row (right), or the name row of an outfit's details | between two outfit rows of a situation | added there |
 | a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target with the items it left off there, unless the target has it already; its details, when shown from the source, follow it |
 | a situation's outfit row | its own situation | reordered |
 | a situation's outfit row, or `Items not in the wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
@@ -242,12 +242,13 @@ The situation's details, its fields evenly spaced with no headings:
   name cannot be changed.` on hover.
 - `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule in
   grey, as the README words it (Town: `A city, town, settlement, inn or other inhabited
-  interior.`); the Default's `Worn where no other situation applies.`
+  interior.`); the Default's `Worn where no other situation applies.` The text sits a field's
+  frame padding below the label, where a field's text would (`DrawFieldText`).
 - `Random Outfit (for #{Name}) (?)`, a checkbox: `On: one outfit of the list is picked at random
   each time this situation begins for #{Name}, and worn until it ends. Off: only the outfit
   shown is worn, the last one picked; the others stay on the list, hidden.` Unticking it keeps
   the last pick on (§1).
-- 12px of extra room, then `Show Outfit List`, a button centred in the pane. A click shows
+- The room above every button row (`ButtonRowGap`), then `Show Outfit List`, a button centred in the pane. A click shows
   the outfit list, keeps the situation selected, opens its heading if folded and scrolls the
   left pane to it when the pane can scroll.
 - `Remove` at the right end of Show Outfit List's row, drawn as Restore Presets is, without
@@ -261,18 +262,20 @@ The situation's details, its fields evenly spaced with no headings:
   docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
   Nothing is selected and the right pane shows the outfit list.
 
-An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its icon and name
-with no label (`Theme::OutfitNameText`), `SITUATIONS (#{Name})`, its label starting with the
+An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its name with no
+label, as a list of one outfit row drawn as the outfit list's (grip, icon, the worn and Default
+marks, no situation star), its name cut short with an ellipsis; the grip drags a copy of the
+outfit as the outfit list's rows do (§4: as from the outfit list, so the right pane stays), and a
+click on it does nothing. Then `SITUATIONS (#{Name})`, its label starting with the
 star as the Name label's does, with the rows the page's edits
-give it (`Default, Town`, or `None`), then its pieces, with the Dress page's icons, under the
+give it (`Default, Town`, or `None`), placed as the Conditions text is, then its pieces, with the Dress page's icons, under the
 `Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
 ticked piece cannot be unticked. Clicked on the outfit list, or once that row no longer
 holds the outfit, they are read only: no row ticked, none taking a click, drawn ungreyed. The outfit's row in the Situation List is drawn
 selected only under the heading it was clicked under. The preview shows the outfit less its
-unticked pieces. 12px of extra
-room, then `Open in Wardrobe` (wardrobe icon before its label) and `Back` centred; when they
+unticked pieces. The room above every button row, then `Open in Wardrobe` (wardrobe icon before its label) and `Back` centred; when they
 would leave less than one item spacing on either side (`ItemSpacing.x`), they go one over the
 other, as far apart as buttons side by side are. The details grow with the pieces, moving the page's
 buttons down when taller than the Situation List, as the Wardrobe page's selection does; the
