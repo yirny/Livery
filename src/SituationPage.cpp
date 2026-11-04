@@ -12,16 +12,17 @@
 //                     the outfit list (taken off its row); a folded heading opens once a drag
 //                     has hovered it a while
 //   Situation List  - the left pane: a heading per situation (a click or Edit selects, its
-//                     chevron folds) over the outfits it shows; a click on an outfit row of
-//                     either pane shows its details and puts it on the preview
+//                     chevron folds, the die of the row worn puts on another of its outfits)
+//                     over the outfits it shows; a click on an outfit row of either pane shows
+//                     its details and puts it on the preview
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
 //                     pieces ticked as the row it was clicked under wears them
 //   Buttons, popups - Exit, Restore Presets (?); Remove's and Restore Presets' popups, each
 //                     handing its write to the Request's handler
-//   Saving          - an edit is saved shortly after the last one, or as the page is left
-//                     (ScheduleAutosave, SaveSituationEdits)
+//   Saving          - an edit is saved shortly after the last one, as the page is left, or with
+//                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
 
 #include "CaptureWindowInternal.h"
@@ -114,6 +115,15 @@ namespace CaptureWindow::Internal
 				}
 			}
 			CopyToField(entry.name, name);
+		}
+
+		// The name being typed, if any, ends its edit before a save reads the names.
+		void EndNameEditing(SituationForm& a_form)
+		{
+			if (a_form.nameEditing >= 0 && static_cast<std::size_t>(a_form.nameEditing) < a_form.entries.size()) {
+				EndNameEdit(a_form, static_cast<std::size_t>(a_form.nameEditing));
+			}
+			a_form.nameEditing = -1;
 		}
 
 		// A name field that is no longer active ends its edit, before anything this frame reads
@@ -375,15 +385,42 @@ namespace CaptureWindow::Internal
 			}
 		}
 
+		// The die of situation `a_entry`'s heading, random on: a button while the actor wears an
+		// outfit of its list (as edited) for it and another is on the list, with what a click
+		// does on hover; else the reason it is not, on hover.
+		struct Dice
+		{
+			bool        button = false;
+			std::string tip;
+		};
+
+		Dice DiceOf(const State& a_state, std::size_t a_entry)
+		{
+			constexpr const char* kOneOutfit = "Only one outfit is on this list.";
+
+			const auto& request = a_state.request;
+			const auto& outfits = a_state.situationForm.entries[a_entry].row.outfits;
+			const bool  wears = request.wornOutfit != 0 && request.situations[a_entry].situation == request.wornFor &&
+			                    std::ranges::find(outfits, request.wornOutfit) != outfits.end();
+			if (!wears) {
+				return { .tip = std::format("{} is not wearing an outfit from this list now.", request.actorName) };
+			}
+			if (outfits.size() < 2) {
+				return { .tip = kOneOutfit };
+			}
+			return { .button = true, .tip = std::format("Dress {} in another outfit from this list, picked at random.", request.actorName) };
+		}
+
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
 		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
 		// details show; Edit always selects it and shows them; the chevron folds it. Its die and
-		// count show with random on alone. Only random on with something to show has the
-		// chevron; else it is never folded (random off shows its one outfit, a drop shows what it
-		// got). With nothing to show its name is greyed. A drop on the heading, its rule included,
-		// adds at the front. `a_dragHovered` becomes the entry while a drag hovers its folded
-		// heading, which opens once DrawSituationList has seen that for kDragExpandDelay.
-		void DrawSituationEntry(State& a_state, std::size_t a_entry, int& a_dragHovered)
+		// count show with random on alone; the die is a button as DiceOf says. Only random on
+		// with something to show has the chevron; else it is never folded (random off shows its
+		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
+		// on the heading, its rule included, adds at the front. `a_dragHovered` becomes the entry
+		// while a drag hovers its folded heading, which opens once DrawSituationList has seen
+		// that for kDragExpandDelay. Returns whether its die was clicked.
+		bool DrawSituationEntry(State& a_state, std::size_t a_entry, int& a_dragHovered)
 		{
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
@@ -393,10 +430,13 @@ namespace CaptureWindow::Internal
 			if (!foldable) {
 				entry.folded = false;
 			}
+			const auto  dice = entry.row.random ? DiceOf(a_state, a_entry) : Dice{};
 			const float top = ImGui::GetCursorScreenPos().y;
 			const auto  click = Theme::SituationHeading(entry.name.data(),
 				{ .count = entry.row.random ? static_cast<int>(entry.row.outfits.size()) : -1,
 					.random = entry.row.random,
+					.diceButton = dice.button,
+					.diceTip = dice.tip.empty() ? nullptr : dice.tip.c_str(),
 					.open = !entry.folded,
 					.foldable = foldable,
 					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
@@ -435,11 +475,12 @@ namespace CaptureWindow::Internal
 			if (!entry.folded) {
 				DrawShownOutfits(a_state, a_entry);
 			}
+			return click == Theme::HeadingClick::kDice;
 		}
 
 		// The left pane: the Situation List (?) label over a heading per situation, the Default
-		// first.
-		void DrawSituationList(State& a_state)
+		// first. Returns whether a heading's die was clicked.
+		bool DrawSituationList(State& a_state)
 		{
 			auto&       form = a_state.situationForm;
 			const float paneTop = ImGui::GetCursorPosY();
@@ -455,11 +496,12 @@ namespace CaptureWindow::Internal
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
 			// Popped before EndList, as the outfit list's spacing is.
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			int dragHovered = -1;
+			int  dragHovered = -1;
+			bool diceClicked = false;
 			if (Theme::BeginList("situations", SituationListHeight(a_state, top))) {
 				for (std::size_t i = 0; i < form.entries.size(); ++i) {
 					ImGui::PushID(static_cast<int>(i));
-					DrawSituationEntry(a_state, i, dragHovered);
+					diceClicked = DrawSituationEntry(a_state, i, dragHovered) || diceClicked;
 					ImGui::PopID();
 				}
 			}
@@ -469,6 +511,7 @@ namespace CaptureWindow::Internal
 				form.dragHover = dragHovered;
 				form.dragHoverSince = ImGui::GetTime();
 			}
+			return diceClicked;
 		}
 
 		// --- Right pane -------------------------------------------------------
@@ -789,10 +832,11 @@ namespace CaptureWindow::Internal
 
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
 		// when any changed, and the outfit whose details show, which stays on
-		// the preview. Until the handler ends with SetOutfits or SetError the page takes no input.
+		// the preview; with `a_reroll`, a die's click (SituationSave::reroll). Until the handler
+		// ends with SetOutfits or SetError the page takes no input.
 		// Contract: the handler writes situations.json first and changes no row for a refused
 		// or failed write (CLAUDE.md §2.1).
-		void RequestSituationsSave(State& a_state)
+		void RequestSituationsSave(State& a_state, bool a_reroll = false)
 		{
 			const auto&                  form = a_state.situationForm;
 			const auto&                  request = a_state.request;
@@ -813,6 +857,7 @@ namespace CaptureWindow::Internal
 			if (IndexOfOutfit(a_state, form.viewedOutfit) >= 0) {
 				save.previewPieces = ViewedOutfitPieces(a_state);
 			}
+			save.reroll = a_reroll;
 			a_state.status = Status::kSaving;
 			a_state.error.clear();
 			a_state.autosaveAt = 0.0;
@@ -825,6 +870,18 @@ namespace CaptureWindow::Internal
 		// handler ends with SetOutfits or SetError.
 		// Contract: the handler writes situations.json first and changes no row for a refused
 		// or failed write (CLAUDE.md §2.1).
+		// A die's click (DiceOf): the page's edits are saved with it, then another outfit of the
+		// row the actor wears, picked at random, goes on. An outfit's details close without a
+		// preview of their own: the redress begins the preview again on what they wear.
+		void RequestReroll(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			EndNameEditing(form);
+			form.viewedOutfit = 0;
+			form.viewedRow = -1;
+			RequestSituationsSave(a_state, true);
+		}
+
 		void RequestSituationRemove(State& a_state)
 		{
 			a_state.status = Status::kSaving;
@@ -913,11 +970,7 @@ namespace CaptureWindow::Internal
 
 	bool SaveSituationEdits(State& a_state)
 	{
-		auto& form = a_state.situationForm;
-		if (form.nameEditing >= 0 && static_cast<std::size_t>(form.nameEditing) < form.entries.size()) {
-			EndNameEdit(form, static_cast<std::size_t>(form.nameEditing));
-		}
-		form.nameEditing = -1;
+		EndNameEditing(a_state.situationForm);
 		if (!a_state.request.onSituationsSave || !HasSituationEdits(a_state)) {
 			return false;
 		}
@@ -976,11 +1029,12 @@ namespace CaptureWindow::Internal
 		EndInactiveNameEdit(a_state);
 		BeginPageDisabled(a_state);
 		bool escapeTaken = false;
+		bool reroll = false;
 		auto details = DetailsAction::kNone;
 		auto outfitView = OutfitViewAction::kNone;
 		if (BeginColumns("situations")) {
 			ImGui::TableNextColumn();
-			DrawSituationList(a_state);
+			reroll = DrawSituationList(a_state);
 			ImGui::TableNextColumn();
 			ResetCellBaseline();
 			const int viewed = IndexOfOutfit(a_state, form.viewedOutfit);  // after the Situation List, whose clicks change it
@@ -1010,6 +1064,12 @@ namespace CaptureWindow::Internal
 			return;
 		}
 
+		if (reroll) {
+			QueueMenuSound(kOkSound);
+			RequestReroll(a_state);
+			DrawSituationPopups(a_state);
+			return;
+		}
 		if (outfitView == OutfitViewAction::kBack) {
 			QueueMenuSound(kCancelSound);
 			CloseOutfitView(a_state);

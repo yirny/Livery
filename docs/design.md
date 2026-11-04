@@ -418,7 +418,9 @@ it, the sentences that say what is worn end in ` for <name>` (the summary line i
 Default` for the Default, the HUD in nothing), and the logs keep the key. A removed situation offers no row
 and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on and kept until it changes, a forced redress keeping it while it is on the list,
-and recorded as `chosen`, so turning random off keeps the last pick on. Giving a row an
+and recorded as `chosen`, so turning random off keeps the last pick on. A click on the
+die of the row worn on the Situations page picks again, never the outfit worn
+(`Assignments::PickAnother`), and puts the pick on at once. Giving a row an
 outfit (`OutfitRows::Give`) with random on puts it at the front of the list; with random
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
 the list keeps its length. The Save page changes no row but by Create and Apply, which gives

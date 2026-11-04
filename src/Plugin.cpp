@@ -1326,7 +1326,8 @@ namespace
 		// The rows are made at once, so the window shows them, and dressed for in one Refresh,
 		// at once, Live Preview on or off (RedressCaptured, the preview begun again on the
 		// outfit whose details show, else on what they wear). The row they wear, when random,
-		// wears the outfit it gained first.
+		// wears the outfit it gained first, or with `reroll` another of its outfits, picked at
+		// random.
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
 			if (!save.edits.empty()) {
 				std::vector<SituationStore::Edit> edits;
@@ -1342,8 +1343,12 @@ namespace
 			const auto                                target = handle.get();
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};
 			std::optional<CaptureWindow::ActorPieces> redressed;
-			if (target && !save.rows.empty()) {
-				if (const auto pick = Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces)) {
+			if (target && (!save.rows.empty() || save.reroll)) {
+				auto pick = save.rows.empty() ? std::optional<std::uint32_t>{ 0 } : Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces);
+				if (pick && save.reroll) {
+					pick = Assignments::PickAnother(actorID);  // after SetRows, from the rows as saved
+				}
+				if (pick) {
 					redressed = RedressCaptured(*target, { .refresh = true, .pick = *pick }, armors, offered,
 						save.previewPieces ? &shown : nullptr);
 				}
