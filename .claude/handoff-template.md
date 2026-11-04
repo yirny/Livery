@@ -70,9 +70,9 @@ Depth, sections, budget, and project checks are defined **only here**; `CLAUDE.m
 
 ## Project-Specific Checks (fold into the sections above when applicable)
 
-- **Tailor data**: any new building call, or a path that could leave an empty outfit or touch existing outfits? → Constraints / Incomplete
+- **Library data** (`outfits.json`, `situations.json`, `chests.json`): any new building call, or a path that could leave an empty outfit or touch existing outfits? → Constraints / Incomplete
 - **High impact**: hooks, per-input / per-frame logic, SKSE message order, build system → Constraints
-- **Deployment**: DLL copied to MO2 or not; which Tailor / SKSE / Address Library versions were used → Status / Please Check
+- **Deployment**: DLL copied to MO2 or not; which SKSE / Address Library versions were used → Status / Please Check
 - **Verification**: steps tried + result (built / tool-verified / in-game OK / unverified / could not reproduce) → Completed / Please Check
 
 ---
