@@ -848,7 +848,10 @@ namespace CaptureWindow::Internal
 		const auto& io = ImGui::GetIO();
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar;
-		if (!ImGui::BeginPopupModal(a_id, nullptr, flags)) {
+		Theme::PushPopupPadding();
+		const bool open = ImGui::BeginPopupModal(a_id, nullptr, flags);
+		Theme::PopPopupPadding();
+		if (!open) {
 			return false;
 		}
 		Theme::DecorateWindow(true);
