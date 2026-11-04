@@ -501,7 +501,6 @@ setting, off by default). Open:
    snowy region (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit (seen while Tailor managed her).
-3. Before the first release: hide the chests (docs/RELEASING.md).
 
 ## 9. Piece icons
 
