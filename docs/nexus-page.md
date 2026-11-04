@@ -137,9 +137,9 @@ Every setting is on the Livery page of SKSE Menu Framework, where it takes effec
 [size=4][b][color=#B8953E]Requirements[/color][/b][/size]
 
 [list]
-[*]Skyrim SE or AE. Tested on 1.6.1170. Built for SE 1.5.97 and AE 1.6.x and 1.7.x; reports from other versions welcome.
+[*]Skyrim SE or AE. Tested on 1.6.1170. Built for SE 1.5.97 and AE 1.6.x and 1.7.x; reports from other versions welcome, with your Livery.log.
 [*][url=https://skse.silverlock.org/]SKSE64[/url]
-[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] for SE and AE
+[*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] for SE and AE, matching your game version (1.7.x needs a recent release)
 [*]Optional: SKSE Menu Framework, for changing the settings in game
 [/list]
 
@@ -197,8 +197,14 @@ Either, but one per character. Turn the other mod's sleepwear off for the charac
 [b]Can I type a non-English name?[/b]
 Only ASCII can be typed into the name field for now (see Roadmap).
 
+[b]The hotkey only shows "Livery: the window is not available."[/b]
+Livery couldn't set up its window in this game. The usual cause is a game version it doesn't handle yet; Livery.log says what it found. Please send it with your game version.
+
+[b]I can take the items Livery made for an NPC by trading with them.[/b]
+Livery hides them in the trade, pickpocket and container menus. If they show anyway, your game version may be one Livery doesn't handle yet; Livery.log says what it found. Please send it with your game version.
+
 [b]Something went wrong. Where do I look?[/b]
-[font=Courier New]Documents\My Games\Skyrim Special Edition\SKSE\Livery.log[/font].
+[font=Courier New]Documents\My Games\Skyrim Special Edition\SKSE\Livery.log[/font], or [font=Courier New]Skyrim Special Edition GOG[/font] in place of [font=Courier New]Skyrim Special Edition[/font] outside Steam.
 
 [line]
 
