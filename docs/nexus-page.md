@@ -35,6 +35,9 @@ Turn what you or an NPC are wearing into an outfit, straight from their equipmen
 [b]Situational Outfits[/b]
 Give a character a different outfit for Town, Castle, Home, Sleep or Cold (rain, snow, or the snowy north). Livery changes them automatically, and remembers it per character.
 
+[b]Item Chests[/b]
+Organise equipment into custom chests you can access while dressing characters. Should come in handy for armor mods with lots of variants. Off by default; turn it on in the settings.
+
 [line]
 
 [size=4][b][color=#B8953E]Design Philosophy[/color][/b][/size]
@@ -88,34 +91,42 @@ By default, you can dress your followers and spouse and save what your friends w
 [list=1]
 [*]Open Livery on the NPC.
 [*]Select the items you want them to wear.
-[*]Apply, then Exit.
+[*][b]Apply[/b], then [b]Exit[/b].
 [/list]
-Add from Wardrobe puts a saved outfit's items on the list. Items Livery put on stay on.
+[b]Add from Wardrobe...[/b] puts a saved outfit's items on the list. Items Livery put on stay on.
 
 [b]Save an outfit[/b]
 [list=1]
 [*]Open Livery on yourself or the NPC, wearing what you want to save. A friend in something you like works too.
-[*]Press Save to Wardrobe...
-[*]Name it, pick an icon, Create.
+[*]Press [b]Save to Wardrobe...[/b]
+[*]Name it, pick an icon, [b]Create[/b].
 [/list]
-To change an existing outfit, use the Update tab.
+To change an existing outfit, use the [b]Update[/b] tab.
 On a friend, Livery saves what they wear but can't change it.
 
 [b]Wear an outfit from the Wardrobe[/b]
 [list=1]
-[*]Pick the Wardrobe tab on the left edge of the window.
+[*]Pick the [b]Wardrobe[/b] tab on the left edge of the window.
 [*]Select an outfit.
-[*]Apply, then Exit.
+[*][b]Apply[/b], then [b]Exit[/b].
 [/list]
 Rename an outfit, change its icon or remove it on the same page.
 
 [b]Set situational outfits[/b]
 [list=1]
-[*]Pick the Situations tab on the left edge of the window.
+[*]Pick the [b]Situations[/b] tab on the left edge of the window.
 [*]Drag outfits from the list on the right onto the situations on the left. They are saved as you go.
 [/list]
 Drag an outfit back to the list to clear it.
 Situational outfits are saved per character.
+
+[b]Use item chests[/b]
+Turn on [b]Item chests[/b] in the settings first.
+[list=1]
+[*]Pick the [b]Chests[/b] tab, press [b]Create New Chest...[/b] and name it.
+[*]Click items from your inventory or the NPC's to put them in. [b]Add from Wardrobe...[/b] puts in a whole outfit.
+[*]When dressing, press [b]Add from Chest...[/b], select the chest, [b]Load[/b]. Select the items you want, then [b]Apply[/b].
+[/list]
 
 [b]Configure Livery[/b]
 Every setting is on the Livery page of SKSE Menu Framework, where it takes effect at once, or in [font=Courier New]Data\SKSE\Plugins\Livery.ini[/font], read when the game starts. The window's Appearance tab has the skin, palette and menu sounds, with or without SKSE Menu Framework.
@@ -169,7 +180,7 @@ Press [b]Release everyone[/b] on the Livery page of SKSE Menu Framework first, o
 By design. Livery puts the outfit back on when the NPC's 3D loads or their situation changes, not every frame, so other mods can undress them for a while.
 
 [b]I can't wear an outfit myself.[/b]
-Your own character wears only items you carry; the message on screen names the missing ones. Untick "Dress yourself from inventory only" to let Livery add them.
+Your own character wears only items you carry; the message on screen names the missing ones. Turn off [b]Dress yourself from inventory only[/b] to let Livery add them.
 
 [b]Does Livery keep my enchantments and tempering?[/b]
 An outfit stores only which items it has. When it goes on, Livery picks the best copy the character carries: a player-enchanted one first, then the most tempered one, then a plain one. Give an NPC a better copy of something they wear, and they put it on as the trade menu closes. Enchanted items from a plugin, like a Ring of Alchemy, are items in their own right and keep their effect.
@@ -198,7 +209,6 @@ Only ASCII can be typed into the name field for now (see Roadmap).
 [*]Custom situations: add your own, and edit their conditions.
 [*]Non-ASCII names, so you can name an outfit in your own language.
 [*]Livery API, so other mods can use its dressing and outfits.
-[*]Item Chests: Organise equipment into custom chests you can access while dressing characters. Should come in handy for armor mods with lots of variants.
 [/list]
 
 [b]Ideas, not planned yet (tell me which you'd use)[/b]
