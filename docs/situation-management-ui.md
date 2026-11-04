@@ -169,12 +169,13 @@ outfit for Town any more`.
   show unselects it and the right pane shows the outfit list. Edit always selects the
   situation and shows its details.
 - The die's area (random on) is a button while the actor wears an outfit of the row's list
-  (as edited) for it and another is on the list: lit as the chevron while hovered, with `Dress #{Name} in
-  another outfit from this list, picked at random.` on hover. A click saves the page's edits
+  (as edited) for it and another is on the list: lit as the chevron while hovered, with `One of these
+  outfits is picked at random each time this situation begins. Click to pick another now.` on
+  hover. A click saves the page's edits
   with it (Saving below), then puts on another outfit of the list, picked at random, never
   the one worn; an outfit's details close, so the preview shows what they wear. Else a click
-  there does nothing, the die stays grey, and hovering it shows why: `#{Name} is not wearing an
-  outfit from this list now.` or `Only one outfit is on this list.`
+  there does nothing, the die stays grey, and hovering it shows the same first sentence, then
+  why: `#{Name} is not wearing one of them now.` or `Add another to pick from.`
 - Under a heading, its outfits as rows of the outfit list (name, the form marks but no
   star, since each is chosen for a situation), each with a drag grip: two columns of three
   dots, in LabelText's grey at low alpha, here level with the headings' names (`Theme::Grip::kName`), in the right pane's

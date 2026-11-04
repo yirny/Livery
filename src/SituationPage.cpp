@@ -396,19 +396,19 @@ namespace CaptureWindow::Internal
 
 		Dice DiceOf(const State& a_state, std::size_t a_entry)
 		{
-			constexpr const char* kOneOutfit = "Only one outfit is on this list.";
+			constexpr const char* kRandomLine = "One of these outfits is picked at random each time this situation begins.";
 
 			const auto& request = a_state.request;
 			const auto& outfits = a_state.situationForm.entries[a_entry].row.outfits;
 			const bool  wears = request.wornOutfit != 0 && request.situations[a_entry].situation == request.wornFor &&
 			                    std::ranges::find(outfits, request.wornOutfit) != outfits.end();
 			if (!wears) {
-				return { .tip = std::format("{} is not wearing an outfit from this list now.", request.actorName) };
+				return { .tip = std::format("{} {} is not wearing one of them now.", kRandomLine, request.actorName) };
 			}
 			if (outfits.size() < 2) {
-				return { .tip = kOneOutfit };
+				return { .tip = std::format("{} Add another to pick from.", kRandomLine) };
 			}
-			return { .button = true, .tip = std::format("Dress {} in another outfit from this list, picked at random.", request.actorName) };
+			return { .button = true, .tip = std::format("{} Click to pick another now.", kRandomLine) };
 		}
 
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
