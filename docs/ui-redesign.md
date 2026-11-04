@@ -108,7 +108,7 @@ situation is the Situations page's job (docs/situation-management-ui.md).
     outfit, "B".`, `Create "A", then make it their new Town outfit?` (random on: `add it to
     them and wear it now`); Yes gives it that row, Apply as Default (?) the Default;
   - else the Default; when the Default holds an outfit or pieces it asks first: `Create "A",
-    then apply it as Lydia's Default?`, `The current Default, "B", will be replaced.`,
+    then apply it as Lydia's Default?`, `"A" replaces "B" as Lydia's Default.`,
     `Create and Apply` / `Cancel`; else it saves at once.
   Cancel saves nothing. The Player's Inventory pieces move first, and those that do not move
   stay out of the one dressing (`SaveRequest::fromPlayer`, `Assignments::Changes::leaveOut`).

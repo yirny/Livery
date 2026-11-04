@@ -1069,7 +1069,7 @@ namespace CaptureWindow::Internal
 		auto        help = std::format("\"{}\" becomes {}'s Default instead, and their {} outfit stays. The new Default shows only when {} ends and no other situational outfit applies.",
 			a_subject.name, name, situation, situation);
 		if (IsTaken(a_state, 0, a_subject.id)) {
-			help += std::format(" It replaces the current Default, {}.", HeldOutfitName(a_state, 0));
+			help += std::format(" It replaces {} as their Default.", HeldOutfitName(a_state, 0));
 		}
 		return help + a_subject.saveFirstHelp;
 	}
@@ -1116,8 +1116,9 @@ namespace CaptureWindow::Internal
 
 	// Apply's popup with no row offered: `Apply "A" as #{Name}'s Default?` (`... to #{Name} for
 	// Town?` when they wear it for that situation now), or with something saved first `Save
-	// your changes to "A", then apply it ...?` (`Create "A", then ...?`) and its lines; the
-	// Default it replaces. Then `a_subject.applyLabel` and Cancel. Returns the row
+	// your changes to "A", then apply it ...?` (`Create "A", then ...?`) and its lines; `"A"
+	// replaces "B" as #{Name}'s Default.` when one is held. Then `a_subject.applyLabel` and
+	// Cancel. Returns the row
 	// (DirectApplyRow) on the first.
 	std::optional<std::size_t> DrawDirectApplyPopupBody(const State& a_state, const ApplySubject& a_subject)
 	{
@@ -1131,7 +1132,7 @@ namespace CaptureWindow::Internal
 			a_subject.drawSaveLines(a_state);
 		}
 		if (row == 0 && IsTaken(a_state, 0, a_subject.id)) {
-			ImGui::TextUnformatted(std::format("The current Default, {}, will be replaced.", HeldOutfitName(a_state, 0)).c_str());
+			ImGui::TextUnformatted(std::format("\"{}\" replaces {} as {}'s Default.", a_subject.name, HeldOutfitName(a_state, 0), name).c_str());
 		}
 		const char* applyLabel = a_subject.applyLabel.c_str();
 		BeginButtonRow({ applyLabel, "Cancel" });
