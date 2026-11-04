@@ -169,7 +169,8 @@ on the player as on an NPC, unlocked like the default, and not in beast form.
 
 ### Who the hotkey opens on
 
-The player is always Full management. An NPC falls in the first group that fits, read at the
+With nothing under the crosshair the hotkey opens the window on the player, always Full
+management. An NPC falls in the first group that fits, read at the
 hotkey press (`GroupOf` in `src/Plugin.cpp`): followers and spouse (teammate flag or
 `PlayerMarriedFaction`), friends (`BGSRelationship::GetRelationship` of `Actor::GetTemplateBase`
 and the player's base at Friend or better; no record is Acquaintance), other NPCs. Relationship
@@ -207,7 +208,22 @@ Papyrus `RemoveAllItems`), which the menu filter does not see; or from an actor 
 release everything, whose copies are ordinary items once Livery is removed. Copies on the player exist only with
 `[Player] AddMissingPieces` on: unlocked ordinary items, and Release takes back only those still
 carried. The capture menu swallows every input event and disables the pause menu, so no save is
-made while a preview is on, and no preview copy reaches a save.
+made while a preview is on, and no preview copy reaches a save. While the window is open the
+HUD is hidden and an NPC is held where they stand (`src/MovementHold.cpp`).
+
+A dressing's HUD message names the pieces not carried (the player without `AddMissingPieces`)
+and those the engine refused to put on (`DressingNotes` in `src/Assignments.cpp`).
+
+### Live Preview camera
+
+With Live Preview on, the game runs and the actor is seen through sarrai-common's free camera;
+off, the game is paused and the view stays as it was. On the player the camera glides from
+SmoothCam's shoulder offset until they stand in the middle. With the cursor over the game,
+not the window: W/A/S/D move (Shift for half speed; ignored while a text field is active),
+a left drag orbits the actor sideways and tilts up and down, a right drag pans, the wheel
+zooms; `[Camera] SpeedPercent` scales all four. The camera stays near where the actor stood
+when the preview started: it stops with them at the edge of the view, and just short of
+passing through them.
 
 ### Contracts
 
@@ -262,7 +278,9 @@ would have to be kept in step).
 
 - Outfit library: own JSON under `Data/SKSE/Plugins/Livery/`, shared by every save.
   Armor identity = local FormID + plugin file name, resolved with
-  `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`.
+  `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`. A file that
+  cannot be read leaves the library empty and is never written; `Livery.log` says why
+  (`Documents/My Games/Skyrim Special Edition/SKSE/`, `Skyrim Special Edition GOG` for GOG).
 - An outfit has no categories and no gender (the window calls the library the wardrobe). An
   older file's `categories` and `gender` are read past and gone at the next write. Situations
   are per actor (§7), not in the library.
@@ -291,7 +309,11 @@ would have to be kept in step).
   load and write rules; loaded at `kDataLoaded` after the library, whether or not the
   `[Window] ItemChests` setting (off by default) shows the window's Chests tab. Never named by
   the co-save.
-- Settings: INI, as today.
+- Settings: `Data/SKSE/Plugins/Livery.ini`, written with defaults at first start; keys a newer
+  version adds are appended to an existing file, so an update never resets it. Read once at
+  start. The SKSE Menu Framework page shows the same settings and applies a change at once;
+  its Restore default settings, after a popup, resets every one but the palette. README.md's
+  Settings table lists the keys.
 
 ## 5. Co-save
 

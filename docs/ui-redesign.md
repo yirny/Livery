@@ -23,6 +23,10 @@ dressing itself.
      a form the NPC also carries is listed once, under 1–4.
   6. `"#{Outfit}"`: pieces of the loaded outfit nobody carries, listed while
      it is loaded (`owned == false` rows); a loaded chest's items too (docs/chest-ui.md).
+- Listed: every playable armor from a plugin. Non-playable armor (body mods' physics objects)
+  is left out; player-enchanted armor stands for the plugin armor it was made from
+  (`templateArmor`, `PluginArmor` in `src/Plugin.cpp`), which is what the library stores; other
+  runtime-created armor, with no plugin record, is left out.
 - Three columns: Name, Type, Slot; Slot only with `ShowSlotColumn` on (INI `[Window]`, SKSE
   Menu Framework; off by default), else Type ends at the list's right end. Type's strings and rules are SkyUI's, from the biped
   slots, taken from the SkyUI source (schlangster/skyui on GitHub, the inventory data setter),
@@ -34,7 +38,7 @@ dressing itself.
 - The count line `x of y item(s) selected` sits under the list, ending in `Add from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview follows it.
 - Buttons: `Apply` (needs a ticked piece), `Save to Wardrobe...` (needs a ticked piece; opens the Save page),
-  `Exit`. `Restore Outfit` at the right end of the Live Preview line: a borderless text
+  `Exit` (Escape too: closes the window and changes nothing). `Restore Outfit` at the right end of the Live Preview line: a borderless text
   button lit on hover, with a `(?)`, shown only while Livery dresses the actor. It ends
   Livery's dressing of them. Its `(?)`: "Takes Livery's outfit off #{Name} and forgets their
   situational outfits. Items moved from your inventory stay with them."
@@ -83,7 +87,9 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   no actor name or summary line. The page is widened when the tabs would not fit on one
   line. Each tab keeps its name while the window is open, the Update tab its outfit.
 - Both tabs start with the name, as the Wardrobe page's field: no label (`Outfit Name` on hover
-  while not being typed in; a failed save's error instead).
+  while not being typed in; a failed save's error instead). An empty field shows `kNeedName`
+  inside it; a failed save turns it red, its error on hover, until the name is edited
+  (`DrawNameField`). Only ASCII can be typed: the game's text input carries the ANSI code page.
 - `Create New Outfit`: the icon field and the name, as the Wardrobe page's (its `Choose icon`
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
   NNN`, then the ticked pieces read only, with the Dress page's icons, under their count
@@ -136,7 +142,9 @@ when they wear it; a failed write assigns nothing.
 
 ## 5. Apply
 
-- Apply assigns the ticks as the default, after the transfer (§3).
+- Apply assigns the ticks as the default, after the transfer (§3). The Default then holds the
+  outfit last loaded on the Load page when the ticks are exactly its pieces, else the ticks as
+  pieces with no outfit (`outfit` 0 in `Request::onApply`).
 - When the outfit worn now is a library outfit X (the default's id when the default is worn,
   else the worn situation's) and the ticks are all or some of its loaded pieces and nothing
   else, Apply asks nothing: X goes to the row it is worn for in one `Assignments::Change`,

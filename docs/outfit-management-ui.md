@@ -93,6 +93,15 @@ the Situations page. Each page keeps its own search and sort.
 - The count line under the list, as the piece list's: `12 outfit(s) in the wardrobe`, or
   `3 of 12 outfits` while the search narrows it. The list's height cap leaves room for it,
   and the list keeps the height of the whole library.
+- Search: keeps the outfits whose name contains the typed text, ASCII case ignored. While it
+  narrows the list the field's rule is in the accent and a cross at its right end clears it;
+  Escape clears it before it is Back. A selected outfit the search hides stays selected and
+  named on the right.
+- A second click on the selected outfit deselects it (the Load page, the Update tab, the
+  Wardrobe page, the Situations page's outfit list); the preview then shows the ticks again.
+- A details pane's count line (the Load page, Update's Current Items, the Wardrobe page, the
+  Situations page's outfit details) counts the pieces of plugins that are not loaded and says
+  how many; they have no row and stay in the outfit.
 - The order and the situation mark text are computed when the list is refreshed, never per
   frame.
 
@@ -109,7 +118,10 @@ the Situations page. Each page keeps its own search and sort.
 - The count line ends in `Add from Wardrobe...` (`Theme::LabelLink`, its plus mark
   first), which opens the Load page; greyed while the library is empty, showing
   `kNoOutfits` on hover. Not shown for the player while `Dress yourself from inventory only`
-  is ticked (`Request::offersWardrobe`). The buttons are `Apply` (dressed form before its label), `Save to Wardrobe...` (wardrobe), `Exit`.
+  is ticked (`Request::offersWardrobe`). The Load page lists the outfits and the selected one's
+  details; `Load` ticks exactly its pieces and returns, listing those nobody carries under
+  `"#{Outfit}"`, greyed with `kNoLoadedPiece` for an outfit with no loaded piece; `Back`
+  returns with the ticks unchanged (its chest mode: docs/chest-ui.md). The buttons are `Apply` (dressed form before its label), `Save to Wardrobe...` (wardrobe), `Exit`.
 - Tooltips on hover while enabled; a greyed button shows its reason instead:
   - Apply: `Dress #{Name} in the selected items.`; with a piece under `#{Player}'s Inventory` ticked, a second line: `Items from your inventory move to #{Name}.` (or `#{Name} gets a new copy of each item from your inventory; yours stay with you.`).
   - Save to Wardrobe...: `Save the selected items as a new outfit, or into an existing one.`
@@ -187,6 +199,19 @@ the Situations page. Each page keeps its own search and sort.
   at the line's right end while the chosen shipped palette's file differs from what Livery
   ships: its popup `Restore Edge.ini as Livery ships it? Your changes to it will be lost.`,
   Restore / Cancel.
+- Palette files (`Data/SKSE/Plugins/Livery/palettes/*.ini`, sarrai-common's `Palettes`):
+  `Skin` (`Modern`, `Vanilla` or `Nordic`; Modern when left out) and the skin's colours, each
+  `#RRGGBB` or `#RRGGBBAA`. A skin reads only the colours it uses (Vanilla every one but
+  `AccentLight`, Nordic every one but `AccentLight` and `Selected`), and the shipped files
+  hold only those. A colour left out or malformed keeps the skin's own; `Livery.log` names a
+  malformed one. The game's art (scroll bar, checkbox, equipped marks) keeps its colours.
+  Shipped: Modern, Edge, Vanilla, Nordic, each written only when missing. A new file is listed
+  from the next start. The dropdowns list each as `Modern - Edge` (skin, then file), or the
+  skin alone for its own palette; the settings page's choice takes effect at the next open.
+- The skins: Modern, dark panels with nearly square frames after Edge UI, in Jost; Vanilla,
+  the game's menus with a light band round the window; Nordic, NORDIC UI with its corner knot
+  and heading rope. Their fonts and textures ship in `Data/SKSE/Plugins/Livery/` with their
+  licences.
 - `Play menu sounds`, a tick written to `[UI] MenuSounds` at once.
 - Exit, which Escape also is. Nothing here is an unsaved edit, so leaving never asks.
 - The settings page's dropdown and tick show the same state (`Settings::ListPalettes`,
