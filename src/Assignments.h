@@ -78,6 +78,12 @@ namespace Assignments
 	// Contract: game thread; no preview is on (OutfitPreview::End ran).
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, std::uint32_t a_pick = 0);
 
+	// Another outfit of the random row they wear now (its outfits gone from the library left
+	// out), picked at random, for Refresh's `a_pick`: never the one they wear; 0 when that row
+	// is not random or has no other outfit, or Livery has nothing on them.
+	// Contract: game thread.
+	std::uint32_t PickAnother(RE::FormID a_actor);
+
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
 	// first situation whose row holds an outfit, else the Default (OutfitRows::Resolve). A
 	// random row picks as it goes on and keeps the pick while it stays worn and on the list.

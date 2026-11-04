@@ -153,6 +153,9 @@ namespace CaptureWindow
 		// off, as indices into Request::pieces: a preview begun again after the redress shows
 		// it; nullopt for what the actor wears then.
 		std::optional<std::vector<std::size_t>> previewPieces;
+		// The die of the random row the actor wears now was clicked: after `rows`, another
+		// outfit of that row, picked at random, goes on (Assignments::PickAnother).
+		bool reroll = false;
 	};
 
 	// What the Save page and the Wardrobe page's Save hand over: the outfit to write, and for
@@ -290,7 +293,8 @@ namespace CaptureWindow
 
 		// Run on the game thread from the Situations page (docs/situation-management-ui.md §5, §6):
 		// onSituationsSave with the page's edits, shortly after the last one or as the page is
-		// left, onSituationRemove with the situation Remove Situation's popup confirmed,
+		// left, or with them and `reroll` as a die is clicked, onSituationRemove with the
+		// situation Remove Situation's popup confirmed,
 		// onRestorePresets after Restore Presets' popup. Each writes
 		// situations.json first, when it has anything to write, and a refused or failed write
 		// changes no row; each must end by calling SetOutfits() or SetError(). Empty greys the
