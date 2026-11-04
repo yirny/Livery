@@ -600,7 +600,7 @@ namespace CaptureWindow::Internal
 			}
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			ImGui::TextWrapped("%s", a_state.request.situations[a_entry].conditions.c_str());
+			DrawFieldText(a_state.request.situations[a_entry].conditions.c_str());
 			ImGui::PopStyleColor();
 		}
 
@@ -646,7 +646,7 @@ namespace CaptureWindow::Internal
 					name));
 			}
 
-			BeginPaneButtonRow({ kShowList });
+			BeginButtonRow({ kShowList });
 			auto action = Theme::Button(kShowList) ? DetailsAction::kShowList : DetailsAction::kNone;
 			if (selected > 0 && Theme::LineLink("Remove")) {
 				action = DetailsAction::kRemove;
@@ -691,7 +691,7 @@ namespace CaptureWindow::Internal
 			const float     spacing = ImGui::GetStyle().ItemSpacing.x;
 			const RowButton open{ "Open in Wardrobe", Theme::HeadingIcon::kWardrobe };
 			const bool      stacked = ButtonRowWidth({ open, "Back" }) + spacing * 2.0f > ImGui::GetContentRegionAvail().x;
-			const float     buttonRow = ImGui::GetStyle().ItemSpacing.y + kPaneButtonGap * Theme::Scale() + Theme::ButtonHeight() +
+			const float     buttonRow = ImGui::GetStyle().ItemSpacing.y + ButtonRowGap() + Theme::ButtonHeight() +
 			                            (stacked ? spacing + Theme::ButtonHeight() : 0.0f);                               // under the pieces' list
 			const float     bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;  // the view's lowest
 			ImGui::PushID("outfitView");
@@ -705,9 +705,9 @@ namespace CaptureWindow::Internal
 				ScheduleAutosave(a_state);
 			}
 			if (stacked) {
-				BeginPaneButtonRow({ open });
+				BeginButtonRow({ open });
 			} else {
-				BeginPaneButtonRow({ open, "Back" });
+				BeginButtonRow({ open, "Back" });
 			}
 			const bool openWardrobe = Theme::Button(open.icon, open.label);
 			if (stacked) {

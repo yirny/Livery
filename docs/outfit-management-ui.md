@@ -241,7 +241,8 @@ the Situations page. Each page keeps its own search and sort.
     page's; the outfit's own list keeps its order, so sorting is no edit. Under the list, the
     count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page; the count includes
     pieces from plugins that are not loaded, which stay in the outfit. Then `Save`, centred
-    in the column 12px lower, not shown with no outfit selected. The pieces are the Dress
+    in the column below the room above every button row (`ButtonRowGap`, as the page's own
+    buttons have), not shown with no outfit selected. The pieces are the Dress
     page's tick rows (`Theme::TickRow`, with their icons): the ticked ones are what Apply
     dresses the actor in, the unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
     They start as that row leaves them, the row the actor wears the outfit for now, else the
@@ -250,8 +251,8 @@ the Situations page. Each page keeps its own search and sort.
     takes (`SetOutfits`), starts the ticks again from the rows; Save and Remove ignore
     them. The Load page's details and the Save page's piece columns keep the same room before
     their count line, which stays over their list. Their read-only piece rows have the same icons
-    (`Theme::TextRow`), and the outfit's name over the Load page's details, and over the
-    Situations page's outfit details, its icon as the outfit list draws it (`Theme::OutfitNameText`).
+    (`Theme::TextRow`), and the outfit's name over the Load page's details, its icon as the
+    outfit list draws it (`Theme::OutfitNameText`).
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
   has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Save's

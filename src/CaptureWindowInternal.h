@@ -58,9 +58,6 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedChest = "Select a chest.";
 	constexpr const char* kNoChests = "No chests yet.";
 	constexpr const char* kNoChanges = "No changes to save.";
-	// Room above a button row in a column (Show Outfit List; an outfit's Open in Wardrobe and
-	// Back; the Wardrobe page's Save), beyond the item spacing (pixels at 1080p).
-	constexpr float kPaneButtonGap = 12.0f;
 	// Seconds after the last edit before the Situations page and the chest editor save (ScheduleAutosave).
 	constexpr double      kAutosaveDelay = 0.5;
 	constexpr const char* kWornAlready = "Already worn as is.";
@@ -387,8 +384,9 @@ namespace CaptureWindow::Internal
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone);
 	float                                ButtonRowWidth(std::initializer_list<RowButton> a_buttons);
 	void                                 CentreButtonRow(std::initializer_list<RowButton> a_buttons);
+	float                                ButtonRowGap();
 	void                                 BeginButtonRow(std::initializer_list<RowButton> a_buttons);
-	void                                 BeginPaneButtonRow(std::initializer_list<RowButton> a_buttons);
+	void                                 DrawFieldText(const char* a_text);
 	int                                  CompareColumn(const CaptureWindow::Piece& a_left, const CaptureWindow::Piece& a_right, int a_column);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
@@ -557,7 +555,8 @@ namespace CaptureWindow::Internal
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped,
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
 
-	// Outfit `a_index` (into request.existingOutfits) in the Wardrobe page's order: its name,
+	// Outfit `a_index` (into request.existingOutfits) in the Wardrobe page's order: its name as
+	// a one-row list whose grip drags a copy of it (OfferOutfitDrag; the Situations page only),
 	// `a_situations` under the "SITUATIONS (#{Name})" label, then its pieces (DrawPieceChoices)
 	// over their count line, which ends by screen Y `a_bottom`; the list scrolls when it needs
 	// more (one row shows at least). Returns true when `a_excluded` changed.

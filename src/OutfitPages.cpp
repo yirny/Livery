@@ -463,14 +463,25 @@ namespace CaptureWindow::Internal
 		DrawOutfitPieces(a_state, outfit);
 	}
 
-	// The name with no label, as the Wardrobe page's field; the situations' label with the
-	// situation star, as the Situation List's headings have it.
+	// The name with no label, as a list of one outfit row whose grip drags a copy of the outfit,
+	// as the Situations page's outfit list does (a click on it does nothing); no situation star,
+	// as the field under it names them. Then the situations' label with that star, as the
+	// Situation List's headings have it.
 	bool DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom, std::vector<std::uint32_t>* a_excluded)
 	{
-		DrawSelectedName(a_state, a_index, "");
 		const auto& outfit = OutfitAt(a_state, a_index);
+		Theme::SectionGap();  // as the label beside it opens (Theme::LabelText)
+		// No gap under the row, as the outfit list has none (Theme::OutfitRow).
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+		const float rowHeight = Theme::OutfitRowHeight();
+		if (Theme::BeginList("outfitName", FittedListHeight(rowHeight, rowHeight))) {
+			DrawOutfitRow(a_state, a_state.situationBrowser, a_index, false, false, Theme::Grip::kEdge, false);
+			OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), Theme::Grip::kEdge, &outfit.icon);
+		}
+		ImGui::PopStyleVar();
+		Theme::EndList();
 		Theme::LabelText(a_state.situationsLabel.c_str(), true, true);
-		ImGui::TextWrapped("%s", a_situations.c_str());
+		DrawFieldText(a_situations.c_str());
 		Theme::AfterFieldGap();
 		// A frame's height holds the count line under the list, in every skin's small font.
 		const bool changed = DrawPieceChoices(a_state, outfit.pieces, a_excluded, a_bottom - ImGui::GetFrameHeightWithSpacing());
@@ -777,7 +788,7 @@ namespace CaptureWindow::Internal
 		}
 		Theme::CountText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str(), false);
 		const bool edit = Theme::LabelLink("Edit");
-		BeginPaneButtonRow({ "Save" });
+		BeginButtonRow({ "Save" });
 		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
 		const bool save = ReasonButton("Save", SaveReason(a_state));
 		ImGui::EndDisabled();
