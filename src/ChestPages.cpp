@@ -14,9 +14,10 @@
 //                  then the items taken out that nobody carries under their own heading, a
 //                  click putting an item in; right the chest's items, a click taking one out;
 //                  Add from Wardrobe... / Add from Chest... open the Load page, whose Add puts
-//                  an outfit's or another chest's items in; Back, Remove (Remove chest?,
+//                  an outfit's or another chest's items in; Dress with this chest... (the
+//                  Dress page with the chest loaded), Back, Remove (Remove chest?,
 //                  onChestRemove) at the row's right end. An edit is saved shortly after the
-//                  last one, or as Back or Escape leaves (onChestUpdate). Nothing here dresses
+//                  last one, or as the page is left (onChestUpdate). Nothing here dresses
 //                  anyone.
 #include "PCH.h"
 
@@ -388,18 +389,35 @@ namespace CaptureWindow::Internal
 	enum class ChestAction
 	{
 		kNone,
+		kDress,
 		kRemove,
 		kBack
 	};
 
-	// Back centred, Remove a link at the row's right end, as the Wardrobe page's.
+	// Dress with this chest... and Back centred, Remove a link at the row's right end, as the
+	// Wardrobe page's. Dress is greyed while the chest as edited has no loaded item, and while the
+	// Dress page offers no Add from Chest... (the player dressing from their inventory only).
 	ChestAction DrawChestButtons(const State& a_state)
 	{
-		BeginButtonRow({ "Back" });
+		constexpr const char* kDressWithChest = "Dress with this chest...";
+		constexpr const char* kInventoryOnly = "Not available while dressing from your inventory only.";
+
+		const char* noDress = nullptr;
+		if (!a_state.request.offersWardrobe) {
+			noDress = kInventoryOnly;
+		} else if (a_state.chest.pieces.empty()) {
+			noDress = kNoLoadedPiece;
+		}
+		BeginButtonRow({ { kDressWithChest, Theme::HeadingIcon::kBareForm }, "Back" });
+		const bool dress = ReasonButton(kDressWithChest, noDress, nullptr, Theme::HeadingIcon::kBareForm);
+		ImGui::SameLine();
 		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 		ImGui::BeginDisabled(!a_state.request.onChestRemove);
 		const bool remove = Theme::LineLink("Remove");
 		ImGui::EndDisabled();
+		if (dress) {
+			return ChestAction::kDress;
+		}
 		if (remove) {
 			return ChestAction::kRemove;
 		}
@@ -489,7 +507,8 @@ namespace CaptureWindow::Internal
 		return remove;
 	}
 
-	// The name field, the two columns and their links, then Back / Remove. A click on an item
+	// The name field, the two columns and their links, then Dress with this chest... / Back /
+	// Remove. A click on an item
 	// moves it to the other column; every edit is saved shortly after the last one, or as the
 	// page is left.
 	void DrawChestEditPage(State& a_state)
@@ -555,6 +574,11 @@ namespace CaptureWindow::Internal
 			GoToPage(a_state, Page::kLoad);
 		}
 		switch (action) {
+		case ChestAction::kDress:
+			// Saves the edits first, as Back does; the Dress page then loads the chest as written.
+			QueueMenuSound(kOkSound);
+			RequestLeave(a_state, { .page = Page::kCapture, .loadChest = ChestAt(a_state, form.chest).id });
+			break;
 		case ChestAction::kRemove:
 			QueueMenuSound(kOkSound);
 			ImGui::OpenPopup(kChestRemovePopup);

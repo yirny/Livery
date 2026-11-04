@@ -541,12 +541,12 @@ namespace CaptureWindow::Internal
 		SetInventoryShown(a_state);
 	}
 
-	// Lists the selected chest's items on the Dress page and ticks none: the ticks stay, so
+	// Lists the chest's items on the Dress page and ticks none: the ticks stay, so
 	// the listed pieces nobody carries that are ticked stay listed too (DrawPieceRows' contract)
 	// and the unticked ones go. The heading names what the list came from.
-	void LoadChest(State& a_state)
+	void LoadChest(State& a_state, int a_chest)
 	{
-		const auto& chest = ChestAt(a_state, a_state.previewedChest);
+		const auto& chest = ChestAt(a_state, a_chest);
 		auto&       sources = a_state.inventorySources;
 		std::erase_if(sources, [&chest](const ShownSource& a_source) { return a_source.chest && a_source.id == chest.id; });  // loaded again, whole
 		for (auto& source : sources) {
@@ -585,7 +585,7 @@ namespace CaptureWindow::Internal
 		switch (a_state.loadTarget) {
 		case LoadTarget::kInventory:
 			if (LoadsChests(a_state)) {
-				LoadChest(a_state);
+				LoadChest(a_state, a_state.previewedChest);
 			} else {
 				LoadOutfit(a_state);
 			}
