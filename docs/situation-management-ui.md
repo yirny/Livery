@@ -153,21 +153,29 @@ outfit for Town any more`.
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
   order. Each: the star of the Situations tab, a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
-  random on, a die (a hexagon split into three faces with one, three and two pips, a square 4px
-  short of the name's line height, grey) and `(n)`, the length of `outfits`, in the small heading style,
-  the die's outline as far from the name and from `(n)` as `(n)` is from a name without it
-  (`ItemInnerSpacing.x`); with random on and anything showing under it, a chevron, pointing
+  random on, `(n)`, the length of `outfits`, in the small heading style, `ItemInnerSpacing.x`
+  after the name; with random on and anything showing under it, a chevron, pointing
   down while open and right while folded, grey, lit while hovered (white in Vanilla and
-  Nordic, the accent in Modern); then, 12px on, a rule in the list's rule colour, and 12px on
-  `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
+  Nordic, the accent in Modern); then, 12px on, a rule in the list's rule colour; 12px on,
+  with random on, a die (a hexagon split into three faces with one, three and two pips, a
+  square 4px short of the name's line height, grey), its square ending 8px short of `Edit`;
+  and `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
-- Click areas: from the chevron (with its padding) to Edit, rule included, folds; left of it
-  selects (with no chevron, everything left of Edit selects); Edit with its padding to the
-  right end. A click on the name selects the situation (the single-choice row highlight of the
+- Click areas: from the chevron (with its padding) to the die (to Edit with no die), rule
+  included, folds; left of it selects (with no chevron, everything left of the die or Edit
+  selects); the die with 4px on each side; Edit with its padding to the right end. A click on the name selects the situation (the single-choice row highlight of the
   skin) and shows its details on the right; a click on the selected one while its details
   show unselects it and the right pane shows the outfit list. Edit always selects the
   situation and shows its details.
+- The die's area (random on) is a button while the actor wears an outfit of the row's list
+  (as edited) for it and another is on the list: lit as the chevron while hovered, with `One of these
+  outfits is picked at random each time this situation begins. Click to pick another now.` on
+  hover. A click saves the page's edits
+  with it (Saving below), then puts on another outfit of the list, picked at random, never
+  the one worn; an outfit's details close, so the preview shows what they wear. Else a click
+  there does nothing, the die stays grey, and hovering it shows the same first sentence, then
+  why: `#{Name} is not wearing one of them now.` or `Add another to pick from.`
 - Under a heading, its outfits as rows of the outfit list (name, the form marks but no
   star, since each is chosen for a situation), each with a drag grip: two columns of three
   dots, in LabelText's grey at low alpha, here level with the headings' names (`Theme::Grip::kName`), in the right pane's
@@ -298,8 +306,10 @@ shows the situation's.
   even before the redress) and dresses them once (`Assignments::Refresh`), by
   docs/outfit-management-ui.md §6 (at once, Live Preview on or off; with it on the preview
   begins again on the outfit whose details show (§5), else on what they wear); a random
-  row they wear wears the outfit it gained first. The page stays, an outfit's details
-  too, and the edits start again from what was saved.
+  row they wear wears the outfit it gained first. A die's click (§3) saves at once, with
+  `SituationSave::reroll`: after the rows, `Assignments::PickAnother` picks another outfit
+  of the row they wear and the `Refresh` wears it, even with no edit to save. The page
+  stays, an outfit's details too, and the edits start again from what was saved.
 - Exit closes the window; Escape does what Exit does, first clearing a search. While a write
   runs (a save, Remove, Restore Presets) the page takes no input, Remove and Restore Presets
   greying it, and Escape does nothing,
@@ -327,10 +337,11 @@ shows the situation's.
   column's tabs and what leaving a page does (`RequestLeave`, `FinishLeave`), with the
   Wardrobe page's unsaved-changes alert (`DrawLeavePopup`).
 - `src/OutfitRows.h`: `Place`, a drop at a place in a row's list (`Give` is a drop at the
-  front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick.
+  front); `src/Assignments.cpp`: `SetRows`, `HoldersOf`, `Refresh`'s pick, `PickAnother`.
 - `Theme`: the tab icon (the star of `OutfitMarks`), the Situation List heading
-  (`SituationHeading` with its `SituationHeadingLook`, the die of random on, right-hand chevron and Edit with their
-  own click areas, `HeadingClick::kEdit`), the
+  (`SituationHeading` with its `SituationHeadingLook`, the die of random on, a button with
+  `diceButton` and a tooltip with `diceTip`, right-hand chevron and Edit with their
+  own click areas, `HeadingClick::kEdit`, `kDice`), the
   drag grip (`Theme::Grip` for `OutfitRow`), the
   details' Remove link (`LineLink`), Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
@@ -352,6 +363,8 @@ shows the situation's.
   a click on the selected heading with the outfit list showing; an outfit's details from
   either pane, with Back, Escape and Open in Wardrobe, the labels' sort, both button layouts, and the preview; several drops in a row redressing
   once, about 0.5 s after the last (Live Preview on and off); Random Outfit on, picks at situation changes;
+  the die of the row worn lit with its tooltip, a click wearing another outfit (Live Preview on and off),
+  the other dice unlit with their reasons;
   rename refused when empty or taken; Remove and its popup, the rows gone; Restore Presets brings it back empty; the
   Exit, Escape and a tab right after an edit, saving before they go; the three skins.
 

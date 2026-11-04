@@ -14,7 +14,7 @@
 //                 or unknown to this version dropped),
 //                 the items the rows' outfits leave off in a record of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, MenuOpenCloseEvent
-//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / WearFor /
+//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsManagedNpc
 #include "PCH.h"
@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <atomic>
 #include <format>
+#include <iterator>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -1129,6 +1130,22 @@ namespace Assignments
 									 SituationStore::Suffix(worn)) :
 		                         std::format("Livery: {}: own clothes now", NameOf(a_actor));
 		Notify(text + (result ? DressingNotes(*result) : "") + ".");
+	}
+
+	std::uint32_t PickAnother(RE::FormID a_actor)
+	{
+		const auto* assignment = FindAssignment(a_actor);
+		if (!assignment || assignment->pieces.empty()) {
+			return 0;
+		}
+		const auto  rows = LiveRows(*assignment);
+		const auto& row = rows[RowOf(assignment->worn)];
+		if (!row.random) {
+			return 0;
+		}
+		std::vector<std::uint32_t> others;
+		std::ranges::copy_if(row.outfits, std::back_inserter(others), [assignment](std::uint32_t a_outfit) { return a_outfit != assignment->wornOutfit; });
+		return others.empty() ? 0 : others[RandomIndex(others.size())];
 	}
 
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now)
