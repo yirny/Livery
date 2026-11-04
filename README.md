@@ -156,7 +156,6 @@ Livery never sets `ReleaseEveryone` back to `0`: set it yourself to keep playing
 - Items from plugins that are not loaded have no row in the window and stay in the outfit. Edit `outfits.json` to remove them.
 - Slots an outfit leaves empty stay the game's: an NPC can put on a helmet or shield they own there.
 - Your Sleep outfit goes on only with a mod that puts you into bed: the game's own beds just pass the time.
-- Earlier versions, as a Tailor add-on, kept an outfit named `Preview Outfit (used by Capture Outfit add-on)` in Tailor's library. It is no longer used; delete it in Tailor.
 - The copies Livery adds to an NPC who has no default outfit show in the trade menu, where you can take them for free.
 
 ## License

@@ -3,9 +3,7 @@
 Written 2026-10-19 for the AI and the developer who implement it. Current spec only;
 the decisions below were settled with the user and verified where marked. The product
 is Livery - Outfit Manager (`livery.dll`, `Livery.ini`, `Livery.log`,
-`Data/SKSE/Plugins/Livery/`). This repository evolved from a Tailor add-on and keeps
-its ImGui window, input hook, theme, preview camera and inventory code; the Tailor API
-dependency went away in stage 2. The dressing core is `src/Dressing.cpp`, the
+`Data/SKSE/Plugins/Livery/`). The dressing core is `src/Dressing.cpp`, the
 assignments and co-save `src/Assignments.cpp`, the library `src/Library.cpp`, the trade-menu
 filter `src/TradeFilter.cpp`, the situations and their poll `src/Situations.cpp`.
 
@@ -522,7 +520,7 @@ setting, off by default). Open:
 2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
    snowy region (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
-   armor gone after Load Outfit + Exit (seen while Tailor managed her).
+   armor gone after Load Outfit + Exit.
 
 ## 9. Piece icons
 
