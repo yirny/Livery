@@ -161,7 +161,6 @@ Every setting is on the Livery page of SKSE Menu Framework, where it takes effec
 [*]No ESP/ESL and no scripts, so it sits beside any other mod without setting your PC on fire; its co-save record is simply skipped once Livery is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
 [*][b]Nether's Follower Framework[/b]: fine, as long as you don't use its outfit features on the followers Livery dresses.
 [*][b]Tailor[/b]: fine for wigs; leave the outfits to one of the two.
-[*][b]Devious Devices[/b]: not tested. Don't dress a character wearing devices.
 [*]Skyrim VR is not supported.
 [/list]
 <!-- generated:end -->
