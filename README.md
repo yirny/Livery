@@ -93,7 +93,7 @@ A chest can hold several items for one body slot, such as the variants of one ar
 
 ### Live Preview
 
-With **Live Preview** ticked, the game keeps running and the character wears the selected items, seen through a free camera. With it off, the game is paused. Closing the window always ends the preview and puts back what they wore.
+With **Live Preview** ticked, the game keeps running and the character wears the selected items. With it off, the game is paused. Either way, you can move the camera around the character. Closing the window always ends the preview and puts back what they wore.
 
 With the cursor over the game rather than the window:
 

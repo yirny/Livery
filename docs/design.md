@@ -198,8 +198,8 @@ restart. Each group has an access in `[General]` (`Settings::AccessOf`), default
 - `Full`: the whole window. `Off`: a HUD message, no window.
 - `SaveOnly` (`Request::saveOnly`): the window lists only the worn armor with its ticks fixed,
   has the Dress and Appearance tabs, no Apply, Restore, Create and Apply or link to the
-  Wardrobe, and writes the library only through the Save page. Its Live Preview is the camera
-  alone and never calls `OutfitPreview`, so the inventory stays untouched. An Update of the
+  Wardrobe, and writes the library only through the Save page. Its Live Preview only keeps
+  the game running and never calls `OutfitPreview`, so the inventory stays untouched. An Update of the
   outfit the NPC wears still redresses them, as for every wearer of an updated outfit.
 
 The group is read only there: outfits an NPC already wears stay on when their group changes,
@@ -232,13 +232,14 @@ and those the engine refused to put on (`DressingNotes` in `src/Assignments.cpp`
 
 ### Live Preview camera
 
-With Live Preview on, the game runs and the actor is seen through sarrai-common's free camera;
-off, the game is paused and the view stays as it was. On the player the camera glides from
-SmoothCam's shoulder offset until they stand in the middle. With the cursor over the game,
+While the window is open the actor is seen through sarrai-common's free camera, Live Preview
+on or off (on, the game runs; off, it is paused). It starts where the view was, so an NPC's
+view does not change as the window opens; on the player it glides from SmoothCam's shoulder
+offset until they stand in the middle. The window's close puts the view back. With the cursor over the game,
 not the window: W/A/S/D move (Shift for half speed; ignored while a text field is active),
 a left drag orbits the actor sideways and tilts up and down, a right drag pans, the wheel
 zooms; `[Camera] SpeedPercent` scales all four. The camera stays near where the actor stood
-when the preview started: it stops with them at the edge of the view, and just short of
+when the window opened: it stops with them at the edge of the view, and just short of
 passing through them.
 
 ### Contracts

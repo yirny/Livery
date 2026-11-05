@@ -262,9 +262,9 @@ namespace CaptureWindow::Internal
 	}
 
 	// While pinned, centres the window on placeCentre, or on its start place:
-	// vertically centred, and beside the live preview with its right edge
-	// kPreviewGapRatio left of the screen's middle, or else in the middle.
-	// The gap follows the screen height, as the NPC in front does (the view
+	// vertically centred, beside the character in the middle of the view, with
+	// its right edge kPreviewGapRatio left of the screen's middle, Live Preview
+	// on or off. The gap follows the screen height, as the NPC in front does (the view
 	// widens sideways on a wider screen, so ultrawide keeps the same gap). The centre is kept so the page's width and the last frame's
 	// height fit the screen; one taller than the screen keeps its top edge on
 	// it. Unpinned, the window stays where the user left it until its height
@@ -272,15 +272,14 @@ namespace CaptureWindow::Internal
 	// it was pinned this frame.
 	bool PlaceWindow(State& a_state, const ImGuiIO& a_io, float a_width)
 	{
-		constexpr float kPreviewGapRatio = 0.20f;  // of the screen height, from the screen's middle to the right edge of the window beside a preview
+		constexpr float kPreviewGapRatio = 0.20f;  // of the screen height, from the screen's middle to the window's right edge
 
 		if (a_state.recentreFrames == 0) {
 			return false;
 		}
 		--a_state.recentreFrames;
 		const auto&  screen = a_io.DisplaySize;
-		const bool   aside = a_state.previewOn;
-		const ImVec2 start(aside ? screen.x * 0.5f - screen.y * kPreviewGapRatio - a_width * 0.5f : screen.x * 0.5f, screen.y * 0.5f);
+		const ImVec2 start(screen.x * 0.5f - screen.y * kPreviewGapRatio - a_width * 0.5f, screen.y * 0.5f);
 		const ImVec2 centre = a_state.placeCentre.value_or(start);
 		const auto   inside = [](float a_centre, float a_extent, float a_limit) {
 			return (std::max)(a_extent * 0.5f, (std::min)(a_centre, a_limit - a_extent * 0.5f));
@@ -781,16 +780,12 @@ namespace CaptureWindow::Internal
 	// since a press the window did not own; the mouse moves of the frame it was
 	// held (collected by QueueInput) are a look for the left button and a pan
 	// for the right. Keys count while no item is active and no popup is open
-	// (WantCaptureKeyboard), the wheel while the cursor is over the game. None
-	// while Live Preview is off: a drag is dropped, so QueueInput moves the
-	// cursor again.
+	// (WantCaptureKeyboard), the wheel while the cursor is over the game. Live
+	// Preview on or off: the camera moves in the frozen game too.
 	void ForwardViewInput(State& a_state)
 	{
 		const auto& onViewInput = a_state.request.onViewInput;
-		if (!onViewInput || !a_state.previewOn) {
-			a_state.viewDragButton = -1;
-			a_state.viewDragX = 0.0f;
-			a_state.viewDragY = 0.0f;
+		if (!onViewInput) {
 			return;
 		}
 		const auto&              io = ImGui::GetIO();
@@ -1253,9 +1248,8 @@ namespace CaptureWindow::Internal
 		return restore;
 	}
 
-	// Turns the live preview on or off and the game's freeze the other way.
-	// Turning it on puts the window back on its start place beside the preview,
-	// unless the user moved it; a refusal greys the tick with the reason.
+	// Turns the live preview on or off and the game's freeze the other way; the
+	// camera and the window's place stay. A refusal greys the tick with the reason.
 	// Contract: game thread (SKSE task queued by DrawPreviewToggle). Open and
 	// Close run only there too, so the session cannot change between the two
 	// locks; the handlers run outside the lock, as they dress the actor.
@@ -1285,10 +1279,6 @@ namespace CaptureWindow::Internal
 			state.previewOn = on;
 			state.request.previewNote = std::move(reason);
 			state.frozeGame = !on;
-			if (on && !state.userMoved) {
-				state.placeCentre.reset();  // the start place
-				state.recentreFrames = kRecentreFrames;
-			}
 		}
 		SetGameFrozen(!on);
 	}
@@ -1300,7 +1290,7 @@ namespace CaptureWindow::Internal
 	{
 		constexpr const char*                kSummary = "Keeps the game running and dresses the character in the selected items.";
 		constexpr std::array<const char*, 5> kControls{
-			"With the cursor over the game:",
+			"Camera, with the cursor over the game:",
 			"Left drag - turns around the character",
 			"Right drag - pans",
 			"Mouse wheel - zooms",
@@ -2304,7 +2294,6 @@ namespace CaptureWindow
 			state.editShown.clear();
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
-			state.userMoved = false;
 			++state.session;
 			state.previewOn = state.request.previewOn;
 			state.previewBusy = false;
@@ -2565,12 +2554,7 @@ namespace CaptureWindow
 			ImGui::End();
 			return;
 		}
-		// Unpinned, only a drag moves the window: auto-resize keeps its top-left corner.
-		const ImVec2 pos = ImGui::GetWindowPos();
-		if (!pinned && (pos.x != state.windowPos.x || pos.y != state.windowPos.y)) {
-			state.userMoved = true;
-		}
-		state.windowPos = pos;
+		state.windowPos = ImGui::GetWindowPos();
 		// Unpinned, a new height (a Load lengthening the Dress page's list, a note) pins the
 		// window from the next frame on its centre at the old height, kept on the screen.
 		const ImVec2 size = ImGui::GetWindowSize();
