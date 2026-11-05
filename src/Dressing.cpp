@@ -5,8 +5,8 @@
 //               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
-//   API       - RefreshModel / Dress / PutBackOn / TakeOffExtras / OutfitItemContestsLock / Replenish /
-//               Upgrade / Release / PutBack / MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
+//   API       - RefreshModel / Dress / PutBackOn / TakeOffExtras / Replenish / Upgrade / Release /
+//               PutBack / MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -488,11 +488,13 @@ namespace Dressing
 			if (!copy.extra->GetWorn() || !IsGear(*copy.armor) || IsLocked(*copy.extra)) {
 				return false;
 			}
-			// Armor over a worn piece always comes off. Armor in a slot no piece has comes off as
-			// [General] UnusedSlots says; armor only in the slots of pieces gone stays: those slots
-			// are the engine's until the next dressing (docs/design.md §2).
+			// An outfit item (any ExtraOutfitItem: their own outfit, or another mod's distributed
+			// one), which the trade menu hides, and armor over a worn piece always come off. Other
+			// armor in a slot no piece has comes off as [General] UnusedSlots says; other armor only
+			// in the slots of pieces gone stays: those slots are the engine's until the next
+			// dressing (docs/design.md §2).
 			const auto slots = copy.armor->GetSlotMask().underlying();
-			if ((slots & worn) == 0) {
+			if ((slots & worn) == 0 && !copy.extra->HasType<RE::ExtraOutfitItem>()) {
 				const bool unusedOff = mode == Settings::UnusedSlots::kOutfitOnly ||
 				                       (mode == Settings::UnusedSlots::kExceptHeadgear && (slots & kHeadgearSlots) != 0);
 				if ((slots & ~outfit) == 0 || !unusedOff) {
@@ -512,20 +514,6 @@ namespace Dressing
 		});
 		const auto after = countExtras();
 		return before > after ? static_cast<std::size_t>(before - after) : 0;
-	}
-
-	bool OutfitItemContestsLock(RE::Actor& actor)
-	{
-		const auto    copies = Copies(actor);
-		std::uint32_t locked = 0;  // the body slots of the worn locked pieces
-		for (const auto& copy : copies) {
-			if (copy.extra->GetWorn() && IsLocked(*copy.extra)) {
-				locked |= copy.armor->GetSlotMask().underlying();
-			}
-		}
-		return locked != 0 && std::ranges::any_of(copies, [locked](const Copy& copy) {
-			return !copy.extra->GetWorn() && copy.extra->HasType<RE::ExtraOutfitItem>() && (copy.armor->GetSlotMask().underlying() & locked) != 0;
-		});
 	}
 
 	std::size_t Replenish(RE::Actor& actor, std::vector<Piece>& pieces)
