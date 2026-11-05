@@ -327,7 +327,6 @@ namespace CaptureWindow::Internal
 		std::optional<ImVec2>       placeCentre;               // where a pinned window's centre goes; none for the start place
 		ImVec2                      windowPos{};               // of the window in the last frame drawn
 		ImVec2                      windowSize{};
-		bool                        userMoved = false;    // the user moved the window since Open, so turning Live Preview on keeps it there
 		unsigned                    session = 0;          // counts Opens, so a Live Preview task queued before a close does nothing
 		bool                        previewOn = false;    // Live Preview is on
 		bool                        previewBusy = false;  // a Live Preview tick waits for its SKSE task
