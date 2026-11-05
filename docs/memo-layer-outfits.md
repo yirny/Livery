@@ -41,7 +41,8 @@ current behaviour.
   equipping the layer piece would do.
 - A layer over the actor's own clothes: the pushed-off own piece (unlocked, in the inventory)
   is not put back by the engine's best-gear pass through a slot the layer piece leaves free.
-  The same kind of gap as the empty slots docs/design.md §2 leaves to the engine.
+  `Dressing::TakeOffExtras` (docs/design.md §2) empties a slot no piece has, so a layer over
+  their own clothes must keep it from taking those clothes off.
 
 ## Files it touches
 
