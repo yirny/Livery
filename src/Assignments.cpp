@@ -8,12 +8,13 @@
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
 //   Load, death - pieces put back on, and armor worn over them taken off, when an assigned NPC
-//                 loads; locks released when one dies; pieces taken from one in a menu
-//                 replaced as it closes
+//                 loads; locks released when one dies; armor put on one in a menu taken off at
+//                 once; pieces taken from one in a menu replaced as it closes
 //   Co-save     - save, load (version 5; the rows of situations removed in situations.json
 //                 or unknown to this version dropped),
 //                 the items the rows' outfits leave off in a record of their own, revert
-//   Event sinks - TESObjectLoadedEvent, TESDeathEvent, MenuOpenCloseEvent
+//   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
+//                 inventory), MenuOpenCloseEvent
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsManagedNpc
@@ -461,6 +462,23 @@ namespace
 		// After Upgrade, so a better copy it put on counts as a piece.
 		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
+		}
+	}
+
+	// Armor the engine put on them while the trade, container or pickpocket menu is open (a
+	// helmet given for a slot the outfit leaves empty) comes off at once, not as it closes.
+	void TakeOffGiven(RE::FormID a_actor)
+	{
+		if (a_actor == g_suspended) {
+			return;  // the preview has them off on purpose
+		}
+		auto* assignment = FindAssignment(a_actor);
+		auto* actor = assignment ? RE::TESForm::LookupByID<RE::Actor>(a_actor) : nullptr;
+		if (!actor || actor->IsDead()) {
+			return;
+		}
+		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
+			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} in a menu", count, a_actor);
 		}
 	}
 
@@ -937,15 +955,53 @@ namespace
 		}
 	};
 
-	// Opening a menu and every other menu return after the name compares. The note is not
-	// cleared as a menu opens: whether its list fills before or after that event is not
-	// documented. Only these two menus list an NPC's inventory, so the note is theirs.
+	// Registered only while the trade, container or pickpocket menu is open (MenuSink), so
+	// normal play sends it nothing. Equips by anyone but an assigned NPC return after the check.
+	class EquipSink final : public RE::BSTEventSink<RE::TESEquipEvent>
+	{
+	public:
+		RE::BSEventNotifyControl ProcessEvent(const RE::TESEquipEvent* a_event, RE::BSTEventSource<RE::TESEquipEvent>*) override
+		{
+			if (!a_event || !a_event->equipped || !a_event->actor || !IsManaged(a_event->actor->GetFormID())) {
+				return RE::BSEventNotifyControl::kContinue;
+			}
+			const auto* item = RE::TESForm::LookupByID(a_event->baseObject);
+			if (item && item->IsArmor()) {
+				const auto id = a_event->actor->GetFormID();
+				SKSE::GetTaskInterface()->AddTask([id] { TakeOffGiven(id); });
+			}
+			return RE::BSEventNotifyControl::kContinue;
+		}
+
+		static EquipSink& Get()
+		{
+			static EquipSink sink;
+			return sink;
+		}
+	};
+
+	// Every other menu returns after the name compares. The note is not cleared as a menu
+	// opens: whether its list fills before or after that event is not documented. Only these
+	// two menus list an NPC's inventory, so the note is theirs.
 	class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 	{
 	public:
 		RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
 		{
-			if (!a_event || a_event->opening || (a_event->menuName != RE::ContainerMenu::MENU_NAME && a_event->menuName != RE::BarterMenu::MENU_NAME)) {
+			if (!a_event || (a_event->menuName != RE::ContainerMenu::MENU_NAME && a_event->menuName != RE::BarterMenu::MENU_NAME)) {
+				return RE::BSEventNotifyControl::kContinue;
+			}
+			// Contract: this event's thread is not documented. BSTEventSource's Add/RemoveEventSink
+			// take its lock, defer while it notifies, and never add a sink twice
+			// (CommonLib's BSTEvent.h), so they are safe from here.
+			if (auto* events = RE::ScriptEventSourceHolder::GetSingleton()) {
+				if (a_event->opening) {
+					events->AddEventSink<RE::TESEquipEvent>(&EquipSink::Get());
+				} else {
+					events->RemoveEventSink<RE::TESEquipEvent>(&EquipSink::Get());
+				}
+			}
+			if (a_event->opening) {
 				return RE::BSEventNotifyControl::kContinue;
 			}
 			if (const auto id = g_shownInMenu.exchange(0); id != 0) {
