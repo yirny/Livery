@@ -479,6 +479,8 @@ namespace
 		}
 		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} in a menu", count, a_actor);
+			// The menu pauses the game, which skips the actor update that would show it.
+			Dressing::RefreshModel(*actor);
 		}
 	}
 
