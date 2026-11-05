@@ -31,6 +31,7 @@ namespace
 	constexpr auto kOtherNpcsKey = L"OtherNPCs";
 	constexpr auto kLivePreviewKey = L"LivePreview";
 	constexpr auto kNpcReactionKey = L"NpcReaction";
+	constexpr auto kUnusedSlotsKey = L"UnusedSlots";
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kPaletteKey = L"Palette";
 	constexpr auto kMenuSoundsKey = L"MenuSounds";
@@ -79,7 +80,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 19> kIniKeys{ {
+	constexpr std::array<IniKey, 20> kIniKeys{ {
 		{ kIniSection, kFollowersAndSpouseKey, L"Full",
 			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
 			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
@@ -92,6 +93,9 @@ namespace
 			L"0 = it opens with Live Preview off and the game paused." },
 		{ kIniSection, kNpcReactionKey, L"1",
 			L"1 = with Live Preview on, the NPC turns toward you and greets you when Livery opens." },
+		{ kIniSection, kUnusedSlotsKey, L"ExceptHeadgear",
+			L"What NPCs in a Livery outfit may equip in body slots the outfit doesn't use, such as a helmet you give them.\n"
+			L"All = anything. ExceptHeadgear = anything but helmets, hoods and circlets. OutfitOnly = nothing." },
 		{ kUiSection, kPaletteKey, L"Modern",
 			L"Window skin: a palette file in Data/SKSE/Plugins/Livery/palettes, named without .ini\n"
 			L"(Modern, Edge, Vanilla, Nordic, or your own copy of one)." },
@@ -172,6 +176,24 @@ namespace
 	} };
 
 	std::array<std::atomic<NpcAccess>, kNpcGroups.size()> g_npcAccess{ NpcAccess::kFull, NpcAccess::kSaveOnly, NpcAccess::kDisabled };
+
+	using Settings::UnusedSlots;
+
+	struct UnusedSlotsOption
+	{
+		const wchar_t* iniValue;
+		const char*    label;
+	};
+	// In UnusedSlots order.
+	constexpr std::array<UnusedSlotsOption, 3> kUnusedSlotsOptions{ {
+		{ L"All", "Allow all" },
+		{ L"ExceptHeadgear", "Except headgear" },
+		{ L"OutfitOnly", "Outfit only" },
+	} };
+
+	constexpr auto kDefaultUnusedSlots = UnusedSlots::kExceptHeadgear;  // keep in step with kIniKeys
+
+	std::atomic<UnusedSlots> g_unusedSlots{ kDefaultUnusedSlots };
 
 	std::atomic<bool>          g_livePreview{ true };
 	std::atomic<bool>          g_npcReaction{ true };
@@ -316,6 +338,29 @@ namespace
 		}
 	}
 
+	void SaveUnusedSlots(UnusedSlots a_mode)
+	{
+		const auto* value = kUnusedSlotsOptions[static_cast<std::size_t>(a_mode)].iniValue;
+		if (!::WritePrivateProfileStringW(kIniSection, kUnusedSlotsKey, value, g_iniPath.c_str())) {
+			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
+		}
+	}
+
+	// A missing key or a value Livery does not know keeps the default.
+	void LoadUnusedSlots()
+	{
+		wchar_t value[16]{};
+		::GetPrivateProfileStringW(kIniSection, kUnusedSlotsKey, L"", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		auto mode = kDefaultUnusedSlots;
+		for (std::size_t option = 0; option < kUnusedSlotsOptions.size(); ++option) {
+			if (_wcsicmp(value, kUnusedSlotsOptions[option].iniValue) == 0) {
+				mode = static_cast<UnusedSlots>(option);
+			}
+		}
+		g_unusedSlots = mode;
+		logger::info("UnusedSlots = {}", kUnusedSlotsOptions[static_cast<std::size_t>(mode)].label);
+	}
+
 	void SaveLivePreview(bool value)
 	{
 		if (!::WritePrivateProfileStringW(kIniSection, kLivePreviewKey, value ? L"1" : L"0", g_iniPath.c_str())) {
@@ -421,6 +466,8 @@ namespace
 		SaveHotkey(kDefaultHotkey, kDefaultModifier);
 		g_notifySituationChanges = false;
 		SaveFlag(kSituationsSection, kNotifyChangesKey, false);
+		g_unusedSlots = kDefaultUnusedSlots;
+		SaveUnusedSlots(kDefaultUnusedSlots);
 		for (std::size_t group = 0; group < kNpcGroups.size(); ++group) {
 			g_npcAccess[group] = kNpcGroups[group].defaultAccess;
 			SaveNpcAccess(group, kNpcGroups[group].defaultAccess);
@@ -597,6 +644,32 @@ namespace
 		}
 	}
 
+	// Applies at once: TakeOffExtras reads it at its next run (a 3D load, a trade).
+	// Contract: render thread (RenderSettings).
+	void RenderUnusedSlots()
+	{
+		constexpr float kComboWidthEms = 10.0f;  // the dropdown's width, of the font size
+
+		const auto current = static_cast<std::size_t>(g_unusedSlots.load());
+		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
+		if (ImGuiMCP::BeginCombo("Gear in unused slots", kUnusedSlotsOptions[current].label)) {
+			for (std::size_t option = 0; option < kUnusedSlotsOptions.size(); ++option) {
+				if (ImGuiMCP::Selectable(kUnusedSlotsOptions[option].label, option == current)) {
+					const auto mode = static_cast<UnusedSlots>(option);
+					g_unusedSlots = mode;
+					SaveUnusedSlots(mode);
+					logger::info("UnusedSlots = {} ({})", kUnusedSlotsOptions[option].label, kMenuSource);
+				}
+			}
+			ImGuiMCP::EndCombo();
+		}
+		ImGuiMCP::SetItemTooltip(
+			"Whether NPCs can equip additional gear in slots not used by their Livery outfit. "
+			"For example, an NPC may equip a helmet you give them if the outfit has no headgear.\n"
+			"\"Except headgear\" prevents additional helmets, hoods, and circlets.\n"
+			"Default: Except headgear");
+	}
+
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
 	// the page is shown. The INI is written only when the player clicks.
 	// Labels are short; each setting explains itself in a tooltip (CLAUDE.md, player-facing English).
@@ -625,6 +698,10 @@ namespace
 			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
 		}
 		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\nDefault: OFF");
+
+		SettingGap();
+
+		RenderUnusedSlots();
 
 		// Every tick here is immersive when on; so are the dropdowns' defaults.
 		Heading("Immersion");
@@ -790,6 +867,7 @@ namespace Settings
 		}
 
 		LoadNpcAccess();
+		LoadUnusedSlots();
 
 		// A missing key keeps the default (on).
 		wchar_t value[8]{};
@@ -911,6 +989,11 @@ namespace Settings
 	NpcAccess AccessOf(NpcGroup a_group)
 	{
 		return g_npcAccess[static_cast<std::size_t>(a_group)].load();
+	}
+
+	UnusedSlots UnusedSlotsMode()
+	{
+		return g_unusedSlots.load();
 	}
 
 	bool LivePreview()
