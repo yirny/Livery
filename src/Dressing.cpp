@@ -15,6 +15,8 @@
 
 #include "Dressing.h"
 
+#include "Settings.h"
+
 #include <algorithm>
 #include <cstring>
 #include <optional>
@@ -22,6 +24,14 @@
 
 namespace
 {
+	// --- Constants ------------------------------------------------------------
+
+	// Headgear for [General] UnusedSlots: helmets, hoods and circlets each take one of these
+	// (body slots 30, 31, 41, 42).
+	using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
+	constexpr auto kHeadgearSlots = std::to_underlying(Slot::kHead) | std::to_underlying(Slot::kHair) | std::to_underlying(Slot::kLongHair) |
+	                                std::to_underlying(Slot::kCirclet);
+
 	// --- Inventory ------------------------------------------------------------
 
 	struct Copy
@@ -473,15 +483,21 @@ namespace Dressing
 				worn |= copy.armor->GetSlotMask().underlying();
 			}
 		}
-		const auto extra = [&pieces, worn, outfit](const Copy& copy) {
+		const auto mode = Settings::UnusedSlotsMode();
+		const auto extra = [&pieces, worn, outfit, mode](const Copy& copy) {
 			if (!copy.extra->GetWorn() || !IsGear(*copy.armor) || IsLocked(*copy.extra)) {
 				return false;
 			}
-			// Armor only in the slots of pieces gone stays: those slots are the engine's until the
-			// next dressing (docs/design.md §2).
+			// Armor over a worn piece always comes off. Armor in a slot no piece has comes off as
+			// [General] UnusedSlots says; armor only in the slots of pieces gone stays: those slots
+			// are the engine's until the next dressing (docs/design.md §2).
 			const auto slots = copy.armor->GetSlotMask().underlying();
-			if ((slots & worn) == 0 && (slots & ~outfit) == 0) {
-				return false;
+			if ((slots & worn) == 0) {
+				const bool unusedOff = mode == Settings::UnusedSlots::kOutfitOnly ||
+				                       (mode == Settings::UnusedSlots::kExceptHeadgear && (slots & kHeadgearSlots) != 0);
+				if ((slots & ~outfit) == 0 || !unusedOff) {
+					return false;
+				}
 			}
 			const auto key = KeyOf(copy);
 			return !key || std::ranges::none_of(pieces, [&key](const Piece& piece) { return piece.key == *key; });

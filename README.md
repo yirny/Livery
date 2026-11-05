@@ -108,26 +108,27 @@ With the cursor over the game rather than the window:
 
 Settings live in `Data\SKSE\Plugins\Livery.ini`, created with defaults on first start and read when the game starts. With SKSE Menu Framework installed, the same settings are on its **Livery** page and take effect at once. The window's **Appearance** tab has the skin, palette and menu sounds, with or without SKSE Menu Framework.
 
-| Section      | Key                    | Default    | Meaning                                                                                                                                                            |
-| ------------ | ---------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `General`    | `FollowersAndSpouse`   | `Full`     | What the hotkey lets you do with followers and your spouse: `Full`, `SaveOnly` or `Off`.                                                                           |
-| `General`    | `Friends`              | `SaveOnly` | The same, for NPCs who count you as a friend or better.                                                                                                            |
-| `General`    | `OtherNPCs`            | `Off`      | The same, for every other adult NPC.                                                                                                                               |
-| `General`    | `LivePreview`          | `1`        | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.                                                                 |
-| `General`    | `NpcReaction`          | `1`        | `1` has the NPC turn to you and say a greeting when the window opens with Live Preview on.                                                                         |
-| `UI`         | `Palette`              | `Modern`   | Look of the window: a file in `Livery\palettes\`, named without `.ini` (see [Palettes](#palettes)).                                                                |
-| `Hotkey`     | `Key`                  | `45`       | The hotkey as a DirectInput scan code (`45` = X). In game, click the hotkey button and press a key.                                                                |
-| `Hotkey`     | `Modifier`             | `42`       | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).                                                                        |
-| `Camera`     | `SpeedPercent`         | `100`      | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).                                                                          |
-| `Player`     | `AddMissingPieces`     | `0`        | `1` lets an outfit you give yourself add the items you do not carry, which creates items; in game the tick **Dress yourself from inventory only** is its opposite. |
-| `Window`     | `ShowPlayerInventory`  | `1`        | `1` lists your armor in an NPC's window, under `<your name>'s Inventory`; never quest items.                                                                       |
-| `Window`     | `ShowPlayerWornPieces` | `0`        | `1` lists the armor you wear there too; `0` leaves it out unless you carry another copy; in game the tick **Exclude equipped items** is its opposite.              |
-| `Window`     | `ShowSlotColumn`       | `0`        | `1` adds a Slot column to the window's item list: each item's body slots by number.                                                                                |
-| `Window`     | `ItemChests`           | `0`        | `1` adds the Chests tab and **Add from Chest...** to the window (see [Use item chests](#use-item-chests)); in game the tick **Item chests**.                       |
-| `Transfer`   | `MoveFromPlayer`       | `1`        | `1`: Apply moves the selected items of that list to the NPC; `0` gives the NPC new copies.                                                                         |
-| `Transfer`   | `ProtectFavorites`     | `1`        | `1` leaves your favorites out of that list.                                                                                                                        |
-| `Situations` | `NotifyChanges`        | `0`        | `1` shows a HUD message when a character changes outfit because a situation began or ended.                                                                        |
-| `Uninstall`  | `ReleaseEveryone`      | `0`        | `1` releases everyone at every save load, to uninstall without SKSE Menu Framework (see [Uninstall](#uninstall)); not on the settings page.                        |
+| Section      | Key                    | Default          | Meaning                                                                                                                                                                            |
+| ------------ | ---------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `General`    | `FollowersAndSpouse`   | `Full`           | What the hotkey lets you do with followers and your spouse: `Full`, `SaveOnly` or `Off`.                                                                                           |
+| `General`    | `Friends`              | `SaveOnly`       | The same, for NPCs who count you as a friend or better.                                                                                                                            |
+| `General`    | `OtherNPCs`            | `Off`            | The same, for every other adult NPC.                                                                                                                                               |
+| `General`    | `LivePreview`          | `1`              | `1` opens the window with Live Preview on; `0` opens it with Live Preview off and the game paused.                                                                                 |
+| `General`    | `NpcReaction`          | `1`              | `1` has the NPC turn to you and say a greeting when the window opens with Live Preview on.                                                                                         |
+| `General`    | `UnusedSlots`          | `ExceptHeadgear` | What NPCs in a Livery outfit may equip in slots the outfit doesn't use: `All`, `ExceptHeadgear` (no helmets, hoods or circlets) or `OutfitOnly`; in game **Gear in unused slots**. |
+| `UI`         | `Palette`              | `Modern`         | Look of the window: a file in `Livery\palettes\`, named without `.ini` (see [Palettes](#palettes)).                                                                                |
+| `Hotkey`     | `Key`                  | `45`             | The hotkey as a DirectInput scan code (`45` = X). In game, click the hotkey button and press a key.                                                                                |
+| `Hotkey`     | `Modifier`             | `42`             | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).                                                                                        |
+| `Camera`     | `SpeedPercent`         | `100`            | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).                                                                                          |
+| `Player`     | `AddMissingPieces`     | `0`              | `1` lets an outfit you give yourself add the items you do not carry, which creates items; in game the tick **Dress yourself from inventory only** is its opposite.                 |
+| `Window`     | `ShowPlayerInventory`  | `1`              | `1` lists your armor in an NPC's window, under `<your name>'s Inventory`; never quest items.                                                                                       |
+| `Window`     | `ShowPlayerWornPieces` | `0`              | `1` lists the armor you wear there too; `0` leaves it out unless you carry another copy; in game the tick **Exclude equipped items** is its opposite.                              |
+| `Window`     | `ShowSlotColumn`       | `0`              | `1` adds a Slot column to the window's item list: each item's body slots by number.                                                                                                |
+| `Window`     | `ItemChests`           | `0`              | `1` adds the Chests tab and **Add from Chest...** to the window (see [Use item chests](#use-item-chests)); in game the tick **Item chests**.                                       |
+| `Transfer`   | `MoveFromPlayer`       | `1`              | `1`: Apply moves the selected items of that list to the NPC; `0` gives the NPC new copies.                                                                                         |
+| `Transfer`   | `ProtectFavorites`     | `1`              | `1` leaves your favorites out of that list.                                                                                                                                        |
+| `Situations` | `NotifyChanges`        | `0`              | `1` shows a HUD message when a character changes outfit because a situation began or ended.                                                                                        |
+| `Uninstall`  | `ReleaseEveryone`      | `0`              | `1` releases everyone at every save load, to uninstall without SKSE Menu Framework (see [Uninstall](#uninstall)); not on the settings page.                                        |
 
 ### Palettes
 
@@ -153,7 +154,7 @@ Livery never sets `ReleaseEveryone` back to `0`: set it yourself to keep playing
 
 - Only ASCII can be typed into the name field.
 - Items from plugins that are not loaded have no row in the window and stay in the outfit. Edit `outfits.json` to remove them.
-- An NPC can put on a helmet or shield they get other than from you in trade, in a slot their outfit leaves empty. It comes off the next time you trade with them or they load in.
+- Gear an NPC gets other than from you in trade (a gift, another mod) can stay on in a slot their outfit leaves empty, even when **Gear in unused slots** keeps it out. It comes off the next time you trade with them or they load in.
 - Your Sleep outfit goes on only with a mod that puts you into bed: the game's own beds just pass the time.
 - The copies Livery adds to an NPC who has no default outfit show in the trade menu, where you can take them for free.
 

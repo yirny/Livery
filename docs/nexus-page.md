@@ -184,6 +184,10 @@ Your own character wears only items you carry; the message on screen names the m
 [b]Does Livery keep my enchantments and tempering?[/b]
 An outfit stores only which items it has. When it goes on, Livery picks the best copy the character carries: a player-enchanted one first, then the most tempered one, then a plain one. Give an NPC a better copy of something they wear, and they put it on as the trade menu closes. Enchanted items from a plugin, like a Ring of Alchemy, are items in their own right and keep their effect.
 
+[b]An NPC won't equip gear I give them—or equips gear I don't want them to.[/b]
+NPCs won't replace gear assigned by Livery. To change it, edit their outfit in Livery instead.
+Empty slots work differently: by default, NPCs can equip extra gear there, except headgear, so a shield goes on and a helmet comes off again. You can change this under [b]Gear in unused slots[/b] in Settings.
+
 [b]My Sleep outfit never goes on.[/b]
 The game's own beds just pass the time. It goes on with a mod that actually puts you into bed.
 
