@@ -15,10 +15,16 @@ dressing itself.
      named by the outfit worn now (the default's or the worn situation's).
   2. `Outfit (Not in Wardrobe)`: worn pieces Livery put on that are not a saved
      outfit (outfit id 0, or the outfit has left the library).
-  3. `Outfit (Unmanaged)`: worn pieces Livery did not put on.
-  4. `Inventory`: carried, not worn. The actor's own outfit copies
-     (`ExtraOutfitItem` naming their base's `defaultOutfit`) are left out while unworn, as the
-     trade menu leaves them out (design.md §3).
+  3. `Outfit (Unmanaged)`: worn pieces Livery did not put on whose worn copy is an outfit
+     item (`ExtraOutfitItem` of any outfit: the actor's own, or one another mod such as SPID
+     handed out).
+  4. `Inventory`: carried, not worn, and worn pieces Livery did not put on that are not
+     outfit items (an item the player gave them, anything the player put on), ticked as worn.
+     The player has no default outfit, so everything they wear that Livery did not put on is
+     here. The actor's own outfit copies (`ExtraOutfitItem` naming their base's
+     `defaultOutfit`) are left out while unworn, as the trade menu leaves them out
+     (design.md §3). A form both worn as an outfit item and carried as a plain copy is one
+     row, under 3.
   5. `#{Player}'s Inventory`, the player's name (`Player` when it has none; NPC target only): the player's armor, per the settings (§2);
      a form the NPC also carries is listed once, under 1–4.
   6. `"#{Outfit}"`: pieces of the loaded outfit nobody carries, listed while

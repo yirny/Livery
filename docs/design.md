@@ -271,7 +271,8 @@ closes, §2 Keeping the outfit on, which leaves them as an Apply without the gif
 corpses (Livery forgets an actor at death, and vanilla shows a corpse's outfit items too).
 The capture window's `Inventory` heading follows the engine's rule: an NPC's own outfit
 copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list shows what the
-trade menu shows.
+trade menu shows; a worn piece Livery did not put on is listed there too unless its worn copy
+is an outfit item (`ExtraOutfitItem` of any outfit), which goes under `Outfit (Unmanaged)`.
 
 Call sites, Address Library IDs (the 1.6.1170, 1.6.1179 and 1.7.104 tables hold them all, the
 overlay's callees in sarrai-common's `src/Overlay.cpp` included), with SPID's offsets: AE from 1.6.1130, 1.7.x included,
