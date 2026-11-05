@@ -7,6 +7,8 @@
 
 #include "Settings.h"
 
+#include "Utils.h"
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -16,8 +18,11 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iterator>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 #include <SKSEMenuFramework.h>
 
@@ -265,6 +270,103 @@ namespace
 
 	// --- INI ------------------------------------------------------------------
 
+	// Without a byte order mark the profile API reads an INI in the ANSI code page, so values
+	// are written in it too.
+	std::string ToAnsi(std::wstring_view a_text)
+	{
+		const auto  length = static_cast<int>(a_text.size());
+		std::string text(static_cast<std::size_t>(::WideCharToMultiByte(CP_ACP, 0, a_text.data(), length, nullptr, 0, nullptr, nullptr)), '\0');
+		::WideCharToMultiByte(CP_ACP, 0, a_text.data(), length, text.data(), static_cast<int>(text.size()), nullptr, nullptr);
+		return text;
+	}
+
+	// Sets a_key in a_section of an INI's text as the profile API does: replaces the key's value,
+	// or adds the key below the section's last key (or its header), or adds the section at the
+	// end. Names match with ASCII case ignored; every other byte stays, comments included.
+	void SetIniValue(std::string& a_text, std::string_view a_section, std::string_view a_key, std::string_view a_value)
+	{
+		bool        inSection = false;
+		std::size_t insertAt = std::string::npos;  // below the section's header or its last key
+		for (std::size_t start = 0; start < a_text.size();) {
+			const auto newline = a_text.find('\n', start);
+			const auto next = newline == std::string::npos ? a_text.size() : newline + 1;
+			const auto line = ExampleMod::TrimWhitespace(std::string_view{ a_text }.substr(start, next - start));
+			start = next;
+			if (line.starts_with('[')) {
+				if (inSection) {
+					break;  // the next section starts
+				}
+				const auto close = line.find(']');
+				inSection = close != std::string_view::npos &&
+				            ExampleMod::CaseInsensitiveEqual(ExampleMod::TrimWhitespace(line.substr(1, close - 1)), a_section);
+				if (inSection) {
+					insertAt = next;
+				}
+				continue;
+			}
+			if (!inSection || line.empty() || line.starts_with(';')) {
+				continue;
+			}
+			const auto equals = line.find('=');
+			if (equals != std::string_view::npos && ExampleMod::CaseInsensitiveEqual(ExampleMod::TrimWhitespace(line.substr(0, equals)), a_key)) {
+				const auto valueAt = static_cast<std::size_t>(line.data() - a_text.data()) + equals + 1;
+				a_text.replace(valueAt, line.size() - equals - 1, a_value);
+				return;
+			}
+			insertAt = next;
+		}
+		const auto entry = std::format("{}={}\r\n", a_key, a_value);
+		if (insertAt == std::string::npos) {
+			if (!a_text.empty() && !a_text.ends_with('\n')) {
+				a_text += "\r\n";
+			}
+			a_text += std::format("[{}]\r\n{}", a_section, entry);
+			return;
+		}
+		a_text.insert(insertAt, a_text[insertAt - 1] == '\n' ? entry : "\r\n" + entry);
+	}
+
+	// Contract: Livery.ini is written only here, never through WritePrivateProfileString: INI
+	// cache plugins (PrivateProfileRedirector) keep those writes in memory and drop them when they
+	// reload the file. Reads stay on the profile API, since Load reads once at start. Writes come
+	// from the settings page's render thread and input path and from Livery's window, so the lock
+	// keeps them apart.
+	bool WriteIniValue(std::wstring_view a_section, std::wstring_view a_key, std::wstring_view a_value)
+	{
+		static std::mutex     lock;
+		const std::lock_guard guard{ lock };
+
+		std::string text;
+		if (std::ifstream file{ g_iniPath, std::ios::binary }) {
+			text.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+		} else if (std::error_code error; std::filesystem::exists(g_iniPath, error) || error) {
+			logger::warn("Could not read Livery.ini, so the setting is not saved");
+			return false;
+		}
+		SetIniValue(text, ToAnsi(a_section), ToAnsi(a_key), ToAnsi(a_value));
+
+		// A failed write leaves the old file.
+		auto temporary = g_iniPath;
+		temporary += L".tmp";
+		{
+			std::ofstream file{ temporary, std::ios::binary | std::ios::trunc };
+			file << text;
+			file.close();
+			if (!file) {
+				logger::warn("Could not write Livery.ini.tmp");
+				return false;
+			}
+		}
+		std::error_code error;
+		std::filesystem::rename(temporary, g_iniPath, error);
+		if (error) {
+			logger::warn("Could not replace Livery.ini: {}", error.message());
+			std::filesystem::remove(temporary, error);
+			return false;
+		}
+		return true;
+	}
+
 	// Writes a fresh INI holding every key with its comment and default.
 	void WriteIniTemplate()
 	{
@@ -292,8 +394,8 @@ namespace
 		logger::info("Created Livery.ini with default settings");
 	}
 
-	// Appends keys a newer version introduced to an INI the player already has.
-	// The profile API cannot write comments, so these keys get none.
+	// Appends keys a newer version introduced to an INI the player already has, without
+	// their comments.
 	void AddMissingIniKeys()
 	{
 		constexpr auto kMissing = L"\x01";  // never a real value
@@ -304,8 +406,7 @@ namespace
 			if (std::wstring_view{ value } != kMissing) {
 				continue;
 			}
-			if (!::WritePrivateProfileStringW(entry.section, entry.key, entry.defaultValue, g_iniPath.c_str())) {
-				logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
+			if (!WriteIniValue(entry.section, entry.key, entry.defaultValue)) {
 				return;
 			}
 			logger::info("Added missing INI key [{}] {}", SKSE::stl::utf16_to_utf8(entry.section).value_or(""),
@@ -315,10 +416,7 @@ namespace
 
 	void SaveNpcAccess(std::size_t a_group, NpcAccess a_access)
 	{
-		const auto* value = kNpcAccessOptions[static_cast<std::size_t>(a_access)].iniValue;
-		if (!::WritePrivateProfileStringW(kIniSection, kNpcGroups[a_group].key, value, g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(kIniSection, kNpcGroups[a_group].key, kNpcAccessOptions[static_cast<std::size_t>(a_access)].iniValue);
 	}
 
 	// A missing key or a value Livery does not know keeps the group's default.
@@ -340,10 +438,7 @@ namespace
 
 	void SaveUnusedSlots(UnusedSlots a_mode)
 	{
-		const auto* value = kUnusedSlotsOptions[static_cast<std::size_t>(a_mode)].iniValue;
-		if (!::WritePrivateProfileStringW(kIniSection, kUnusedSlotsKey, value, g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(kIniSection, kUnusedSlotsKey, kUnusedSlotsOptions[static_cast<std::size_t>(a_mode)].iniValue);
 	}
 
 	// A missing key or a value Livery does not know keeps the default.
@@ -363,54 +458,38 @@ namespace
 
 	void SaveLivePreview(bool value)
 	{
-		if (!::WritePrivateProfileStringW(kIniSection, kLivePreviewKey, value ? L"1" : L"0", g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(kIniSection, kLivePreviewKey, value ? L"1" : L"0");
 	}
 
 	void SaveMenuSounds(bool value)
 	{
-		if (!::WritePrivateProfileStringW(kUiSection, kMenuSoundsKey, value ? L"1" : L"0", g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(kUiSection, kMenuSoundsKey, value ? L"1" : L"0");
 	}
 
 	void SavePlayerAddsMissing(bool value)
 	{
-		if (!::WritePrivateProfileStringW(kPlayerSection, kAddMissingKey, value ? L"1" : L"0", g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(kPlayerSection, kAddMissingKey, value ? L"1" : L"0");
 	}
 
 	void SaveFlag(const wchar_t* a_section, const wchar_t* a_key, bool a_value)
 	{
-		if (!::WritePrivateProfileStringW(a_section, a_key, a_value ? L"1" : L"0", g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(a_section, a_key, a_value ? L"1" : L"0");
 	}
 
 	void SaveSpeedPercent(float a_percent)
 	{
-		const auto value = std::format(L"{:.0f}", a_percent);
-		if (!::WritePrivateProfileStringW(kCameraSection, kSpeedPercentKey, value.c_str(), g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(kCameraSection, kSpeedPercentKey, std::format(L"{:.0f}", a_percent));
 	}
 
 	void SavePalette(const std::wstring& a_stem)
 	{
-		if (!::WritePrivateProfileStringW(kUiSection, kPaletteKey, a_stem.c_str(), g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
-		}
+		WriteIniValue(kUiSection, kPaletteKey, a_stem);
 	}
 
 	void SaveHotkey(std::uint32_t a_key, std::uint32_t a_modifier)
 	{
-		const auto key = std::to_wstring(a_key);
-		const auto modifier = std::to_wstring(a_modifier);
-		if (!::WritePrivateProfileStringW(kHotkeySection, kHotkeyKeyKey, key.c_str(), g_iniPath.c_str()) ||
-			!::WritePrivateProfileStringW(kHotkeySection, kHotkeyModifierKey, modifier.c_str(), g_iniPath.c_str())) {
-			logger::warn("Could not write Livery.ini (error {})", ::GetLastError());
+		if (WriteIniValue(kHotkeySection, kHotkeyKeyKey, std::to_wstring(a_key))) {
+			WriteIniValue(kHotkeySection, kHotkeyModifierKey, std::to_wstring(a_modifier));
 		}
 	}
 
