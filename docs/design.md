@@ -58,9 +58,13 @@ outfit they wore (below). The outfit's other items, those added to it later incl
 the items left off are all it has, it is dressed whole. The library outfit itself never
 changes for this.
 
-Slots the outfit leaves empty stay the engine's: at its next re-evaluation an NPC can
-put on armor they own there (a helmet, a shield). Accepted for now. Their own outfit items
-stay off there too while one of them contests a locked piece (Keeping the outfit on).
+Slots the outfit leaves empty, those of the items it leaves off on the row included, stay
+empty on an NPC: the engine's best-gear pass can put armor they own there (a helmet given in
+the trade menu), and it comes off again as that menu closes and when their 3D loads
+(`Dressing::TakeOffExtras`, Keeping the outfit on). Armor that reaches them otherwise (a
+gift, another mod) stays on until one of those. Their own outfit items stay off there too while
+one of them contests a locked piece. An actor in their own clothes (no pieces) keeps every
+slot the engine's.
 
 Pieces from the player's inventory (the window's `Player's Inventory`) move to an NPC
 at Apply, before the dressing, when `[Transfer] MoveFromPlayer` is on
@@ -112,9 +116,11 @@ says so), so a lock would be needed anyway.
   still in the inventory but not worn (another mod took it off; taking off clears the
   lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
   copies are created here. Then worn armor that is none of the pieces and shares a body
-  slot with a worn piece is taken off (`Dressing::TakeOffOverlapping`; non-playable armor
-  and another mod's locked pieces stay): fast travel can mark the NPC's own outfit items
-  worn again beside the locked pieces (§6). The sink only checks a mutex-guarded id list
+  slot with a worn piece, or takes a slot no piece has, is taken off
+  (`Dressing::TakeOffExtras`; non-playable armor and another mod's locked pieces stay, and
+  so does armor only in the slots of pieces gone): fast travel can mark the NPC's own outfit
+  items worn again beside the locked pieces (§6), and the best-gear pass fills a slot the
+  outfit leaves empty. The sink only checks a mutex-guarded id list
   and queues an SKSE task, since the event's thread is not documented.
 - A piece the player takes from an assigned NPC in the trade, container or pickpocket
   menu goes on again as that menu closes (`Dressing::Replenish`): a copy of that armor
@@ -131,6 +137,8 @@ says so), so a lock would be needed anyway.
   swaps each worn piece for a better copy the NPC now carries (`Dressing::Upgrade`, step 1's
   ranks): the piece's lock comes off, the better copy goes on locked and the piece names
   it, and a replaced copy Livery added is taken back; a piece another mod locked stays.
+  Then the armor the engine put on them outside the pieces comes off, as on a 3D load
+  (`Dressing::TakeOffExtras`): a helmet given for a slot the outfit leaves empty.
   `GiftMenu` is not one of these menus, so a gift waits for the next dressing.
   The window counts the pieces Livery
   put on that the actor wears no copy of, and the worn armor it did not put on (`GapsOf` in `Plugin.cpp`, read as it opens
