@@ -5,8 +5,8 @@
 //                    replaces a confirmed existing outfit's pieces and name;
 //                    UpdateWornPieces only its pieces (the Apply popup's Yes)
 //   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
-//                    outfit pages, through OutfitPreview, seen through FreeCamera, while the
-//                    window's Live Preview tick is on; saving is off and an NPC is held where they
+//                    outfit pages, through OutfitPreview, while the window's Live Preview tick
+//                    is on; FreeCamera shows them, saving is off and an NPC is held where they
 //                    stand (MovementHold) while the window is open, and turns to the player with a
 //                    greeting (NpcReaction) as it opens with the preview on; every close of the window,
 //                    a save included, ends them all
@@ -229,31 +229,19 @@ namespace
 		return limits;
 	}
 
-	// The live preview of a Save only window: the camera and the running game, nothing else.
+	// The live preview of a Save only window: the running game, nothing else.
 	// Contract: game thread. It never calls OutfitPreview, so it cannot touch the inventory, and
 	// leaves onPieceToggled and onPreviewPieces empty (Request::saveOnly).
-	void AttachSaveOnlyPreview(CaptureWindow::Request& request, RE::Actor& actor)
+	void AttachSaveOnlyPreview(CaptureWindow::Request& request)
 	{
-		request.onPreviewOn = [handle = actor.GetHandle()](const std::vector<std::size_t>&) -> std::string {
-			const auto target = handle.get();
-			if (!target) {
-				return "Preview off: the character is gone.";
-			}
-			FreeCamera::Begin(*target);  // without the camera the preview goes on in the game's own view
-			return {};
-		};
-		request.onPreviewOff = [] { FreeCamera::End(); };
-		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits()); };
-		if (Settings::LivePreview()) {
-			request.previewNote = request.onPreviewOn({});
-			request.previewOn = request.previewNote.empty();
-		}
+		request.onPreviewOn = [](const std::vector<std::size_t>&) { return std::string{}; };
+		request.onPreviewOff = [] {};
+		request.previewOn = Settings::LivePreview();
 	}
 
 	// Wires the live preview into the window about to open, and starts it when
 	// the settings say so. While it is on, ticks change the pieces OutfitPreview
-	// dresses the actor in, and input over the game moves FreeCamera (when it
-	// could take the camera); the window's Live Preview tick starts and ends both.
+	// dresses the actor in; the window's Live Preview tick starts and ends it.
 	// When the preview cannot start, the window greys the tick and says why.
 	// Contract: game thread; `armors` matches request.pieces index for index.
 	void AttachPreview(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors)
@@ -263,25 +251,12 @@ namespace
 			if (!target) {
 				return "Preview off: the character is gone.";
 			}
-			auto reason = OutfitPreview::Begin(*target, PickPieces(armors, pieces));
-			if (reason.empty()) {
-				// Without the camera the preview goes on in the game's own view. On the player it
-				// glides out of an over-the-shoulder offset (SmoothCam); an NPC's view stays as it is.
-				constexpr float kCentreSeconds = 0.5f;  // the glide to the middle
-				if (FreeCamera::Begin(*target) && target->IsPlayerRef()) {
-					FreeCamera::CentreSideways(*target, kCentreSeconds);
-				}
-			}
-			return reason;
+			return OutfitPreview::Begin(*target, PickPieces(armors, pieces));
 		};
-		request.onPreviewOff = [] {
-			FreeCamera::End();
-			OutfitPreview::End();
-		};
-		// These three do nothing while Live Preview is off: no preview, no camera.
+		request.onPreviewOff = [] { OutfitPreview::End(); };
+		// These two do nothing while Live Preview is off: no preview.
 		request.onPieceToggled = [armors](std::size_t index, bool on) { OutfitPreview::SetPiece(armors[index], on); };
 		request.onPreviewPieces = [armors](const std::vector<std::size_t>& pieces) { OutfitPreview::Show(PickPieces(armors, pieces)); };
-		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits()); };
 
 		if (Settings::LivePreview()) {
 			std::vector<std::size_t> ticked;
@@ -292,6 +267,21 @@ namespace
 			}
 			request.previewNote = request.onPreviewOn(ticked);
 			request.previewOn = request.previewNote.empty();
+		}
+	}
+
+	// Takes the camera for the window about to open, Live Preview on or off: input over the
+	// game moves FreeCamera (when it could take the camera; otherwise the game's own view
+	// stays). On the player it glides out of an over-the-shoulder offset (SmoothCam); an NPC's
+	// view stays as it is. The window's close ends it (onClose).
+	// Contract: game thread, after AttachPreview, so the camera starts on the dressed actor as before.
+	void BeginCamera(CaptureWindow::Request& request, RE::Actor& actor)
+	{
+		constexpr float kCentreSeconds = 0.5f;  // the glide to the middle
+
+		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits()); };
+		if (FreeCamera::Begin(actor) && actor.IsPlayerRef()) {
+			FreeCamera::CentreSideways(actor, kCentreSeconds);
 		}
 	}
 
@@ -1093,7 +1083,8 @@ namespace
 	// Runs `dress` on the captured actor with the window open. Assignments run only with no
 	// preview on, as the preview puts back what it found at Begin: with it on, it ends, `dress`
 	// runs and it begins again on `shown`, or with none on what they wear now, the camera and
-	// the movement hold staying; a refusal turns Live Preview off with the reason. With it off
+	// the movement hold staying; a refusal turns Live Preview off with the reason, the camera
+	// still staying. With it off
 	// `dress` runs in the game the window froze, and an NPC's model is rebuilt after it. Then
 	// returns their pieces for the window (SetOutfits).
 	// Contract: game thread; `actor` is the captured actor; `armors` matches the window's
@@ -1118,7 +1109,6 @@ namespace
 		g_capturedGaps = GapsOf(Assignments::ChoicesOf(actor.GetFormID()), inventory);  // before the preview begins again
 		if (previewing) {
 			if (const auto reason = OutfitPreview::Begin(actor, shown ? *shown : WornArmors(inventory)); !reason.empty()) {
-				FreeCamera::End();
 				CaptureWindow::RefusePreview(reason);
 			}
 		}
@@ -1565,7 +1555,7 @@ namespace
 			request.saveOnly = true;
 			request.offersWardrobe = false;
 			request.actorSummary.lead = std::format("{} dresses as they please. You can save what they wear, but not change it.", request.actorName);
-			AttachSaveOnlyPreview(request, actor);
+			AttachSaveOnlyPreview(request);
 		} else {
 			AttachAssignment(request, actor, armors, offered, choices);
 			AttachPreview(request, actor, armors);
@@ -1575,7 +1565,8 @@ namespace
 				AttachChests(request, actor, armors);
 			}
 		}
-		// Every close, whatever closed the window, ends the preview, redresses the actors
+		BeginCamera(request, actor);
+		// Every close, whatever closed the window, ends the camera and the preview, redresses the actors
 		// the Wardrobe page or the Situations page left for it, lets saving back on and lets an NPC
 		// walk again.
 		request.onClose = [] {
