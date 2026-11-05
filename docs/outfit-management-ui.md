@@ -247,8 +247,9 @@ the Situations page. Each page keeps its own search and sort.
     dresses the actor in, the unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
     They start as that row leaves them, the row the actor wears the outfit for now, else the
     Default (all ticked when it does not have the outfit); the last ticked piece cannot be
-    unticked. A tick is not an unsaved edit: selecting an outfit, or a change the window
-    takes (`SetOutfits`), starts the ticks again from the rows; Save and Remove ignore
+    unticked. A tick is not an unsaved edit (no unsaved-changes alert asks about it):
+    selecting an outfit, or a change the window takes (`SetOutfits`), starts the ticks again
+    from the rows; Save makes the ticked pieces the outfit's, Remove ignores
     them. The Load page's details and the Save page's piece columns keep the same room before
     their count line, which stays over their list. Their read-only piece rows have the same icons
     (`Theme::TextRow`), and the outfit's name over the Load page's details, its icon as the
@@ -261,9 +262,12 @@ the Situations page. Each page keeps its own search and sort.
   selected, the Dress page's ticks.
 - Buttons `Apply to #{Name}` (dressed form before its label), `Exit`, then `Remove` (§5) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`). `Save` is in the right column, above.
-  - Save: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
-    with an empty name (`kNeedName`). A popup (`Save changes?`) lists
-    what changes (pieces, rename, `Its icon changes.`), as the Save page's Update tab does; the
+  - Save: writes the outfit as edited less its unticked pieces: the ticked pieces become its
+    pieces in the library, for every actor and row that has it (unlike Apply, which leaves
+    them off on one row only). Greyed until that differs from the library (icon, trimmed
+    name, ticked pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
+    what changes (`Its N item(s) become the M selected item(s).`, rename, `Its icon changes.`),
+    as the Save page's Update tab does; the
     buttons are `Confirm` / `Cancel`. The window hands the edits to
     `Request::onManageUpdate`; no row changes. CLAUDE.md §2.1 applies: a name another outfit
     has (ASCII case ignored) is refused, and a refused or failed write changes nothing and
