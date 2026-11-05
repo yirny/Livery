@@ -186,7 +186,7 @@ An outfit stores only which items it has. When it goes on, Livery picks the best
 
 [b]An NPC won't equip gear I give them—or equips gear I don't want them to.[/b]
 NPCs won't replace gear assigned by Livery. To change it, edit their outfit in Livery instead.
-Empty slots work differently: by default, NPCs can equip extra gear there, except headgear. So a shield is fine, but a helmet won't stay on. You can change this under [b]Gear in unused slots[/b] in Settings.
+Empty slots work differently: by default, NPCs can equip extra gear there, except headgear, so a shield goes on and a helmet comes off again. You can change this under [b]Gear in unused slots[/b] in Settings.
 
 [b]My Sleep outfit never goes on.[/b]
 The game's own beds just pass the time. It goes on with a mod that actually puts you into bed.
