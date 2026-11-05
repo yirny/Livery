@@ -27,7 +27,8 @@
 //                  edited in place and kept for one outfit at a time (Discard changes / Keep
 //                  editing before another is selected); the edited outfit, less its unticked
 //                  pieces, on the preview; Save, under the pieces, lists the changes
-//                  (Save changes?; Confirm / Cancel) and hands them to onManageUpdate, Remove
+//                  (Save changes?; Confirm / Cancel) and hands them to onManageUpdate, the
+//                  ticked pieces becoming the outfit's, Remove
 //                  names who has the outfit (Remove outfit?) and hands it to onManageRemove,
 //                  Apply to #{Name} changes what the actor wears now: the situation outfit
 //                  they wear, when they agree in Apply outfit? (Yes), else the Default (Apply
@@ -732,18 +733,32 @@ namespace CaptureWindow::Internal
 		QueuePreview(a_state, a_index >= 0 ? ManagedWorn(a_state) : TickedPieces(a_state));
 	}
 
-	// The selected outfit's edits differ from the library: its icon, trimmed name or loaded pieces.
-	bool HasLibraryEdits(const State& a_state)
+	// The selected outfit's edited icon or trimmed name, or `a_pieces`, differ from the library's.
+	bool DiffersFromLibrary(const State& a_state, const std::vector<std::size_t>& a_pieces)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		return form.icon != outfit.icon || Trimmed(form.name.data()) != outfit.name || form.pieces != outfit.pieces;
+		return form.icon != outfit.icon || Trimmed(form.name.data()) != outfit.name || a_pieces != outfit.pieces;
 	}
 
-	// Anything Save would save: an outfit is selected and has library edits.
+	// The selected outfit's edits differ from the library: its icon, trimmed name or loaded pieces.
+	// The ticks are no edit: Apply leaves the unticked pieces off on a row (Save and Apply).
+	bool HasLibraryEdits(const State& a_state)
+	{
+		return DiffersFromLibrary(a_state, a_state.manage.pieces);
+	}
+
+	// Unsaved edits the unsaved-changes alerts ask about: an outfit is selected and has library edits.
 	bool HasManageEdits(const State& a_state)
 	{
 		return a_state.manage.outfit >= 0 && HasLibraryEdits(a_state);
+	}
+
+	// What Save alone writes differs from the library: the edits, or the ticked pieces
+	// (ManagedWorn), which become the outfit's pieces. Contract: an outfit is selected.
+	bool HasSaveChanges(const State& a_state)
+	{
+		return DiffersFromLibrary(a_state, ManagedWorn(a_state));
 	}
 
 	// The line every unsaved-edits popup shows; "" with no outfit selected.
@@ -752,11 +767,14 @@ namespace CaptureWindow::Internal
 		return a_state.manage.outfit >= 0 ? std::format("You have unsaved changes for \"{}\".", OutfitAt(a_state, a_state.manage.outfit).name) : std::string{};
 	}
 
-	// Why Save is greyed, or nullptr: it needs unsaved edits and a name.
+	// Why Save is greyed, or nullptr: it needs something to write (HasSaveChanges) and a name.
 	const char* SaveReason(const State& a_state)
 	{
-		if (!HasManageEdits(a_state)) {
-			return a_state.manage.outfit < 0 ? kNeedOutfit : kNoChanges;
+		if (a_state.manage.outfit < 0) {
+			return kNeedOutfit;
+		}
+		if (!HasSaveChanges(a_state)) {
+			return kNoChanges;
 		}
 		return Trimmed(a_state.manage.name.data()).empty() ? kNeedName : nullptr;
 	}
@@ -964,14 +982,15 @@ namespace CaptureWindow::Internal
 
 	void OpenEditPage(State& a_state);
 
-	// What the library edits change, one line each, as the Save page's Update tab lists it:
-	// the pieces, a rename, a new icon, the unloaded pieces kept.
-	void DrawLibraryChangeLines(const State& a_state)
+	// What the library write changes when `a_pieces` become the outfit's pieces, one line each,
+	// as the Save page's Update tab lists it: the pieces (`a_piecesWord`: "edited" or
+	// "selected"), a rename, a new icon, the unloaded pieces kept.
+	void DrawChangeLines(const State& a_state, const std::vector<std::size_t>& a_pieces, const char* a_piecesWord)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		if (form.pieces != outfit.pieces) {
-			ImGui::TextUnformatted(std::format("Its {} item(s) become the {} edited item(s).", outfit.pieces.size(), form.pieces.size()).c_str());
+		if (a_pieces != outfit.pieces) {
+			ImGui::TextUnformatted(std::format("Its {} item(s) become the {} {} item(s).", outfit.pieces.size(), a_pieces.size(), a_piecesWord).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
@@ -982,6 +1001,18 @@ namespace CaptureWindow::Internal
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} item(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
+	}
+
+	// What the library edits change, which Save and Apply writes (all the edited pieces).
+	void DrawLibraryChangeLines(const State& a_state)
+	{
+		DrawChangeLines(a_state, a_state.manage.pieces, "edited");
+	}
+
+	// What Save alone changes: the ticked pieces become the outfit's.
+	void DrawSaveChangeLines(const State& a_state)
+	{
+		DrawChangeLines(a_state, ManagedWorn(a_state), "selected");
 	}
 
 	// Save's popup: `Save your changes to "X"?`, the library changes, then Confirm / Cancel.
@@ -999,7 +1030,7 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		ImGui::TextUnformatted(std::format("Save your changes to \"{}\"?", OutfitAt(a_state, form.outfit).name).c_str());
-		DrawLibraryChangeLines(a_state);
+		DrawSaveChangeLines(a_state);
 		BeginButtonRow({ "Confirm", "Cancel" });
 		const bool confirm = Theme::Button("Confirm");
 		ImGui::SameLine();
@@ -1173,7 +1204,9 @@ namespace CaptureWindow::Internal
 
 	// Hands the edits to onManageUpdate, which writes the library, with `a_applyRow` (Save
 	// and Apply) dresses the actor for that row as Apply does, and ends with SetOutfits, or
-	// ends with SetError; until then the page is greyed. Save alone changes no row.
+	// ends with SetError; until then the page is greyed. Save alone changes no row: the ticked
+	// pieces become the outfit's, for everyone who has it; Save and Apply writes every edited
+	// piece and leaves the unticked ones off on that row only.
 	// Contract: the handler writes nothing for a refused name or a failed write, and then
 	// assigns nothing (CLAUDE.md §2.1).
 	void RequestManageUpdate(State& a_state, std::optional<std::size_t> a_applyRow)
@@ -1183,7 +1216,7 @@ namespace CaptureWindow::Internal
 		a_state.error.clear();
 		CaptureWindow::SaveRequest edit{ .outfit = ManagedOutfitId(a_state),
 			.name = Trimmed(form.name.data()),
-			.pieces = form.pieces,
+			.pieces = a_applyRow ? form.pieces : ManagedWorn(a_state),
 			.icon = form.icon };
 		edit.applyRow = a_applyRow;
 		if (a_applyRow) {
@@ -1414,7 +1447,7 @@ namespace CaptureWindow::Internal
 		if (DrawUnsavedPopup(a_state, kDiscardPopup, "Discard changes", "Keep editing") == UnsavedChoice::kFirst) {
 			SelectManaged(a_state, a_state.discardFor);
 		}
-		switch (DrawLeavePopup(a_state, UnsavedText(a_state), SaveReason(a_state), DrawLibraryChangeLines)) {
+		switch (DrawLeavePopup(a_state, UnsavedText(a_state), SaveReason(a_state), DrawSaveChangeLines)) {
 		case LeaveChoice::kSave:
 			ImGui::OpenPopup(kManageConfirmPopup);
 			break;
