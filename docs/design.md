@@ -66,9 +66,21 @@ best-gear pass can put armor they own there (a helmet given in the trade menu); 
 setting keeps out comes off again at once while that menu is open, as it closes and when
 their 3D loads (`Dressing::TakeOffExtras`, Keeping the outfit on). Armor that reaches them
 otherwise (a gift, another mod) stays on until the next trade or 3D load. A change of the
-setting takes effect at the next of those. Their own outfit items stay off there too while
-one of them contests a locked piece. An actor in their own clothes (no pieces) keeps every
-slot the engine's.
+setting takes effect at the next of those. Whatever the setting, an NPC Livery has pieces on
+never wears an outfit item that is not one of them (any `ExtraOutfitItem`: their own outfit,
+or another mod's distributed one; the trade menu hides them): the own-outfit guard keeps the
+worn-gear pass from putting them on, and `Dressing::TakeOffExtras` takes off any worn anyway,
+in any slot (Keeping the outfit on). The pass's best-armor step still puts an outfit item on
+over armor given to them that is the same armor or weaker: a follower whose outfit has a steel
+shield, with the guard on and `UnusedSlots` at `All`, had an outfit item taken off at each give
+of a steel shield, and given only an iron shield, wore none (2026-11-05, log). So where other
+armor may stay, the armor they carry that is no outfit item and fits there goes on in its
+place, unlocked: the highest base armor rating, then the highest value, its copy ranked as
+step 1 ranks unworn ones. The copy worn is checked, since which copy the engine equips for a
+plain one is not known; an outfit copy put on again comes off, the slot left empty. Weaker armor
+than the outfit item is taken off again by the pass at each of its runs (a give, a 3D load) and
+put back on by Livery, a brief flash in the trade menu. An actor in their own clothes (no
+pieces) keeps every slot the engine's, their outfit items included.
 
 Pieces from the player's inventory (the window's `Player's Inventory`) move to an NPC
 at Apply, before the dressing, when `[Transfer] MoveFromPlayer` is on
@@ -105,24 +117,29 @@ says so), so a lock would be needed anyway.
 
 - `ExtraCannotWear` is saved with the instance, so nothing is re-applied on load.
 - `UpdateWornGear`, seen when an item reaches the NPC and as their 3D loads, starts by equipping
-  their own outfit items. That takes a locked piece in the same slot off and clears its lock
-  (§6), and the pass's best-armor step then fills the slot. `src/OwnOutfitGuard.cpp` hooks
-  that first call (SPID's `24234+0x1C3` on SE, `418622+0x25E` on AE, found as in §3; the 1.5.97,
-  1.6.1170, 1.6.1179, 1.7.99 and 1.7.104 tables hold the ID) and leaves it out for a managed
-  NPC while an outfit item they carry unworn shares a body slot with a worn locked piece
-  (`Dressing::OutfitItemContestsLock`; any `ExtraOutfitItem`, since SPID's distributed outfits
-  mark their items with another id). The hook writes nothing, so it leaves no residue. SPID
-  replaces the same call at `kPostLoad` and never calls the original, so Livery's goes in at
-  `kDataLoaded` and calls SPID's in turn. Skyrim VR, AE before 1.6.640 (SPID's oldest, older
-  tables unchecked, and a missing ID is fatal) and a build where the signature is not found
-  run without it; their pieces go back on at the next 3D load.
+  their outfit items: their own, or another mod's distributed outfit (SPID marks its items with
+  that outfit's id). The trade menu hides those, and one in the slot of a locked piece takes
+  the piece off and clears its lock (§6), after which the pass's best-armor step fills the
+  slot. `src/OwnOutfitGuard.cpp` hooks that first call (SPID's `24234+0x1C3` on SE,
+  `418622+0x25E` on AE, found as in §3; the 1.5.97, 1.6.1170, 1.6.1179, 1.7.99 and 1.7.104
+  tables hold the ID) and leaves it out for every NPC Livery has pieces on
+  (`Assignments::IsDressedNpc`; an NPC in their own clothes whose situation rows wait is not
+  one), so their outfit items stay off while they wear Livery's pieces; the rest of the pass,
+  its best-armor step included, runs as before. The hook writes nothing, so it leaves no
+  residue: once they have no pieces (Restore Outfit, Release everyone, a row in their own
+  clothes) the call runs for them again. SPID replaces the same call at `kPostLoad` and never
+  calls the original, so Livery's goes in at `kDataLoaded` and calls SPID's in turn. Skyrim VR,
+  AE before 1.6.640 (SPID's oldest, older tables unchecked, and a missing ID is fatal) and a
+  build where the signature is not found run without it; there `Dressing::TakeOffExtras`
+  takes their outfit items off again at a trade or 3D load (below), and their pieces go back
+  on at the next 3D load.
 - On `TESObjectLoadedEvent` for a managed NPC: if the instance chosen for a piece is
   still in the inventory but not worn (another mod took it off; taking off clears the
   lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
-  copies are created here. Then worn armor that is none of the pieces and shares a body
-  slot with a worn piece, or takes a slot no piece has, is taken off
-  (`Dressing::TakeOffExtras`; non-playable armor and another mod's locked pieces stay, and
-  so does armor only in the slots of pieces gone): fast travel can mark the NPC's own outfit
+  copies are created here. Then worn armor that is none of the pieces and is an outfit item
+  (in any slot), shares a body slot with a worn piece, or takes a slot no piece has, is taken
+  off (`Dressing::TakeOffExtras`; non-playable armor and another mod's locked pieces stay, and
+  so does other armor only in the slots of pieces gone): fast travel can mark the NPC's own outfit
   items worn again beside the locked pieces (§6), and the best-gear pass fills a slot the
   outfit leaves empty. The sink only checks a mutex-guarded id list
   and queues an SKSE task, since the event's thread is not documented.
@@ -271,7 +288,8 @@ closes, §2 Keeping the outfit on, which leaves them as an Apply without the gif
 corpses (Livery forgets an actor at death, and vanilla shows a corpse's outfit items too).
 The capture window's `Inventory` heading follows the engine's rule: an NPC's own outfit
 copies are left out while unworn (`Plugin.cpp`, `CollectArmor`), so the list shows what the
-trade menu shows.
+trade menu shows; a worn piece Livery did not put on is listed there too unless its worn copy
+is an outfit item (`ExtraOutfitItem` of any outfit), which goes under `Outfit (Unmanaged)`.
 
 Call sites, Address Library IDs (the 1.6.1170, 1.6.1179 and 1.7.104 tables hold them all, the
 overlay's callees in sarrai-common's `src/Overlay.cpp` included), with SPID's offsets: AE from 1.6.1130, 1.7.x included,

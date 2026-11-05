@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// UpdateWornGear, the engine's worn-gear pass, starts by putting the actor's outfit items on. That
-// takes a locked piece in the same slot off and clears its lock (docs/design.md §6), after which
-// the pass's best-armor step is free to fill the slot. The hook leaves that first step out while
-// it would do so. The ID, offsets and signatures are SPID's
+// UpdateWornGear, the engine's worn-gear pass, starts by putting the actor's outfit items on:
+// their own, or another mod's distributed outfit (SPID). Those are items the trade menu hides, and
+// an NPC Livery dresses never wears them (docs/design.md §2): they would also take a locked piece
+// in the same slot off and clear its lock (§6). For such an NPC the hook leaves that one call out
+// (their outfit items then stayed off, §6); the rest of the pass, its best-armor step included,
+// runs as before. The ID, offsets and signatures are SPID's
 // (SPID/src/Outfits/OutfitManager+Hooks.cpp, UpdateWornGear_AddWornOutfit).
 #include "PCH.h"
 
@@ -11,7 +13,6 @@
 
 #include "Assignments.h"
 #include "CallSite.h"
-#include "Dressing.h"
 
 namespace
 {
@@ -19,12 +20,12 @@ namespace
 	using SignatureAE = CallSite::Signature<"E8 ?? ?? ?? ?? 41 BC 01 00 00 00 4C 89 64 24 60">;
 
 	// Contract: the pass's thread is not documented, so this reads only the guarded list of
-	// assigned NPCs and this actor's inventory, which the pass itself reads next.
+	// NPCs Livery has pieces on (Assignments::IsDressedNpc).
 	struct AddWornOutfit
 	{
 		static void thunk(RE::Actor* a_actor, RE::BGSOutfit* a_outfit, bool a_forceUpdate)
 		{
-			if (a_actor && Assignments::IsManagedNpc(a_actor->GetFormID()) && Dressing::OutfitItemContestsLock(*a_actor)) {
+			if (a_actor && Assignments::IsDressedNpc(a_actor->GetFormID())) {
 				return;
 			}
 			func(a_actor, a_outfit, a_forceUpdate);

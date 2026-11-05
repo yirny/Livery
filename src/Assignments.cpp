@@ -3,7 +3,7 @@
 // FILE MAP
 //   Constants   - the player's reference, co-save ids
 //   Records     - one assignment per actor, with its rows (OutfitRows); g_managed mirrors the
-//                 NPCs for the event sinks and OwnOutfitGuard
+//                 NPCs for the event sinks, g_dressed those with pieces on for OwnOutfitGuard
 //   Dressing    - which row a situation resolves to and the outfit it wears (a random row's
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
@@ -17,7 +17,7 @@
 //                 inventory), MenuOpenCloseEvent
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
-//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsManagedNpc
+//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -79,11 +79,13 @@ namespace
 	// Contract: game thread only. Draws the random rows' picks.
 	std::mt19937 g_random{ std::random_device{}() };
 
-	// Contract: the assigned NPCs, for the event sinks and OwnOutfitGuard. The thread that sends
-	// TESObjectLoadedEvent and TESDeathEvent is not documented, nor is the worn-gear pass's, so
-	// the sinks read only this, under its lock, and queue the work as SKSE tasks.
+	// Contract: the assigned NPCs, for the event sinks, and those Livery has pieces on, for
+	// OwnOutfitGuard. The thread that sends TESObjectLoadedEvent and TESDeathEvent is not
+	// documented, nor is the worn-gear pass's, so the sinks and the hook read only these, under
+	// their lock, and the sinks queue the work as SKSE tasks.
 	std::mutex              g_managedLock;
 	std::vector<RE::FormID> g_managed;
+	std::vector<RE::FormID> g_dressed;
 
 	// Contract: game thread only. The NPC whose locks are off for the preview, or 0.
 	RE::FormID g_suspended = 0;
@@ -123,15 +125,21 @@ namespace
 		});
 	}
 
-	// Contract: game thread, after every change of g_assignments. The player is left
+	// Contract: game thread, after every change of g_assignments, each dressing (Redress)
+	// included, since it can leave an assignment with pieces or with none. The player is left
 	// out: nothing is put back on them when they load.
 	void SyncManaged()
 	{
 		std::lock_guard lock{ g_managedLock };
 		g_managed.clear();
+		g_dressed.clear();
 		for (const auto& assignment : g_assignments) {
-			if (assignment.actor != kPlayerRef) {
-				g_managed.push_back(assignment.actor);
+			if (assignment.actor == kPlayerRef) {
+				continue;
+			}
+			g_managed.push_back(assignment.actor);
+			if (!assignment.pieces.empty()) {
+				g_dressed.push_back(assignment.actor);
 			}
 		}
 	}
@@ -1403,8 +1411,9 @@ namespace Assignments
 		}
 	}
 
-	bool IsManagedNpc(RE::FormID a_actor)
+	bool IsDressedNpc(RE::FormID a_actor)
 	{
-		return IsManaged(a_actor);
+		std::lock_guard lock{ g_managedLock };
+		return std::ranges::find(g_dressed, a_actor) != g_dressed.end();
 	}
 }
