@@ -60,9 +60,9 @@ changes for this.
 
 Slots the outfit leaves empty, those of the items it leaves off on the row included, stay
 empty on an NPC: the engine's best-gear pass can put armor they own there (a helmet given in
-the trade menu), and it comes off again as that menu closes and when their 3D loads
-(`Dressing::TakeOffExtras`, Keeping the outfit on). Armor that reaches them otherwise (a
-gift, another mod) stays on until one of those. Their own outfit items stay off there too while
+the trade menu), and it comes off again at once while that menu is open, as it closes and
+when their 3D loads (`Dressing::TakeOffExtras`, Keeping the outfit on). Armor that reaches
+them otherwise (a gift, another mod) stays on until the next trade or 3D load. Their own outfit items stay off there too while
 one of them contests a locked piece. An actor in their own clothes (no pieces) keeps every
 slot the engine's.
 
@@ -129,9 +129,13 @@ says so), so a lock would be needed anyway.
   that is taken (where §3's filter does not hide it) stays gone, so taking it again makes
   no new copy. The filter's list fill notes the NPC (`Assignments::NoteShownInMenu`, an
   atomic id); a `MenuOpenCloseEvent` sink takes the note when `ContainerMenu` or
-  `BarterMenu` closes and queues an SKSE task; openings and other menus return after the
-  name compares. The note is not cleared at opening, since whether the list fills before
-  that event is not documented; only those two menus list an NPC's inventory. A piece still missing (refused, a runtime where the
+  `BarterMenu` closes and queues an SKSE task; other menus return after the name compares.
+  The note is not cleared at opening, since whether the list fills before that event is
+  not documented; only those two menus list an NPC's inventory. While one of them is open
+  the sink keeps a `TESEquipEvent` sink registered (added as it opens, removed as it
+  closes, so normal play sends it nothing): armor an assigned NPC puts on then (the
+  best-gear pass at a give) queues an SKSE task that takes the armor outside the pieces off
+  at once (`Dressing::TakeOffExtras`). A piece still missing (refused, a runtime where the
   filter found no call site, another mod's inventory access) leaves the slot to the
   vanilla picker until the player assigns again. After that replacing, the same task
   swaps each worn piece for a better copy the NPC now carries (`Dressing::Upgrade`, step 1's
