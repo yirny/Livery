@@ -184,7 +184,9 @@ namespace CaptureWindow::Internal
 
 		switch (a_button.GetDevice()) {
 		case RE::INPUT_DEVICE::kKeyboard:
-			if (const auto key = ToImGuiKey(code); key != ImGuiKey_None && (a_button.IsDown() || a_button.IsUp())) {
+			// Any zero value is a release, as for the mouse below: a tap released in the frame
+			// it was pressed has no held time, and a lost release leaves the key held.
+			if (const auto key = ToImGuiKey(code); key != ImGuiKey_None && (a_button.IsDown() || !a_button.IsPressed())) {
 				a_out.push_back({ InputRecord::Kind::kKey, key, a_button.IsDown(), 0.0f });
 			}
 			break;
