@@ -70,14 +70,17 @@ setting takes effect at the next of those. Whatever the setting, an NPC Livery h
 never wears an outfit item that is not one of them (any `ExtraOutfitItem`: their own outfit,
 or another mod's distributed one; the trade menu hides them): the own-outfit guard keeps the
 worn-gear pass from putting them on, and `Dressing::TakeOffExtras` takes off any worn anyway,
-in any slot (Keeping the outfit on). The pass's best-armor step picks armor by form and can put
-the outfit copy on for armor given to them: a follower whose outfit has a steel shield, given
-one with the guard on and `UnusedSlots` at `All`, had an outfit item taken off at each give
-(2026-11-05, log). Where other armor may stay, a copy of the same armor they carry that is no
-outfit item then goes on in its place, unlocked; the copy worn is checked, since which copy the
-engine equips for a plain one is not known, and an outfit copy put on again comes off, the slot
-left empty. An actor in their own clothes (no pieces) keeps every slot the engine's, their
-outfit items included.
+in any slot (Keeping the outfit on). The pass's best-armor step still puts an outfit item on
+over armor given to them that is the same armor or weaker: a follower whose outfit has a steel
+shield, with the guard on and `UnusedSlots` at `All`, had an outfit item taken off at each give
+of a steel shield, and given only an iron shield, wore none (2026-11-05, log). So where other
+armor may stay, the armor they carry that is no outfit item and fits there goes on in its
+place, unlocked: the highest base armor rating, then the highest value, its copy ranked as
+step 1 ranks unworn ones. The copy worn is checked, since which copy the engine equips for a
+plain one is not known; an outfit copy put on again comes off, the slot left empty. Weaker armor
+than the outfit item is taken off again by the pass at each of its runs (a give, a 3D load) and
+put back on by Livery, a brief flash in the trade menu. An actor in their own clothes (no
+pieces) keeps every slot the engine's, their outfit items included.
 
 Pieces from the player's inventory (the window's `Player's Inventory`) move to an NPC
 at Apply, before the dressing, when `[Transfer] MoveFromPlayer` is on
