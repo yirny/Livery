@@ -62,15 +62,17 @@ namespace Dressing
 	// their own outfit, or another mod's distributed one, which the trade menu hides), wherever it
 	// is, or shares a body slot with a piece they wear, or takes a slot no piece has, as [General]
 	// UnusedSlots allows (Settings). OwnOutfitGuard keeps the worn-gear pass from putting outfit
-	// items on; this catches the rest: the pass's best-armor step picks armor by form and can put
-	// the outfit copy on for armor given to them (docs/design.md §2), after fast travel the engine
-	// can mark outfit items worn again beside the locked pieces (§6), and a runtime without the
-	// guard puts them on. An outfit item taken off where other armor may stay is replaced, unlocked,
-	// by a copy of the same armor they carry that is no outfit item, when they have one. The
-	// best-gear pass also fills a slot the outfit leaves empty with armor given to them (a helmet
-	// the outfit has not, or one it leaves off on the row). Other armor only in the slots of pieces
-	// they no longer wear stays. Non-playable armor and a piece another mod locked stay, as in
-	// Dress. Nothing with no pieces (their own clothes). Returns how many came off.
+	// items on; this catches the rest: the pass's best-armor step puts an outfit item on over armor
+	// given to them that is the same armor or weaker (docs/design.md §2), after fast travel the
+	// engine can mark outfit items worn again beside the locked pieces (§6), and a runtime without
+	// the guard puts them on. An outfit item taken off where other armor may stay is replaced,
+	// unlocked, by the armor they carry that is no outfit item and fits there, the highest base
+	// armor rating, then the highest value, when they have one; the pass may put the outfit item on
+	// again at its next run, and this swaps it again. The best-gear pass also fills a slot the
+	// outfit leaves empty with armor given to them (a helmet the outfit has not, or one it leaves
+	// off on the row). Other armor only in the slots of pieces they no longer wear stays.
+	// Non-playable armor and a piece another mod locked stay, as in Dress. Nothing with no pieces
+	// (their own clothes). Returns how many came off.
 	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces);
 
 	// Puts on again, locked, each piece that was theirs or the player's (not `added`) and
