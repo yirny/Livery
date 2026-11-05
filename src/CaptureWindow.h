@@ -50,8 +50,8 @@ namespace CaptureWindow
 	{
 		kLiveryOutfit,  // worn, put on by Livery from the library outfit Request::outfitName names
 		kNotInLibrary,  // worn, put on by Livery, not a library outfit (outfit id 0, or the outfit left the library); "Not in Wardrobe"
-		kUnmanaged,     // worn, not put on by Livery
-		kCarried,       // in the actor's inventory, not worn
+		kUnmanaged,     // worn, not put on by Livery, an outfit item (ExtraOutfitItem of any outfit)
+		kCarried,       // in the actor's inventory, not worn, or worn but neither put on by Livery nor an outfit item
 		kPlayer,        // an NPC's window only: in the player's inventory, not the NPC's
 		kNotCarried     // only a library outfit has it; listed while that outfit is loaded
 	};
