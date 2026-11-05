@@ -270,46 +270,6 @@ namespace
 		}
 	}
 
-	// Diagnostic, to be removed with the fix for the player hidden after a start from first
-	// person: logs the player's models and the camera state. Runs only while the window is open.
-	void LogPlayerModels(const char* a_when)
-	{
-		auto* player = RE::PlayerCharacter::GetSingleton();
-		auto* camera = RE::PlayerCamera::GetSingleton();
-		if (!player || !camera) {
-			return;
-		}
-		const auto describe = [](RE::NiAVObject* a_root) -> std::string {
-			if (!a_root) {
-				return "none";
-			}
-			auto* fade = a_root->AsFadeNode();
-			return std::format("hidden {}, app culled {}, fade {}", a_root->GetFlags().any(RE::NiAVObject::Flag::kHidden), a_root->GetAppCulled(),
-				fade ? std::format("{:.2f}", fade->GetRuntimeData().currentFade) : "n/a");
-		};
-		logger::info("Camera check ({}): state {}; third-person model: {}; first-person model: {}", a_when,
-			camera->currentState ? static_cast<int>(camera->currentState->id) : -1, describe(player->Get3D(false)), describe(player->Get3D(true)));
-	}
-
-	int g_modelChecksLeft = 0;  // diagnostic: 2 after the camera starts on the player, then the first frame, then the first move
-
-	// Diagnostic, removed with LogPlayerModels. Contract: game thread (onViewInput).
-	void LogPlayerModelsAfterMove(const CaptureWindow::ViewInput& a_input)
-	{
-		if (g_modelChecksLeft == 0) {
-			return;
-		}
-		const bool moved = a_input.lookX != 0.0f || a_input.lookY != 0.0f || a_input.panX != 0.0f || a_input.panY != 0.0f ||
-		                   a_input.moveForward != 0.0f || a_input.moveRight != 0.0f || a_input.zoomSteps != 0.0f;
-		if (g_modelChecksLeft == 2) {
-			LogPlayerModels("first camera frame");
-			g_modelChecksLeft = 1;
-		} else if (moved) {
-			LogPlayerModels("first move");
-			g_modelChecksLeft = 0;
-		}
-	}
-
 	// Takes the camera for the window about to open, Live Preview on or off: input over the
 	// game moves FreeCamera (when it could take the camera; otherwise the game's own view
 	// stays). On the player it glides out of an over-the-shoulder offset (SmoothCam); an NPC's
@@ -319,17 +279,8 @@ namespace
 	{
 		constexpr float kCentreSeconds = 0.5f;  // the glide to the middle
 
-		request.onViewInput = [](const CaptureWindow::ViewInput& input) {
-			FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits());
-			LogPlayerModelsAfterMove(input);
-		};
-		g_modelChecksLeft = 0;
-		if (actor.IsPlayerRef()) {
-			LogPlayerModels("before the camera starts");
-		}
+		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits()); };
 		if (FreeCamera::Begin(actor) && actor.IsPlayerRef()) {
-			LogPlayerModels("camera started");
-			g_modelChecksLeft = 2;
 			FreeCamera::CentreSideways(actor, kCentreSeconds);
 		}
 	}
