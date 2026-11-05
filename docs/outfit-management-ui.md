@@ -25,7 +25,7 @@ at any resolution, the thumb's rim and its fill while held in the track's light 
 bar is hidden until the wheel turns over the list, the mouse is over the bar or its thumb is
 dragged; it fades in over 0.2 s, stays while the mouse is in the list, and fades out over
 0.8 s once the mouse has been out of the list for 0.1 s. Fonts at 1080p: Modern's body 20px
-and headings 26px (Jost Book and Medium), Vanilla's 22px and 28px (Oswald), Nordic's 20px and
+and headings 26px (Jost Book and Medium), Vanilla's 24px and 30px (Oswald), Nordic's 20px and
 26px (Sovngarde). The palette `[UI] Palette` names picks the skin and its colours
 (`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by sarrai-common's `Palettes`); below,
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
