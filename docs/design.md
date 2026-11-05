@@ -135,7 +135,9 @@ says so), so a lock would be needed anyway.
   the sink keeps a `TESEquipEvent` sink registered (added as it opens, removed as it
   closes, so normal play sends it nothing): armor an assigned NPC puts on then (the
   best-gear pass at a give) queues an SKSE task that takes the armor outside the pieces off
-  at once (`Dressing::TakeOffExtras`). A piece still missing (refused, a runtime where the
+  at once (`Dressing::TakeOffExtras`) and rebuilds their model (`Dressing::RefreshModel`),
+  since the menu pauses the game and with it the actor update that would show the change.
+  A piece still missing (refused, a runtime where the
   filter found no call site, another mod's inventory access) leaves the slot to the
   vanilla picker until the player assigns again. After that replacing, the same task
   swaps each worn piece for a better copy the NPC now carries (`Dressing::Upgrade`, step 1's
