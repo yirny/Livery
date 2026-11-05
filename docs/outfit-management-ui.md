@@ -162,8 +162,8 @@ the Situations page. Each page keeps its own search and sort.
 - A button or link that needs more input before it acts (a name, a choice on another page) ends in `...`; one that only asks for confirmation does not.
 - A column of icon tabs at the window's left edge, a rule between it and the page:
   the Dress page (a bare dress form: a padded torso on a stand, each shoulder one arc), the
-  Wardrobe page (a wardrobe: a cornice wider than the body, rising to a crest, above two doors
-  with a knob each, clear of the seam between them, on two short legs), the Situations page
+  Wardrobe page (a wardrobe: a double arched cornice over two doors with upright handles and a
+  drawer, on two short legs), the Situations page
   (the star, point down, of the outfit rows' situation mark;
   docs/situation-management-ui.md §3) and Appearance (a painter's palette: a
   round board with a bite out of its lower right, three dabs of paint across from it, smaller
