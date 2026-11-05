@@ -609,26 +609,53 @@ namespace
 	}
 
 	// A heading with a rule, with room above it so the sections read apart.
+	// The rule's label and the room under it before the first setting.
+	void HeadingRule(const char* a_label)
+	{
+		constexpr float kRoomBelow = 4.0f;  // pixels
+		ImGuiMCP::SeparatorText(a_label);
+		ImGuiMCP::Dummy(ImGuiMCP::ImVec2{ 0.0f, kRoomBelow });
+	}
+
 	void Heading(const char* a_label)
 	{
 		constexpr float kRoomAboveInFrames = 0.75f;  // of the frame height, over the setting gap
 		SettingGap();
 		ImGuiMCP::Dummy(ImGuiMCP::ImVec2{ 0.0f, ImGuiMCP::GetFrameHeight() * kRoomAboveInFrames });
-		ImGuiMCP::SeparatorText(a_label);
+		HeadingRule(a_label);
 	}
 
-	// One dropdown per NPC group; a choice takes effect at the next hotkey press.
+	// A setting's label before its control, right-aligned in a column `a_columnWidth` wide so
+	// the controls of a group line up; 0 puts it flush left.
+	void LabelBefore(const char* a_label, float a_columnWidth = 0.0f)
+	{
+		if (a_columnWidth > 0.0f) {
+			ImGuiMCP::SetCursorPosX(ImGuiMCP::GetCursorPosX() + a_columnWidth - ImGuiMCP::CalcTextSize(a_label).x);
+		}
+		ImGuiMCP::AlignTextToFramePadding();
+		ImGuiMCP::Text("%s", a_label);
+		ImGuiMCP::SameLine();
+	}
+
+	// One dropdown per NPC group, their labels right-aligned so the dropdowns line up; a
+	// choice takes effect at the next hotkey press.
 	// Contract: render thread (RenderSettings).
 	void RenderNpcAccess()
 	{
 		constexpr float kComboWidthEms = 10.0f;  // the dropdown's width, of the font size
 		constexpr auto  kAccessHelp = "Full management: you can dress them. Save only: you can save what they wear as an outfit. Disabled: the hotkey does nothing on them.";
 
+		float labelColumn = 0.0f;
+		for (const auto& setting : kNpcGroups) {
+			labelColumn = (std::max)(labelColumn, ImGuiMCP::CalcTextSize(setting.label).x);
+		}
 		for (std::size_t group = 0; group < kNpcGroups.size(); ++group) {
 			const auto& setting = kNpcGroups[group];
 			const auto  current = static_cast<std::size_t>(g_npcAccess[group].load());
+			LabelBefore(setting.label, labelColumn);
+			ImGuiMCP::PushID(static_cast<int>(group));
 			ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
-			if (ImGuiMCP::BeginCombo(setting.label, kNpcAccessOptions[current].label)) {
+			if (ImGuiMCP::BeginCombo("##NpcAccess", kNpcAccessOptions[current].label)) {
 				for (std::size_t option = 0; option < kNpcAccessOptions.size(); ++option) {
 					if (ImGuiMCP::Selectable(kNpcAccessOptions[option].label, option == current)) {
 						const auto access = static_cast<NpcAccess>(option);
@@ -640,6 +667,7 @@ namespace
 				ImGuiMCP::EndCombo();
 			}
 			ImGuiMCP::SetItemTooltip("%s\n%s\nDefault: %s", setting.who, kAccessHelp, kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
+			ImGuiMCP::PopID();
 			SettingGap();
 		}
 	}
@@ -651,8 +679,9 @@ namespace
 		constexpr float kComboWidthEms = 10.0f;  // the dropdown's width, of the font size
 
 		const auto current = static_cast<std::size_t>(g_unusedSlots.load());
+		LabelBefore("Gear in unused slots");
 		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
-		if (ImGuiMCP::BeginCombo("Gear in unused slots", kUnusedSlotsOptions[current].label)) {
+		if (ImGuiMCP::BeginCombo("##UnusedSlots", kUnusedSlotsOptions[current].label)) {
 			for (std::size_t option = 0; option < kUnusedSlotsOptions.size(); ++option) {
 				if (ImGuiMCP::Selectable(kUnusedSlotsOptions[option].label, option == current)) {
 					const auto mode = static_cast<UnusedSlots>(option);
@@ -675,7 +704,7 @@ namespace
 	// Labels are short; each setting explains itself in a tooltip (CLAUDE.md, player-facing English).
 	void __stdcall RenderSettings()
 	{
-		ImGuiMCP::SeparatorText("General");
+		HeadingRule("General");
 
 		// The next key press is taken by OnInput; "###" keeps the button's ID while its text changes.
 		ImGuiMCP::AlignTextToFramePadding();
