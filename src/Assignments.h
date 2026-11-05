@@ -183,6 +183,7 @@ namespace Assignments
 	// Contract: game thread (the trade-menu filter's list fills).
 	void NoteShownInMenu(RE::Actor& a_actor);
 
-	// Whether Livery dresses this NPC; false for the player. Contract: any thread.
-	bool IsManagedNpc(RE::FormID a_actor);
+	// Whether Livery has pieces on this NPC now; false for the player, and for an NPC in their
+	// own clothes whose situation rows wait for their turn. Contract: any thread.
+	bool IsDressedNpc(RE::FormID a_actor);
 }

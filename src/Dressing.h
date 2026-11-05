@@ -12,7 +12,7 @@
 // OwnOutfitGuard keeps the NPC's own outfit items from taking the piece off first. For the
 // trade-menu filter it disguises the copies it added as outfit items (docs/design.md §3).
 //
-// Contract: every function but OutfitItemContestsLock runs on the game thread (SKSE task).
+// Contract: every function runs on the game thread (SKSE task).
 // The inventory is read again after every native call; an instance is found again only by
 // the ExtraUniqueID this module gives it.
 namespace Dressing
@@ -58,22 +58,17 @@ namespace Dressing
 	// piece's `locked`; returns how many it put on or locked.
 	std::size_t PutBackOn(RE::Actor& actor, std::vector<Piece>& pieces);
 
-	// Takes off worn armor that is none of the pieces and either shares a body slot with a piece
-	// they wear or takes a slot no piece has, as [General] UnusedSlots allows (Settings): after
-	// fast travel the engine can mark an NPC's own outfit items worn again beside the locked
-	// pieces (docs/design.md §6), and its best-gear pass fills a slot the outfit leaves empty with
-	// armor given to them (a helmet the outfit has not, or one it leaves off on the row). Armor
-	// only in the slots of pieces they no longer wear stays. Non-playable armor and a piece another
-	// mod locked stay, as in Dress. Nothing with no pieces (their own clothes). Returns how many
-	// came off.
+	// Takes off worn armor that is none of the pieces and is an outfit item (any ExtraOutfitItem:
+	// their own outfit, or another mod's distributed one, which the trade menu hides), wherever it
+	// is, or shares a body slot with a piece they wear, or takes a slot no piece has, as [General]
+	// UnusedSlots allows (Settings). OwnOutfitGuard keeps the worn-gear pass from putting outfit
+	// items on; this catches the rest: after fast travel the engine can mark them worn again beside
+	// the locked pieces (docs/design.md §6), and a runtime without the guard puts them on. The
+	// best-gear pass also fills a slot the outfit leaves empty with armor given to them (a helmet
+	// the outfit has not, or one it leaves off on the row). Other armor only in the slots of pieces
+	// they no longer wear stays. Non-playable armor and a piece another mod locked stay, as in
+	// Dress. Nothing with no pieces (their own clothes). Returns how many came off.
 	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces);
-
-	// Whether an outfit item they carry unworn shares a body slot with a worn locked piece:
-	// putting that item on would take the piece off and clear its lock (docs/design.md §6). Any
-	// ExtraOutfitItem counts, since SPID's distributed outfits mark their items with another id.
-	// Contract: the pass in OwnOutfitGuard calls this on a thread that is not documented, so it
-	// only reads their inventory, as the pass itself does next.
-	bool OutfitItemContestsLock(RE::Actor& actor);
 
 	// Puts on again, locked, each piece that was theirs or the player's (not `added`) and
 	// that they no longer carry (taken from them in a menu): a copy of that armor they carry,
