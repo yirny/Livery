@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-// Keeps an assigned NPC's own outfit items from taking their locked pieces off (docs/design.md
-// §2, Keeping the outfit on), by hooking the call that puts those items on in the engine's
-// worn-gear pass, the one SPID hooks for its distributed outfits. Skyrim VR and AE before 1.6.640
-// are not covered: Install() logs that and returns.
+// Keeps the outfit items of an NPC Livery dresses, their own or another mod's distributed outfit,
+// from going on (docs/design.md §2, Keeping the outfit on), by hooking the call that puts those
+// items on in the engine's worn-gear pass, the one SPID hooks for its distributed outfits. Skyrim
+// VR and AE before 1.6.640 are not covered: Install() logs that and returns.
 namespace OwnOutfitGuard
 {
 	// The call is checked against its byte signature first; one that does not match is left alone.

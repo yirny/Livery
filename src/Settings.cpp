@@ -694,7 +694,8 @@ namespace
 		}
 		ImGuiMCP::SetItemTooltip(
 			"Whether NPCs can equip additional gear in slots not used by their Livery outfit. "
-			"For example, an NPC may equip a helmet you give them if the outfit has no headgear.\n"
+			"For example, an NPC may equip a helmet you give them if the outfit has no headgear. "
+			"Their own default outfit never goes on there.\n"
 			"\"Except headgear\" prevents additional helmets, hoods, and circlets.\n"
 			"Default: Except headgear");
 	}

@@ -351,7 +351,8 @@ namespace
 	{
 		RE::TESObjectARMO* armor;
 		bool               worn;
-		CopyMarks          marks;  // CopyMarksOf the copy the row stands for
+		CopyMarks          marks;                   // CopyMarksOf the copy the row stands for
+		bool               wornOutfitItem = false;  // a worn copy is an outfit item (WornOutfitItem)
 	};
 
 	// The plugin armor an inventory armor is listed as. The library names a piece by its
@@ -475,6 +476,19 @@ namespace
 		return copies;
 	}
 
+	// Whether a worn copy of the entry carries an ExtraOutfitItem of any outfit: the actor's
+	// own, or one another mod handed out (SPID marks its items with that outfit's id). Such a
+	// piece came with an outfit; a worn one without the mark is an item they were given.
+	bool WornOutfitItem(const RE::InventoryEntryData& entry)
+	{
+		if (!entry.extraLists) {
+			return false;
+		}
+		return std::ranges::any_of(*entry.extraLists, [](const RE::ExtraDataList* extra) {
+			return extra && extra->GetWorn() && extra->HasType<RE::ExtraOutfitItem>();
+		});
+	}
+
 	// Inventory armor as plugin-defined forms (PluginArmor), worn pieces first, each group in
 	// name order; runtime-created armor without a plugin armor is left out. Only
 	// worn pieces count in substituted and skipped. A form both worn and carried
@@ -522,6 +536,7 @@ namespace
 				logger::info("Using base armor {:08X} for runtime-created armor {:08X}", plugin->GetFormID(), armor->GetFormID());
 			}
 			const auto marks = CopyMarksOf(*armor, entry.get(), count, false);
+			const bool outfitItem = worn && WornOutfitItem(*entry);
 			armor = plugin;
 			if (const auto found = std::ranges::find(armors, armor, &InventoryArmor::armor); found != armors.end()) {
 				// One row for the plugin armor and those created from it: the better marked copy, the worn one on a tie.
@@ -529,8 +544,9 @@ namespace
 					found->marks = marks;
 				}
 				found->worn = found->worn || worn;
+				found->wornOutfitItem = found->wornOutfitItem || outfitItem;
 			} else {
-				armors.push_back({ armor, worn, marks });
+				armors.push_back({ armor, worn, marks, outfitItem });
 			}
 		}
 
@@ -629,7 +645,8 @@ namespace
 	}
 
 	// The group of a piece the actor carries: worn and put on by Livery from the library
-	// outfit `livery` (or not a library one), worn otherwise, or only carried.
+	// outfit `livery` (or not a library one), worn as an outfit item (WornOutfitItem), or
+	// carried, worn or not: an item they were given and put on is listed with their inventory.
 	CaptureWindow::PieceGroup OwnPieceGroup(const InventoryArmor& piece, const std::optional<Assignments::Choices>& choices, const Library::Outfit* livery)
 	{
 		using Group = CaptureWindow::PieceGroup;
@@ -637,7 +654,10 @@ namespace
 			return Group::kCarried;
 		}
 		const bool byLivery = choices && std::ranges::find(choices->wornArmor, piece.armor->GetFormID()) != choices->wornArmor.end();
-		return !byLivery ? Group::kUnmanaged : (livery ? Group::kLiveryOutfit : Group::kNotInLibrary);
+		if (!byLivery) {
+			return piece.wornOutfitItem ? Group::kUnmanaged : Group::kCarried;
+		}
+		return livery ? Group::kLiveryOutfit : Group::kNotInLibrary;
 	}
 
 	// Index of the armor in `armors`; armor not there yet is appended to both
@@ -814,8 +834,8 @@ namespace
 	// How the armor they wear differs from what Livery put on them, by `inventory`
 	// (CollectArmor): `notWorn`, Livery's pieces they wear no copy of (taken back in the trade
 	// menu, or taken off by another mod or by the player in their own inventory); `extra`, worn
-	// armor Livery did not put on (the Dress page's Outfit (Unmanaged)). Both 0 when Livery
-	// has nothing on them.
+	// armor Livery did not put on (under the Dress page's Outfit (Unmanaged) or Inventory).
+	// Both 0 when Livery has nothing on them.
 	struct WornGaps
 	{
 		std::size_t notWorn = 0;
