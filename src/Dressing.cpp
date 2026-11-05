@@ -372,6 +372,65 @@ namespace
 			equipManager.UnequipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
 		});
 	}
+
+	// Whether armor that is none of the pieces and no outfit item may stay on in these body slots
+	// (Dressing::TakeOffExtras): never over a worn piece (`worn`, their slots); in a slot no piece
+	// has (`outfit`, the slots of every piece, worn or gone) as [General] UnusedSlots says; only in
+	// the slots of pieces gone it stays, those slots being the engine's until the next dressing
+	// (docs/design.md §2).
+	bool MayStay(std::uint32_t slots, std::uint32_t worn, std::uint32_t outfit, Settings::UnusedSlots mode)
+	{
+		if ((slots & worn) != 0) {
+			return false;
+		}
+		if ((slots & ~outfit) == 0) {
+			return true;
+		}
+		const bool unusedOff = mode == Settings::UnusedSlots::kOutfitOnly ||
+		                       (mode == Settings::UnusedSlots::kExceptHeadgear && (slots & kHeadgearSlots) != 0);
+		return !unusedOff;
+	}
+
+	// Puts on, unlocked, in place of an outfit item of `armor` just taken off, a copy of that armor
+	// they carry that is no outfit item (one the player gave them), ranked as PickInstance ranks
+	// the unworn ones. The worn-gear pass's best-armor step picks armor by form and can put the
+	// outfit copy on for it (docs/design.md §2). Which copy the engine equips for a plain one (no
+	// extra list) is not known, so the copy worn is checked: an outfit copy comes off again. Logs
+	// the outcome; it runs only after an outfit item came off, never in normal play.
+	void PutOnOwnCopyInstead(RE::Actor& actor, RE::TESObjectARMO& armor, RE::ActorEquipManager& equipManager)
+	{
+		RE::ExtraDataList* best = nullptr;
+		Rank               bestRank;
+		std::int32_t       listed = 0;  // copies on extra lists, skipped ones included
+		for (const auto& copy : Copies(actor, &armor)) {
+			listed += copy.extra->GetCount();
+			if (copy.extra->GetWorn() || IsLocked(*copy.extra) || copy.extra->HasType<RE::ExtraOutfitItem>()) {
+				continue;
+			}
+			if (const auto rank = RankOf(*copy.extra); !best || rank > bestRank) {
+				best = copy.extra;
+				bestRank = rank;
+			}
+		}
+		const bool plain = CountOf(actor, armor) > listed;
+		if (!best && !plain) {
+			return;  // only outfit copies: the slot stays empty
+		}
+		auto* chosen = best && (IsWellMade(bestRank) || !plain) ? best : nullptr;  // nullptr: a plain copy
+		equipManager.EquipObject(&actor, &armor, chosen, 1, nullptr, false, false, false, true);
+		const auto  worn = WornCopy(actor, armor);
+		const auto* name = armor.GetName();
+		if (!worn.extra) {
+			logger::info("{} ({:08X}) did not go on {:08X} in place of their outfit copy", name, armor.GetFormID(), actor.GetFormID());
+		} else if (worn.extra->HasType<RE::ExtraOutfitItem>()) {
+			equipManager.UnequipObject(&actor, &armor, worn.extra, 1, nullptr, false, false, false, true);
+			logger::info("The game put the outfit copy of {} ({:08X}) on {:08X} again; taken off, the slot stays empty", name, armor.GetFormID(),
+				actor.GetFormID());
+		} else {
+			logger::info("Put {} of {} ({:08X}) on {:08X} in place of their outfit copy", chosen ? "a copy with extra data" : "a plain copy", name,
+				armor.GetFormID(), actor.GetFormID());
+		}
+	}
 }
 
 namespace Dressing
@@ -489,17 +548,9 @@ namespace Dressing
 				return false;
 			}
 			// An outfit item (any ExtraOutfitItem: their own outfit, or another mod's distributed
-			// one), which the trade menu hides, and armor over a worn piece always come off. Other
-			// armor in a slot no piece has comes off as [General] UnusedSlots says; other armor only
-			// in the slots of pieces gone stays: those slots are the engine's until the next
-			// dressing (docs/design.md §2).
-			const auto slots = copy.armor->GetSlotMask().underlying();
-			if ((slots & worn) == 0 && !copy.extra->HasType<RE::ExtraOutfitItem>()) {
-				const bool unusedOff = mode == Settings::UnusedSlots::kOutfitOnly ||
-				                       (mode == Settings::UnusedSlots::kExceptHeadgear && (slots & kHeadgearSlots) != 0);
-				if ((slots & ~outfit) == 0 || !unusedOff) {
-					return false;
-				}
+			// one), which the trade menu hides, always comes off; other armor as MayStay says.
+			if (!copy.extra->HasType<RE::ExtraOutfitItem>() && MayStay(copy.armor->GetSlotMask().underlying(), worn, outfit, mode)) {
+				return false;
 			}
 			const auto key = KeyOf(copy);
 			return !key || std::ranges::none_of(pieces, [&key](const Piece& piece) { return piece.key == *key; });
@@ -509,10 +560,18 @@ namespace Dressing
 		if (before == 0) {
 			return 0;
 		}
+		std::vector<RE::TESObjectARMO*> replaced;  // armor of the outfit items taken off where other armor may stay
 		ForEachCopy(actor, extra, [&](const Copy& copy) {
+			if (copy.extra->HasType<RE::ExtraOutfitItem>() && MayStay(copy.armor->GetSlotMask().underlying(), worn, outfit, mode) &&
+				std::ranges::find(replaced, copy.armor) == replaced.end()) {
+				replaced.push_back(copy.armor);
+			}
 			equipManager->UnequipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
 		});
 		const auto after = countExtras();
+		for (auto* armor : replaced) {
+			PutOnOwnCopyInstead(actor, *armor, *equipManager);
+		}
 		return before > after ? static_cast<std::size_t>(before - after) : 0;
 	}
 
