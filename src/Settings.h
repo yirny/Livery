@@ -104,6 +104,19 @@ namespace Settings
 	// message. Safe from any thread.
 	bool NotifySituationChanges();
 
+	// What an NPC Livery dresses may wear in a body slot their outfit has no item for ([General]
+	// UnusedSlots): anything the engine puts on, anything but headgear, or nothing
+	// (Dressing::TakeOffExtras takes the rest off).
+	enum class UnusedSlots
+	{
+		kAllowAll,
+		kExceptHeadgear,
+		kOutfitOnly
+	};
+
+	// Safe from any thread.
+	UnusedSlots UnusedSlotsMode();
+
 	// Whether every save load releases everyone Livery dresses ([Uninstall] ReleaseEveryone), the
 	// uninstall path without SKSE Menu Framework. Read once at Load, never written back by Livery.
 	// Safe from any thread.

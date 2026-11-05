@@ -58,11 +58,15 @@ outfit they wore (below). The outfit's other items, those added to it later incl
 the items left off are all it has, it is dressed whole. The library outfit itself never
 changes for this.
 
-Slots the outfit leaves empty, those of the items it leaves off on the row included, stay
-empty on an NPC: the engine's best-gear pass can put armor they own there (a helmet given in
-the trade menu), and it comes off again at once while that menu is open, as it closes and
-when their 3D loads (`Dressing::TakeOffExtras`, Keeping the outfit on). Armor that reaches
-them otherwise (a gift, another mod) stays on until the next trade or 3D load. Their own outfit items stay off there too while
+Slots the outfit leaves empty, those of the items it leaves off on the row included, are
+governed by `[General] UnusedSlots` (in game `Gear in unused slots`): `All` leaves them the
+engine's, `ExceptHeadgear` (the default) keeps headgear out of them (armor in any of body
+slots 30, 31, 41, 42: helmets, hoods, circlets), `OutfitOnly` keeps them empty. The engine's
+best-gear pass can put armor they own there (a helmet given in the trade menu); armor the
+setting keeps out comes off again at once while that menu is open, as it closes and when
+their 3D loads (`Dressing::TakeOffExtras`, Keeping the outfit on). Armor that reaches them
+otherwise (a gift, another mod) stays on until the next trade or 3D load. A change of the
+setting takes effect at the next of those. Their own outfit items stay off there too while
 one of them contests a locked piece. An actor in their own clothes (no pieces) keeps every
 slot the engine's.
 
