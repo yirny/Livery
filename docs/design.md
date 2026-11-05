@@ -225,7 +225,9 @@ release everything, whose copies are ordinary items once Livery is removed. Copi
 `[Player] AddMissingPieces` on: unlocked ordinary items, and Release takes back only those still
 carried. The capture menu swallows every input event and disables the pause menu, so no save is
 made while a preview is on, and no preview copy reaches a save. While the window is open the
-HUD is hidden and an NPC is held where they stand (`src/MovementHold.cpp`).
+HUD is hidden and an NPC is held where they stand (`src/MovementHold.cpp`); the game's menus
+are shown even if the console's `tm` hid them, since the window is drawn and reads its input
+only while they are, and hidden again as it closes.
 
 A dressing's HUD message names the pieces not carried (the player without `AddMissingPieces`)
 and those the engine refused to put on (`DressingNotes` in `src/Assignments.cpp`).
