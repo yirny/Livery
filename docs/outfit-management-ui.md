@@ -235,8 +235,8 @@ the Situations page. Each page keeps its own search and sort.
   - A click on the icon field opens `Choose icon` (no title, as every popup): the icons
     whose PNG is loaded, in `OutfitIcons::kKeys`' order, 8 to a row, each a tile with 6px
     around it, filled in the hover colour while hovered and in the selected colour with a
-    rim while chosen; under them the ten colours of `OutfitIcons::kColors`, one row as wide
-    as the icons, a 1px rim while hovered and 2px while chosen; then `OK` / `Cancel`.
+    rim while chosen; under them the thirty colours of `OutfitIcons::kColors`, ten to a row,
+    each row as wide as the icons, a 1px rim while hovered and 2px while chosen; then `OK` / `Cancel`.
     While the mouse is over a colour, every icon shows in it; a click chooses an icon or a
     colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
     leaves it. Nothing is written until Save. The Save page's Create tab opens the same
