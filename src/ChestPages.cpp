@@ -493,7 +493,7 @@ namespace CaptureWindow::Internal
 			ImGui::EndPopup();
 			return false;
 		}
-		ImGui::TextUnformatted(std::format("Remove the chest \"{}\"?", ChestAt(a_state, a_state.chest.chest).name).c_str());
+		RunLine({ TextRun("Remove the chest "), ChestRun(ChestAt(a_state, a_state.chest.chest).name), TextRun("?") });
 		BeginButtonRow({ "Remove", "Cancel" });
 		const bool remove = Theme::Button("Remove");
 		ImGui::SameLine();

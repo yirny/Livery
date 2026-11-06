@@ -252,7 +252,7 @@ The situation's details, its fields evenly spaced with no headings:
   the outfit list, keeps the situation selected, opens its heading if folded and scrolls the
   left pane to it when the pane can scroll.
 - `Remove` at the right end of Show Outfit List's row, drawn as Restore Presets is, without
-  the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove "Town"?`, then under `It is used by:` the
+  the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove Town?`, then under `It is used by:` the
   actors in this save with outfits on their Town row's list, hidden ones included
   (`Lydia: 2 outfit(s)`, the length of `outfits`; a FormID when not in memory), `Restore
   Presets brings "Town" back, without them.` (`... back.` when nobody has any); `Remove` /
