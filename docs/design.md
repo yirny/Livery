@@ -618,8 +618,9 @@ setting, off by default). Open:
   tinted with its colour; a key whose PNG is not loaded draws the default key's PNG in that
   colour. The picker offers the keys of `OutfitIcons::kKeys` whose PNG is loaded, in that
   order: SkyUI's slots (helmet, circlet, body, hands, feet, necklace, ring, shield; each
-  heavy, light, clothing), Jelidity's cloak and backpack, then BOOBIES' `bodyparts` from head
-  to feet. An icon drawn the same as one listed is left out (SkyUI's forearms and calves,
+  heavy, light, clothing), Jelidity's cloak and backpack, SkyUI's other items (weapons, the
+  schools of magic in the game's order and magic effect, the elements, book, potion, misc),
+  then BOOBIES' `bodyparts` from head to feet; ten to a row. An icon drawn the same as one listed is left out (SkyUI's forearms and calves,
   BOOBIES' torso, ring and circlet). The colours are `OutfitIcons::kColors`: three rows of ten,
   pale, muted and dark; each a grey (`#eaeaea` in the first row), then red, pink, purple,
   blue violet, blue, blue green, green, yellow green and orange.
