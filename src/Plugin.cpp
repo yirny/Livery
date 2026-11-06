@@ -207,14 +207,15 @@ namespace
 
 	// Keeps the preview camera around the actor, so the preview cannot scout ahead. The distances
 	// are the game's units; the slopes and heights place the actor at the edge of a 16:9 view:
-	// their side at the left or right edge, their chest at the bottom, their knees at the top.
+	// their side at the left or right edge, their knees at the top, and the camera may rise well
+	// above their head to look down on them.
 	FreeCamera::MoveLimits PreviewMoveLimits()
 	{
 		constexpr float kMinDistance = 30.0f;  // just short of passing through them
 		constexpr float kMaxDistance = 240.0f;
 		constexpr float kSideSlope = 0.75f;
-		constexpr float kChestHeight = 0.75f;  // of the actor's height
-		constexpr float kKneeHeight = 0.28f;   // of the actor's height
+		constexpr float kTopHeight = 1.4f;    // of the actor's height
+		constexpr float kKneeHeight = 0.28f;  // of the actor's height
 		constexpr float kRiseSlope = 0.47f;
 		constexpr float kZoomShare = 0.15f;  // of the distance, per wheel step
 
@@ -222,7 +223,7 @@ namespace
 		limits.minActorDistance = kMinDistance;
 		limits.maxActorDistance = kMaxDistance;
 		limits.sideSlope = kSideSlope;
-		limits.upperHeight = kChestHeight;
+		limits.upperHeight = kTopHeight;
 		limits.lowerHeight = kKneeHeight;
 		limits.riseSlope = kRiseSlope;
 		limits.zoomShare = kZoomShare;
