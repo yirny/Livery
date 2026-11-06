@@ -94,7 +94,7 @@ namespace CaptureWindow::Internal
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
-		Theme::CountText(std::format("{} chest(s)", listed).c_str(), false);
+		Theme::CountText(std::format("{} chests", listed).c_str(), false);
 		if (clicked >= 0) {
 			QueueMenuSound(kFocusSound);
 		}
@@ -533,7 +533,7 @@ namespace CaptureWindow::Internal
 			ResetCellBaseline();
 			Theme::LabelText("Items", Theme::HeadingIcon::kBackpack);
 			Theme::AfterFieldGap();
-			Theme::CountText(std::format("{} item(s)", CountOutside(a_state).rows).c_str());
+			Theme::CountText(std::format("{} items", CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
 			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());

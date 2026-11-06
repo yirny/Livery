@@ -151,7 +151,7 @@ namespace
 		auto text = name == oldName ? std::format("Livery: updated {} ({} items)", name, armors.size()) :
 		                              std::format("Livery: updated {}, renamed from {} ({} items)", name, oldName, armors.size());
 		if (unloaded) {
-			text += std::format("; {} item(s) from plugins that are not loaded stay in it", unloaded);
+			text += std::format("; {} items from plugins that are not loaded stay in it", unloaded);
 		}
 		Notify(text + ".");
 		return std::nullopt;
@@ -698,12 +698,12 @@ namespace
 	}
 
 	// Who has outfits on the situation's list among Livery's assignments, one line each for
-	// the Remove situation? popup: "Lydia: 2 outfit(s)". Contract: game thread.
+	// the Remove situation? popup: "Lydia: 2 outfits". Contract: game thread.
 	std::vector<std::string> HolderLines(Situations::Situation situation)
 	{
 		std::vector<std::string> lines;
 		for (const auto& holder : Assignments::HoldersOf(situation)) {
-			lines.push_back(std::format("{}: {} outfit(s)", ActorLabel(holder.actor), holder.outfits));
+			lines.push_back(std::format("{}: {} outfits", ActorLabel(holder.actor), holder.outfits));
 		}
 		return lines;
 	}
@@ -930,7 +930,7 @@ namespace
 		}
 		auto        notMoved = Dressing::MoveFromPlayer(*player, npc, moving, Settings::ShowPlayerWornPieces());
 		const auto* name = npc.GetDisplayFullName();
-		auto        text = std::format("Livery: moved {} of {} item(s) from you to {}", moving.size() - notMoved.size(), moving.size(), name && *name ? name : "them");
+		auto        text = std::format("Livery: moved {} of {} items from you to {}", moving.size() - notMoved.size(), moving.size(), name && *name ? name : "them");
 		for (std::size_t i = 0; i < notMoved.size(); ++i) {
 			text += (i == 0 ? "; not moved: " : ", ") + DisplayName(*notMoved[i]);
 		}
@@ -1320,7 +1320,7 @@ namespace
 				return;
 			}
 			const auto wearing = Assignments::ForgetOutfit(outfit, pieces);
-			Notify(users > 0 ? std::format("Livery: removed \"{}\"; cleared from {} character(s).", name, users) : std::format("Livery: removed \"{}\".", name));
+			Notify(users > 0 ? std::format("Livery: removed \"{}\"; cleared from {} characters.", name, users) : std::format("Livery: removed \"{}\".", name));
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			for (const auto id : wearing) {
@@ -1431,7 +1431,7 @@ namespace
 				return;
 			}
 			const auto wearing = Assignments::ForgetSituation(situation);
-			Notify(holders > 0 ? std::format("Livery: removed the situation \"{}\"; cleared from {} character(s).", name, holders) :
+			Notify(holders > 0 ? std::format("Livery: removed the situation \"{}\"; cleared from {} characters.", name, holders) :
 								 std::format("Livery: removed the situation \"{}\".", name));
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
@@ -1489,7 +1489,7 @@ namespace
 			auto text = edit.name == oldName ? std::format("Livery: updated the chest \"{}\" ({} items)", edit.name, picked.size()) :
 			                                   std::format("Livery: updated the chest \"{}\", renamed from \"{}\" ({} items)", edit.name, oldName, picked.size());
 			if (unloaded) {
-				text += std::format("; {} item(s) from plugins that are not loaded stay in it", unloaded);
+				text += std::format("; {} items from plugins that are not loaded stay in it", unloaded);
 			}
 			logger::info("{}.", text);  // no HUD message: the editor saves as it is edited
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));

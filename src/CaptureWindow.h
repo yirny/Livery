@@ -126,7 +126,7 @@ namespace CaptureWindow
 		std::string           name;
 		std::string           conditions;  // when it applies, shown read only on the Situations page
 		// Who has outfits on its list in this save, one line each, for the Remove situation? popup:
-		// "Lydia: 2 outfit(s)", the actor's FormID when not in memory. Empty for the Default.
+		// "Lydia: 2 outfits", the actor's FormID when not in memory. Empty for the Default.
 		std::vector<std::string> holders;
 	};
 
