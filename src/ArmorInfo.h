@@ -11,7 +11,8 @@
 // its icon's tint (PieceIcons.cpp). The rules are SkyUI 5's (schlangster/skyui on GitHub,
 // src/ItemMenus/InventoryDataSetter.as: processArmorClass, processArmorPartMask,
 // processArmorOther, processArmorBaseId; src/Common/skyui/defines/Armor.as), with SkyUI's
-// strings. Header only: the functions run when the capture window opens, never per frame.
+// strings, and SkyUI 6's cloak and backpack slots (read from SkyUI 6.9's inventorymenu.swf).
+// Header only: the functions run when the capture window opens, never per frame.
 //
 // Contract: game thread (reads forms and the data handler).
 namespace ArmorInfo
@@ -44,9 +45,10 @@ namespace ArmorInfo
 			ArmorClass otherClass;  // processArmorOther's class for an armor the game gives none
 		};
 
-		constexpr int kUnnamedOrder = 100;  // above SkyUI's EQUIP_ values (0 to 13), as its part-mask subType is
+		constexpr int kUnnamedOrder = 100;  // above SkyUI's EQUIP_ values (0 to 15), as its part-mask subType is
 
-		// PARTMASK_PRECEDENCE's named slots, in its order: the first one an armor covers is its main slot.
+		// PARTMASK_PRECEDENCE's named slots before its unnamed ones, in its order: the first one an
+		// armor covers is its main slot.
 		constexpr std::array<NamedSlot, 14> kPrecedence{ {
 			{ Slot::kBody, { "Body", 3 }, ArmorClass::kClothing },
 			{ Slot::kHair, { "Head", 1 }, ArmorClass::kClothing },
@@ -64,6 +66,13 @@ namespace ArmorInfo
 			{ Slot::kTail, { "Tail", 13 }, ArmorClass::kClothing },
 		} };
 
+		// SkyUI 6's named slots among the unnamed ones, which PARTMASK_PRECEDENCE ranks by bit
+		// after kPrecedence's: one is an armor's main slot when it is the lowest slot it covers.
+		constexpr std::array<NamedSlot, 2> kLateNamed{ {
+			{ Slot::kModChestPrimary, { "Cloak", 15 }, ArmorClass::kClothing },  // slot 46
+			{ Slot::kModBack, { "Back", 14 }, ArmorClass::kClothing },           // slot 47
+		} };
+
 		// SkyUI's base-id exceptions, which it matches by the form id's low 24 bits.
 		constexpr RE::FormID kWeddingWreath = 0x08895A;     // Skyrim.esm ClothesWeddingWreath: Jewelry
 		constexpr RE::FormID kVampireLordArmor = 0x011A84;  // Dawnguard.esm DLC1ClothesVampireLordArmor: Body
@@ -72,6 +81,13 @@ namespace ArmorInfo
 		{
 			for (const auto& named : kPrecedence) {
 				if (a_armor.HasPartOf(named.slot)) {
+					return &named;
+				}
+			}
+			const auto mask = static_cast<std::uint32_t>(a_armor.GetSlotMask().underlying());
+			const auto lowest = mask & (0u - mask);
+			for (const auto& named : kLateNamed) {
+				if (static_cast<std::uint32_t>(named.slot) == lowest) {
 					return &named;
 				}
 			}
