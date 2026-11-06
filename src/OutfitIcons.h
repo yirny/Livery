@@ -79,12 +79,15 @@ namespace OutfitIcons
 		"boobies immersive icons/bodyparts/armor_daedricshield",
 	});
 
-	// The picker's colours in order, 0xRRGGBB: white, then pale tints of low saturation and
-	// high lightness (HSL about 60% and 78%): blue violet, purple, pink, red, orange, yellow
-	// green, green, blue green, blue.
-	constexpr std::array<std::uint32_t, 10> kColors{ 0xEAEAEA, 0xAEA5E8, 0xC8A5E8, 0xE8A5CB, 0xE8A5A5, 0xE8C2A5, 0xC2E8A5, 0xA5E8B1, 0xA5E8E0,
-		0xA5CDE8 };
-	constexpr std::uint32_t                 kDefaultColor = kColors[0];
+	// The picker's colours in order, 0xRRGGBB, in three rows of ten: pale, muted and dark. Each
+	// row is a grey (white in the first), then red, pink, purple, blue violet, blue, blue
+	// green, green, yellow green and orange.
+	constexpr std::array<std::uint32_t, 30> kColors{
+		0xEAEAEA, 0xE8A5A5, 0xE8A5CB, 0xC8A5E8, 0xAEA5E8, 0xA5CDE8, 0xA5E8E0, 0xA5E8B1, 0xC2E8A5, 0xE8C2A5,
+		0xB0B0B0, 0xA28989, 0xA28997, 0x9689A2, 0x8C89A2, 0x8998A2, 0x89A29F, 0x89A28D, 0x94A289, 0xA29489,
+		0x757575, 0x725454, 0x725465, 0x635472, 0x585472, 0x546672, 0x54726E, 0x547259, 0x617254, 0x726154
+	};
+	constexpr std::uint32_t kDefaultColor = kColors[0];
 
 	struct Icon
 	{
