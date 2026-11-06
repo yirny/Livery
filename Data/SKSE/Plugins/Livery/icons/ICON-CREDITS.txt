@@ -2,10 +2,20 @@ The piece icons in this folder are SkyUI icon art, rendered from the swf frames 
 128x128 white alpha masks; the plugin tints them at draw time. They are used with their
 authors' permission and under the permissions on the mod pages named below.
 
-- skyui/icons_item_psychosteve/: the armor slot icons by PsychoSteve, from SkyUI's
+- skyui/icons_item_psychosteve/: every icon of SkyUI's
   interface/skyui/icons_item_psychosteve.swf
-  (SkyUI, https://www.nexusmods.com/skyrimspecialedition/mods/12604).
-- I4IconAddon/icons/ (clothing_cloak, clothing_backpack): by Jelidity, from
-  interface/I4IconAddon/icons.swf of Inventory Interface Information Injector
-  (https://www.nexusmods.com/skyrimspecialedition/mods/85702). Credit Jelidity when
-  reusing them; AI-made variants of these icons are not permitted.
+  (SkyUI, https://www.nexusmods.com/skyrimspecialedition/mods/12604), by PsychoSteve,
+  except SkyUI 6's additions listed below, which are Jelidity's.
+- I4IconAddon/icons/: every icon of interface/I4IconAddon/icons.swf of Inventory
+  Interface Information Injector
+  (https://www.nexusmods.com/skyrimspecialedition/mods/85702), by Jelidity.
+
+Jelidity's icons, in both folders:
+  clothing_backpack, clothing_cloak, scroll_spider, misc_housepart, misc_camping,
+  weapon_fishingrod, misc_chitin, misc_horsetack, soulgem_tomatoempty,
+  soulgem_tomatopartial, soulgem_tomatofull, soulgem_ayleidcrystalempty,
+  soulgem_ayleidcrystalpartial, soulgem_ayleidcrystalfull, misc_dwarvenscrap,
+  misc_elderscroll, magic_sun, magic_wind, misc_jar, magic_vampire, magic_water,
+  magic_earth, misc_tool, misc_toy, misc_instrument, misc_beartrap.
+
+Credit Jelidity when reusing Jelidity's icons; AI-made variants of them are not permitted.
