@@ -41,7 +41,7 @@ dressing itself.
   slots; a longer list ends in an ellipsis. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
   come first; Name ascending to start.
-- The count line `x of y item(s) selected` sits under the list, ending in `Add from
+- The count line `x of y items selected` sits under the list, ending in `Add from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview follows it.
 - Buttons: `Apply` (needs a ticked piece), `Save to Wardrobe...` (needs a ticked piece; opens the Save page),
   `Exit` (Escape too: closes the window and changes nothing). `Restore Outfit` at the right end of the Live Preview line: a borderless text
@@ -109,12 +109,12 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   click, hover fill or tooltip (the default icon, greyed with the name, while none is chosen).
 - Create and Apply saves as Create does and gives the new outfit the row the Wardrobe page's
   Apply would (docs/outfit-management-ui.md §4), through the same popup body
-  (`ApplySubject`), its question starting `Create "#{Outfit}", then`:
+  (`ApplySubject`), its question starting `Create #{Outfit}, then`:
   - while the actor wears another outfit for a situation: `Lydia is wearing their Town
-    outfit, "B".`, `Create "A", then make it their new Town outfit?` (random on: `add it to
+    outfit, B.`, `Create A, then make it their new Town outfit?` (random on: `add it to
     them and wear it now`); Yes gives it that row, Apply as Default (?) the Default;
-  - else the Default; when the Default holds an outfit or pieces it asks first: `Create "A",
-    then apply it as Lydia's Default?`, `"A" replaces "B" as Lydia's Default.`,
+  - else the Default; when the Default holds an outfit or pieces it asks first: `Create A,
+    then apply it as Lydia's Default?`, `A replaces B as Lydia's Default.`,
     `Create and Apply` / `Cancel`; else it saves at once.
   Cancel saves nothing. The Player's Inventory pieces move first, and those that do not move
   stay out of the one dressing (`SaveRequest::fromPlayer`, `Assignments::Changes::leaveOut`).
@@ -133,8 +133,8 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   first.
 - The name may be changed: a name must be unused, ASCII case ignored, by any other outfit
   (CLAUDE.md §2.1); `Library::Update` takes the name.
-- Update's confirm popup (`Replace items?`): `Replace the N item(s) of "A"` / `with the M
-  selected item(s)?`, a line for the pieces of unloaded plugins that stay in it and one for a
+- Update's confirm popup (`Replace items?`): `Replace the N items of A` / `with the M
+  selected items?`, a line for the pieces of unloaded plugins that stay in it and one for a
   rename, then `Confirm` / `Cancel`. No row changes.
 - Order: the library write; on failure `SetError` and nothing assigned; on success Close (the
   preview restores), then Create and Apply's row in one call that redresses once, or after
@@ -156,8 +156,8 @@ when they wear it; a failed write assigns nothing.
   else, Apply asks nothing: X goes to the row it is worn for in one `Assignments::Change`,
   the unticked pieces left off there (`OutfitRows::Exclusion`, as the Wardrobe page's Apply
   leaves them; none unticked wears all its items). The library does not change.
-- Modal `Update "X" with the selected items?` when the ticks hold a piece X does not. For a
-  situation it adds `"X" is #{Name}'s Town outfit.`
+- Modal `Update X with the selected items?` when the ticks hold a piece X does not. For a
+  situation it adds `X is #{Name}'s Town outfit.`
   - `Yes`: `Library::Update(X, pieces = ticks, name kept)`. Default
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced
     redress puts the updated outfit on (`Assignments::Refresh`; `WearFor` only redresses on a

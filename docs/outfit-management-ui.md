@@ -33,12 +33,19 @@ marks, column labels and list headings take the label font: the small font (0.85
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add from Wardrobe...`,
 `Edit`, `Restore`, `Remove`, `Restore Presets`) take the small font in every skin.
 
+Popup lines name an outfit, a situation, the Default or a chest without quotes, after its icon
+(the outfit's own, the star, the Default's form, the chest), the name and its icon in the
+palette's emphasis (`Theme::RunText` through `RunLine`, `OutfitRun`, `RowRun`, `ChestRun`);
+the docs write such a name plainly (`Remove A from the wardrobe?`). Wording that is no name
+(`items that are not a saved outfit`) stays plain text. Tooltips, HUD messages, errors and the
+Restore Presets popup's lines keep their own form (quoted outfit names).
+
 ## 1. Outfit list
 
 The outfit list shared by the Load page, the Save page's Update tab, the Wardrobe page and
 the Situations page. Each page keeps its own search and sort.
 
-- Wording: the window calls the library the wardrobe (`12 outfit(s) in the wardrobe`,
+- Wording: the window calls the library the wardrobe (`12 outfits in the wardrobe`,
   `Not in Wardrobe`).
 - One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
@@ -90,7 +97,7 @@ the Situations page. Each page keeps its own search and sort.
   Icon sorts by `OutfitIcons::kKeys`' order, then `kColors`' order, then the name (icons
   and colours not in the tables last); Name by the name, ASCII case ignored; descending
   reverses the whole order. Each page's list starts at Name ascending when the window opens.
-- The count line under the list, as the piece list's: `12 outfit(s) in the wardrobe`, or
+- The count line under the list, as the piece list's: `12 outfits in the wardrobe`, or
   `3 of 12 outfits` while the search narrows it. The list's height cap leaves room for it,
   and the list keeps the height of the whole library.
 - Search: keeps the outfits whose name contains the typed text, ASCII case ignored. While it
@@ -239,32 +246,48 @@ the Situations page. Each page keeps its own search and sort.
     a second reverses it, from Name ascending at each open. This order is display only and
     shared with the Situations page's outfit details (`OutfitPieceOrder`), apart from the Dress
     page's; the outfit's own list keeps its order, so sorting is no edit. Under the list, the
-    count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page; the count includes
-    pieces from plugins that are not loaded, which stay in the outfit. Then `Save`, centred
-    in the column below the room above every button row (`ButtonRowGap`, as the page's own
+    count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page: `x of y items
+    selected`, y the listed pieces, then `, N not loaded` for pieces from plugins that are not
+    loaded, which stay in the outfit. Then `Save` (wardrobe
+    icon before its label), centred in the column below the room above every button row
+    (`ButtonRowGap`, as the page's own
     buttons have), not shown with no outfit selected. The pieces are the Dress
     page's tick rows (`Theme::TickRow`, with their icons): the ticked ones are what Apply
     dresses the actor in, the unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
     They start as that row leaves them, the row the actor wears the outfit for now, else the
     Default (all ticked when it does not have the outfit); the last ticked piece cannot be
-    unticked. A tick is not an unsaved edit: selecting an outfit, or a change the window
-    takes (`SetOutfits`), starts the ticks again from the rows; Save and Remove ignore
+    unticked. A tick is not an unsaved edit (no unsaved-changes alert asks about it):
+    selecting an outfit, or a change the window takes (`SetOutfits`), starts the ticks again
+    from the rows; Save makes the ticked pieces the outfit's, Remove ignores
     them. The Load page's details and the Save page's piece columns keep the same room before
     their count line, which stays over their list. Their read-only piece rows have the same icons
     (`Theme::TextRow`), and the outfit's name over the Load page's details, its icon as the
     outfit list draws it (`Theme::OutfitNameText`).
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
-  has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Save's
+  has unsaved edits asks `You have unsaved changes for #{Outfit}.` with the lines Save's
   popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
   selected, the Dress page's ticks.
 - Buttons `Apply to #{Name}` (dressed form before its label), `Exit`, then `Remove` (§5) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`). `Save` is in the right column, above.
-  - Save: greyed until the outfit differs from the library (icon, trimmed name, pieces), and
-    with an empty name (`kNeedName`). A popup (`Save changes?`) lists
-    what changes (pieces, rename, `Its icon changes.`), as the Save page's Update tab does; the
-    buttons are `Confirm` / `Cancel`. The window hands the edits to
+  - Save: writes the outfit as edited less its unticked pieces: the ticked pieces become its
+    pieces in the library, for every actor and row that has it (unlike Apply, which leaves
+    them off on one row only). Greyed until that differs from the library (icon, trimmed
+    name, ticked pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
+    what changes (`Its N items become the M selected items.`, rename, `Its icon changes.`),
+    as the Save page's Update tab does; the
+    buttons are `Confirm` / `Cancel`. When the save takes unticked items out of the outfit
+    (library pieces left unticked; those the Edit page took out are not among them), the popup
+    is instead titled `Remove items from the outfit?` (`Theme::PopupTitle`), then
+    `These unselected items will be removed from #{Outfit} when you save:` (the outfit's icon
+    and name in the emphasis colour, `Theme::RunText`), the items as bullets, the other
+    changes (rename, icon, the pieces line only when the Edit page changed the pieces),
+    `To wear only the selected items without changing the saved outfit, choose Apply instead.`,
+    and the buttons `Save` (wardrobe icon) / `Apply to #{Name}` (dressed form; greyed as the
+    page's Apply) / `Cancel`. Its Apply closes the popup and goes on as the page's Apply,
+    writing nothing first beyond what that Apply writes; Apply and Cancel call off a leave
+    the unsaved-changes alert started. The window hands the edits to
     `Request::onManageUpdate`; no row changes. CLAUDE.md §2.1 applies: a name another outfit
     has (ASCII case ignored) is refused, and a refused or failed write changes nothing and
     shows the error. On success the window stays open: the list is rebuilt
@@ -276,23 +299,24 @@ the Situations page. Each page keeps its own search and sort.
     player's inventory. The Save page's Create and Apply always gives every item. The row, from `Request::wornFor` (what
     `Request::wornOutfit` is worn for):
     - They wear another library outfit for a situation now: a popup (`Apply outfit?`) says
-      so, `#{Name} is wearing their Town outfit, "B".` (random on: `one of their Town
-      outfits`), and asks: random off `Make "A" their new Town outfit?` ("B" leaves the
-      row's list), random on `Add "A" to them and wear it now?`, or with "A" on that list
-      already `Wear "A" from them now?`; with library edits `Save your changes to "A", then
+      so, `#{Name} is wearing their Town outfit, B.` (random on: `one of their Town
+      outfits`), and asks: random off `Make A their new Town outfit?` (B leaves the
+      row's list), random on `Add A to them and wear it now?`, or with A on that list
+      already `Wear A from them now?`; with library edits `Save your changes to A, then
       make it ...?` and their lines. Buttons `Yes` (that row; random on, worn as the pick),
       `Apply as Default (?)` and `Cancel`. Apply as Default gives the Default the outfit,
       the situation's outfit staying; its help: `"A" becomes #{Name}'s Default instead, and
       their Town outfit stays. The new Default shows only when Town ends and no other
-      situational outfit applies.`, then `It replaces the current Default, "C".` when it
-      does, and `Your changes are saved first.` with library edits.
+      situational outfit applies.`, then `It replaces "C" as their Default.` when it
+      does, and `Your changes are saved first.` with library edits (a tooltip: the names
+      quoted).
     - They wear it for a situation now: that row, dressed again.
     - Else (the Default, nothing of Livery's, or a situation removed since): the Default.
     - In the last two cases it asks first (`Apply outfit?`) only with library edits or a
-    Default whose worn outfit it replaces, random off: `Apply "#{Outfit}" as #{Name}'s
+    Default whose worn outfit it replaces, random off: `Apply #{Outfit} as #{Name}'s
     Default?` (`... to #{Name} for Town?`), with library edits `Save your changes to
-    "#{Outfit}", then apply it ...?` and their lines, then `The current Default, "C", will be
-    replaced.` when it is; buttons `Apply` (`Save and Apply` with library edits) /
+    #{Outfit}, then apply it ...?` and their lines, then `#{Outfit} replaces C as #{Name}'s
+    Default.` when it is; buttons `Apply` (`Save and Apply` with library edits) /
     `Cancel`. With nothing to say it dresses at once. Its tooltip says which: `Dress #{Name}
     in this outfit as their Town outfit, or make it their Default.` / `... for Town.` /
     `... as their Default.` With library edits it goes through `onManageUpdate` with
@@ -307,7 +331,7 @@ the Situations page. Each page keeps its own search and sort.
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
 - Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
-  "#{Outfit}".` with the lines Save's popup lists, then `Save Changes` /
+  #{Outfit}.` with the lines Save's popup lists, then `Save Changes` /
   `Discard Changes` / `Back`: Save Changes opens
   Save's popup, and its Confirm saves, then goes once the write took (a refused one stays;
   Cancel stays); Discard Changes starts the edits again from the library and goes; Back stays.

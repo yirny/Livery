@@ -111,6 +111,7 @@ On a friend, Livery saves what they wear but can't change it.
 [*][b]Apply[/b], then [b]Exit[/b].
 [/list]
 Rename an outfit, change its icon or remove it on the same page.
+You can also choose which items to wear without changing the saved outfit.
 
 [b]Set situational outfits[/b]
 [list=1]
