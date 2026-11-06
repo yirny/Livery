@@ -27,8 +27,9 @@
 //                  edited in place and kept for one outfit at a time (Discard changes / Keep
 //                  editing before another is selected); the edited outfit, less its unticked
 //                  pieces, on the preview; Save, under the pieces, lists the changes
-//                  (Save changes?; Confirm / Cancel) and hands them to onManageUpdate, the
-//                  ticked pieces becoming the outfit's, Remove
+//                  (Save changes?; Confirm / Cancel, or with unticked items it takes out,
+//                  Remove items from the outfit?; Save / Apply to #{Name} / Cancel) and hands
+//                  them to onManageUpdate, the ticked pieces becoming the outfit's, Remove
 //                  names who has the outfit (Remove outfit?) and hands it to onManageRemove,
 //                  Apply to #{Name} changes what the actor wears now: the situation outfit
 //                  they wear, when they agree in Apply outfit? (Yes), else the Default (Apply
@@ -984,12 +985,12 @@ namespace CaptureWindow::Internal
 
 	// What the library write changes when `a_pieces` become the outfit's pieces, one line each,
 	// as the Save page's Update tab lists it: the pieces (`a_piecesWord`: "edited" or
-	// "selected"), a rename, a new icon, the unloaded pieces kept.
-	void DrawChangeLines(const State& a_state, const std::vector<std::size_t>& a_pieces, const char* a_piecesWord)
+	// "selected"; left out without `a_piecesLine`), a rename, a new icon, the unloaded pieces kept.
+	void DrawChangeLines(const State& a_state, const std::vector<std::size_t>& a_pieces, const char* a_piecesWord, bool a_piecesLine = true)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		if (a_pieces != outfit.pieces) {
+		if (a_piecesLine && a_pieces != outfit.pieces) {
 			ImGui::TextUnformatted(std::format("Its {} item(s) become the {} {} item(s).", outfit.pieces.size(), a_pieces.size(), a_piecesWord).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
@@ -1015,36 +1016,94 @@ namespace CaptureWindow::Internal
 		DrawChangeLines(a_state, ManagedWorn(a_state), "selected");
 	}
 
-	// Save's popup: `Save your changes to "X"?`, the library changes, then Confirm / Cancel.
-	// Returns true on Confirm. Cancel also calls off the leave the unsaved-changes alert's
-	// Save Changes opened it for.
-	bool DrawManageConfirmPopup(State& a_state)
+	// The selected outfit's library pieces that Save takes out of it for being unticked; those
+	// the Edit page took out are not among them. Contract: an outfit is selected.
+	std::vector<std::size_t> UnselectedSavedPieces(const State& a_state)
+	{
+		const auto&              form = a_state.manage;
+		const auto               worn = ManagedWorn(a_state);
+		std::vector<std::size_t> unselected;
+		for (const auto i : OutfitAt(a_state, form.outfit).pieces) {
+			if (std::ranges::find(form.pieces, i) != form.pieces.end() && std::ranges::find(worn, i) == worn.end()) {
+				unselected.push_back(i);
+			}
+		}
+		return unselected;
+	}
+
+	// Save's popup body when it takes unticked items out of the outfit: a title, those items,
+	// the other library changes, then Apply as the way to wear the selection without saving.
+	void DrawUnselectedSaveBody(const State& a_state, const std::vector<std::size_t>& a_unselected)
+	{
+		const auto& form = a_state.manage;
+		const auto& outfit = OutfitAt(a_state, form.outfit);
+		Theme::PopupTitle("Remove items from the outfit?");
+		const std::array<Theme::SubtitleRun, 3> lead{ {
+			{ .text = "These unselected items will be removed from " },
+			{ .text = outfit.name.c_str(), .rowIconKey = outfit.icon.key },
+			{ .text = " when you save:" },
+		} };
+		Theme::RunText(lead);
+		for (const auto i : a_unselected) {
+			ImGui::BulletText("%s", a_state.request.pieces[i].name.c_str());
+		}
+		DrawChangeLines(a_state, ManagedWorn(a_state), "selected", form.pieces != outfit.pieces);
+		ImGui::TextUnformatted("To wear only the selected items without changing the saved outfit, choose Apply instead.");
+	}
+
+	enum class SaveChoice
+	{
+		kNone,
+		kSave,
+		kApply
+	};
+
+	// Save's popup. With unticked items it takes out of the outfit (UnselectedSavedPieces):
+	// DrawUnselectedSaveBody, then Save / Apply to #{Name} / Cancel, Apply greyed as the page's
+	// (ApplyReason); else `Save your changes to "X"?`, the library changes, Confirm / Cancel.
+	// Cancel and Apply also call off the leave the unsaved-changes alert's Save Changes opened
+	// it for. Nothing is written here.
+	SaveChoice DrawManageConfirmPopup(State& a_state)
 	{
 		if (!BeginModal(kManageConfirmPopup)) {
-			return false;
+			return SaveChoice::kNone;
 		}
 		const auto& form = a_state.manage;
 		if (form.outfit < 0) {
 			ImGui::CloseCurrentPopup();
 			ImGui::EndPopup();
-			return false;
+			return SaveChoice::kNone;
 		}
-		ImGui::TextUnformatted(std::format("Save your changes to \"{}\"?", OutfitAt(a_state, form.outfit).name).c_str());
-		DrawSaveChangeLines(a_state);
-		BeginButtonRow({ "Confirm", "Cancel" });
-		const bool confirm = Theme::Button("Confirm");
+		const auto unselected = UnselectedSavedPieces(a_state);
+		bool       save = false;
+		bool       apply = false;
+		if (unselected.empty()) {
+			ImGui::TextUnformatted(std::format("Save your changes to \"{}\"?", OutfitAt(a_state, form.outfit).name).c_str());
+			DrawSaveChangeLines(a_state);
+			BeginButtonRow({ "Confirm", "Cancel" });
+			save = Theme::Button("Confirm");
+		} else {
+			DrawUnselectedSaveBody(a_state, unselected);
+			const char* applyLabel = a_state.manageApplyLabel.c_str();
+			BeginButtonRow({ { "Save", Theme::HeadingIcon::kWardrobe }, { applyLabel, Theme::HeadingIcon::kDressedForm }, "Cancel" });
+			save = Theme::Button(Theme::HeadingIcon::kWardrobe, "Save");
+			ImGui::SameLine();
+			ImGui::BeginDisabled(!a_state.request.onManageApply);
+			apply = ReasonButton(applyLabel, ApplyReason(a_state), nullptr, Theme::HeadingIcon::kDressedForm);
+			ImGui::EndDisabled();
+		}
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
-		if (confirm || cancel) {
-			QueueMenuSound(confirm ? kOkSound : kCancelSound);
+		if (save || apply || cancel) {
+			QueueMenuSound(cancel ? kCancelSound : kOkSound);
 			ImGui::CloseCurrentPopup();
 		}
-		if (cancel) {
+		if (apply || cancel) {
 			a_state.leave.reset();
 		}
 		ImGui::EndPopup();
-		return confirm;
+		return save ? SaveChoice::kSave : (apply ? SaveChoice::kApply : SaveChoice::kNone);
 	}
 
 	// Whether Apply needs the popup: library edits (saved first), or ApplyAsksFirst.
@@ -1348,6 +1407,17 @@ namespace CaptureWindow::Internal
 		}
 	}
 
+	// Apply to #{Name}, from the page or from Save's popup: first lists the ticked items the
+	// player does not carry (DrawNotCarriedPopup), else goes on as ContinueManageApply.
+	void StartManageApply(State& a_state)
+	{
+		if (!ManagedNotCarried(a_state).empty()) {
+			ImGui::OpenPopup(kNotCarriedPopup);
+		} else {
+			ContinueManageApply(a_state);
+		}
+	}
+
 	// Choose icon: the icons whose PNG is loaded, in OutfitIcons' order, the chosen one marked;
 	// under them the colours, the chosen one marked; then OK / Cancel. A click on an icon or a
 	// colour chooses it; while the mouse is over a colour every icon shows in it. OK hands the
@@ -1424,16 +1494,23 @@ namespace CaptureWindow::Internal
 
 	// The page's popups, each opened by the page in its own ID scope. Choose icon's OK makes
 	// the choice the edited outfit's icon, an edit as a rename is. The unsaved-changes
-	// alert's Save Changes saves through Save's popup, whose Confirm the leave follows
+	// alert's Save Changes saves through Save's popup, whose Save or Confirm the leave follows
 	// once the save took (Draw); Discard Changes starts the edits again from the library.
 	void DrawManagePopups(State& a_state)
 	{
 		if (const auto icon = DrawIconPopup(a_state, a_state.manage.outfit >= 0)) {
 			a_state.manage.icon = *icon;
 		}
-		if (DrawManageConfirmPopup(a_state)) {
+		switch (DrawManageConfirmPopup(a_state)) {
+		case SaveChoice::kSave:
 			RequestManageUpdate(a_state, std::nullopt);
 			a_state.leaveAfterSave = a_state.leave.has_value();
+			break;
+		case SaveChoice::kApply:
+			StartManageApply(a_state);
+			break;
+		case SaveChoice::kNone:
+			break;
 		}
 		if (DrawNotCarriedPopup(a_state)) {
 			ContinueManageApply(a_state);
@@ -1515,11 +1592,7 @@ namespace CaptureWindow::Internal
 			ImGui::OpenPopup(kRemovePopup);
 		} else if (action == ManageAction::kApply) {
 			QueueMenuSound(kOkSound);
-			if (!ManagedNotCarried(a_state).empty()) {
-				ImGui::OpenPopup(kNotCarriedPopup);
-			} else {
-				ContinueManageApply(a_state);
-			}
+			StartManageApply(a_state);
 		} else if (action == ManageAction::kCancel) {
 			RequestLeave(a_state, { .exit = true });
 		}
