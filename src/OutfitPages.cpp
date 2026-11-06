@@ -1429,6 +1429,8 @@ namespace CaptureWindow::Internal
 		constexpr int   kColumns = 8;                // icons per row; to be tuned in game
 		constexpr float kTileGap = 2.0f;             // pixels at 1080p, between the icons and between the colours
 		constexpr float kSwatchHeightRatio = 0.75f;  // of the frame height
+		constexpr int   kColorColumns = 10;          // colours per row: a grey and nine hues (OutfitIcons::kColors)
+		static_assert(OutfitIcons::kColors.size() % kColorColumns == 0);
 
 		if (!BeginModal(kIconPopup)) {
 			return std::nullopt;
@@ -1461,12 +1463,14 @@ namespace CaptureWindow::Internal
 
 		const auto  colors = OutfitIcons::kColors.size();
 		const float width = static_cast<float>(kColumns) * Theme::IconTileSide() + static_cast<float>(kColumns - 1) * gap;
-		const float swatch = (width - static_cast<float>(colors - 1) * gap) / static_cast<float>(colors);
+		const float swatch = (width - static_cast<float>(kColorColumns - 1) * gap) / static_cast<float>(kColorColumns);
 		Theme::SectionGap();
 		std::optional<std::uint32_t> hovered;
 		for (std::size_t i = 0; i < colors; ++i) {
-			if (i > 0) {
+			if (i % kColorColumns != 0) {
 				ImGui::SameLine(0.0f, gap);
+			} else if (i > 0) {
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + gap);
 			}
 			const auto rgb = OutfitIcons::kColors[i];
 			ImGui::PushID(static_cast<int>(i));

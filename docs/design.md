@@ -614,5 +614,6 @@ setting, off by default). Open:
   order: SkyUI's slots (helmet, circlet, body, hands, feet, necklace, ring, shield; each
   heavy, light, clothing), Jelidity's cloak and backpack, then BOOBIES' `bodyparts` from head
   to feet. An icon drawn the same as one listed is left out (SkyUI's forearms and calves,
-  BOOBIES' torso, ring and circlet). The colours are `OutfitIcons::kColors`: `#eaeaea`, then
-  pale tints (HSL about 60% saturation, 78% lightness) from blue violet to blue.
+  BOOBIES' torso, ring and circlet). The colours are `OutfitIcons::kColors`: three rows of ten,
+  pale, muted and dark; each a grey (`#eaeaea` in the first row), then red, pink, purple,
+  blue violet, blue, blue green, green, yellow green and orange.
