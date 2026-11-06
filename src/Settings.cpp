@@ -868,9 +868,13 @@ namespace
 
 		SettingGap();
 
-		// Applies at once; the INI is written when the slider is let go.
+		// Applies at once; the INI is written when the slider is let go. The label comes first and
+		// the slider is a little wider than the Window skin dropdown.
+		constexpr float kSliderWidthEms = 16.0f;  // the slider's width, of the font size
 		float percent = g_speedPercent.load();
-		if (ImGuiMCP::SliderFloat("Preview camera speed", &percent, kMinSpeedPercent, kMaxSpeedPercent, "%.0f%%")) {
+		LabelBefore("Preview camera speed");
+		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kSliderWidthEms);
+		if (ImGuiMCP::SliderFloat("##PreviewCameraSpeed", &percent, kMinSpeedPercent, kMaxSpeedPercent, "%.0f%%")) {
 			g_speedPercent = std::clamp(percent, kMinSpeedPercent, kMaxSpeedPercent);
 		}
 		if (ImGuiMCP::IsItemDeactivatedAfterEdit()) {
