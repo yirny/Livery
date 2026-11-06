@@ -653,7 +653,7 @@ namespace CaptureWindow::Internal
 		GoToPage(a_state, a_leave.page);
 	}
 
-	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave, void (*a_drawDetails)(const State&))
+	LeaveChoice DrawLeavePopup(State& a_state, void (*a_drawText)(const State&), const char* a_noSave, void (*a_drawDetails)(const State&))
 	{
 		if (!BeginModal(kLeavePopup)) {
 			return LeaveChoice::kNone;
@@ -663,7 +663,7 @@ namespace CaptureWindow::Internal
 			ImGui::EndPopup();
 			return LeaveChoice::kNone;
 		}
-		ImGui::TextUnformatted(a_text.c_str());
+		a_drawText(a_state);
 		if (a_drawDetails) {
 			a_drawDetails(a_state);
 		}
@@ -1220,7 +1220,7 @@ namespace CaptureWindow::Internal
 	CountLinks DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
-		Theme::CountText(std::format("{} of {} item(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
+		Theme::CountText(std::format("{} of {} items selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		CountLinks links;
 		if (a_withLinks) {
 			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe);
@@ -1503,7 +1503,7 @@ namespace CaptureWindow::Internal
 		return std::any_of(rows.begin() + (rows.empty() ? 0 : 1), rows.end(), [](const CaptureWindow::RowAssignment& a_row) { return OutfitRows::HoldsAny(a_row.row); });
 	}
 
-	// `Update "X" with the ticked pieces?`, naming the situation X is worn for, then Yes,
+	// `Update X with the selected items?`, naming the situation X is worn for, then Yes,
 	// No, apply as is (its "(?)" inside the button; the help speaks of situational outfits
 	// only when the actor has one) or Cancel.
 	ApplyChoice DrawApplyPopup(const State& a_state)
@@ -1522,9 +1522,10 @@ namespace CaptureWindow::Internal
 		}
 		const auto& request = a_state.request;
 		const auto& outfit = OutfitAt(a_state, worn);
-		ImGui::TextUnformatted(std::format("Update \"{}\" with the selected items?", outfit.name).c_str());
+		RunLine({ TextRun("Update "), OutfitRun(outfit.name, outfit.icon), TextRun(" with the selected items?") });
 		if (!request.wornSituation.empty()) {
-			ImGui::TextUnformatted(std::format("\"{}\" is {}'s {} outfit.", outfit.name, request.actorName, request.wornSituation).c_str());
+			const auto whose = std::format(" is {}'s ", request.actorName);
+			RunLine({ OutfitRun(outfit.name, outfit.icon), TextRun(whose.c_str()), SituationRun(request.wornSituation.c_str()), TextRun(" outfit.") });
 		}
 		BeginButtonRow({ "Yes", kJustApplyWidth, "Cancel" });
 		const bool update = Theme::Button("Yes");
@@ -1727,7 +1728,7 @@ namespace CaptureWindow::Internal
 		return row.chosen != 0 ? row.chosen != a_outfit : pieces;
 	}
 
-	// A library outfit as the popups name it, quoted, or says it is gone.
+	// A library outfit as a tooltip names it, quoted, or says it is gone.
 	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit)
 	{
 		const auto& outfits = a_state.request.existingOutfits;
@@ -1735,11 +1736,31 @@ namespace CaptureWindow::Internal
 		return found != outfits.end() ? std::format("\"{}\"", found->name) : std::string("an outfit no longer in the wardrobe");
 	}
 
-	// What row `a_row` wears now with random off, as the replace popup names it.
+	// What row `a_row` wears now with random off, as Apply as Default's help names it.
 	std::string HeldOutfitName(const State& a_state, std::size_t a_row)
 	{
 		const auto outfit = a_state.request.assigned[a_row].row.chosen;
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("items that are not a saved outfit");
+	}
+
+	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row)
+	{
+		const auto outfit = a_state.request.assigned[a_row].row.chosen;
+		if (outfit == 0) {
+			return TextRun("items that are not a saved outfit");
+		}
+		const auto& outfits = a_state.request.existingOutfits;
+		const auto  found = std::ranges::find(outfits, outfit, &CaptureWindow::ExistingOutfit::id);
+		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun("an outfit no longer in the wardrobe");
+	}
+
+	Theme::SubtitleRun WornOutfitRun(const State& a_state)
+	{
+		if (const int worn = WornOutfitIndex(a_state); worn >= 0) {
+			const auto& outfit = OutfitAt(a_state, worn);
+			return OutfitRun(outfit.name, outfit.icon);
+		}
+		return { .text = a_state.request.outfitName.c_str(), .rowIconKey = OutfitIcons::kDefaultKey };
 	}
 
 	// "Create New Outfit / Update Existing Outfit" as the page's heading, in the heading
@@ -1986,15 +2007,15 @@ namespace CaptureWindow::Internal
 	}
 
 	// Create and Apply's popup, opened when it asks first (ApplyAsksFirst): the Wardrobe page's
-	// Apply popup for the outfit Create makes first (`Create "A", then ...?`). Returns the row
-	// the user applies it to, or nullopt; Cancel saves nothing.
+	// Apply popup for the outfit Create makes first (`Create A, then ...?`, A after the icon
+	// Create gives it). Returns the row the user applies it to, or nullopt; Cancel saves nothing.
 	std::optional<std::size_t> DrawCreateApplyPopup(const State& a_state)
 	{
 		if (!BeginModal(kCreateApplyPopup)) {
 			return std::nullopt;
 		}
 		const auto name = Trimmed(a_state.createName.data());
-		const auto row = DrawApplyPopupBody(a_state, { .name = name, .applyLabel = "Create and Apply", .saveFirst = std::format("Create \"{}\"", name) });
+		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = "Create and Apply", .saveFirst = "Create " });
 		ImGui::EndPopup();
 		return row;
 	}
@@ -2012,13 +2033,14 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-		ImGui::TextUnformatted(std::format("Replace the {} item(s) of \"{}\"", outfit.pieces.size(), outfit.name).c_str());
-		ImGui::TextUnformatted(std::format("with the {} selected item(s)?", CountTickedPieces(a_state)).c_str());
+		const auto  replace = std::format("Replace the {} items of ", outfit.pieces.size());
+		RunLine({ TextRun(replace.c_str()), OutfitRun(outfit.name, outfit.icon) });
+		ImGui::TextUnformatted(std::format("with the {} selected items?", CountTickedPieces(a_state)).c_str());
 		if (outfit.unloadedPieces) {
-			ImGui::TextDisabled("%s", std::format("{} item(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+			ImGui::TextDisabled("%s", std::format("{} items from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
-			ImGui::TextUnformatted(std::format("It is renamed \"{}\".", name).c_str());
+			RunLine({ TextRun("It is renamed "), OutfitRun(name, outfit.icon), TextRun(".") });
 		}
 		BeginButtonRow({ "Confirm", "Cancel" });
 		const bool confirm = Theme::Button("Confirm");

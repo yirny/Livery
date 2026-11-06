@@ -785,8 +785,8 @@ namespace CaptureWindow::Internal
 			return confirm;
 		}
 
-		// `Remove "Town"?`, who has outfits on it in this save, and what Restore Presets brings
-		// back; Remove / Cancel. Returns true on Remove.
+		// `Remove Town?` (the name after its star), who has outfits on it in this save, and what
+		// Restore Presets brings back; Remove / Cancel. Returns true on Remove.
 		bool DrawRemoveSituationPopup(const State& a_state)
 		{
 			if (!BeginModal(kRemoveSituationPopup)) {
@@ -799,16 +799,15 @@ namespace CaptureWindow::Internal
 				return false;
 			}
 			const auto& saved = a_state.request.situations[static_cast<std::size_t>(selected)];
-			ImGui::TextUnformatted(std::format("Remove \"{}\"?", saved.name).c_str());
+			const auto  situation = SituationRun(saved.name.c_str());
+			RunLine({ TextRun("Remove "), situation, TextRun("?") });
 			if (!saved.holders.empty()) {
 				ImGui::TextUnformatted("It is used by:");
 				for (const auto& holder : saved.holders) {
 					ImGui::BulletText("%s", holder.c_str());
 				}
-				ImGui::TextUnformatted(std::format("Restore Presets brings \"{}\" back, without them.", saved.name).c_str());
-			} else {
-				ImGui::TextUnformatted(std::format("Restore Presets brings \"{}\" back.", saved.name).c_str());
 			}
+			RunLine({ TextRun("Restore Presets brings "), situation, TextRun(saved.holders.empty() ? " back." : " back, without them.") });
 			const bool remove = DrawPopupButtons("Remove");
 			ImGui::EndPopup();
 			return remove;
