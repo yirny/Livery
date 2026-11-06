@@ -41,7 +41,7 @@ dressing itself.
   slots; a longer list ends in an ellipsis. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
   come first; Name ascending to start.
-- The count line `x of y item(s) selected` sits under the list, ending in `Add from
+- The count line `x of y items selected` sits under the list, ending in `Add from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview follows it.
 - Buttons: `Apply` (needs a ticked piece), `Save to Wardrobe...` (needs a ticked piece; opens the Save page),
   `Exit` (Escape too: closes the window and changes nothing). `Restore Outfit` at the right end of the Live Preview line: a borderless text
@@ -133,8 +133,8 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   first.
 - The name may be changed: a name must be unused, ASCII case ignored, by any other outfit
   (CLAUDE.md §2.1); `Library::Update` takes the name.
-- Update's confirm popup (`Replace items?`): `Replace the N item(s) of A` / `with the M
-  selected item(s)?`, a line for the pieces of unloaded plugins that stay in it and one for a
+- Update's confirm popup (`Replace items?`): `Replace the N items of A` / `with the M
+  selected items?`, a line for the pieces of unloaded plugins that stay in it and one for a
   rename, then `Confirm` / `Cancel`. No row changes.
 - Order: the library write; on failure `SetError` and nothing assigned; on success Close (the
   preview restores), then Create and Apply's row in one call that redresses once, or after

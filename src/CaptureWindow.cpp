@@ -1220,7 +1220,7 @@ namespace CaptureWindow::Internal
 	CountLinks DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
-		Theme::CountText(std::format("{} of {} item(s) selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
+		Theme::CountText(std::format("{} of {} items selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		CountLinks links;
 		if (a_withLinks) {
 			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe);
@@ -2033,11 +2033,11 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-		const auto  replace = std::format("Replace the {} item(s) of ", outfit.pieces.size());
+		const auto  replace = std::format("Replace the {} items of ", outfit.pieces.size());
 		RunLine({ TextRun(replace.c_str()), OutfitRun(outfit.name, outfit.icon) });
-		ImGui::TextUnformatted(std::format("with the {} selected item(s)?", CountTickedPieces(a_state)).c_str());
+		ImGui::TextUnformatted(std::format("with the {} selected items?", CountTickedPieces(a_state)).c_str());
 		if (outfit.unloadedPieces) {
-			ImGui::TextDisabled("%s", std::format("{} item(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+			ImGui::TextDisabled("%s", std::format("{} items from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
 			RunLine({ TextRun("It is renamed "), OutfitRun(name, outfit.icon), TextRun(".") });

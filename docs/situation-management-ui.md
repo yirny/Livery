@@ -254,7 +254,7 @@ The situation's details, its fields evenly spaced with no headings:
 - `Remove` at the right end of Show Outfit List's row, drawn as Restore Presets is, without
   the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove Town?`, then under `It is used by:` the
   actors in this save with outfits on their Town row's list, hidden ones included
-  (`Lydia: 2 outfit(s)`, the length of `outfits`; a FormID when not in memory), `Restore
+  (`Lydia: 2 outfits`, the length of `outfits`; a FormID when not in memory), `Restore
   Presets brings "Town" back, without them.` (`... back.` when nobody has any); `Remove` /
   `Cancel`. The page's edits are saved first, and a refused save opens no popup. Remove writes `situations.json` first; a refused or
   failed write changes nothing and shows the error. Then `Assignments::ForgetSituation`

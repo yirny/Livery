@@ -45,7 +45,7 @@ Restore Presets popup's lines keep their own form (quoted outfit names).
 The outfit list shared by the Load page, the Save page's Update tab, the Wardrobe page and
 the Situations page. Each page keeps its own search and sort.
 
-- Wording: the window calls the library the wardrobe (`12 outfit(s) in the wardrobe`,
+- Wording: the window calls the library the wardrobe (`12 outfits in the wardrobe`,
   `Not in Wardrobe`).
 - One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
@@ -97,7 +97,7 @@ the Situations page. Each page keeps its own search and sort.
   Icon sorts by `OutfitIcons::kKeys`' order, then `kColors`' order, then the name (icons
   and colours not in the tables last); Name by the name, ASCII case ignored; descending
   reverses the whole order. Each page's list starts at Name ascending when the window opens.
-- The count line under the list, as the piece list's: `12 outfit(s) in the wardrobe`, or
+- The count line under the list, as the piece list's: `12 outfits in the wardrobe`, or
   `3 of 12 outfits` while the search narrows it. The list's height cap leaves room for it,
   and the list keeps the height of the whole library.
 - Search: keeps the outfits whose name contains the typed text, ASCII case ignored. While it
@@ -246,8 +246,9 @@ the Situations page. Each page keeps its own search and sort.
     a second reverses it, from Name ascending at each open. This order is display only and
     shared with the Situations page's outfit details (`OutfitPieceOrder`), apart from the Dress
     page's; the outfit's own list keeps its order, so sorting is no edit. Under the list, the
-    count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page; the count includes
-    pieces from plugins that are not loaded, which stay in the outfit. Then `Save` (wardrobe
+    count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page: `x of y items
+    selected`, y the listed pieces, then `, N not loaded` for pieces from plugins that are not
+    loaded, which stay in the outfit. Then `Save` (wardrobe
     icon before its label), centred in the column below the room above every button row
     (`ButtonRowGap`, as the page's own
     buttons have), not shown with no outfit selected. The pieces are the Dress
@@ -274,7 +275,7 @@ the Situations page. Each page keeps its own search and sort.
     pieces in the library, for every actor and row that has it (unlike Apply, which leaves
     them off on one row only). Greyed until that differs from the library (icon, trimmed
     name, ticked pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
-    what changes (`Its N item(s) become the M selected item(s).`, rename, `Its icon changes.`),
+    what changes (`Its N items become the M selected items.`, rename, `Its icon changes.`),
     as the Save page's Update tab does; the
     buttons are `Confirm` / `Cancel`. When the save takes unticked items out of the outfit
     (library pieces left unticked; those the Edit page took out are not among them), the popup

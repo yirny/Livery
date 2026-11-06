@@ -1073,8 +1073,8 @@ namespace Assignments
 			}
 		}
 		SyncManaged();
-		Notify(released == total ? std::format("Livery: released {} character(s).", total) :
-								   std::format("Livery: released {} of {} character(s); the others are out of reach and keep their items.", released, total));
+		Notify(released == total ? std::format("Livery: released {} characters.", total) :
+								   std::format("Livery: released {} of {} characters; the others are out of reach and keep their items.", released, total));
 	}
 
 	void Assign(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_armor, std::uint32_t a_outfit)

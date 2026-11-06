@@ -268,7 +268,7 @@ namespace CaptureWindow::Internal
 		ImGui::PopStyleVar();
 		Theme::EndList();
 		if (visible.size() == outfits.size()) {
-			Theme::CountText(std::format("{} outfit(s) in the wardrobe", outfits.size()).c_str(), false);
+			Theme::CountText(std::format("{} outfits in the wardrobe", outfits.size()).c_str(), false);
 		} else {
 			Theme::CountText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str(), false);
 		}
@@ -298,7 +298,7 @@ namespace CaptureWindow::Internal
 	std::string PieceCountText(std::size_t a_loaded, std::size_t a_unloaded)
 	{
 		const auto total = a_loaded + a_unloaded;
-		return a_unloaded ? std::format("{} item(s), {} not loaded", total, a_unloaded) : std::format("{} item(s)", total);
+		return a_unloaded ? std::format("{} items, {} not loaded", total, a_unloaded) : std::format("{} items", total);
 	}
 
 	void DrawPieceNames(const State& a_state, const std::vector<std::size_t>& a_pieces)
@@ -810,7 +810,11 @@ namespace CaptureWindow::Internal
 		if (DrawPieceChoices(a_state, form.pieces, &form.excluded)) {
 			QueuePreview(a_state, ManagedWorn(a_state));
 		}
-		Theme::CountText(PieceCountText(form.pieces.size(), OutfitAt(a_state, form.outfit).unloadedPieces).c_str(), false);
+		std::string count = std::format("{} of {} items selected", ManagedWorn(a_state).size(), form.pieces.size());
+		if (const auto unloaded = OutfitAt(a_state, form.outfit).unloadedPieces) {
+			count += std::format(", {} not loaded", unloaded);
+		}
+		Theme::CountText(count.c_str(), false);
 		const bool edit = Theme::LabelLink("Edit");
 		BeginButtonRow({ { "Save", Theme::HeadingIcon::kWardrobe } });
 		ImGui::BeginDisabled(!a_state.request.onManageUpdate);
@@ -995,7 +999,7 @@ namespace CaptureWindow::Internal
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		if (a_piecesLine && a_pieces != outfit.pieces) {
-			ImGui::TextUnformatted(std::format("Its {} item(s) become the {} {} item(s).", outfit.pieces.size(), a_pieces.size(), a_piecesWord).c_str());
+			ImGui::TextUnformatted(std::format("Its {} items become the {} {} items.", outfit.pieces.size(), a_pieces.size(), a_piecesWord).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
 			RunLine({ TextRun("It is renamed "), OutfitRun(name, form.icon), TextRun(".") });
@@ -1004,7 +1008,7 @@ namespace CaptureWindow::Internal
 			ImGui::TextUnformatted("Its icon changes.");
 		}
 		if (outfit.unloadedPieces) {
-			ImGui::TextDisabled("%s", std::format("{} item(s) from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+			ImGui::TextDisabled("%s", std::format("{} items from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 	}
 
