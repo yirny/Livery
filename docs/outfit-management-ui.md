@@ -268,7 +268,17 @@ the Situations page. Each page keeps its own search and sort.
     name, ticked pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
     what changes (`Its N item(s) become the M selected item(s).`, rename, `Its icon changes.`),
     as the Save page's Update tab does; the
-    buttons are `Confirm` / `Cancel`. The window hands the edits to
+    buttons are `Confirm` / `Cancel`. When the save takes unticked items out of the outfit
+    (library pieces left unticked; those the Edit page took out are not among them), the popup
+    is instead titled `Remove items from the outfit?` (`Theme::PopupTitle`), then
+    `These unselected items will be removed from #{Outfit} when you save:` (the outfit's icon
+    and name in the emphasis colour, `Theme::RunText`), the items as bullets, the other
+    changes (rename, icon, the pieces line only when the Edit page changed the pieces),
+    `To wear only the selected items without changing the saved outfit, choose Apply instead.`,
+    and the buttons `Save` (wardrobe icon) / `Apply to #{Name}` (dressed form; greyed as the
+    page's Apply) / `Cancel`. Its Apply closes the popup and goes on as the page's Apply,
+    writing nothing first beyond what that Apply writes; Apply and Cancel call off a leave
+    the unsaved-changes alert started. The window hands the edits to
     `Request::onManageUpdate`; no row changes. CLAUDE.md §2.1 applies: a name another outfit
     has (ASCII case ignored) is refused, and a refused or failed write changes nothing and
     shows the error. On success the window stays open: the list is rebuilt
