@@ -33,6 +33,13 @@ marks, column labels and list headings take the label font: the small font (0.85
 in Nordic 0.7 of the body (14px). Count lines, the links (`Add from Wardrobe...`,
 `Edit`, `Restore`, `Remove`, `Restore Presets`) take the small font in every skin.
 
+Popup lines name an outfit, a situation, the Default or a chest without quotes, after its icon
+(the outfit's own, the star, the Default's form, the chest), the name and its icon in the
+palette's emphasis (`Theme::RunText` through `RunLine`, `OutfitRun`, `RowRun`, `ChestRun`);
+the docs write such a name plainly (`Remove A from the wardrobe?`). Wording that is no name
+(`items that are not a saved outfit`) stays plain text. Tooltips, HUD messages, errors and the
+Restore Presets popup's lines keep their own form (quoted outfit names).
+
 ## 1. Outfit list
 
 The outfit list shared by the Load page, the Save page's Update tab, the Wardrobe page and
@@ -240,8 +247,9 @@ the Situations page. Each page keeps its own search and sort.
     shared with the Situations page's outfit details (`OutfitPieceOrder`), apart from the Dress
     page's; the outfit's own list keeps its order, so sorting is no edit. Under the list, the
     count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page; the count includes
-    pieces from plugins that are not loaded, which stay in the outfit. Then `Save`, centred
-    in the column below the room above every button row (`ButtonRowGap`, as the page's own
+    pieces from plugins that are not loaded, which stay in the outfit. Then `Save` (wardrobe
+    icon before its label), centred in the column below the room above every button row
+    (`ButtonRowGap`, as the page's own
     buttons have), not shown with no outfit selected. The pieces are the Dress
     page's tick rows (`Theme::TickRow`, with their icons): the ticked ones are what Apply
     dresses the actor in, the unticked ones the items the outfit leaves off on the row Apply gives it (design.md §2).
@@ -256,7 +264,7 @@ the Situations page. Each page keeps its own search and sort.
     outfit list draws it (`Theme::OutfitNameText`).
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
-  has unsaved edits asks `You have unsaved changes for "#{Outfit}".` with the lines Save's
+  has unsaved edits asks `You have unsaved changes for #{Outfit}.` with the lines Save's
   popup lists, then `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
   selected, the Dress page's ticks.
@@ -290,23 +298,24 @@ the Situations page. Each page keeps its own search and sort.
     player's inventory. The Save page's Create and Apply always gives every item. The row, from `Request::wornFor` (what
     `Request::wornOutfit` is worn for):
     - They wear another library outfit for a situation now: a popup (`Apply outfit?`) says
-      so, `#{Name} is wearing their Town outfit, "B".` (random on: `one of their Town
-      outfits`), and asks: random off `Make "A" their new Town outfit?` ("B" leaves the
-      row's list), random on `Add "A" to them and wear it now?`, or with "A" on that list
-      already `Wear "A" from them now?`; with library edits `Save your changes to "A", then
+      so, `#{Name} is wearing their Town outfit, B.` (random on: `one of their Town
+      outfits`), and asks: random off `Make A their new Town outfit?` (B leaves the
+      row's list), random on `Add A to them and wear it now?`, or with A on that list
+      already `Wear A from them now?`; with library edits `Save your changes to A, then
       make it ...?` and their lines. Buttons `Yes` (that row; random on, worn as the pick),
       `Apply as Default (?)` and `Cancel`. Apply as Default gives the Default the outfit,
       the situation's outfit staying; its help: `"A" becomes #{Name}'s Default instead, and
       their Town outfit stays. The new Default shows only when Town ends and no other
-      situational outfit applies.`, then `It replaces the current Default, "C".` when it
-      does, and `Your changes are saved first.` with library edits.
+      situational outfit applies.`, then `It replaces "C" as their Default.` when it
+      does, and `Your changes are saved first.` with library edits (a tooltip: the names
+      quoted).
     - They wear it for a situation now: that row, dressed again.
     - Else (the Default, nothing of Livery's, or a situation removed since): the Default.
     - In the last two cases it asks first (`Apply outfit?`) only with library edits or a
-    Default whose worn outfit it replaces, random off: `Apply "#{Outfit}" as #{Name}'s
+    Default whose worn outfit it replaces, random off: `Apply #{Outfit} as #{Name}'s
     Default?` (`... to #{Name} for Town?`), with library edits `Save your changes to
-    "#{Outfit}", then apply it ...?` and their lines, then `The current Default, "C", will be
-    replaced.` when it is; buttons `Apply` (`Save and Apply` with library edits) /
+    #{Outfit}, then apply it ...?` and their lines, then `#{Outfit} replaces C as #{Name}'s
+    Default.` when it is; buttons `Apply` (`Save and Apply` with library edits) /
     `Cancel`. With nothing to say it dresses at once. Its tooltip says which: `Dress #{Name}
     in this outfit as their Town outfit, or make it their Default.` / `... for Town.` /
     `... as their Default.` With library edits it goes through `onManageUpdate` with
@@ -321,7 +330,7 @@ the Situations page. Each page keeps its own search and sort.
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
 - Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
-  "#{Outfit}".` with the lines Save's popup lists, then `Save Changes` /
+  #{Outfit}.` with the lines Save's popup lists, then `Save Changes` /
   `Discard Changes` / `Back`: Save Changes opens
   Save's popup, and its Confirm saves, then goes once the write took (a refused one stays;
   Cancel stays); Discard Changes starts the edits again from the library and goes; Back stays.

@@ -442,10 +442,11 @@ namespace CaptureWindow::Internal
 		kBack
 	};
 
-	// The unsaved-changes alert: `a_text`, the lines `a_drawDetails` draws (what is unsaved; none
-	// with nullptr), then Save Changes (greyed with `a_noSave`, which shows on hover), Discard
-	// Changes and Back. Back and Escape forget the leave; the page acts on the other two.
-	LeaveChoice DrawLeavePopup(State& a_state, const std::string& a_text, const char* a_noSave, void (*a_drawDetails)(const State&) = nullptr);
+	// The unsaved-changes alert: the line `a_drawText` draws, the lines `a_drawDetails` draws
+	// (what is unsaved; none with nullptr), then Save Changes (greyed with `a_noSave`, which
+	// shows on hover), Discard Changes and Back. Back and Escape forget the leave; the page acts
+	// on the other two.
+	LeaveChoice DrawLeavePopup(State& a_state, void (*a_drawText)(const State&), const char* a_noSave, void (*a_drawDetails)(const State&) = nullptr);
 
 	// An edit on the Situations page or in the chest editor: the page saves kAutosaveDelay after
 	// the last one, so a burst of drops or clicks writes and redresses once.
@@ -610,12 +611,14 @@ namespace CaptureWindow::Internal
 	// Wardrobe's selected outfit, or the outfit the Save page's Create and Apply creates.
 	struct ApplySubject
 	{
-		std::string   name;        // as the library has it, or as it is created
-		std::uint32_t id = 0;      // its library id; 0 for one not created yet
-		std::string   applyLabel;  // the button of the popup that offers no situation: "Apply", "Save and Apply", "Create and Apply"
-		// What is saved first, which the question starts with (`Save your changes to "A"`,
-		// `Create "A"`), and its sentence in Apply as Default's help; "" for nothing.
-		std::string saveFirst;
+		std::string       name;        // as the library has it, or as it is created
+		OutfitIcons::Icon icon;        // likewise
+		std::uint32_t     id = 0;      // its library id; 0 for one not created yet
+		std::string       applyLabel;  // the button of the popup that offers no situation: "Apply", "Save and Apply", "Create and Apply"
+		// What is saved first, which the question starts with before the outfit's name
+		// ("Save your changes to ", "Create "), and its sentence in Apply as Default's help;
+		// "" for nothing.
+		const char* saveFirst = "";
 		std::string saveFirstHelp;
 		void (*drawSaveLines)(const State&) = nullptr;  // the lines under the question saying what is saved; nullptr for none
 	};
@@ -676,4 +679,49 @@ namespace CaptureWindow::Internal
 	{
 		return { a_icon.key, a_icon.rgb };
 	}
+
+	// --- names in popup lines -------------------------------------------------
+	//
+	// A popup's line (RunLine) names an outfit, a situation or a chest without quotes, after its
+	// icon, both in the palette's emphasis; tooltips, HUD messages and errors keep the quotes.
+	// Contract: a part's text and key are views into the arguments, which must outlive the line.
+
+	inline Theme::SubtitleRun TextRun(const char* a_text)
+	{
+		return { .text = a_text };
+	}
+
+	inline Theme::SubtitleRun OutfitRun(const std::string& a_name, const OutfitIcons::Icon& a_icon)
+	{
+		return { .text = a_name.c_str(), .rowIconKey = a_icon.key };
+	}
+
+	// A situation's name after its star; with `a_default`, the Default's form.
+	inline Theme::SubtitleRun SituationRun(const char* a_name, bool a_default = false)
+	{
+		return { .text = a_name, .icon = a_default ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar };
+	}
+
+	// Row `a_row`'s name: "Default" for the Default (0), else its situation's.
+	inline Theme::SubtitleRun RowRun(const State& a_state, std::size_t a_row)
+	{
+		return a_row == 0 ? SituationRun("Default", true) : SituationRun(RowName(a_state, a_row));
+	}
+
+	inline Theme::SubtitleRun ChestRun(const std::string& a_name)
+	{
+		return { .text = a_name.c_str(), .icon = Theme::HeadingIcon::kChest };
+	}
+
+	// One popup line of `a_parts` (Theme::RunText).
+	inline void RunLine(std::initializer_list<Theme::SubtitleRun> a_parts)
+	{
+		Theme::RunText({ a_parts.begin(), a_parts.size() });
+	}
+
+	// What row `a_row` wears now with random off, as HeldOutfitName names it, as a line's part.
+	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row);
+
+	// The outfit the actor wears now (Request::outfitName), as a line's part.
+	Theme::SubtitleRun WornOutfitRun(const State& a_state);
 }
