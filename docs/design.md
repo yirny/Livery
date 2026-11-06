@@ -565,10 +565,16 @@ setting, off by default). Open:
   case-insensitively. Every PNG there is loaded at the overlay's start with its halvings
   down to 1 pixel, and a row draws the smallest one still as wide as the icon on screen:
   ImGui's DX11 sampler reads only a view's top level, so each halving has its own view.
+- A piece shows the icon the game's inventory shows for it with SkyUI and I4, whenever Livery
+  may use that icon's art: Livery ships every icon of an icon swf whose art it has permission
+  for, and reads SkyUI's rules and I4's as below.
 - A piece starts with the icon SkyUI 5 gives its armor (`processArmorIcon`): the label by
   weight class and main slot (`lightarmor_*`, `armor_*`, `clothing_*`; `armor_amulet`,
   `armor_ring`, `armor_circlet`; else `default_armor`) under `skyui/icons_item_psychosteve`,
-  tinted `#756000` for Light, `#6B7585` for Heavy and `#EDDA87` otherwise.
+  tinted `#756000` for Light, `#6B7585` for Heavy and `#EDDA87` otherwise. SkyUI 6's cloak
+  and backpack (slots 46 and 47, the main slot when it is the lowest an armor covers and none
+  of SkyUI 5's named slots is covered) take `clothing_cloak` and `clothing_backpack` whatever
+  their class, in their class's colour, and the Type `Cloak` and `Back`.
 - Then the rules of Inventory Interface Information Injector (I4), read at `kDataLoaded`
   as I4 reads them: `SKSE/Plugins/InventoryInjector/<plugin>.json` for each active plugin,
   in load order, comments and a comma before a closing bracket allowed as I4 allows them.
@@ -602,10 +608,10 @@ setting, off by default). Open:
   would hand over, the best unworn one, the worn one only when it is the only copy. A copy
   without an enchantment of its own, and a piece nobody carries, have the armor's own
   (`formEnchanting`); a piece nobody carries is never tempered.
-- Livery ships the PNGs for SkyUI's labels (PsychoSteve's art from
-  `icons_item_psychosteve.swf`) and for `I4IconAddon/icons` `clothing_cloak` and
-  `clothing_backpack` (Jelidity's art), rendered from the swf frames as is, with their
-  permission (`icons/ICON-CREDITS.txt`). Other icon packs' PNGs are not in the repository.
+- Livery ships a PNG for every label of SkyUI's `icons_item_psychosteve.swf` (PsychoSteve's
+  art, and Jelidity's SkyUI 6 additions) and of `I4IconAddon/icons.swf` (Jelidity's art),
+  rendered from the swf frames as is, with their permission (`icons/ICON-CREDITS.txt`). Other
+  icon packs' PNGs are not in the repository.
 - Outfit icons use the same PNGs (§4: an outfit's `icon` and `color`). The outfit rows, their
   drag copies, the icon fields (the Wardrobe page's, the Create tab's, the Update tab's, shown
   only) and the outfit names over the Load page's and the Situations page's outfit details draw the outfit's icon
