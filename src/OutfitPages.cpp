@@ -1426,7 +1426,7 @@ namespace CaptureWindow::Internal
 	// choice back, Cancel (or Escape) nothing. Nothing is written here.
 	std::optional<OutfitIcons::Icon> DrawIconPopup(State& a_state, bool a_keepOpen)
 	{
-		constexpr int   kColumns = 8;                // icons per row; to be tuned in game
+		constexpr int   kColumns = 10;               // icons per row: SkyUI's armor icons fill the first two
 		constexpr float kTileGap = 2.0f;             // pixels at 1080p, between the icons and between the colours
 		constexpr float kSwatchHeightRatio = 0.75f;  // of the frame height
 		constexpr int   kColorColumns = 10;          // colours per row: a grey and nine hues (OutfitIcons::kColors)
