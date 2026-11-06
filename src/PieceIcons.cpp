@@ -8,7 +8,7 @@
 //                assign (iconSource, iconLabel, iconColor, subTypeDisplay), and testing an
 //                armor against it
 //   Type text  - a rule's subTypeDisplay as the game's translations show it
-//   SkyUI      - the icon label and colour SkyUI 5 gives an armor
+//   SkyUI      - the icon label and colour SkyUI gives an armor
 //   PieceIcons - FindFiles / Load / Resolve
 //
 // Inventory Interface Information Injector (I4; Exit-9B/InventoryInjector on GitHub,
@@ -404,8 +404,8 @@ namespace
 
 	// --- SkyUI ----------------------------------------------------------------
 
-	// SkyUI's EQUIP_ values (src/Common/skyui/defines/Armor.as), the subType ArmorInfo::TypeOf
-	// gives as its order.
+	// SkyUI's EQUIP_ values (src/Common/skyui/defines/Armor.as; kBackpack and kCloak from
+	// SkyUI 6), the subType ArmorInfo::TypeOf gives as its order.
 	namespace Equip
 	{
 		enum : int
@@ -423,7 +423,9 @@ namespace
 			kAmulet,
 			kEars,
 			kRing,
-			kTail
+			kTail,
+			kBackpack,
+			kCloak
 		};
 	}
 
@@ -469,7 +471,8 @@ namespace
 	}
 
 	// The icon label and colour SkyUI 5 gives an armor (schlangster/skyui on GitHub,
-	// src/ItemMenus/InventoryIconSetter.as: processArmorIcon and the functions it calls).
+	// src/ItemMenus/InventoryIconSetter.as: processArmorIcon and the functions it calls), and
+	// SkyUI 6's cloak and backpack labels.
 	std::pair<std::string, std::uint32_t> SkyUIIcon(const RE::TESObjectARMO& a_armor)
 	{
 		using ArmorInfo::ArmorClass;
@@ -495,6 +498,13 @@ namespace
 				label = std::format("clothing_{}", part);
 			}
 			break;
+		}
+		// SkyUI 6 labels a cloak or a backpack before it looks at the class. The colour stays
+		// the class's, as I4's Skyrim.json sets it for every armor.
+		if (subType == Equip::kCloak) {
+			label = "clothing_cloak";
+		} else if (subType == Equip::kBackpack) {
+			label = "clothing_backpack";
 		}
 		return { label.empty() ? std::string("default_armor") : std::move(label), color };
 	}
