@@ -116,6 +116,16 @@ TEST_CASE("Reset lists every outfit by name, ignoring case", "[browser]")
 	CHECK(OutfitBrowser::FilterPreview(state) == "Any category");
 }
 
+TEST_CASE("Reset starts in the sort it is given", "[browser]")
+{
+	const auto           request = MakeRequest();
+	OutfitBrowser::State state;
+	OutfitBrowser::Reset(state, request, OutfitBrowser::SortKey::kName, true);
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Scout", "iron set", "Guard Uniform", "Bare" });
+	CHECK(state.sort == OutfitBrowser::SortKey::kName);
+	CHECK(state.descending);
+}
+
 TEST_CASE("The rows holding the outfit, in their order", "[browser]")
 {
 	const auto           request = MakeRequest();

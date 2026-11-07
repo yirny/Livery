@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iterator>
 #include <mutex>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -52,6 +53,10 @@ namespace
 	constexpr auto kShowPlayerWornKey = L"ShowPlayerWornPieces";
 	constexpr auto kShowSlotColumnKey = L"ShowSlotColumn";
 	constexpr auto kItemChestsKey = L"ItemChests";
+	constexpr auto kOutfitSortKey = L"OutfitSort";
+	constexpr auto kOutfitSortDescendingKey = L"OutfitSortDescending";
+	constexpr auto kItemSortKey = L"ItemSort";
+	constexpr auto kItemSortDescendingKey = L"ItemSortDescending";
 	constexpr auto kTransferSection = L"Transfer";
 	constexpr auto kMoveFromPlayerKey = L"MoveFromPlayer";
 	constexpr auto kProtectFavoritesKey = L"ProtectFavorites";
@@ -74,6 +79,12 @@ namespace
 	constexpr std::uint32_t kDefaultModifier = Key::kLeftShift;  // keep in step with kIniKeys
 	constexpr std::uint32_t kNoModifier = 0;
 
+	// The sort columns as the INI names them, in the lists' column order (Settings::SortOrder).
+	constexpr std::array<const wchar_t*, 2> kOutfitSortColumns{ L"Icon", L"Name" };
+	constexpr std::array<const wchar_t*, 3> kItemSortColumns{ L"Name", L"Type", L"Slot" };
+	constexpr Settings::SortOrder           kDefaultOutfitSort{ 1, false };  // Name ascending; keep in step with kIniKeys
+	constexpr Settings::SortOrder           kDefaultItemSort{ 0, false };    // Name ascending; keep in step with kIniKeys
+
 	struct IniKey
 	{
 		const wchar_t* section;
@@ -85,7 +96,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 20> kIniKeys{ {
+	constexpr std::array<IniKey, 24> kIniKeys{ {
 		{ kIniSection, kFollowersAndSpouseKey, L"Full",
 			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
 			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
@@ -128,6 +139,15 @@ namespace
 		{ kWindowSection, kItemChestsKey, L"0",
 			L"1 = Livery has a Chests tab: a chest holds any number of items, several for one body slot too,\n"
 			L"which you can load on the Dress page. Chests are kept in chests.json beside outfits.json." },
+		{ kWindowSection, kOutfitSortKey, L"Name",
+			L"How Livery sorts its outfit lists: Icon or Name. Livery remembers the column label you last clicked." },
+		{ kWindowSection, kOutfitSortDescendingKey, L"0",
+			L"1 = that order is reversed." },
+		{ kWindowSection, kItemSortKey, L"Name",
+			L"How Livery sorts its item lists: Name, Type or Slot, remembered the same way.\n"
+			L"Slot needs ShowSlotColumn=1; without it, and in an outfit's details, the lists sort by Name." },
+		{ kWindowSection, kItemSortDescendingKey, L"0",
+			L"1 = that order is reversed." },
 		{ kTransferSection, kMoveFromPlayerKey, L"1",
 			L"1 = Apply on an NPC transfers the selected items from your inventory, enchantments and tempering included.\n"
 			L"0 = the NPC gets plain copies and you keep yours." },
@@ -218,6 +238,10 @@ namespace
 	std::atomic<bool>          g_releaseEveryoneOnLoad{ false };
 	std::filesystem::path      g_iniPath;   // set once by Load, read-only afterwards
 	void (*g_releaseEveryone)() = nullptr;  // set once by RegisterMenu, before the page can render
+
+	// The sorts the window's lists open with (Settings::OutfitSort, ItemSort).
+	std::atomic<Settings::SortOrder> g_outfitSort{ kDefaultOutfitSort };
+	std::atomic<Settings::SortOrder> g_itemSort{ kDefaultItemSort };
 
 	// --- Keys -----------------------------------------------------------------
 
@@ -491,6 +515,38 @@ namespace
 		if (WriteIniValue(kHotkeySection, kHotkeyKeyKey, std::to_wstring(a_key))) {
 			WriteIniValue(kHotkeySection, kHotkeyModifierKey, std::to_wstring(a_modifier));
 		}
+	}
+
+	// A missing column or one Livery does not know keeps the default's; a missing direction is ascending.
+	Settings::SortOrder LoadSort(const wchar_t* a_columnKey, const wchar_t* a_descendingKey, std::span<const wchar_t* const> a_columns,
+		Settings::SortOrder a_default)
+	{
+		auto    order = a_default;
+		wchar_t value[16]{};
+		::GetPrivateProfileStringW(kWindowSection, a_columnKey, L"", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		for (std::size_t column = 0; column < a_columns.size(); ++column) {
+			if (_wcsicmp(value, a_columns[column]) == 0) {
+				order.column = static_cast<int>(column);
+			}
+		}
+		::GetPrivateProfileStringW(kWindowSection, a_descendingKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		order.descending = std::wstring_view{ value } == L"1";
+		logger::info("{} = {}{}", SKSE::stl::utf16_to_utf8(a_columnKey).value_or(""),
+			SKSE::stl::utf16_to_utf8(a_columns[static_cast<std::size_t>(order.column)]).value_or(""), order.descending ? ", descending" : "");
+		return order;
+	}
+
+	// Contract: `a_order.column` indexes `a_columns` (Settings::SetOutfitSort and SetItemSort check it).
+	void SaveSort(const wchar_t* a_columnKey, const wchar_t* a_descendingKey, std::span<const wchar_t* const> a_columns, Settings::SortOrder a_order)
+	{
+		if (WriteIniValue(kWindowSection, a_columnKey, a_columns[static_cast<std::size_t>(a_order.column)])) {
+			WriteIniValue(kWindowSection, a_descendingKey, a_order.descending ? L"1" : L"0");
+		}
+	}
+
+	bool IsColumnOf(std::span<const wchar_t* const> a_columns, Settings::SortOrder a_order)
+	{
+		return a_order.column >= 0 && static_cast<std::size_t>(a_order.column) < a_columns.size();
 	}
 
 	// --- SKSE Menu Framework page ---------------------------------------------
@@ -1060,6 +1116,9 @@ namespace Settings
 		g_itemChests = std::wstring_view{ value } == L"1";
 		logger::info("ItemChests = {}", g_itemChests.load());
 
+		g_outfitSort = LoadSort(kOutfitSortKey, kOutfitSortDescendingKey, kOutfitSortColumns, kDefaultOutfitSort);
+		g_itemSort = LoadSort(kItemSortKey, kItemSortDescendingKey, kItemSortColumns, kDefaultItemSort);
+
 		// A missing key keeps the default (off).
 		::GetPrivateProfileStringW(kSituationsSection, kNotifyChangesKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
 		g_notifySituationChanges = std::wstring_view{ value } == L"1";
@@ -1191,6 +1250,32 @@ namespace Settings
 	bool ItemChests()
 	{
 		return g_itemChests.load();
+	}
+
+	SortOrder OutfitSort()
+	{
+		return g_outfitSort.load();
+	}
+
+	SortOrder ItemSort()
+	{
+		return g_itemSort.load();
+	}
+
+	void SetOutfitSort(SortOrder a_order)
+	{
+		if (IsColumnOf(kOutfitSortColumns, a_order)) {
+			g_outfitSort = a_order;
+			SaveSort(kOutfitSortKey, kOutfitSortDescendingKey, kOutfitSortColumns, a_order);
+		}
+	}
+
+	void SetItemSort(SortOrder a_order)
+	{
+		if (IsColumnOf(kItemSortColumns, a_order)) {
+			g_itemSort = a_order;
+			SaveSort(kItemSortKey, kItemSortDescendingKey, kItemSortColumns, a_order);
+		}
 	}
 
 	bool MoveFromPlayer()
