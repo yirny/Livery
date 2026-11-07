@@ -21,9 +21,11 @@ namespace OutfitIcons
 
 	// The picker's icons in order: SkyUI's by slot (helmet, circlet, body, hands, feet,
 	// necklace, ring, shield), each slot heavy, light, then clothing; Jelidity's cloak and
-	// backpack; then BOOBIES' from head to feet. Only those whose PNG is loaded show. Icons
-	// drawn the same as one listed are left out: SkyUI's forearms and calves (its hands and
-	// feet), BOOBIES' torso, ring and circlet (SkyUI's body, ring and circlet).
+	// backpack; then SkyUI's other items: weapons, the schools of magic (in the game's order)
+	// and magic effect, the elements, book, potion and misc; then BOOBIES' from head to feet.
+	// Only those whose PNG is loaded show. Icons drawn the same as one listed are left out:
+	// SkyUI's forearms and calves (its hands and feet), BOOBIES' torso, ring and circlet
+	// (SkyUI's body, ring and circlet).
 	constexpr auto kKeys = std::to_array<std::string_view>({
 		"skyui/icons_item_psychosteve/armor_head",
 		"skyui/icons_item_psychosteve/lightarmor_head",
@@ -45,6 +47,36 @@ namespace OutfitIcons
 		"skyui/icons_item_psychosteve/clothing_shield",
 		"i4iconaddon/icons/clothing_cloak",
 		"i4iconaddon/icons/clothing_backpack",
+		"skyui/icons_item_psychosteve/weapon_sword",
+		"skyui/icons_item_psychosteve/weapon_staff",
+		"skyui/icons_item_psychosteve/weapon_bow",
+		"skyui/icons_item_psychosteve/weapon_pickaxe",
+		"skyui/icons_item_psychosteve/weapon_fishingrod",
+		"skyui/icons_item_psychosteve/default_alteration",
+		"skyui/icons_item_psychosteve/default_conjuration",
+		"skyui/icons_item_psychosteve/default_destruction",
+		"skyui/icons_item_psychosteve/default_illusion",
+		"skyui/icons_item_psychosteve/default_restoration",
+		"skyui/icons_item_psychosteve/default_effect",
+		"skyui/icons_item_psychosteve/magic_fire",
+		"skyui/icons_item_psychosteve/magic_frost",
+		"skyui/icons_item_psychosteve/magic_shock",
+		"skyui/icons_item_psychosteve/magic_sun",
+		"skyui/icons_item_psychosteve/magic_wind",
+		"skyui/icons_item_psychosteve/magic_water",
+		"skyui/icons_item_psychosteve/magic_earth",
+		"skyui/icons_item_psychosteve/default_book",
+		"skyui/icons_item_psychosteve/default_potion",
+		"skyui/icons_item_psychosteve/default_misc",
+		"skyui/icons_item_psychosteve/misc_gem",
+		"skyui/icons_item_psychosteve/misc_ingot",
+		"skyui/icons_item_psychosteve/misc_dwarvenscrap",
+		"skyui/icons_item_psychosteve/misc_remains",
+		"skyui/icons_item_psychosteve/misc_tool",
+		"skyui/icons_item_psychosteve/misc_toy",
+		"skyui/icons_item_psychosteve/misc_instrument",
+		"skyui/icons_item_psychosteve/misc_housepart",
+		"skyui/icons_item_psychosteve/misc_camping",
 		"boobies immersive icons/bodyparts/armor_hat",
 		"boobies immersive icons/bodyparts/armor_horns",
 		"boobies immersive icons/bodyparts/armor_ears",
