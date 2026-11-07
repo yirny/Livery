@@ -140,11 +140,11 @@ namespace OutfitBrowser
 {
 	// --- Browser --------------------------------------------------------------
 
-	void Reset(State& a_state, const CaptureWindow::Request& a_request)
+	void Reset(State& a_state, const CaptureWindow::Request& a_request, SortKey a_sort, bool a_descending)
 	{
 		a_state.search.fill('\0');
-		a_state.sort = SortKey::kName;
-		a_state.descending = false;
+		a_state.sort = a_sort;
+		a_state.descending = a_descending;
 		Rebuild(a_state, a_request);
 	}
 

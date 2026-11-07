@@ -96,6 +96,26 @@ namespace Settings
 	// any thread.
 	bool ItemChests();
 
+	// A list's sort: its sorted column, numbered as the list numbers its columns, and whether
+	// the order is reversed.
+	struct SortOrder
+	{
+		int  column = 0;
+		bool descending = false;
+	};
+
+	// The sorts the window's lists open with, as the player last chose them by a click on a column
+	// label ([Window] OutfitSort, ItemSort): the outfit lists' in OutfitBrowser::SortKey's order
+	// (Icon, Name), the item lists' in the piece list's (Name, Type, Slot). Safe from any thread.
+	SortOrder OutfitSort();
+	SortOrder ItemSort();
+
+	// Remember a sort the player chose and write it to the INI; a column the list does not have
+	// changes nothing. Safe from any thread.
+	// Contract: each call writes the file, so call it on a click on a column label, never per frame.
+	void SetOutfitSort(SortOrder a_order);
+	void SetItemSort(SortOrder a_order);
+
 	// Whether Apply in an NPC's window moves the ticked pieces from the player's inventory to
 	// the NPC; off, the NPC gets new copies. Safe from any thread.
 	bool MoveFromPlayer();

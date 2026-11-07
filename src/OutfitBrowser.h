@@ -49,8 +49,8 @@ namespace OutfitBrowser
 		std::vector<std::string> situations;
 	};
 
-	// Everything listed, by name ascending, nothing typed or ticked.
-	void Reset(State& state, const CaptureWindow::Request& request);
+	// Everything listed, sorted by `sort` (reversed while `descending`), nothing typed or ticked.
+	void Reset(State& state, const CaptureWindow::Request& request, SortKey sort = SortKey::kName, bool descending = false);
 
 	// Rebuilds `visible`. Call after changing search or filterTicked.
 	void Refresh(State& state, const CaptureWindow::Request& request);

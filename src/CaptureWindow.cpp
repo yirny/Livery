@@ -1148,6 +1148,7 @@ namespace CaptureWindow::Internal
 			a_state.sortDescending = clicked == a_state.sortColumn && !a_state.sortDescending;
 			a_state.sortColumn = clicked;
 			SortPieces(a_state);
+			Settings::SetItemSort({ a_state.sortColumn, a_state.sortDescending });
 		}
 		PushListRowSpacing();  // popped before EndList, so the gap below the list is the normal one
 		if (Theme::BeginList("pieces", PieceListHeight(a_state, a_list))) {
@@ -2285,10 +2286,15 @@ namespace CaptureWindow
 			state.applyFromPlayerTooltip = state.request.movesFromPlayer ? std::format("Dress {0} in the selected items.\nItems from your inventory move to {0}.", state.request.actorName) :
 			                                                               std::format("Dress {0} in the selected items.\n{0} gets a new copy of each item from your inventory; yours stay with you.", state.request.actorName);
 			SetGroupHeadings(state);
-			state.sortColumn = kNameColumn;
-			state.sortDescending = false;
-			state.outfitPieceOrder = {};
+			// The item lists open in the sort the player last chose on one of them; a list without
+			// the Slot column sorts by Name ascending instead of Slot.
+			const auto itemSort = Settings::ItemSort();
+			const auto withoutSlot = itemSort.column == kSlotColumn ? Settings::SortOrder{ kNameColumn, false } : itemSort;
 			state.showSlots = Settings::ShowSlotColumn();
+			const auto pieceSort = state.showSlots ? itemSort : withoutSlot;
+			state.sortColumn = pieceSort.column;
+			state.sortDescending = pieceSort.descending;
+			state.outfitPieceOrder = { .column = withoutSlot.column, .descending = withoutSlot.descending };
 			SortPieces(state);
 			state.previewedOutfit = -1;
 			state.previewedChest = -1;
@@ -2298,8 +2304,9 @@ namespace CaptureWindow
 			state.inventorySources.clear();
 			state.inventoryShown.clear();
 			state.chest = {};
+			const auto outfitSort = Settings::OutfitSort();
 			for (auto* browser : { &state.loadBrowser, &state.updateBrowser, &state.manageBrowser, &state.situationBrowser }) {
-				OutfitBrowser::Reset(*browser, state.request);
+				OutfitBrowser::Reset(*browser, state.request, static_cast<OutfitBrowser::SortKey>(outfitSort.column), outfitSort.descending);
 			}
 			state.manage = {};
 			state.discardFor = -1;
