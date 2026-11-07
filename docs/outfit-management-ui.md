@@ -43,7 +43,9 @@ Restore Presets popup's lines keep their own form (quoted outfit names).
 ## 1. Outfit list
 
 The outfit list shared by the Load page, the Save page's Update tab, the Wardrobe page and
-the Situations page. Each page keeps its own search and sort.
+the Situations page. Each page keeps its own search and sort; a click on a column label also
+writes that sort to the INI (`[Window] OutfitSort`, `OutfitSortDescending`), and every page's
+list starts in it when the window opens.
 
 - Wording: the window calls the library the wardrobe (`12 outfits in the wardrobe`,
   `Not in Wardrobe`).
@@ -96,7 +98,8 @@ the Situations page. Each page keeps its own search and sort.
   starts.
   Icon sorts by `OutfitIcons::kKeys`' order, then `kColors`' order, then the name (icons
   and colours not in the tables last); Name by the name, ASCII case ignored; descending
-  reverses the whole order. Each page's list starts at Name ascending when the window opens.
+  reverses the whole order. Each page's list starts in the sort last clicked on any of them
+  (Name ascending until one is).
 - The count line under the list, as the piece list's: `12 outfits in the wardrobe`, or
   `3 of 12 outfits` while the search narrows it. The list's height cap leaves room for it,
   and the list keeps the height of the whole library.
@@ -243,7 +246,8 @@ the Situations page. Each page keeps its own search and sort.
     popup for the new outfit's icon (docs/ui-redesign.md).
   - 4px of extra room, then its pieces under `Name` and `Type` column labels
     (`Theme::HeaderRow`), which sort them as the Dress page's do: a click sorts by the column,
-    a second reverses it, from Name ascending at each open. This order is display only and
+    a second reverses it, from the item sort at each open (docs/ui-redesign.md; Name ascending
+    when that is Slot). This order is display only and
     shared with the Situations page's outfit details (`OutfitPieceOrder`), apart from the Dress
     page's; the outfit's own list keeps its order, so sorting is no edit. Under the list, the
     count line ending in `Edit` (`Theme::LabelLink`), as on the Dress page: `x of y items

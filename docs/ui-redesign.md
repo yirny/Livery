@@ -40,7 +40,10 @@ dressing itself.
   lowest first (`32, 34`), sorts by the lowest, and is as wide as its widest text up to four
   slots; a longer list ends in an ellipsis. A click on a
   column header sorts by that column, a second click reverses the order; the headings always
-  come first; Name ascending to start.
+  come first. The item sort is the last one clicked on this list or on an outfit's details
+  (Name and Type only), written to the INI (`[Window] ItemSort`, `ItemSortDescending`) and the
+  order every item list starts in when the window opens; Name ascending until one is clicked,
+  and while it is Slot, on a list without that column.
 - The count line `x of y items selected` sits under the list, ending in `Add from
   Wardrobe...` (the Load page; docs/outfit-management-ui.md §2). Live Preview follows it.
 - Buttons: `Apply` (needs a ticked piece), `Save to Wardrobe...` (needs a ticked piece; opens the Save page),

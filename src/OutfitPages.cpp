@@ -46,6 +46,7 @@
 #include "CaptureWindowInternal.h"
 
 #include "OutfitBrowser.h"
+#include "Settings.h"
 #include "sarrai/Theme.h"
 
 #include <imgui.h>
@@ -242,6 +243,7 @@ namespace CaptureWindow::Internal
 		if (const int column = Theme::HeaderRow(kLabels, columns, sorted, a_browser.descending, "Sort by icon"); column >= 0) {
 			QueueMenuSound(kFocusSound);
 			OutfitBrowser::SetSort(a_browser, a_state.request, static_cast<OutfitBrowser::SortKey>(column), column == sorted && !a_browser.descending);
+			Settings::SetOutfitSort({ static_cast<int>(a_browser.sort), a_browser.descending });
 		}
 		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
 		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
@@ -367,6 +369,7 @@ namespace CaptureWindow::Internal
 			order.descending = clicked == order.column && !order.descending;
 			order.column = clicked;
 			SortOutfitPieces(a_state, a_pieces);
+			Settings::SetItemSort({ order.column, order.descending });
 		} else if (order.source != a_pieces) {
 			SortOutfitPieces(a_state, a_pieces);
 		}
