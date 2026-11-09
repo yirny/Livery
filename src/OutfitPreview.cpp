@@ -7,7 +7,7 @@
 //   Dressing  - Equip / Unequip / TakeBack by key, the hands; Dress picks a copy per piece
 //               and puts it on after the rest came off; Restore takes off what the preview
 //               put on and puts back what Begin found
-//   API       - Begin / SetPiece / Show / End / Abandon / IsActive
+//   API       - Begin / SetPiece / Show / Reapply / End / Abandon / IsActive
 //
 // The character is dressed through their inventory, never through their outfit record:
 // the engine's outfit swap removes every copy of the old outfit's pieces, the NPC's own
@@ -315,6 +315,15 @@ namespace
 		return std::ranges::any_of(g_pieces, [form](const RE::TESObjectARMO* armor) { return armor->GetFormID() == form; });
 	}
 
+	// The worn copies the look does not show that Dress takes off: armor put on them since it
+	// last dressed them. Another mod's locked pieces stay, so they are not counted.
+	std::size_t CountNotShown(RE::Actor& actor)
+	{
+		return static_cast<std::size_t>(std::ranges::count_if(Copies(actor), [](const Copy& copy) {
+			return copy.extra->GetWorn() && IsGear(*copy.armor) && !IsLocked(*copy.extra) && !IsShown(copy.armor->GetFormID());
+		}));
+	}
+
 	// Dresses them in g_pieces. Worn pieces the look no longer has come off first: on
 	// an NPC they are locked, and the engine is never asked to swap a locked piece
 	// out. Then each piece goes on through a copy already worn, else the one worn as
@@ -560,6 +569,20 @@ namespace OutfitPreview
 		}
 		g_pieces = pieces;
 		Redress(*actor);
+	}
+
+	bool Reapply(RE::FormID actorID)
+	{
+		if (!g_active || actorID != g_actorID) {
+			return false;
+		}
+		if (const auto actor = g_actor.get()) {
+			if (const auto count = CountNotShown(*actor); count > 0) {
+				Redress(*actor);
+				logger::info("Preview took off {} item(s) it does not show from {:08X} after the game's worn-gear pass", count, actorID);
+			}
+		}
+		return true;
 	}
 
 	void End()

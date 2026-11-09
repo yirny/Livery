@@ -54,7 +54,7 @@ Items Livery put on stay on: the NPC no longer swaps them for better armor you g
 
 1. Open Livery on yourself or the NPC, wearing what you want to save.
 2. Press **Save to Wardrobe...**
-3. Name it, pick an icon, **Create**.
+3. Name it, pick an icon, **Create**, then **Exit**.
 
 To change an existing outfit, use the **Update Existing Outfit** tab. On a friend, Livery saves what they wear but can't change it.
 
@@ -158,7 +158,7 @@ Livery never sets `ReleaseEveryone` back to `0`: set it yourself to keep playing
 
 - Only ASCII can be typed into the name field.
 - Items from plugins that are not loaded have no row in the window and stay in the outfit. Edit `outfits.json` to remove them.
-- Gear an NPC gets other than from you in trade (a gift, another mod) can stay on in a slot their outfit leaves empty, even when **Gear in unused slots** keeps it out. It comes off the next time you trade with them or they load in.
+- Gear another mod puts on an NPC can stay on in a slot their outfit leaves empty, even when **Gear in unused slots** keeps it out. It comes off the next time you trade with them or they load in.
 - Your Sleep outfit goes on only with a mod that puts you into bed: the game's own beds just pass the time.
 - The copies Livery adds to an NPC who has no default outfit show in the trade menu, where you can take them for free.
 

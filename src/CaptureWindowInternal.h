@@ -334,7 +334,8 @@ namespace CaptureWindow::Internal
 		int                         viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
 		float                       viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
 		float                       viewDragY = 0.0f;
-		// The Save page's tabs' names, each kept while the window is open.
+		// The Save page's tabs' names, each kept while the window is open; a Create starts the
+		// Create tab's again (SetOutfits).
 		std::array<char, kNameCapacity> createName{};
 		std::array<char, kNameCapacity> updateName{};
 		// The Create tab's icon as chosen in Choose icon; nullopt follows the ticks (CreateIcon).

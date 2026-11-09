@@ -211,7 +211,7 @@ namespace CaptureWindow
 		std::vector<Piece> pieces;             // shown as a checkbox list; Save and Apply need at least one ticked
 		bool               previewOn = false;  // Live Preview is on as the window opens; off, the window freezes the game
 		std::string        previewNote;        // why Live Preview cannot be on, shown over its greyed tick; "" when it can
-		std::string        suggestedName;      // initial text of the name field
+		std::string        suggestedName;      // the Create tab's name as the window opens; after a Create, OutfitList::suggestedName
 		// What `wornOutfit` is worn for as a row's key, kDefault for the default: Manage
 		// Wardrobe's Apply offers that situation.
 		Situations::Situation wornFor = Situations::Situation::kDefault;
@@ -242,13 +242,17 @@ namespace CaptureWindow
 		// The window only saves what the actor wears as an outfit: `pieces` holds only that, its
 		// ticks stay as they are, and the Wardrobe and Situations tabs, Apply and Create and Apply
 		// are gone. A Live Preview here must not dress them (onPieceToggled, onPreviewPieces empty).
+		// SetOutfits keeps its `actorSummary`.
 		bool saveOnly = false;
 
 		// Runs on the game thread when the user saves on the Save page: after Create, after
 		// Create and Apply (its popup first when it gives a situation or replaces the Default),
 		// or after confirming the Update tab's popup. The library write comes first; a refused or
 		// failed write assigns nothing. Only Create and Apply changes a row (`save.applyRow`).
-		// It must end by calling Close() (done) or SetError() (keep the window open).
+		// The window stays open: it must end by calling SetOutfits(), with the library as
+		// written, the actor's pieces as they are dressed now when it dressed them (Create and
+		// Apply, Update of the outfit they wear) and after Create the next name for the Create
+		// tab, or SetError().
 		std::function<void(const SaveRequest& save)> onSave;
 
 		// Runs on the game thread when the user applies the ticked pieces, with their indices
@@ -344,8 +348,8 @@ namespace CaptureWindow
 		std::function<void(const ViewInput& input)> onViewInput;
 
 		// Runs on the game thread once the window has closed, whatever closed it:
-		// Exit, the game hiding the menu, a load, or onSave / onRestore calling
-		// Close(). Empty for nothing to do.
+		// Exit, the game hiding the menu, a load, or onRestore calling Close().
+		// Empty for nothing to do.
 		std::function<void()> onClose;
 	};
 
@@ -378,6 +382,9 @@ namespace CaptureWindow
 		// Set when the change redressed the captured actor (with Live Preview on, the handler
 		// began the preview again); the Dress page then follows what they wear.
 		std::optional<ActorPieces> actorPieces;
+		// After the Save page's Create: the first "New Outfit NNN" the library does not have yet,
+		// which the Create tab's name starts again from; "" leaves the tab as it is.
+		std::string suggestedName;
 	};
 
 	void Open(Request request);
@@ -385,9 +392,11 @@ namespace CaptureWindow
 	void SetError(const std::string& message);
 	bool IsOpen();
 
-	// Ends an Apply, or a Wardrobe page or Situations page change the library,
+	// Ends an Apply, a Save page save, or a Wardrobe page or Situations page change the library,
 	// situations.json or the actor's rows took: the window shows `list` and lets the user
-	// edit again, Restore shown while `list.dressed`. The pages'
+	// edit again, Restore shown while `list.dressed`. A Save page save goes back to the Dress
+	// page, as Back does, the Create tab starting again from `list.suggestedName` with its icon
+	// following the ticks when that is set. The pages'
 	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
 	// when gone; the Update tab is left when the wardrobe is empty), each
 	// list keeps its search, sort and folded headings, the Dress page drops ticks on
