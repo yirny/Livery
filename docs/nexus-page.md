@@ -122,7 +122,7 @@ Drag an outfit back to the list to clear it.
 Situational outfits are saved per character.
 
 [b]Use item chests[/b]
-Turn on [b]Item chests[/b] in the settings first.
+Turn on [b]Enable chests[/b] in the settings first.
 [list=1]
 [*]Pick the [b]Chests[/b] tab, press [b]Create New Chest...[/b] and name it.
 [*]Click items from your inventory or the NPC's to put them in. [b]Add from Wardrobe...[/b] puts in a whole outfit.
