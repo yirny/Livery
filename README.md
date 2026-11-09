@@ -83,7 +83,7 @@ The **Default** outfit is worn where no situation applies, and in every fight. A
 
 ### Use item chests
 
-Turn on **Item chests** in the settings first.
+Turn on **Enable chests** in the settings first.
 
 1. Pick the **Chests** tab, press **Create New Chest...** and name it.
 2. Click items from your inventory or the NPC's to put them in. **Add from Wardrobe...** puts in a whole outfit.
@@ -124,7 +124,7 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, created with defaults on first 
 | `Window`     | `ShowPlayerInventory`  | `1`              | `1` lists your armor in an NPC's window, under `<your name>'s Inventory`; never quest items.                                                                                                                                     |
 | `Window`     | `ShowPlayerWornPieces` | `0`              | `1` lists the armor you wear there too; `0` leaves it out unless you carry another copy; in game the tick **Exclude equipped items** is its opposite.                                                                            |
 | `Window`     | `ShowSlotColumn`       | `0`              | `1` adds a Slot column to the window's item list: each item's body slots by number.                                                                                                                                              |
-| `Window`     | `ItemChests`           | `0`              | `1` adds the Chests tab and **Add from Chest...** to the window (see [Use item chests](#use-item-chests)); in game the tick **Item chests**.                                                                                     |
+| `Window`     | `ItemChests`           | `0`              | `1` adds the Chests tab and **Add from Chest...** to the window (see [Use item chests](#use-item-chests)); in game the tick **Enable chests**.                                                                                   |
 | `Window`     | `OutfitSort`           | `Name`           | How the outfit lists are sorted: `Icon` or `Name`. Livery saves the column label you last clicked.                                                                                                                               |
 | `Window`     | `OutfitSortDescending` | `0`              | `1` reverses that order.                                                                                                                                                                                                         |
 | `Window`     | `ItemSort`             | `Name`           | How the item lists are sorted: `Name`, `Type` or `Slot`, saved the same way. Without `ShowSlotColumn`, and in an outfit's details, `Slot` sorts by name.                                                                         |

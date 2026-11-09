@@ -3,8 +3,8 @@
 A chest is a named set of items that is never worn: any number of them, several on one body
 slot too, kept so the variants of one armor (a visor open and closed, a wig in each colour, an
 alternate design) can be picked from when dressing someone, without one outfit per variant and
-without the real items in an inventory. Chests are off by default: the `Item chests` setting
-(`[Window] ItemChests`, SKSE Menu Framework page, Window section) adds the Chests tab and the
+without the real items in an inventory. Chests are off by default: the `Enable chests` setting
+(`[Window] ItemChests`, SKSE Menu Framework page, General section) adds the Chests tab and the
 `Add from Chest...` link the next time the window opens. `chests.json` is read either way.
 
 ## 1. Data
