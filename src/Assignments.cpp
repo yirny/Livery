@@ -19,7 +19,7 @@
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc /
-//                 QueueTakeOffExtras
+//                 TakeOffAfterPass
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -475,6 +475,15 @@ namespace
 		}
 	}
 
+	// Whether the game skips the actor update that shows an NPC's equip change: a menu pauses
+	// it (the trade menu), or the capture window froze it (Live Preview off).
+	bool GameHalted()
+	{
+		auto* ui = RE::UI::GetSingleton();
+		auto* main = RE::Main::GetSingleton();
+		return (ui && ui->GameIsPaused()) || (main && main->GetRuntimeData().freezeTime);
+	}
+
 	// Armor the engine put on them that Livery keeps off comes off at once: given while the
 	// trade, container or pickpocket menu is open (a helmet for a slot the outfit leaves empty),
 	// not as it closes, or put on by the worn-gear pass's best-armor step (their outfit items or
@@ -491,9 +500,11 @@ namespace
 		}
 		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
-			// A menu pauses the game, as the capture window does with Live Preview off, which
-			// skips the actor update that would show it.
-			Dressing::RefreshModel(*actor);
+			// Only a halted game needs the rebuild: it costs, and its NiNodeUpdate event makes
+			// body-morph mods refit, for a change a running game's actor update shows anyway.
+			if (GameHalted()) {
+				Dressing::RefreshModel(*actor);
+			}
 		}
 	}
 
@@ -1422,8 +1433,8 @@ namespace Assignments
 		return std::ranges::find(g_dressed, a_actor) != g_dressed.end();
 	}
 
-	void QueueTakeOffExtras(RE::FormID a_actor)
+	void TakeOffAfterPass(RE::FormID a_actor)
 	{
-		SKSE::GetTaskInterface()->AddTask([a_actor] { TakeOffGiven(a_actor, "after the game's worn-gear pass"); });
+		TakeOffGiven(a_actor, "after the game's worn-gear pass");
 	}
 }

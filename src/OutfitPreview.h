@@ -34,6 +34,13 @@ namespace OutfitPreview
 	// pages). Does nothing without Begin.
 	void Show(const std::vector<RE::TESObjectARMO*>& pieces);
 
+	// After the engine's worn-gear pass on this NPC (OwnOutfitGuard), whose
+	// best-armor step can put on armor the preview does not show (a hat Apply
+	// took off, their outfit boots): when the preview shows them, dresses them
+	// in its pieces again, which takes that armor off. Returns whether the
+	// preview shows them; false leaves them to Assignments.
+	bool Reapply(RE::FormID actor);
+
 	// Puts back what Begin found, the same copies, so an NPC's pieces rolled from
 	// leveled lists stay as rolled: the window closes or Live Preview goes off.
 	// Does nothing without Begin.

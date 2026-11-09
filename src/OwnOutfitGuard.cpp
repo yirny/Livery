@@ -6,7 +6,7 @@
 // in the same slot off and clear its lock (§6). For such an NPC the hook leaves that one call out
 // (their outfit items then stayed off, §6); the rest of the pass, its best-armor step included,
 // runs as before, and what that step puts on them that Livery keeps off comes off after the
-// pass (Assignments::QueueTakeOffExtras). The ID, offsets and signatures are SPID's
+// pass (AfterPass). The ID, offsets and signatures are SPID's
 // (SPID/src/Outfits/OutfitManager+Hooks.cpp, UpdateWornGear_AddWornOutfit).
 #include "PCH.h"
 
@@ -14,11 +14,23 @@
 
 #include "Assignments.h"
 #include "CallSite.h"
+#include "OutfitPreview.h"
 
 namespace
 {
 	using SignatureSE = CallSite::Signature<"E8 ?? ?? ?? ?? 41 BF 01 00 00 00 4C 89 7C 24 60">;
 	using SignatureAE = CallSite::Signature<"E8 ?? ?? ?? ?? 41 BC 01 00 00 00 4C 89 64 24 60">;
+
+	// After the pass on an NPC Livery has pieces on, the armor its best-armor step put on them
+	// that Livery keeps off comes off: while the window's Live Preview shows them, by the
+	// preview dressing them in its pieces again; else by Assignments, as Livery's rules say.
+	// Contract: game thread (the SKSE task the thunk queues).
+	void AfterPass(RE::FormID a_actor)
+	{
+		if (!OutfitPreview::Reapply(a_actor)) {
+			Assignments::TakeOffAfterPass(a_actor);
+		}
+	}
 
 	// Contract: the pass's thread is not documented, so this only reads the guarded list of
 	// NPCs Livery has pieces on (Assignments::IsDressedNpc) and queues an SKSE task.
@@ -29,7 +41,7 @@ namespace
 			if (a_actor && Assignments::IsDressedNpc(a_actor->GetFormID())) {
 				// The best-armor step after this call can still put on their outfit items, or
 				// headgear in a slot the outfit leaves empty: they come off after the pass.
-				Assignments::QueueTakeOffExtras(a_actor->GetFormID());
+				SKSE::GetTaskInterface()->AddTask([id = a_actor->GetFormID()] { AfterPass(id); });
 				return;
 			}
 			func(a_actor, a_outfit, a_forceUpdate);
