@@ -64,9 +64,9 @@ engine's, `ExceptHeadgear` (the default) keeps headgear out of them (armor in an
 slots 30, 31, 41, 42: helmets, hoods, circlets), `OutfitOnly` keeps them empty. The engine's
 best-gear pass can put armor they own there (a helmet given in the trade menu, a hat a
 dressing just took off); armor the setting keeps out comes off again right after each run of
-that pass where the own-outfit guard is in (while the window's preview has their locks off, at
-its end), at once while a trade menu is open, as it closes and when their 3D loads
-(`Dressing::TakeOffExtras`, Keeping the outfit on). Armor another mod puts on them by script
+that pass where the own-outfit guard is in (while the window's Live Preview shows them, as the
+preview takes off what it does not show), at once while a trade menu is open, as it closes
+and when their 3D loads (`Dressing::TakeOffExtras`, Keeping the outfit on). Armor another mod puts on them by script
 stays on until the next of those. A change of the setting takes effect at the next of those. Whatever the setting, an NPC Livery has pieces on
 never wears an outfit item that is not one of them (any `ExtraOutfitItem`: their own outfit,
 or another mod's distributed one; the trade menu hides them): the own-outfit guard keeps the
@@ -127,12 +127,15 @@ says so), so a lock would be needed anyway.
   (`Assignments::IsDressedNpc`; an NPC in their own clothes whose situation rows wait is not
   one), so their outfit items stay off while they wear Livery's pieces; the rest of the pass,
   its best-armor step included, runs as before. For them the hook also queues an SKSE task
-  (`Assignments::QueueTakeOffExtras`) that runs after the pass, takes off what that step put
-  on them that Livery keeps off (`Dressing::TakeOffExtras`, below) and rebuilds their model
-  when it took any; while the window's preview has their locks off it does nothing, and the
-  preview's end takes them off. After Create and Apply dressed a follower in body armor alone,
-  the hat the dressing took off and their own outfit boots were on again seconds later, with
-  no dressing by Livery between (2026-11-09, log). The hook writes nothing, so it leaves no
+  that runs after the pass. While the window's Live Preview shows them, the preview dresses
+  them in its pieces again (`OutfitPreview::Reapply`), which takes off what it does not show;
+  else `Assignments::TakeOffAfterPass` takes off what that step put on them that Livery keeps
+  off (`Dressing::TakeOffExtras`, below), rebuilding their model only while the game is paused
+  or frozen (a menu, the window with Live Preview off): a running game's actor update shows
+  the change, and a rebuild makes body-morph mods refit. After Create and Apply dressed a
+  follower in body armor alone, the hat the dressing took off and their own outfit boots were
+  on again seconds later, with no dressing by Livery between (2026-11-09, log; §6 for the
+  take-off). The hook writes nothing, so it leaves no
   residue: once they have no pieces (Restore Outfit, Release everyone, a row in their own
   clothes) the call runs for them again. SPID replaces the same call at `kPostLoad` and never
   calls the original, so Livery's goes in at `kDataLoaded` and calls SPID's in turn. Skyrim VR,
@@ -433,6 +436,12 @@ can come later if sharing across characters is wanted.
   In the log only the weapon was equipped at a give and at their 3D load, the three pieces
   stayed locked, and Restore put their own items back on. With a cuirass-only outfit, their own
   boots stayed off, after a cell change too.
+- The take-off after the worn-gear pass (2026-11-10, runtime 1.6.1170): Create and Apply of a
+  body-armor-only outfit on a follower carrying a hat, Live Preview off: the pass ran 26 ms
+  after the dressing, in the frozen game, and the task took the hat and their outfit boots off
+  (`Took off 2 item(s) ... after the game's worn-gear pass`). After the window's close the pass
+  ran again 5 to 22 s later, each run putting one or two of them on and the task taking them
+  off, never in a loop.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
 - Situation outfits on a follower (§7): Town in a town and the default outside it; Cold
