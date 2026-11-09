@@ -857,12 +857,26 @@ namespace
 
 		// Applies at once.
 		bool notifyChanges = g_notifySituationChanges.load();
-		if (ImGuiMCP::Checkbox("Outfit change notifications", &notifyChanges)) {
+		if (ImGuiMCP::Checkbox("Show situation notifications", &notifyChanges)) {
 			g_notifySituationChanges = notifyChanges;
 			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
 			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
 		}
 		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\nDefault: OFF");
+
+		SettingGap();
+
+		// Takes effect the next time the window opens.
+		bool itemChests = g_itemChests.load();
+		if (ImGuiMCP::Checkbox("Enable chests", &itemChests)) {
+			g_itemChests = itemChests;
+			SaveFlag(kWindowSection, kItemChestsKey, itemChests);
+			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
+		}
+		ImGuiMCP::SetItemTooltip(
+			"Adds a Chests tab to Livery. A chest holds any number of items, several for one body slot too, which you can load on the Dress page. "
+			"Handy for keeping the variants of an item together.\n"
+			"Default: OFF");
 
 		SettingGap();
 
@@ -981,20 +995,6 @@ namespace
 			logger::info("ShowSlotColumn = {} (SKSE Menu Framework)", showSlots);
 		}
 		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\nDefault: OFF");
-
-		SettingGap();
-
-		// Takes effect the next time the window opens.
-		bool itemChests = g_itemChests.load();
-		if (ImGuiMCP::Checkbox("Item chests", &itemChests)) {
-			g_itemChests = itemChests;
-			SaveFlag(kWindowSection, kItemChestsKey, itemChests);
-			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
-		}
-		ImGuiMCP::SetItemTooltip(
-			"Adds a Chests tab to Livery. A chest holds any number of items, several for one body slot too, which you can load on the Dress page. "
-			"Handy for keeping the variants of an item together.\n"
-			"Default: OFF");
 
 		Heading("Appearance");
 
