@@ -240,7 +240,12 @@ namespace CaptureWindow::Internal
 		const auto  grip = a_draggable ? Theme::Grip::kEdge : Theme::Grip::kNone;
 		const auto  columns = Theme::OutfitColumns(grip);
 		const int   sorted = static_cast<int>(a_browser.sort);
-		if (const int column = Theme::HeaderRow(kLabels, columns, sorted, a_browser.descending, "Sort by icon"); column >= 0) {
+		// Own ID scope: the piece list's labels beside it (the same table, no scope per column)
+		// have a Name label too, and the two would share one ImGui ID.
+		ImGui::PushID("outfitList");
+		const int column = Theme::HeaderRow(kLabels, columns, sorted, a_browser.descending, "Sort by icon");
+		ImGui::PopID();
+		if (column >= 0) {
 			QueueMenuSound(kFocusSound);
 			OutfitBrowser::SetSort(a_browser, a_state.request, static_cast<OutfitBrowser::SortKey>(column), column == sorted && !a_browser.descending);
 			Settings::SetOutfitSort({ static_cast<int>(a_browser.sort), a_browser.descending });
