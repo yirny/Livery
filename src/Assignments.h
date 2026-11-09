@@ -186,4 +186,12 @@ namespace Assignments
 	// Whether Livery has pieces on this NPC now; false for the player, and for an NPC in their
 	// own clothes whose situation rows wait for their turn. Contract: any thread.
 	bool IsDressedNpc(RE::FormID a_actor);
+
+	// Queues an SKSE task that takes off the armor the engine put on this NPC that Livery keeps
+	// off (Dressing::TakeOffExtras: outfit items that are none of the pieces, armor in slots the
+	// outfit leaves empty as [General] UnusedSlots says), and rebuilds their model when it took
+	// any. OwnOutfitGuard calls it as the worn-gear pass begins on an NPC Livery has pieces on;
+	// the task runs after the pass. It does nothing while the preview has their locks off.
+	// Contract: any thread.
+	void QueueTakeOffExtras(RE::FormID a_actor);
 }

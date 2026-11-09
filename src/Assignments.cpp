@@ -8,8 +8,9 @@
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
 //   Load, death - pieces put back on, and armor worn over them taken off, when an assigned NPC
-//                 loads; locks released when one dies; armor put on one in a menu taken off at
-//                 once; pieces taken from one in a menu replaced as it closes
+//                 loads; locks released when one dies; armor put on one in a menu, or by the
+//                 engine's worn-gear pass, taken off at once; pieces taken from one in a menu
+//                 replaced as it closes
 //   Co-save     - save, load (version 5; the rows of situations removed in situations.json
 //                 or unknown to this version dropped),
 //                 the items the rows' outfits leave off in a record of their own, revert
@@ -17,7 +18,8 @@
 //                 inventory), MenuOpenCloseEvent
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
-//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc
+//                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc /
+//                 QueueTakeOffExtras
 #include "PCH.h"
 
 #include "Assignments.h"
@@ -473,9 +475,11 @@ namespace
 		}
 	}
 
-	// Armor the engine put on them while the trade, container or pickpocket menu is open (a
-	// helmet given for a slot the outfit leaves empty) comes off at once, not as it closes.
-	void TakeOffGiven(RE::FormID a_actor)
+	// Armor the engine put on them that Livery keeps off comes off at once: given while the
+	// trade, container or pickpocket menu is open (a helmet for a slot the outfit leaves empty),
+	// not as it closes, or put on by the worn-gear pass's best-armor step (their outfit items or
+	// a hat after a dressing took them off). `a_when` ends the log line.
+	void TakeOffGiven(RE::FormID a_actor, std::string_view a_when)
 	{
 		if (a_actor == g_suspended) {
 			return;  // the preview has them off on purpose
@@ -486,8 +490,9 @@ namespace
 			return;
 		}
 		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
-			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} in a menu", count, a_actor);
-			// The menu pauses the game, which skips the actor update that would show it.
+			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
+			// A menu pauses the game, as the capture window does with Live Preview off, which
+			// skips the actor update that would show it.
 			Dressing::RefreshModel(*actor);
 		}
 	}
@@ -978,7 +983,7 @@ namespace
 			const auto* item = RE::TESForm::LookupByID(a_event->baseObject);
 			if (item && item->IsArmor()) {
 				const auto id = a_event->actor->GetFormID();
-				SKSE::GetTaskInterface()->AddTask([id] { TakeOffGiven(id); });
+				SKSE::GetTaskInterface()->AddTask([id] { TakeOffGiven(id, "in a menu"); });
 			}
 			return RE::BSEventNotifyControl::kContinue;
 		}
@@ -1415,5 +1420,10 @@ namespace Assignments
 	{
 		std::lock_guard lock{ g_managedLock };
 		return std::ranges::find(g_dressed, a_actor) != g_dressed.end();
+	}
+
+	void QueueTakeOffExtras(RE::FormID a_actor)
+	{
+		SKSE::GetTaskInterface()->AddTask([a_actor] { TakeOffGiven(a_actor, "after the game's worn-gear pass"); });
 	}
 }
