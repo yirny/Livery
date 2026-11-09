@@ -62,11 +62,12 @@ Slots the outfit leaves empty, those of the items it leaves off on the row inclu
 governed by `[General] UnusedSlots` (in game `Gear in unused slots`): `All` leaves them the
 engine's, `ExceptHeadgear` (the default) keeps headgear out of them (armor in any of body
 slots 30, 31, 41, 42: helmets, hoods, circlets), `OutfitOnly` keeps them empty. The engine's
-best-gear pass can put armor they own there (a helmet given in the trade menu); armor the
-setting keeps out comes off again at once while that menu is open, as it closes and when
-their 3D loads (`Dressing::TakeOffExtras`, Keeping the outfit on). Armor that reaches them
-otherwise (a gift, another mod) stays on until the next trade or 3D load. A change of the
-setting takes effect at the next of those. Whatever the setting, an NPC Livery has pieces on
+best-gear pass can put armor they own there (a helmet given in the trade menu, a hat a
+dressing just took off); armor the setting keeps out comes off again right after each run of
+that pass where the own-outfit guard is in (while the window's preview has their locks off, at
+its end), at once while a trade menu is open, as it closes and when their 3D loads
+(`Dressing::TakeOffExtras`, Keeping the outfit on). Armor another mod puts on them by script
+stays on until the next of those. A change of the setting takes effect at the next of those. Whatever the setting, an NPC Livery has pieces on
 never wears an outfit item that is not one of them (any `ExtraOutfitItem`: their own outfit,
 or another mod's distributed one; the trade menu hides them): the own-outfit guard keeps the
 worn-gear pass from putting them on, and `Dressing::TakeOffExtras` takes off any worn anyway,
@@ -125,7 +126,13 @@ says so), so a lock would be needed anyway.
   tables hold the ID) and leaves it out for every NPC Livery has pieces on
   (`Assignments::IsDressedNpc`; an NPC in their own clothes whose situation rows wait is not
   one), so their outfit items stay off while they wear Livery's pieces; the rest of the pass,
-  its best-armor step included, runs as before. The hook writes nothing, so it leaves no
+  its best-armor step included, runs as before. For them the hook also queues an SKSE task
+  (`Assignments::QueueTakeOffExtras`) that runs after the pass, takes off what that step put
+  on them that Livery keeps off (`Dressing::TakeOffExtras`, below) and rebuilds their model
+  when it took any; while the window's preview has their locks off it does nothing, and the
+  preview's end takes them off. After Create and Apply dressed a follower in body armor alone,
+  the hat the dressing took off and their own outfit boots were on again seconds later, with
+  no dressing by Livery between (2026-11-09, log). The hook writes nothing, so it leaves no
   residue: once they have no pieces (Restore Outfit, Release everyone, a row in their own
   clothes) the call runs for them again. SPID replaces the same call at `kPostLoad` and never
   calls the original, so Livery's goes in at `kDataLoaded` and calls SPID's in turn. Skyrim VR,
@@ -166,7 +173,8 @@ says so), so a lock would be needed anyway.
   it, and a replaced copy Livery added is taken back; a piece another mod locked stays.
   Then the armor the engine put on them outside the pieces comes off, as on a 3D load
   (`Dressing::TakeOffExtras`): a helmet given for a slot the outfit leaves empty.
-  `GiftMenu` is not one of these menus, so a gift waits for the next dressing.
+  `GiftMenu` is not one of these menus, so a better copy given there waits for the next
+  dressing; armor the pass puts on for a gift comes off after it (`UpdateWornGear`, above).
   The window counts the pieces Livery
   put on that the actor wears no copy of, and the worn armor it did not put on (`GapsOf` in `Plugin.cpp`, read as it opens
   and after each dressing with it open, no preview on): the summary line then says the
