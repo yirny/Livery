@@ -410,13 +410,13 @@ adds them (an NPC gets a copy of a piece they lack); nothing moves from the play
 inventory. Not worn now: nothing, since every row reads its outfit from the library each
 time it goes on. Remove: §5.
 
-An Apply (the Dress page's, Apply to #{Name}, Save and Apply) dresses the captured
-actor at once, Live Preview on or off, as above, and the window stays on its page; with
-Live Preview on the preview begins again on what they wear now (the Dress page) or the
-outfit the Wardrobe page has selected. The Dress page follows what they wear
-(`actorPieces`), and `Restore` shows while Livery dresses them
-(`OutfitList::dressed`). The Save page's Create and Apply and Restore close the window
-first.
+An Apply (the Dress page's, Apply to #{Name}, Save and Apply, the Save page's Create and
+Apply) dresses the captured actor at once, Live Preview on or off, as above, and the window
+stays on its page, the Save page going back to the Dress page as after each of its saves
+(docs/ui-redesign.md §4); with Live Preview on the preview begins again on what they wear
+now (the Dress page) or the outfit the Wardrobe page has selected. The Dress page follows
+what they wear (`actorPieces`), and `Restore` shows while Livery dresses them
+(`OutfitList::dressed`). Restore closes the window first.
 
 ## 7. Code
 

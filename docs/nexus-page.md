@@ -99,7 +99,7 @@ By default, you can dress your followers and spouse and save what your friends w
 [list=1]
 [*]Open Livery on yourself or the NPC, wearing what you want to save. A friend in something you like works too.
 [*]Press [b]Save to Wardrobe...[/b]
-[*]Name it, pick an icon, [b]Create[/b].
+[*]Name it, pick an icon, [b]Create[/b], then [b]Exit[/b].
 [/list]
 To change an existing outfit, use the [b]Update[/b] tab.
 On a friend, Livery saves what they wear but can't change it.
