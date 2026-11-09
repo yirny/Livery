@@ -54,7 +54,7 @@ Items Livery put on stay on: the NPC no longer swaps them for better armor you g
 
 1. Open Livery on yourself or the NPC, wearing what you want to save.
 2. Press **Save to Wardrobe...**
-3. Name it, pick an icon, **Create**.
+3. Name it, pick an icon, **Create**, then **Exit**.
 
 To change an existing outfit, use the **Update Existing Outfit** tab. On a friend, Livery saves what they wear but can't change it.
 

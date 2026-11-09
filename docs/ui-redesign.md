@@ -94,7 +94,8 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   heading font, where the title goes (Nordic: centred, over its rule), separated by a greyed
   `/`, text only (no box), the unselected one half transparent (`Theme::BeginHeadingTabs`);
   no actor name or summary line. The page is widened when the tabs would not fit on one
-  line. Each tab keeps its name while the window is open, the Update tab its outfit.
+  line. Each tab keeps its name while the window is open, the Update tab its outfit, until a
+  Create starts the Create tab again (Order, below).
 - Both tabs start with the name, as the Wardrobe page's field: no label (`Outfit Name` on hover
   while not being typed in; a failed save's error instead). An empty field shows `kNeedName`
   inside it; a failed save turns it red, its error on hover, until the name is edited
@@ -103,8 +104,8 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
   NNN`, then the ticked pieces read only, with the Dress page's icons, under their count
   line, as the Wardrobe page shows an outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
-- The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it while
-  the window is open (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
+- The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it until
+  a Create or the window's close (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
   body slot, then head (head, hair, long hair), circlet, hands, feet, amulet, ring, then any,
   whose key `OutfitIcons::kKeys` lists and whose PNG is loaded; else the default key. Its
   colour is white (`#eaeaea`). Create writes it with the outfit; the Update tab keeps the
@@ -139,15 +140,22 @@ situation is the Situations page's job (docs/situation-management-ui.md).
 - Update's confirm popup (`Replace items?`): `Replace the N items of A` / `with the M
   selected items?`, a line for the pieces of unloaded plugins that stay in it and one for a
   rename, then `Confirm` / `Cancel`. No row changes.
-- Order: the library write; on failure `SetError` and nothing assigned; on success Close (the
-  preview restores), then Create and Apply's row in one call that redresses once, or after
-  Update the captured actor dressed again when they wear the outfit (`RedressFor`); one HUD
-  message for the library and one for the dressing.
+- Order: Create and Apply on an actor no longer there sets its error before any write; then
+  the library write, on failure `SetError` and nothing assigned. On success Create and
+  Apply's row in one call that redresses once, or after Update the captured actor dressed
+  again when they wear the outfit, at once with the window open, Live Preview on or off
+  (`DressCaptured`, as Apply; docs/outfit-management-ui.md §6); one HUD message for the
+  library and one for the dressing. Then the window goes back to the Dress page, as Back
+  does: it follows what they wear when they were dressed, else the preview shows the ticks
+  (`SetOutfits`). After a Create the Create tab starts again: its name the next free `New
+  Outfit NNN` (`OutfitList::suggestedName`), its icon following the ticks.
 
-Checks: Create saves and changes no row; Create and Apply while wearing a Town outfit asks
+Checks: Create saves, changes no row and goes back to the Dress page, the Create tab then
+named with the next free `New Outfit NNN`; Create and Apply while wearing a Town outfit asks
 (Yes, Apply as Default, Cancel saves nothing), with a Default held asks before replacing it,
-and with neither dresses at once; Update renames, changes no row and dresses the actor again
-when they wear it; a failed write assigns nothing.
+and with neither dresses at once, the window open, Live Preview on and off; Update renames,
+changes no row and dresses the actor again when they wear it; a failed write assigns nothing
+and stays on the Save page with its error.
 
 ## 5. Apply
 
