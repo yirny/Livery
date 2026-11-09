@@ -30,7 +30,8 @@
 //                  outfit the row the Wardrobe page's Apply would (its popup first when that asks);
 //                  Update shows the wardrobe's outfits, the chosen one's pieces and the ticked
 //                  ones in three columns (ChooseOutfit), its confirm popup before the write;
-//                  both tabs hand over to onSave
+//                  both tabs hand over to onSave, and a save that took goes back to the Dress
+//                  page, the window open (SetOutfits)
 //   Appearance   - Window skin, Restore original palette and Play menu sounds, written to the
 //                  INI at once (Settings); the window is drawn in a new skin from the next frame
 //   Outfit pages - the outfit browser and lists, the Load, the Wardrobe page and Edit pages:
@@ -2056,6 +2057,15 @@ namespace CaptureWindow::Internal
 		return confirm;
 	}
 
+	// Starts the Create tab again, as the window opens and after a Create: its name from
+	// request.suggestedName, its icon following the ticks.
+	void RestartCreateTab(State& a_state)
+	{
+		a_state.createName.fill('\0');
+		std::strncpy(a_state.createName.data(), a_state.request.suggestedName.c_str(), kNameCapacity - 1);
+		a_state.createIcon.reset();
+	}
+
 	// Hands the save to onSave; `a_applyRow` (Create and Apply) is the row the new outfit goes
 	// to and is worn for, the ticked pieces under Player's Inventory moving first.
 	// Contract: the onSave handler writes the library before it assigns anything, and a
@@ -2093,8 +2103,9 @@ namespace CaptureWindow::Internal
 
 	// Reached only with at least one piece ticked, which onSave relies on; the ticks cannot
 	// change here. Each tab keeps its name while the window is open, the Update tab its outfit,
-	// the Create tab an icon chosen in Choose icon. Create saves at once; Update asks in its
-	// confirm popup first.
+	// the Create tab an icon chosen in Choose icon, until a Create starts that tab again
+	// (SetOutfits). Create saves at once; Update asks in its confirm popup first. A save that
+	// took goes back to the Dress page (SetOutfits).
 	void DrawSavePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -2269,9 +2280,7 @@ namespace CaptureWindow
 				state.pieceTicked[i] = state.request.pieces[i].selected;
 			}
 			// The Update tab's name is filled when an outfit is chosen (ChooseOutfit).
-			state.createName.fill('\0');
-			std::strncpy(state.createName.data(), state.request.suggestedName.c_str(), kNameCapacity - 1);
-			state.createIcon.reset();
+			RestartCreateTab(state);
 			state.updateName.fill('\0');
 			state.updateTab = false;
 			state.chosenOutfit = -1;
@@ -2414,10 +2423,16 @@ namespace CaptureWindow
 		request.existingOutfits = std::move(a_list.existingOutfits);
 		request.chests = std::move(a_list.chests);
 		request.categories = std::move(a_list.categories);
-		request.actorSummary = std::move(a_list.actorSummary);
+		if (!request.saveOnly) {  // a Save only window keeps its line: they dress as they please
+			request.actorSummary = std::move(a_list.actorSummary);
+		}
 		request.dressed = a_list.dressed;
 		request.piecesNotWorn = a_list.piecesNotWorn;
 		request.extraWorn = a_list.extraWorn;
+		if (!a_list.suggestedName.empty()) {
+			request.suggestedName = std::move(a_list.suggestedName);
+			RestartCreateTab(state);
+		}
 
 		state.previewedOutfit = IndexOfOutfit(state, previewed);
 		state.previewedChest = IndexOfChest(state, previewedChest);
@@ -2458,9 +2473,18 @@ namespace CaptureWindow
 			}
 		}
 		FillManageForm(state, IndexOfOutfit(state, managed));
-		// The preview follows the ticks when the page shows them and a tick just went.
+		// No other write runs on the Save page (the Dress page's Save to Wardrobe... is greyed
+		// while one runs), so this ends its save: the window goes back to the Dress page, as
+		// Back does.
+		const bool saved = state.page == Page::kSave && state.status == Status::kSaving;
+		const bool showedOutfit = saved && state.updateTab && state.chosenOutfit >= 0;  // the Update tab's outfit is on the preview
+		if (saved) {
+			GoToPage(state, Page::kCapture);
+		}
+		// The preview follows the ticks when the page shows them and a tick just went, or the
+		// Update tab's outfit leaves it.
 		const bool managedGone = managed != 0 && state.manage.outfit < 0;
-		if (!redressed && (managedGone || (dropped && !PagePreview(state, state.page)))) {
+		if (!redressed && (managedGone || showedOutfit || (dropped && !PagePreview(state, state.page)))) {
 			QueuePreview(state, TickedPieces(state));
 		}
 		state.discardFor = -1;

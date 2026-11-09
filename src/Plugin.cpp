@@ -8,15 +8,16 @@
 //                    outfit pages, through OutfitPreview, while the window's Live Preview tick
 //                    is on; FreeCamera shows them, saving is off and an NPC is held where they
 //                    stand (MovementHold) while the window is open, and turns to the player with a
-//                    greeting (NpcReaction) as it opens with the preview on; every close of the window,
-//                    a save included, ends them all
+//                    greeting (NpcReaction) as it opens with the preview on; every close of the window
+//                    ends them all
 //   Capture        - hotkey handler: check the target (the player when nothing is aimed at) and what its group
 //                    allows (Settings::AccessOf; Save only opens a window that only saves what they wear), collect inventory
 //                    armor (and for an NPC the player's, per the settings), each piece with its group,
 //                    SkyUI's Type and Class (ArmorInfo), its icon (PieceIcons), its enchantment and its tempering, detect the class, list the library's outfits (adding
 //                    their pieces nobody carries), then open the window with the worn pieces ticked; the window's Save
 //                    writes the library, then Create and Apply gives the outfit a row (Assignments::Change)
-//                    and Update dresses the actor again when they wear it; Apply moves
+//                    and Update dresses the actor again when they wear it, with the window open
+//                    (DressCaptured), which shows the rebuilt list; Apply moves
 //                    the ticked pieces from the player's inventory to an NPC (Dressing::MoveFromPlayer)
 //                    and dresses them (Assignments) with the window open (DressCaptured), as
 //                    the Wardrobe page's Apply does; Restore goes to Assignments;
@@ -922,7 +923,7 @@ namespace
 	// Moves `moving`, the pieces ticked under Player's Inventory, to the NPC, when
 	// MoveFromPlayer is on, and says on the HUD how many went. Returns those that did not
 	// move, which the dressing then leaves out: never a copy in their place.
-	// Contract: game thread; no preview is on (DressCaptured, or the window closed).
+	// Contract: game thread; no preview is on (DressCaptured).
 	std::vector<RE::TESObjectARMO*> MovePlayerPieces(RE::Actor& npc, const std::vector<RE::TESObjectARMO*>& moving)
 	{
 		auto* player = RE::PlayerCharacter::GetSingleton();
@@ -968,51 +969,8 @@ namespace
 		return rows;
 	}
 
-	void RedressFor(RE::Actor& actor, std::uint32_t id);
-
-	// The Save page: the actor's rows with what they have in each now, which its Create and
-	// Apply popup names, and the save. The library is written first; only once it took the
-	// outfit does the window close, which ends the preview. Then Create and Apply moves the
-	// Player's Inventory pieces and gives the outfit the one row the user applied it to, in
-	// one call that redresses once; Update dresses the actor again when they wear the outfit.
-	// Contract: game thread; `armors` matches request.pieces index for index. A refused or
-	// failed write assigns nothing (CLAUDE.md §2.1).
-	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::optional<Assignments::Choices>& choices)
-	{
-		request.situations = SituationInfos();
-		request.assigned = AssignedRows(choices);
-		request.onSave = [handle = actor.GetHandle(), armors](const CaptureWindow::SaveRequest& save) {
-			const auto picked = PickPieces(armors, save.pieces);
-			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked, save.icon) :
-			                                 SaveOutfit(save.name, picked, save.icon.value_or(OutfitIcons::Icon{}));
-			if (error) {
-				CaptureWindow::SetError(*error);
-				return;
-			}
-			const auto* saved = save.outfit ? Library::Find(save.outfit) : Library::FindByName(save.name);
-			const auto  outfit = saved ? saved->id : 0;
-			CaptureWindow::Close();
-			const auto target = handle.get();
-			if (outfit == 0 || !target) {
-				return;
-			}
-			if (!save.applyRow) {
-				if (save.outfit) {
-					RedressFor(*target, outfit);
-				}
-				return;
-			}
-			// Create and Apply: the pieces move before the row dresses anyone, so the dressing
-			// finds them carried; those that did not move stay out of it, never a copy.
-			Assignments::Changes changes{ .outfit = outfit, .assign = { RowSituation(*save.applyRow) } };
-			changes.leaveOut = MovePlayerPieces(*target, PickPieces(armors, save.fromPlayer));
-			Assignments::Change(*target, changes);
-		};
-	}
-
-	// What a Wardrobe page or Situations page change redresses the captured actor for
-	// (RedressCaptured; docs/outfit-management-ui.md §6).
+	// What a Wardrobe page, Situations page or Save page Update change redresses the captured
+	// actor for (RedressCaptured; docs/outfit-management-ui.md §6).
 	struct PendingRedress
 	{
 		std::uint32_t updated = 0;  // the outfit Update changed; 0 when a situation outfit they wear left the library
@@ -1194,6 +1152,59 @@ namespace
 			list.extraWorn = choices->dressed ? g_capturedGaps.extra : 0;
 		}
 		return list;
+	}
+
+	// The Save page: the actor's rows with what they have in each now, which its Create and
+	// Apply popup names, and the save. The library is written first. Then Create and Apply
+	// moves the Player's Inventory pieces and gives the outfit the one row the user applied it
+	// to, in one call that redresses once, and Update dresses the actor again when they wear
+	// the outfit, each at once with the window open, Live Preview on or off (DressCaptured, as
+	// Apply). The window, still open, shows the library as written, after Create with the
+	// next free name for the Create tab, and goes back to the Dress page (SetOutfits).
+	// Contract: game thread; `armors` matches request.pieces index for index, `offered` are the
+	// player's armor among them. A refused or failed write assigns nothing (CLAUDE.md §2.1).
+	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
+		const std::vector<RE::TESObjectARMO*>& offered, const std::optional<Assignments::Choices>& choices)
+	{
+		request.situations = SituationInfos();
+		request.assigned = AssignedRows(choices);
+		request.onSave = [handle = actor.GetHandle(), actorID = actor.GetFormID(), armors, offered, name = request.actorName](const CaptureWindow::SaveRequest& save) {
+			const auto target = handle.get();
+			if (save.applyRow && !target) {
+				// Before the write, so nothing is saved for a Create and Apply that cannot dress them.
+				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				return;
+			}
+			const auto picked = PickPieces(armors, save.pieces);
+			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked, save.icon) :
+			                                 SaveOutfit(save.name, picked, save.icon.value_or(OutfitIcons::Icon{}));
+			if (error) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			const auto* saved = save.outfit ? Library::Find(save.outfit) : Library::FindByName(save.name);
+			const auto  outfit = saved ? saved->id : 0;
+
+			std::optional<CaptureWindow::ActorPieces> redressed;
+			if (outfit != 0 && target && save.applyRow) {
+				// Create and Apply: the pieces move before the row dresses anyone, so the dressing
+				// finds them carried; those that did not move stay out of it, never a copy.
+				const auto dress = [&] {
+					Assignments::Changes changes{ .outfit = outfit, .assign = { RowSituation(*save.applyRow) } };
+					changes.leaveOut = MovePlayerPieces(*target, PickPieces(armors, save.fromPlayer));
+					Assignments::Change(*target, changes);
+				};
+				redressed = DressCaptured(*target, dress, armors, offered, nullptr);
+			} else if (target && save.outfit != 0 && WearsOutfit(Assignments::ChoicesOf(actorID), outfit)) {
+				redressed = RedressCaptured(*target, { .updated = outfit }, armors, offered, nullptr);
+			}
+			auto list = CurrentOutfitList(actorID, armors);  // after the dressing
+			list.actorPieces = std::move(redressed);
+			if (save.outfit == 0) {
+				list.suggestedName = NextAutomaticName();
+			}
+			CaptureWindow::SetOutfits(std::move(list));
+		};
 	}
 
 	// The window's Apply and Restore, and the line under the actor's name.
@@ -1571,7 +1582,7 @@ namespace
 			request.offersChests = true;
 			request.chests = ExistingChests(armors, request.pieces);
 		}
-		AttachSave(request, actor, armors, choices);
+		AttachSave(request, actor, armors, offered, choices);
 		if (saveOnly) {
 			request.saveOnly = true;
 			request.offersWardrobe = false;
