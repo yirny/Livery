@@ -5,8 +5,9 @@
 //               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
-//   API       - RefreshModel / Dress / PutBackOn / TakeOffExtras / Replenish / Upgrade / Release /
-//               PutBack / MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
+//   API       - RefreshModel / Dress / PutBackOn / TakeOffExtras / CarriesAny / LockOutfitCopies /
+//               UnlockOutfitCopies / PutOnOutfitItems / Replenish / Upgrade / Release / PutBack /
+//               MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
 // The inventory helpers follow src/OutfitPreview.cpp, itself from Tailor 3.0's
 // src/player/PlayerWardrobe.cpp; setting ExtraCannotWear directly follows Tailor's
@@ -154,7 +155,7 @@ namespace
 		return extra.HasType<RE::ExtraCannotWear>();
 	}
 
-	// Contract: the copy is worn and has no lock yet.
+	// Contract: the copy has no lock yet.
 	void Lock(RE::Actor& actor, RE::ExtraDataList& extra)
 	{
 		extra.Add(new RE::ExtraCannotWear());
@@ -391,86 +392,14 @@ namespace
 		return !unusedOff;
 	}
 
-	// The copy of `armor` they could put on in place of an outfit item: of the copies they carry
-	// that are unworn, unlocked and no outfit item, the best as PickInstance ranks the unworn ones.
-	// nullopt for none.
-	std::optional<Instance> VisibleCopy(RE::Actor& actor, RE::TESObjectARMO& armor)
+	bool Contains(const std::vector<Dressing::InstanceKey>& keys, const Dressing::InstanceKey& key)
 	{
-		RE::ExtraDataList* best = nullptr;
-		Rank               bestRank;
-		std::int32_t       listed = 0;  // copies on extra lists, skipped ones included
-		for (const auto& copy : Copies(actor, &armor)) {
-			listed += copy.extra->GetCount();
-			if (copy.extra->GetWorn() || IsLocked(*copy.extra) || copy.extra->HasType<RE::ExtraOutfitItem>()) {
-				continue;
-			}
-			if (const auto rank = RankOf(*copy.extra); !best || rank > bestRank) {
-				best = copy.extra;
-				bestRank = rank;
-			}
-		}
-		const bool plain = CountOf(actor, armor) > listed;
-		if (!best && !plain) {
-			return std::nullopt;
-		}
-		return Instance{ best && (IsWellMade(bestRank) || !plain) ? best : nullptr };  // nullptr: a plain copy
+		return std::ranges::find(keys, key) != keys.end();
 	}
 
-	// The armor that goes on in place of outfit items taken off from body slots `freed`: of the
-	// playable armor they carry with a copy VisibleCopy finds, in slots that overlap `freed` and
-	// where other armor may stay (MayStay), the highest base armor rating, then the highest value.
-	// nullptr for none.
-	RE::TESObjectARMO* BestInstead(RE::Actor& actor, std::uint32_t freed, std::uint32_t worn, std::uint32_t outfit, Settings::UnusedSlots mode)
+	bool IsPiece(const std::vector<Dressing::Piece>& pieces, const Dressing::InstanceKey& key)
 	{
-		const auto outranks = [](const RE::TESObjectARMO& a, const RE::TESObjectARMO& b) {
-			return a.armorRating != b.armorRating ? a.armorRating > b.armorRating : a.GetGoldValue() > b.GetGoldValue();
-		};
-		RE::TESObjectARMO* best = nullptr;
-		const auto         inventory = actor.GetInventory([](RE::TESBoundObject& item) { return item.IsArmor(); });
-		for (const auto& [object, data] : inventory) {
-			auto*      armor = object->As<RE::TESObjectARMO>();
-			const auto slots = armor ? armor->GetSlotMask().underlying() : 0u;
-			if (!armor || data.first <= 0 || !IsGear(*armor) || (slots & freed) == 0 || !MayStay(slots, worn, outfit, mode)) {
-				continue;
-			}
-			if ((!best || outranks(*armor, *best)) && VisibleCopy(actor, *armor)) {
-				best = armor;
-			}
-		}
-		return best;
-	}
-
-	// Puts on, unlocked, in place of outfit items taken off from body slots `freed`, the armor
-	// BestInstead picks, its copy VisibleCopy picks: the worn-gear pass's best-armor step puts an
-	// outfit item on over armor they were given that is the same armor or weaker (docs/design.md
-	// §2). Which copy the engine equips for a plain one (no extra list) is not known, so the copy
-	// worn is checked: an outfit copy comes off again. Logs the outcome; it runs only after an
-	// outfit item came off, never in normal play.
-	void PutOnBestInstead(RE::Actor& actor, std::uint32_t freed, std::uint32_t worn, std::uint32_t outfit, Settings::UnusedSlots mode,
-		RE::ActorEquipManager& equipManager)
-	{
-		auto*                   armor = BestInstead(actor, freed, worn, outfit, mode);
-		std::optional<Instance> copy;
-		if (armor) {
-			copy = VisibleCopy(actor, *armor);
-		}
-		if (!copy) {
-			logger::info("Nothing they carry goes on {:08X} in place of their outfit item", actor.GetFormID());
-			return;
-		}
-		equipManager.EquipObject(&actor, armor, copy->extra, 1, nullptr, false, false, false, true);
-		const auto  wornCopy = WornCopy(actor, *armor);
-		const auto* name = armor->GetName();
-		if (!wornCopy.extra) {
-			logger::info("{} ({:08X}) did not go on {:08X} in place of their outfit item", name, armor->GetFormID(), actor.GetFormID());
-		} else if (wornCopy.extra->HasType<RE::ExtraOutfitItem>()) {
-			equipManager.UnequipObject(&actor, armor, wornCopy.extra, 1, nullptr, false, false, false, true);
-			logger::info("The game put the outfit copy of {} ({:08X}) on {:08X} again; taken off, the slot stays empty", name, armor->GetFormID(),
-				actor.GetFormID());
-		} else {
-			logger::info("Put {} of {} ({:08X}) on {:08X} in place of their outfit item", copy->extra ? "a copy with extra data" : "a plain copy", name,
-				armor->GetFormID(), actor.GetFormID());
-		}
+		return std::ranges::any_of(pieces, [&key](const Dressing::Piece& piece) { return piece.key == key; });
 	}
 }
 
@@ -567,7 +496,7 @@ namespace Dressing
 		return count;
 	}
 
-	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces)
+	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces, const std::vector<InstanceKey>& lockedCopies)
 	{
 		auto* equipManager = RE::ActorEquipManager::GetSingleton();
 		if (!equipManager || pieces.empty()) {
@@ -584,8 +513,14 @@ namespace Dressing
 			}
 		}
 		const auto mode = Settings::UnusedSlotsMode();
-		const auto extra = [&pieces, worn, outfit, mode](const Copy& copy) {
-			if (!copy.extra->GetWorn() || !IsGear(*copy.armor) || IsLocked(*copy.extra)) {
+		const auto extra = [&pieces, &lockedCopies, worn, outfit, mode](const Copy& copy) {
+			if (!copy.extra->GetWorn() || !IsGear(*copy.armor)) {
+				return false;
+			}
+			const auto key = KeyOf(copy);
+			// A lock on a worn copy is another mod's, unless LockOutfitCopies set it on an outfit
+			// copy the engine has marked worn since.
+			if (IsLocked(*copy.extra) && !(key && Contains(lockedCopies, *key))) {
 				return false;
 			}
 			// An outfit item (any ExtraOutfitItem: their own outfit, or another mod's distributed
@@ -593,27 +528,94 @@ namespace Dressing
 			if (!copy.extra->HasType<RE::ExtraOutfitItem>() && MayStay(copy.armor->GetSlotMask().underlying(), worn, outfit, mode)) {
 				return false;
 			}
-			const auto key = KeyOf(copy);
-			return !key || std::ranges::none_of(pieces, [&key](const Piece& piece) { return piece.key == *key; });
+			return !key || !IsPiece(pieces, *key);
 		};
 		const auto countExtras = [&] { return std::ranges::count_if(Copies(actor), extra); };
 		const auto before = countExtras();
 		if (before == 0) {
 			return 0;
 		}
-		std::vector<std::uint32_t> freed;  // the body slots of each outfit item taken off where other armor may stay
 		ForEachCopy(actor, extra, [&](const Copy& copy) {
-			const auto slots = copy.armor->GetSlotMask().underlying();
-			if (copy.extra->HasType<RE::ExtraOutfitItem>() && MayStay(slots, worn, outfit, mode) && std::ranges::find(freed, slots) == freed.end()) {
-				freed.push_back(slots);
+			if (IsLocked(*copy.extra)) {
+				copy.extra->RemoveByType(RE::ExtraDataType::kCannotWear);  // PreventRemoval would keep it on
+				actor.AddChange(RE::TESObjectREFR::ChangeFlags::kInventory);
 			}
 			equipManager->UnequipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
 		});
 		const auto after = countExtras();
-		for (const auto slots : freed) {
-			PutOnBestInstead(actor, slots, worn, outfit, mode, *equipManager);
-		}
 		return before > after ? static_cast<std::size_t>(before - after) : 0;
+	}
+
+	bool CarriesAny(RE::Actor& actor, const std::vector<Piece>& pieces)
+	{
+		return std::ranges::any_of(Copies(actor), [&pieces](const Copy& copy) {
+			const auto key = KeyOf(copy);
+			return key && IsPiece(pieces, *key);
+		});
+	}
+
+	std::size_t LockOutfitCopies(RE::Actor& actor, const std::vector<Piece>& pieces, std::vector<InstanceKey>& lockedCopies)
+	{
+		std::vector<InstanceKey> kept;  // the copies of `lockedCopies` still carried and locked, then those locked here
+		std::size_t              count = 0;
+		for (const auto& copy : Copies(actor)) {
+			if (!copy.extra->HasType<RE::ExtraOutfitItem>()) {
+				continue;
+			}
+			const auto key = KeyOf(copy);
+			if (IsLocked(*copy.extra)) {
+				if (key && Contains(lockedCopies, *key) && !Contains(kept, *key)) {
+					kept.push_back(*key);  // this module's lock; any other is another mod's
+				}
+				continue;
+			}
+			if (copy.extra->GetWorn() || (key && IsPiece(pieces, *key))) {
+				continue;
+			}
+			const auto tagged = Tag(actor, copy);  // adds to the list only: `copy` stays valid
+			Lock(actor, *copy.extra);
+			kept.push_back(tagged);
+			++count;
+		}
+		lockedCopies = std::move(kept);
+		return count;
+	}
+
+	void UnlockOutfitCopies(RE::Actor& actor, const std::vector<InstanceKey>& lockedCopies)
+	{
+		for (const auto& key : lockedCopies) {
+			if (const auto copy = Find(actor, key); copy.extra && IsLocked(*copy.extra)) {
+				copy.extra->RemoveByType(RE::ExtraDataType::kCannotWear);
+				actor.AddChange(RE::TESObjectREFR::ChangeFlags::kInventory);
+			}
+		}
+	}
+
+	std::size_t PutOnOutfitItems(RE::Actor& actor)
+	{
+		auto* equipManager = RE::ActorEquipManager::GetSingleton();
+		if (!equipManager) {
+			return 0;
+		}
+		std::uint32_t taken = 0;  // the body slots of the armor they wear, then of each outfit item tried
+		for (const auto& copy : Copies(actor)) {
+			if (copy.extra->GetWorn() && IsGear(*copy.armor)) {
+				taken |= copy.armor->GetSlotMask().underlying();
+			}
+		}
+		const auto fits = [&taken](const Copy& copy) {
+			return copy.extra->HasType<RE::ExtraOutfitItem>() && !copy.extra->GetWorn() && !IsLocked(*copy.extra) && IsGear(*copy.armor) &&
+			       (copy.armor->GetSlotMask().underlying() & taken) == 0;
+		};
+		std::size_t count = 0;
+		ForEachCopy(actor, fits, [&](const Copy& copy) {
+			taken |= copy.armor->GetSlotMask().underlying();  // tried once, gone on or not
+			equipManager->EquipObject(&actor, copy.armor, copy.extra, 1, nullptr, false, false, false, true);
+			if (WornCopy(actor, *copy.armor).extra) {
+				++count;
+			}
+		});
+		return count;
 	}
 
 	std::size_t Replenish(RE::Actor& actor, std::vector<Piece>& pieces)
