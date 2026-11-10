@@ -616,10 +616,16 @@ namespace CaptureWindow::Internal
 		OutfitIcons::Icon icon;        // likewise
 		std::uint32_t     id = 0;      // its library id; 0 for one not created yet
 		std::string       applyLabel;  // the button of the popup that offers no situation: "Apply", "Save and Apply", "Create and Apply"
-		// What is saved first, which the question starts with before the outfit's name
-		// ("Save your changes to ", "Create "), and its sentence in Apply as Default's help;
+		// What is saved first, which the question says before what Apply does (`Create A,
+		// then ...?`, `Save changes and ...?`), and its sentence in Apply as Default's help;
 		// "" for nothing.
-		const char* saveFirst = "";
+		enum class SaveFirst
+		{
+			kNothing,
+			kCreate,  // the outfit itself, by Create and Apply
+			kEdits    // the Wardrobe page's unsaved library edits
+		};
+		SaveFirst   saveFirst = SaveFirst::kNothing;
 		std::string saveFirstHelp;
 		void (*drawSaveLines)(const State&) = nullptr;  // the lines under the question saying what is saved; nullptr for none
 	};

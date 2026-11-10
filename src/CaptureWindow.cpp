@@ -1454,7 +1454,7 @@ namespace CaptureWindow::Internal
 		return exitPressed ? CaptureAction::kExit : CaptureAction::kNone;
 	}
 
-	// `a_updateWorn`: Yes in the Apply popup, so `a_outfit` is the worn library outfit, which
+	// `a_updateWorn`: Update in the Apply popup, so `a_outfit` is the worn library outfit, which
 	// the handler updates with the ticks before it dresses the actor. The ticked pieces under
 	// Player's Inventory, as the list shows them now, are those that move. `a_excluded`: the
 	// armor of the worn outfit `a_outfit` left unticked (UntickedOfWorn).
@@ -1505,13 +1505,13 @@ namespace CaptureWindow::Internal
 		return std::any_of(rows.begin() + (rows.empty() ? 0 : 1), rows.end(), [](const CaptureWindow::RowAssignment& a_row) { return OutfitRows::HoldsAny(a_row.row); });
 	}
 
-	// `Update X with the selected items?`, naming the situation X is worn for, then Yes,
-	// No, apply as is (its "(?)" inside the button; the help speaks of situational outfits
+	// `Update X with the selected items?`, naming the situation X is worn for, then Update,
+	// Apply Only (its "(?)" inside the button; the help speaks of situational outfits
 	// only when the actor has one) or Cancel.
 	ApplyChoice DrawApplyPopup(const State& a_state)
 	{
-		constexpr const char* kJustApply = "No, apply as is";
-		constexpr const char* kJustApplyWidth = "No, apply as is (?)";  // what the button's width is measured on (Theme::HelpButton)
+		constexpr const char* kJustApply = "Apply Only";
+		constexpr const char* kJustApplyWidth = "Apply Only (?)";  // what the button's width is measured on (Theme::HelpButton)
 
 		if (!BeginModal(kApplyPopup)) {
 			return ApplyChoice::kNone;
@@ -1526,18 +1526,18 @@ namespace CaptureWindow::Internal
 		const auto& outfit = OutfitAt(a_state, worn);
 		RunLine({ TextRun("Update "), OutfitRun(outfit.name, outfit.icon), TextRun(" with the selected items?") });
 		if (!request.wornSituation.empty()) {
-			const auto whose = std::format(" is {}'s ", request.actorName);
-			RunLine({ OutfitRun(outfit.name, outfit.icon), TextRun(whose.c_str()), SituationRun(request.wornSituation.c_str()), TextRun(" outfit.") });
+			const auto whose = std::format("This is {}'s ", request.actorName);
+			RunLine({ TextRun(whose.c_str()), SituationRun(request.wornSituation.c_str()), TextRun(" outfit.") });
 		}
-		BeginButtonRow({ "Yes", kJustApplyWidth, "Cancel" });
-		const bool update = Theme::Button("Yes");
+		BeginButtonRow({ "Update", kJustApplyWidth, "Cancel" });
+		const bool update = Theme::Button("Update");
 		ImGui::SameLine();
 		bool       helpHovered = false;
 		const bool justApply = Theme::HelpButton(kJustApply, &helpHovered);
 		if (helpHovered) {
-			auto help = std::format("The selected items become {}'s Default as they are, without being added to the wardrobe.", request.actorName);
+			auto help = std::format("Sets the selected items as {}'s Default without adding them to the wardrobe.", request.actorName);
 			if (HasSituationalOutfits(a_state)) {
-				help += " While a situational outfit is worn, the new Default shows only when that situation ends.";
+				help += " The new Default takes effect when no situational outfit applies.";
 			}
 			DrawHelpTooltip(help);
 		}
@@ -1577,7 +1577,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto& name = a_state.request.actorName;
 		ImGui::TextUnformatted(std::format("Restore {}'s original outfit?", name).c_str());
-		ImGui::TextUnformatted(std::format("This takes Livery's outfit off {} and forgets every situational outfit chosen for them.", name).c_str());
+		ImGui::TextUnformatted("Their situational outfits are cleared too.");
 		BeginButtonRow({ "Restore", "Cancel" });
 		const bool restore = Theme::Button("Restore");
 		ImGui::SameLine();
@@ -2017,7 +2017,7 @@ namespace CaptureWindow::Internal
 			return std::nullopt;
 		}
 		const auto name = Trimmed(a_state.createName.data());
-		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = "Create and Apply", .saveFirst = "Create " });
+		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = "Create and Apply", .saveFirst = ApplySubject::SaveFirst::kCreate });
 		ImGui::EndPopup();
 		return row;
 	}
@@ -2035,14 +2035,13 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-		const auto  replace = std::format("Replace the {} items of ", outfit.pieces.size());
-		RunLine({ TextRun(replace.c_str()), OutfitRun(outfit.name, outfit.icon) });
-		ImGui::TextUnformatted(std::format("with the {} selected items?", CountTickedPieces(a_state)).c_str());
+		const auto  counts = std::format("'s {} items with the {} selected items?", outfit.pieces.size(), CountTickedPieces(a_state));
+		RunLine({ TextRun("Replace "), OutfitRun(outfit.name, outfit.icon), TextRun(counts.c_str()) });
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} items from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
 		}
 		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
-			RunLine({ TextRun("It is renamed "), OutfitRun(name, outfit.icon), TextRun(".") });
+			RunLine({ TextRun("New name: "), OutfitRun(name, outfit.icon) });
 		}
 		BeginButtonRow({ "Confirm", "Cancel" });
 		const bool confirm = Theme::Button("Confirm");
@@ -2194,13 +2193,13 @@ namespace CaptureWindow::Internal
 		Theme::EndCombo(open, a_palettes.labels[a_palettes.chosen].c_str(), style);
 	}
 
-	// `Restore Edge.ini as Livery ships it?`, then Restore / Cancel. Returns true on Restore.
+	// `Restore Edge.ini to its original state?`, then Restore / Cancel. Returns true on Restore.
 	bool DrawRestorePalettePopup(const char* a_id, const std::string& a_file)
 	{
 		if (!BeginModal(a_id)) {
 			return false;
 		}
-		ImGui::TextUnformatted(std::format("Restore {}.ini as Livery ships it? Your changes to it will be lost.", a_file).c_str());
+		ImGui::TextUnformatted(std::format("Restore {}.ini to its original state? Your changes will be lost.", a_file).c_str());
 		BeginButtonRow({ "Restore", "Cancel" });
 		const bool restore = Theme::Button("Restore");
 		ImGui::SameLine();

@@ -802,12 +802,12 @@ namespace CaptureWindow::Internal
 			const auto  situation = SituationRun(saved.name.c_str());
 			RunLine({ TextRun("Remove "), situation, TextRun("?") });
 			if (!saved.holders.empty()) {
-				ImGui::TextUnformatted("It is used by:");
+				ImGui::TextUnformatted("Used by:");
 				for (const auto& holder : saved.holders) {
 					ImGui::BulletText("%s", holder.c_str());
 				}
 			}
-			RunLine({ TextRun("Restore Presets brings "), situation, TextRun(saved.holders.empty() ? " back." : " back, without them.") });
+			ImGui::TextUnformatted(saved.holders.empty() ? "Restore Presets can bring it back." : "Restore Presets can bring it back, but not their outfits.");
 			const bool remove = DrawPopupButtons("Remove");
 			ImGui::EndPopup();
 			return remove;
