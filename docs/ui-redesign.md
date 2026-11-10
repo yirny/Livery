@@ -108,7 +108,7 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   a Create or the window's close (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
   body slot, then head (head, hair, long hair), circlet, hands, feet, amulet, ring, then any,
   whose key `OutfitIcons::kKeys` lists and whose PNG is loaded; else the default key. Its
-  colour is white (`#eaeaea`). Create writes it with the outfit; the Update tab keeps the
+  colour is Bone white (`bone-white`). Create writes it with the outfit; the Update tab keeps the
   outfit's icon and shows it before the name, as the Wardrobe page's icon field without its
   click, hover fill or tooltip (the default icon, greyed with the name, while none is chosen).
 - Create and Apply saves as Create does and gives the new outfit the row the Wardrobe page's
