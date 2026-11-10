@@ -1680,11 +1680,12 @@ namespace
 			return;
 		}
 
-		// Nothing (or something other than an actor) under the crosshair captures the player.
+		// Nothing under the crosshair, or anything but a person (an object, a horse, a creature:
+		// no ActorTypeNPC keyword), captures the player.
 		auto*      player = RE::PlayerCharacter::GetSingleton();
 		const auto ref = handle.get();
 		auto*      actor = ref ? ref->As<RE::Actor>() : nullptr;
-		if (!actor) {
+		if (!actor || !actor->IsHumanoid()) {
 			actor = player;
 		}
 		if (!actor) {

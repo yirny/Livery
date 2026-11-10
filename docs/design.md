@@ -241,8 +241,9 @@ on the player as on an NPC, unlocked like the default, and not in beast form.
 
 ### Who the hotkey opens on
 
-With nothing under the crosshair the hotkey opens the window on the player, always Full
-management. An NPC falls in the first group that fits, read at the
+With nothing under the crosshair, or anything but a person (`TESObjectREFR::IsHumanoid`, the
+`ActorTypeNPC` keyword: not a horse or a creature), the hotkey opens the window on the player,
+always Full management. An NPC falls in the first group that fits, read at the
 hotkey press (`GroupOf` in `src/Plugin.cpp`): followers and spouse (teammate flag or
 `PlayerMarriedFaction`), friends (`BGSRelationship::GetRelationship` of `Actor::GetTemplateBase`
 and the player's base at Friend or better; no record is Acquaintance), other NPCs. Relationship
