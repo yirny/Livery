@@ -239,7 +239,9 @@ list starts in it when the window opens.
     whose PNG is loaded, in `OutfitIcons::kKeys`' order, 8 to a row, each a tile with 6px
     around it, filled in the hover colour while hovered and in the selected colour with a
     rim while chosen; under them the thirty colours of `OutfitIcons::kColors`, ten to a row,
-    each row as wide as the icons, a 1px rim while hovered and 2px while chosen; then `OK` / `Cancel`.
+    each row as wide as the icons, a 1px rim while hovered and 2px while chosen, the colour's
+    name on hover; then `OK` / `Cancel`. Each colour's click area takes 1px of padding around
+    it and touches the next, so the colours show 2px apart and the mouse is never between two.
     While the mouse is over a colour, every icon shows in it; a click chooses an icon or a
     colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
     leaves it. Nothing is written until Save. The Save page's Create tab opens the same

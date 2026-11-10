@@ -1429,15 +1429,16 @@ namespace CaptureWindow::Internal
 	}
 
 	// Choose icon: the icons whose PNG is loaded, in OutfitIcons' order, the chosen one marked;
-	// under them the colours, the chosen one marked; then OK / Cancel. A click on an icon or a
-	// colour chooses it; while the mouse is over a colour every icon shows in it. OK hands the
-	// choice back, Cancel (or Escape) nothing. Nothing is written here.
+	// under them the colours, the chosen one marked, each naming itself on hover; then OK /
+	// Cancel. A click on an icon or a colour chooses it; while the mouse is over a colour every
+	// icon shows in it. OK hands the choice back, Cancel (or Escape) nothing. Nothing is
+	// written here.
 	std::optional<OutfitIcons::Icon> DrawIconPopup(State& a_state, bool a_keepOpen)
 	{
 		constexpr int   kColumns = 10;               // icons per row: SkyUI's armor icons fill the first two
 		constexpr float kTileGap = 2.0f;             // pixels at 1080p, between the icons and between the colours
 		constexpr float kSwatchHeightRatio = 0.75f;  // of the frame height
-		constexpr int   kColorColumns = 10;          // colours per row: a grey and nine hues (OutfitIcons::kColors)
+		constexpr int   kColorColumns = 10;          // colours per row: white or grey and nine hues (OutfitIcons::kColors)
 		static_assert(OutfitIcons::kColors.size() % kColorColumns == 0);
 
 		if (!BeginModal(kIconPopup)) {
@@ -1450,7 +1451,7 @@ namespace CaptureWindow::Internal
 		}
 		auto&       pick = a_state.iconPicker.pick;
 		const float gap = kTileGap * Theme::Scale();
-		const auto  shown = a_state.iconPicker.hoverColor.value_or(pick.rgb);
+		const auto  shown = a_state.iconPicker.hoverColor.value_or(OutfitIcons::ColorOf(pick.color).rgb);
 		int         drawn = 0;
 		for (const auto key : OutfitIcons::kKeys) {
 			if (!Theme::HasOutfitIcon(key)) {
@@ -1469,25 +1470,36 @@ namespace CaptureWindow::Internal
 			ImGui::PopID();
 		}
 
+		// The swatches touch, each padded by half the gap inside its button, so the mouse moving
+		// across them is always over one and the icons never flick back to the chosen colour.
+		// The row reaches out by the padding on either side, so the colours line up with the icons.
 		const auto  colors = OutfitIcons::kColors.size();
+		const float padding = gap * 0.5f;
 		const float width = static_cast<float>(kColumns) * Theme::IconTileSide() + static_cast<float>(kColumns - 1) * gap;
-		const float swatch = (width - static_cast<float>(kColorColumns - 1) * gap) / static_cast<float>(kColorColumns);
+		const float swatch = (width + gap) / static_cast<float>(kColorColumns);
+		const float swatchHeight = ImGui::GetFrameHeight() * kSwatchHeightRatio + gap;
 		Theme::SectionGap();
+		const float rowX = ImGui::GetCursorPosX() - padding;
+
 		std::optional<std::uint32_t> hovered;
 		for (std::size_t i = 0; i < colors; ++i) {
 			if (i % kColorColumns != 0) {
-				ImGui::SameLine(0.0f, gap);
-			} else if (i > 0) {
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + gap);
+				ImGui::SameLine(0.0f, 0.0f);
+			} else {
+				if (i > 0) {
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
+				}
+				ImGui::SetCursorPosX(rowX);
 			}
-			const auto rgb = OutfitIcons::kColors[i];
+			const auto& color = OutfitIcons::kColors[i];
 			ImGui::PushID(static_cast<int>(i));
-			if (Theme::ColorSwatch("##color", rgb, pick.rgb == rgb, swatch, ImGui::GetFrameHeight() * kSwatchHeightRatio)) {
+			if (Theme::ColorSwatch("##color", color.rgb, pick.color == color.key, swatch, swatchHeight, padding)) {
 				QueueMenuSound(kFocusSound);
-				pick.rgb = rgb;
+				pick.color = color.key;
 			}
 			if (ImGui::IsItemHovered()) {
-				hovered = rgb;
+				hovered = color.rgb;
+				Theme::Tooltip(color.name.data());  // a literal, so it ends in a null
 			}
 			ImGui::PopID();
 		}

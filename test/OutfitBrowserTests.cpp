@@ -82,7 +82,7 @@ namespace
 
 	OutfitIcons::Icon IconOf(std::size_t key, std::size_t color)
 	{
-		return { std::string{ OutfitIcons::kKeys[key] }, OutfitIcons::kColors[color] };
+		return { std::string{ OutfitIcons::kKeys[key] }, std::string{ OutfitIcons::kColors[color].key } };
 	}
 
 	void Tick(OutfitBrowser::State& state, const std::string& group, const std::string& label)
@@ -237,10 +237,10 @@ TEST_CASE("Name sort descending reverses the order", "[browser]")
 TEST_CASE("Icon sort: the icon's order, then its colour's, then the name", "[browser]")
 {
 	auto request = MakeRequest();
-	request.existingOutfits[0].icon = IconOf(4, 2);                  // iron set: body, purple
-	request.existingOutfits[1].icon = IconOf(0, 0);                  // Guard Uniform: helmet, white
-	request.existingOutfits[2].icon = IconOf(4, 0);                  // Town Dress: body, white
-	request.existingOutfits[3].icon = { "unknown/icon", 0x123456 };  // Bare: an icon not in the table
+	request.existingOutfits[0].icon = IconOf(4, 2);                          // iron set: body, pink
+	request.existingOutfits[1].icon = IconOf(0, 0);                          // Guard Uniform: helmet, white
+	request.existingOutfits[2].icon = IconOf(4, 0);                          // Town Dress: body, white
+	request.existingOutfits[3].icon = { "unknown/icon", "unknown-colour" };  // Bare: an icon and a colour not in the tables
 	// Scout keeps the default: body, white, as Town Dress has.
 	OutfitBrowser::State state;
 	OutfitBrowser::Reset(state, request);
@@ -272,14 +272,23 @@ TEST_CASE("Rebuild keeps the search and sort for changed outfits and rows", "[br
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Steel Set", "Scout" });
 }
 
-TEST_CASE("Outfit colours read and write as #rrggbb", "[icons]")
+TEST_CASE("Outfit colours are named by key; an unknown key draws the default", "[icons]")
 {
-	CHECK(OutfitIcons::ToHex(0xEAEAEA) == "#eaeaea");
-	CHECK(OutfitIcons::FromHex("#AEA5e8") == 0xAEA5E8u);
-	CHECK_FALSE(OutfitIcons::FromHex("eaeaea").has_value());
-	CHECK_FALSE(OutfitIcons::FromHex("#eaeae").has_value());
-	CHECK_FALSE(OutfitIcons::FromHex("#eaeaeg").has_value());
+	CHECK(OutfitIcons::ColorOf("glass-teal-light").name == "Glass teal - Light");
+	CHECK(OutfitIcons::ColorOf("glass-teal-light").rgb == 0x6CB7A0u);
+	CHECK(OutfitIcons::ColorOf("#eaeaea").key == OutfitIcons::kDefaultColor);
+	CHECK(OutfitIcons::ColorOrder("#eaeaea") == OutfitIcons::kColors.size());
+	CHECK(OutfitIcons::ColorOf(OutfitIcons::kDefaultColor).rgb == 0xEAEAEAu);
 	CHECK(OutfitIcons::kKeys[OutfitIcons::KeyOrder(OutfitIcons::kDefaultKey)] == OutfitIcons::kDefaultKey);
+}
+
+TEST_CASE("Outfit colour keys are unique and in lower case", "[icons]")
+{
+	for (std::size_t i = 0; i < OutfitIcons::kColors.size(); ++i) {
+		const auto key = OutfitIcons::kColors[i].key;
+		CHECK(OutfitIcons::ColorOrder(key) == i);
+		CHECK(std::ranges::none_of(key, [](char a_c) { return a_c >= 'A' && a_c <= 'Z'; }));
+	}
 }
 
 TEST_CASE("A new outfit's icon: body first, then head, circlet, hands, feet, amulet, ring, any", "[icons]")
