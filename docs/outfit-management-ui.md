@@ -169,7 +169,7 @@ makes that sort the one every page's list starts in when the window opens, writt
 - Player-visible text says `select` for the piece list's ticks (`Select at least one item.`, `the selected items`); specs and code keep `tick`, as `selected` already names the outfit row in the lists.
 - A button or link that needs more input before it acts (a name, a choice on another page) ends in `...`; one that only asks for confirmation does not.
 - A column of icon tabs at the window's left edge, a rule between it and the page:
-  the Dress page (a bare dress form: a padded torso on a stand, each shoulder one arc), the
+  the Dress page (a bare dress form: a torso with round shoulders and a narrow waist, on a stand), the
   Wardrobe page (a wardrobe: a double arched cornice over two doors with upright handles and a
   drawer, on two short legs), the Situations page
   (the star, point down, of the outfit rows' situation mark;
