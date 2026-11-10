@@ -76,7 +76,7 @@ as a link at the row's right end, as the Wardrobe page's:
   page holds the save until it ends. The HUD says nothing of it; the log does.
 - `Back` or Escape saves edits not saved yet and returns once the write took; a refused save
   stays and shows the error, and leaving again with the error showing drops the edits and
-  returns. `Remove` asks (`Remove the chest #{Chest}?`, Remove / Cancel) and hands the chest to
+  returns. `Remove` asks (`Remove #{Chest}?`, Remove / Cancel) and hands the chest to
   `onChestRemove`; the editor returns to the Chests page.
 - `Dress with this chest...` leaves as `Back` does (`PendingLeave::loadChest`), but for the Dress
   page with the chest as written loaded there, as its `Add from Chest...` and `Load` would. Greyed

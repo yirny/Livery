@@ -61,11 +61,11 @@ Changes:
   outfit chosen before random went on; with none, the first of the list.
 - Taking an outfit off a row (a drag off it on the page; `OutfitRows::Take`) takes it off
   `outfits`; `chosen` becomes 0 if it was that.
-- The Dress page's Apply popup: `No, apply as is (?)`. The ticks
+- The Dress page's Apply popup: `Apply Only (?)`. The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
-  `The selected items become #{Name}'s Default as they are, without being added to the
-  wardrobe.`, then, while a situation row holds an outfit, `While a situational outfit is
-  worn, the new Default shows only when that situation ends.`
+  `Sets the selected items as #{Name}'s Default without adding them to the wardrobe.`,
+  then, while a situation row holds an outfit, `The new Default takes effect when no
+  situational outfit applies.`
 - Remove (`Assignments::ForgetOutfit`): the outfit leaves every row's `outfits`; a `chosen`
   that was it becomes 0, so an outfit hidden behind it is not worn. When this leaves the
   Default wearing nothing (random off: `chosen` was it; random on: it was the only one on
@@ -252,10 +252,10 @@ The situation's details, its fields evenly spaced with no headings:
   the outfit list, keeps the situation selected, opens its heading if folded and scrolls the
   left pane to it when the pane can scroll.
 - `Remove` at the right end of Show Outfit List's row, drawn as Restore Presets is, without
-  the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove Town?`, then under `It is used by:` the
+  the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove Town?`, then under `Used by:` the
   actors in this save with outfits on their Town row's list, hidden ones included
   (`Lydia: 2 outfits`, the length of `outfits`; a FormID when not in memory), `Restore
-  Presets brings "Town" back, without them.` (`... back.` when nobody has any); `Remove` /
+  Presets can bring it back, but not their outfits.` (`... can bring it back.` when nobody has any); `Remove` /
   `Cancel`. The page's edits are saved first, and a refused save opens no popup. Remove writes `situations.json` first; a refused or
   failed write changes nothing and shows the error. Then `Assignments::ForgetSituation`
   clears the row for every actor in this save, and those wearing it are redressed by
@@ -358,7 +358,7 @@ shows the situation's.
 
 - Rows: save and load again; Remove
   of a chosen outfit with another hidden behind it wears neither; Remove of the Default's
-  outfit keeps its pieces on; `No, apply as is`; Update of an outfit an NPC wears for a
+  outfit keeps its pieces on; `Apply Only`; Update of an outfit an NPC wears for a
   situation shows at their next change. Unit tests cover the row rules.
 - Situation data: no `situations.json` until something is written; the summary line and the
   HUD read ` for Town`; the summary line `as Default` for the Default.

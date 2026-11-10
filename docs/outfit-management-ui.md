@@ -139,19 +139,17 @@ list starts in it when the window opens.
 - `Restore Outfit (?)`, while Livery dresses the actor, sits at the right end of the Live
   Preview line (`Theme::LineHelpLink`), its text centred on the line's height, in the count
   line's font and colour, lit on hover; the `(?)` is inside its click area and hovering it
-  shows the help. A click asks `Restore #{Name}'s original outfit?` / `This takes Livery's
-  outfit off #{Name} and forgets every situational outfit chosen for them.` with `Restore` /
-  `Cancel`.
+  shows the help. A click asks `Restore #{Name}'s original outfit?` / `Their situational
+  outfits are cleared too.` with `Restore` / `Cancel`.
 - The `Player's Inventory` heading ends in a `(?)`; the tooltip shows while the mouse
   is over that mark alone: `"Apply" moves the selected items from your inventory to #{Name}.`
   (or `"Apply" gives #{Name} a new copy of each selected item; yours stay with you.`), then
   `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
   are not listed.`
-- The Apply popup's `No, apply as is (?)` help: `The selected items become #{Name}'s Default
-  as they are, without being added to the wardrobe.`, then, while a situation row of #{Name}
-  holds an outfit, `While a situational outfit is worn, the new Default shows only when that
-  situation ends.` A button
-  with a `(?)` (the Apply popup's `No, apply as is`) draws it inside its frame.
+- The Apply popup's `Apply Only (?)` help: `Sets the selected items as #{Name}'s Default
+  without adding them to the wardrobe.`, then, while a situation row of #{Name}
+  holds an outfit, `The new Default takes effect when no situational outfit applies.` A button
+  with a `(?)` (the Apply popup's `Apply Only`) draws it inside its frame.
 - Vanilla and Nordic draw text fields and dropdowns underlined, not framed. A text field has
   a grey pen at its right end, white while the field or the pen is hovered or the field is
   being typed in; a click on the pen starts typing, so the click area is the field's. A
@@ -207,7 +205,7 @@ list starts in it when the window opens.
   drawn in it from the next frame (`Theme::Apply` runs every frame from `Settings::Skin` and
   `Palette`; every skin's fonts and textures are loaded at start). Restore original palette
   at the line's right end while the chosen shipped palette's file differs from what Livery
-  ships: its popup `Restore Edge.ini as Livery ships it? Your changes to it will be lost.`,
+  ships: its popup `Restore Edge.ini to its original state? Your changes will be lost.`,
   Restore / Cancel.
 - Palette files (`Data/SKSE/Plugins/Livery/palettes/*.ini`, sarrai-common's `Palettes`):
   `Skin` (`Modern`, `Vanilla` or `Nordic`; Modern when left out) and the skin's colours, each
@@ -271,8 +269,9 @@ list starts in it when the window opens.
     outfit list draws it (`Theme::OutfitNameText`).
 - With an empty library the page shows the empty list.
 - Edits are kept for one outfit at a time. Selecting another outfit while the selected one
-  has unsaved edits asks `You have unsaved changes for #{Outfit}.` with the lines Save's
-  popup lists, then `Discard changes` / `Keep editing`.
+  has unsaved edits asks `Changes to #{Outfit} will be lost.` with the lines of what the
+  edits change (as Save's popup lists them, the item count that of the edited items), then
+  `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
   selected, the Dress page's ticks.
 - Buttons `Apply to #{Name}` (dressed form before its label), `Exit`, then `Remove` (§5) at the row's right
@@ -281,15 +280,15 @@ list starts in it when the window opens.
     pieces in the library, for every actor and row that has it (unlike Apply, which leaves
     them off on one row only). Greyed until that differs from the library (icon, trimmed
     name, ticked pieces), and with an empty name (`kNeedName`). A popup (`Save changes?`) lists
-    what changes (`Its N items become the M selected items.`, rename, `Its icon changes.`),
-    as the Save page's Update tab does; the
+    what changes under `Save your changes to #{Outfit}?`, one line each (`Items: N to M`,
+    `New name: B`, `Icon: changed`, `N items from unloaded plugins stay in it.`); the
     buttons are `Confirm` / `Cancel`. When the save takes unticked items out of the outfit
     (library pieces left unticked; those the Edit page took out are not among them), the popup
     is instead titled `Remove items from the outfit?` (`Theme::PopupTitle`), then
-    `These unselected items will be removed from #{Outfit} when you save:` (the outfit's icon
+    `These unselected items will be removed from #{Outfit}:` (the outfit's icon
     and name in the emphasis colour, `Theme::RunText`), the items as bullets, the other
-    changes (rename, icon, the pieces line only when the Edit page changed the pieces),
-    `To wear only the selected items without changing the saved outfit, choose Apply instead.`,
+    changes (rename, icon, the item count only when the Edit page changed the pieces),
+    `To keep these items in the outfit, choose Apply to #{Name} instead.`,
     and the buttons `Save` (wardrobe icon) / `Apply to #{Name}` (dressed form; greyed as the
     page's Apply) / `Cancel`. Its Apply closes the popup and goes on as the page's Apply,
     writing nothing first beyond what that Apply writes; Apply and Cancel call off a leave
@@ -305,24 +304,25 @@ list starts in it when the window opens.
     player's inventory. The Save page's Create and Apply always gives every item. The row, from `Request::wornFor` (what
     `Request::wornOutfit` is worn for):
     - They wear another library outfit for a situation now: a popup (`Apply outfit?`) says
-      so, `#{Name} is wearing their Town outfit, B.` (random on: `one of their Town
-      outfits`), and asks: random off `Make A their new Town outfit?` (B leaves the
-      row's list), random on `Add A to them and wear it now?`, or with A on that list
-      already `Wear A from them now?`; with library edits `Save your changes to A, then
-      make it ...?` and their lines. Buttons `Yes` (that row; random on, worn as the pick),
+      so, `#{Name} is wearing B for Town.` (random on: `#{Name} is wearing B, one of their
+      Town outfits.`), and asks: random off `Make A their new Town outfit?` (B leaves the
+      row's list), random on `Add A to their Town outfits and dress them in it?`, or with A
+      on that list already `Switch to A for Town?`; with library edits `Save changes and
+      make A their new Town outfit?` (`Save changes, add A to their Town outfits, and dress
+      them in it?`, `Save changes and switch to A for Town?`) and their lines. Buttons `Yes`
+      (that row; random on, worn as the pick),
       `Apply as Default (?)` and `Cancel`. Apply as Default gives the Default the outfit,
-      the situation's outfit staying; its help: `"A" becomes #{Name}'s Default instead, and
-      their Town outfit stays. The new Default shows only when Town ends and no other
-      situational outfit applies.`, then `It replaces "C" as their Default.` when it
-      does, and `Your changes are saved first.` with library edits (a tooltip: the names
-      quoted).
+      the situation's outfit staying; its help: `Sets "A" as #{Name}'s Default. Their
+      current situational outfit stays equipped.` (`Sets "A" as #{Name}'s Default, replacing
+      "C". ...` when it replaces the Default's), and `Your changes are saved first.` with
+      library edits (a tooltip: the names quoted).
     - They wear it for a situation now: that row, dressed again.
     - Else (the Default, nothing of Livery's, or a situation removed since): the Default.
     - In the last two cases it asks first (`Apply outfit?`) only with library edits or a
     Default whose worn outfit it replaces, random off: `Apply #{Outfit} as #{Name}'s
-    Default?` (`... to #{Name} for Town?`), with library edits `Save your changes to
-    #{Outfit}, then apply it ...?` and their lines, then `#{Outfit} replaces C as #{Name}'s
-    Default.` when it is; buttons `Apply` (`Save and Apply` with library edits) /
+    Default?` (`... to #{Name} for Town?`), with library edits `Save changes and apply
+    #{Outfit} ...?` and their lines, then `This replaces C.` when it replaces the
+    Default's; buttons `Apply` (`Save and Apply` with library edits) /
     `Cancel`. With nothing to say it dresses at once. Its tooltip says which: `Dress #{Name}
     in this outfit as their Town outfit, or make it their Default.` / `... for Town.` /
     `... as their Default.` With library edits it goes through `onManageUpdate` with
@@ -336,8 +336,8 @@ list starts in it when the window opens.
     nothing.
   - Exit closes the window. Escape does what Exit does (it first clears a search, as on the
     Load page).
-- Exit, Escape or another tab with unsaved edits shows `You have unsaved changes for
-  #{Outfit}.` with the lines Save's popup lists, then `Save Changes` /
+- Exit, Escape or another tab with unsaved edits shows `Unsaved changes to #{Outfit}.`
+  with the lines Save's popup lists, then `Save Changes` /
   `Discard Changes` / `Back`: Save Changes opens
   Save's popup, and its Confirm saves, then goes once the write took (a refused one stays;
   Cancel stays); Discard Changes starts the edits again from the library and goes; Back stays.
@@ -367,9 +367,10 @@ list starts in it when the window opens.
 
 - `Remove` on the Wardrobe page, enabled with an outfit selected (greyed with `kNeedOutfit` on
   hover without one). A popup names the outfit and
-  lists who uses it among Livery's assignments in this save: each actor (their FormID when
-  not in memory) with the rows that hold it (`Lydia: Default, Town`), then `Remove` /
-  `Cancel`.
+  lists who uses it among Livery's assignments in this save, under `Used by:`: each actor
+  (their FormID when not in memory) with the rows that hold it (`Lydia: Default, Town`),
+  then `Situations using it fall back to the Default. Defaults made from it keep their
+  items.` and `Remove` / `Cancel`.
 - Order: the outfit's loaded pieces are read, then `Library::Remove` writes the file; a
   refused or failed write changes no assignment. Then `Assignments::ForgetOutfit` takes the
   outfit off every row (docs/situation-management-ui.md §1): a `chosen` that was it becomes
