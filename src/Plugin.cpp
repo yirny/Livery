@@ -273,16 +273,20 @@ namespace
 	}
 
 	// Takes the camera for the window about to open, Live Preview on or off: input over the
-	// game moves FreeCamera (when it could take the camera; otherwise the game's own view
-	// stays). On the player it glides out of an over-the-shoulder offset (SmoothCam); an NPC's
-	// view stays as it is. The window's close ends it (onClose).
+	// game moves FreeCamera. When it cannot take the camera (on a horse, seated) the game's own
+	// view stays and the window gets no onViewInput, so a drag over the game moves the cursor
+	// as usual. On the player it glides out of an over-the-shoulder offset (SmoothCam); an
+	// NPC's view stays as it is. The window's close ends it (onClose).
 	// Contract: game thread, after AttachPreview, so the camera starts on the dressed actor as before.
 	void BeginCamera(CaptureWindow::Request& request, RE::Actor& actor)
 	{
 		constexpr float kCentreSeconds = 0.5f;  // the glide to the middle
 
+		if (!FreeCamera::Begin(actor)) {
+			return;
+		}
 		request.onViewInput = [](const CaptureWindow::ViewInput& input) { FreeCamera::Move(input, Settings::CameraSpeedScale(), PreviewMoveLimits()); };
-		if (FreeCamera::Begin(actor) && actor.IsPlayerRef()) {
+		if (actor.IsPlayerRef()) {
 			FreeCamera::CentreSideways(actor, kCentreSeconds);
 		}
 	}
