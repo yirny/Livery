@@ -239,6 +239,19 @@ namespace
 		return std::uniform_int_distribution<std::size_t>{ 0, a_count - 1 }(g_random);
 	}
 
+	// Locks the outfit copies of an NPC Livery has pieces on that are not locked yet: after a
+	// dressing, and those that came since (another mod's outfit change, the copies a take-off
+	// just took off). A log line when it locked any.
+	void LockNewOutfitCopies(Assignment& a_assignment, RE::Actor& a_actor)
+	{
+		if (a_assignment.pieces.empty() || a_actor.IsPlayerRef()) {
+			return;
+		}
+		if (const auto count = Dressing::LockOutfitCopies(a_actor, a_assignment.pieces, a_assignment.lockedCopies); count > 0) {
+			logger::info("Locked {} of their outfit item(s) on {:08X}", count, a_actor.GetFormID());
+		}
+	}
+
 	// How Redress dresses them, besides the situations they are in.
 	struct RedressOptions
 	{
@@ -324,9 +337,7 @@ namespace
 		a_assignment.takenOff = result.takenOff;
 		a_assignment.worn = a_row;
 		a_assignment.wornOutfit = a_outfit;
-		if (!isPlayer && !result.worn.empty()) {
-			Dressing::LockOutfitCopies(a_actor, a_assignment.pieces, a_assignment.lockedCopies);
-		}
+		LockNewOutfitCopies(a_assignment, a_actor);
 		if (auto& row = a_assignment.rows[RowOf(a_row)]; row.random && a_outfit != 0) {
 			row.chosen = a_outfit;  // on the list: OutfitRows::Wears picks from it
 		}
@@ -441,18 +452,6 @@ namespace
 	// --- Load, death ----------------------------------------------------------
 	//
 	// Contract: game thread (SKSE tasks from the event sinks), all.
-
-	// Locks the outfit copies of an NPC Livery has pieces on that came since the last lock
-	// (another mod's outfit change, the copies the take-off just took off), with a log line.
-	void LockNewOutfitCopies(Assignment& a_assignment, RE::Actor& a_actor)
-	{
-		if (a_assignment.pieces.empty() || a_actor.IsPlayerRef()) {
-			return;
-		}
-		if (const auto count = Dressing::LockOutfitCopies(a_actor, a_assignment.pieces, a_assignment.lockedCopies); count > 0) {
-			logger::info("Locked {} of their outfit item(s) on {:08X}", count, a_actor.GetFormID());
-		}
-	}
 
 	// None of the pieces Livery put on them is in their inventory any more (an outfit change,
 	// an inventory reset, a script that took their items): the guard would keep their outfit
