@@ -70,18 +70,13 @@ and when their 3D loads (`Dressing::TakeOffExtras`, Keeping the outfit on). Armo
 stays on until the next of those. A change of the setting takes effect at the next of those. Whatever the setting, an NPC Livery has pieces on
 never wears an outfit item that is not one of them (any `ExtraOutfitItem`: their own outfit,
 or another mod's distributed one; the trade menu hides them): the own-outfit guard keeps the
-worn-gear pass from putting them on, and `Dressing::TakeOffExtras` takes off any worn anyway,
-in any slot (Keeping the outfit on). The pass's best-armor step still puts an outfit item on
-over armor given to them that is the same armor or weaker: a follower whose outfit has a steel
-shield, with the guard on and `UnusedSlots` at `All`, had an outfit item taken off at each give
-of a steel shield, and given only an iron shield, wore none (2026-11-05, log). So where other
-armor may stay, the armor they carry that is no outfit item and fits there goes on in its
-place, unlocked: the highest base armor rating, then the highest value, its copy ranked as
-step 1 ranks unworn ones. The copy worn is checked, since which copy the engine equips for a
-plain one is not known; an outfit copy put on again comes off, the slot left empty. Weaker armor
-than the outfit item is taken off again by the pass at each of its runs (a give, a 3D load) and
-put back on by Livery, a brief flash in the trade menu. An actor in their own clothes (no
-pieces) keeps every slot the engine's, their outfit items included.
+worn-gear pass from putting them on, their unworn outfit copies carry Livery's lock so the
+pass's best-armor step does not put them on either, and `Dressing::TakeOffExtras` takes off
+any worn anyway, in any slot (Keeping the outfit on). Without the lock that step put an outfit
+item on over armor given to them that is the same armor or weaker (2026-11-05, log), and one
+the take-off had just taken off again at the pass's next run (2026-11-10, log); with it, armor
+given to them for a slot where other armor may stay is what the step puts on. An actor in
+their own clothes (no pieces) keeps every slot the engine's, their outfit items included.
 
 Pieces from the player's inventory (the window's `Player's Inventory`) move to an NPC
 at Apply, before the dressing, when `[Transfer] MoveFromPlayer` is on
@@ -127,12 +122,15 @@ says so), so a lock would be needed anyway.
   `418622+0x25E` on AE, found as in §3; the 1.5.97, 1.6.1170, 1.6.1179, 1.7.99 and 1.7.104
   tables hold the ID) and leaves it out for every NPC Livery has pieces on
   (`Assignments::IsDressedNpc`; an NPC in their own clothes whose situation rows wait is not
-  one), so their outfit items stay off while they wear Livery's pieces; the rest of the pass,
-  its best-armor step included, runs as before. For them the hook also queues an SKSE task
-  that runs after the pass. While the window's Live Preview shows them, the preview dresses
+  one) and for the NPC the window's Live Preview shows, assigned or not
+  (`OutfitPreview::IsPreviewedNpc`, an atomic id), so their outfit items stay off while they
+  wear Livery's pieces or the preview's; the rest of the pass, its best-armor step included,
+  runs as before. The pass is not always on the game thread (§6), so the hook only reads those
+  two and queues an SKSE task that runs after the pass. While the window's Live Preview shows them, the preview dresses
   them in its pieces again (`OutfitPreview::Reapply`), which takes off what it does not show;
   else `Assignments::TakeOffAfterPass` takes off what that step put on them that Livery keeps
-  off (`Dressing::TakeOffExtras`, below), rebuilding their model only while the game is paused
+  off (`Dressing::TakeOffExtras`, below) and, when it took something off, locks their outfit
+  copies that came since (below), rebuilding their model only while the game is paused
   or frozen (a menu, the window with Live Preview off): a running game's actor update shows
   the change, and a rebuild makes body-morph mods refit. When it took something off the NPC
   the open window dresses (not a Save only one), the window reads what they wear again
@@ -142,13 +140,32 @@ says so), so a lock would be needed anyway.
   on again seconds later, with no dressing by Livery between (2026-11-09, log; §6 for the
   take-off). The hook writes nothing, so it leaves no
   residue: once they have no pieces (Restore Outfit, Release everyone, a row in their own
-  clothes) the call runs for them again. SPID replaces the same call at `kPostLoad` and never
+  clothes) and the preview is off, the call runs for them again. SPID replaces the same call at `kPostLoad` and never
   calls the original, so Livery's goes in at `kDataLoaded` and calls SPID's in turn. Skyrim VR,
   AE before 1.6.640 (SPID's oldest, older tables unchecked, and a missing ID is fatal) and a
   build where the signature is not found run without it; there `Dressing::TakeOffExtras`
   takes their outfit items off again at a trade or 3D load (below), and their pieces go back
   on at the next 3D load.
-- On `TESObjectLoadedEvent` for a managed NPC: if the instance chosen for a piece is
+- Their outfit copies are locked while Livery has pieces on an NPC (`Dressing::LockOutfitCopies`):
+  every copy of an outfit item they carry (any `ExtraOutfitItem`) that is unworn, unlocked and
+  none of the pieces gets `ExtraCannotWear` and a tag, and its key goes into the co-save (§5),
+  so the best-armor step leaves it in the inventory (§6) and the pass needs no take-off. They
+  are locked after each dressing that puts pieces on, and the copies that came since (another
+  mod's outfit change, a copy the take-off just took off) after each 3D load, menu close and
+  take-off after the pass that took something off. Livery takes those locks off
+  (`Dressing::UnlockOutfitCopies`) before anything puts their own copies on, since a locked
+  unworn copy cannot be equipped: at each dressing (before their own pieces go back on), at
+  Restore, at death, at Release everyone, and for the live preview (`SuspendLocks`; locked
+  again at its end). A lock already on a copy is another mod's and stays. A locked copy the
+  engine marks worn comes off: `Dressing::TakeOffExtras` takes the lock off first. Never the
+  player.
+- On `TESObjectLoadedEvent` for a managed NPC: if they carry none of the pieces Livery put on
+  them any more (an outfit change, an inventory reset, a script that took their items), their
+  own clothes go back on, as Restore leaves them: the outfit copies are unlocked, their own
+  pieces Livery took off go back on, then each outfit item they carry fills a slot no worn
+  armor takes (`Dressing::PutOnOutfitItems`), and the pieces are forgotten. The record keeps
+  their rows, so a situation row dresses them again at their next change of situation; with
+  none it ends, and the next Apply dresses them. Otherwise, if the instance chosen for a piece is
   still in the inventory but not worn (another mod took it off; taking off clears the
   lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
   copies are created here. Then worn armor that is none of the pieces and is an outfit item
@@ -190,7 +207,8 @@ says so), so a lock would be needed anyway.
   is added as `, 1 extra item worn`, and the Wardrobe page's Apply is not greyed as worn
   already; it dresses them again, a copy added for a piece they no longer carry (§2 step 2),
   the extra pieces taken off (step 4).
-- Unassign (the window's Restore): release the mod's locks, remove the mod's copies
+- Unassign (the window's Restore): release the mod's locks, those on their outfit copies
+  included, remove the mod's copies
   still present (by co-save key; never a player-given instance), put the actor's own
   pieces it took off back on (those still carried, unworn and unlocked, without a lock),
   forget the actor. A slot whose own piece is gone is left to the engine's next
@@ -205,8 +223,9 @@ says so), so a lock would be needed anyway.
   task at every `kPostLoadGame` (not `kNewGame`), after a HUD message that the mode is on;
   Livery never resets the key. Unassign every managed actor. Actors not
   in memory (non-persistent NPCs whose cell is not loaded) cannot be reached and keep
-  their locks and copies. Locks and copies are otherwise the only residue after removal;
-  they do not break a save.
+  their locks and copies, their outfit copies locked too: with Livery removed, such an NPC
+  who loses Livery's pieces cannot put those copies on until their cell resets. Locks and
+  copies are otherwise the only residue after removal; they do not break a save.
 
 ### The player
 
@@ -375,7 +394,7 @@ would have to be kept in step).
 
 ## 5. Co-save
 
-Co-save id `LVRY`, records `ASGN` (version 5) and `EXCL` (version 2), read in the SKSE load
+Co-save id `LVRY`, records `ASGN` (version 6) and `EXCL` (version 2), read in the SKSE load
 callback, cleared on revert; a record of another version is skipped with a log line. A
 situation is stored by its key (`Situations::Name`, the key `situations.json` uses): a
 length byte and its characters, so situations can be added or removed without a new
@@ -387,14 +406,15 @@ as the Default.
   pieces), the pieces Livery has on them, each as its instance key `(armor FormID,
   ExtraUniqueID baseID, uniqueID)` and two flags: Livery added the copy, Livery set its
   lock. NPCs are locked, the player never, so no per-actor lock flag is stored. Then the
-  instance keys of their own copies Livery took off (§2 step 4).
+  instance keys of their own copies Livery took off (§2 step 4), and those of their outfit
+  copies Livery locked unworn (§2 Keeping the outfit on), each a count and the keys.
 - The Default's pieces: armor FormIDs not in the wardrobe, worn while the Default's row
   wears no outfit (docs/situation-management-ui.md §1). Then the situation of the row the
   pieces are for, and the rows (`OutfitRows`): a count, and per row its situation, random,
   `chosen` and its library outfit ids. Every row
   reads its outfit from the library each time it goes on; the window names the outfits
   from the ids. A row for a situation the version does not know is dropped with a log line.
-- A piece, own copy or Default piece whose plugin is gone is dropped at load, and an
+- A piece, own copy, locked outfit copy or Default piece whose plugin is gone is dropped at load, and an
   assignment with nothing on the actor and no situation row holding an outfit. Before that
   check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
   line; pieces worn for it stay on until the poll's next dressing. A key whose
@@ -450,6 +470,14 @@ can come later if sharing across characters is wanted.
   (`Took off 2 item(s) ... after the game's worn-gear pass`). After the window's close the pass
   ran again 5 to 22 s later, each run putting one or two of them on and the task taking them
   off, never in a loop.
+- A lock on an unworn outfit copy (2026-11-10, runtime 1.6.1170, a verification build): a
+  follower's two outfit copies (body and boots), locked unworn right after the take-off, were
+  never put on by the 7 passes that followed over 15 minutes (gives in the trade menu, Livery
+  dressings, the live preview); they stayed unworn and locked. The pass stopped re-running
+  every few seconds.
+- The worn-gear pass's thread (same build): the hook ran once on another thread than the SKSE
+  task it queued (likely a door's load), and afterwards on the same thread as its tasks. The
+  hook cannot count on the game thread.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
 - Situation outfits on a follower (§7): Town in a town and the default outside it; Cold

@@ -82,7 +82,7 @@ Changes:
 - A redress forced by a change (`Assignments::Change`, `Refresh`) keeps a random row's pick
   while it is still on the list, else picks again.
 
-The co-save keeps the rows in the `ASGN` record (version 5, situations by key) and the
+The co-save keeps the rows in the `ASGN` record (version 6, situations by key) and the
 items left off in `EXCL`; the layout is in design.md §5.
 
 ## 2. Situation data

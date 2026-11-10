@@ -8,10 +8,11 @@
 //                 pick), and putting it on in place of the one worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
 //   Load, death - pieces put back on, and armor worn over them taken off, when an assigned NPC
-//                 loads; locks released when one dies; armor put on one in a menu, or by the
-//                 engine's worn-gear pass, taken off at once; pieces taken from one in a menu
-//                 replaced as it closes
-//   Co-save     - save, load (version 5; the rows of situations removed in situations.json
+//                 loads, or their own clothes back on when every piece is gone; outfit copies
+//                 that came since locked; locks released when one dies; armor put on one in a
+//                 menu, or by the engine's worn-gear pass, taken off at once; pieces taken from
+//                 one in a menu replaced as it closes
+//   Co-save     - save, load (version 6; the rows of situations removed in situations.json
 //                 or unknown to this version dropped),
 //                 the items the rows' outfits leave off in a record of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
@@ -53,21 +54,23 @@ namespace
 
 	constexpr std::uint32_t kCoSaveID = 'LVRY';
 	constexpr std::uint32_t kAssignmentsRecord = 'ASGN';
-	constexpr std::uint32_t kAssignmentsVersion = 5;  // the only version read
+	constexpr std::uint32_t kAssignmentsVersion = 6;  // the only version read
 	constexpr std::uint32_t kExclusionsRecord = 'EXCL';
 	constexpr std::uint32_t kExclusionsVersion = 2;  // the only version read
 
 	// --- Records --------------------------------------------------------------
 
 	// An actor Livery dresses: the pieces it has on them, their own pieces it took off, and
-	// their rows, the Default and the situations. NPCs wear the pieces locked; the player
-	// does not, since a locked piece cannot be taken off in the inventory menu.
+	// their rows, the Default and the situations. NPCs wear the pieces locked, and their
+	// outfit copies carry a lock while they wear pieces (Dressing::LockOutfitCopies); the
+	// player does not, since a locked piece cannot be taken off in the inventory menu.
 	struct Assignment
 	{
 		RE::FormID                         actor = 0;
-		std::vector<Dressing::Piece>       pieces;    // on them now, for `worn`
-		std::vector<Dressing::InstanceKey> takenOff;  // their own copies, put back on at release
-		OutfitRows::Rows                   rows;      // the Default, then the situations
+		std::vector<Dressing::Piece>       pieces;        // on them now, for `worn`
+		std::vector<Dressing::InstanceKey> takenOff;      // their own copies, put back on at release
+		std::vector<Dressing::InstanceKey> lockedCopies;  // their outfit copies Livery locked unworn, unlocked at release
+		OutfitRows::Rows                   rows;          // the Default, then the situations
 		// The Default's armor not in the wardrobe, worn while its row wears no outfit; empty
 		// for none (their own clothes).
 		std::vector<RE::FormID> defaultPieces;
@@ -302,11 +305,16 @@ namespace
 	// Puts row `a_row`'s `a_outfit` on them in place of what Livery has on them, less
 	// `a_leaveOut`. Their own pieces from before go back on first, so they are what this
 	// dressing takes off and notes. With no armor for the row they end up in their own
-	// clothes. A random row's pick is recorded as its `chosen`, which turning random off
-	// keeps on (OutfitRows::SetRandom).
+	// clothes. An NPC's outfit copies are locked again once pieces are on. A random row's
+	// pick is recorded as its `chosen`, which turning random off keeps on
+	// (OutfitRows::SetRandom).
 	Dressing::Result Wear(Assignment& a_assignment, RE::Actor& a_actor, Situation a_row, std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_leaveOut)
 	{
 		Dressing::Release(a_actor, a_assignment.pieces, true);
+		// Before PutBack and Dress, which skip a locked unworn copy: their outfit items can be
+		// among the copies taken off, or a piece of the new outfit.
+		Dressing::UnlockOutfitCopies(a_actor, a_assignment.lockedCopies);
+		a_assignment.lockedCopies.clear();
 		Dressing::PutBack(a_actor, a_assignment.takenOff);
 		auto armor = ArmorFor(a_assignment, a_row, a_outfit);
 		std::erase_if(armor, [&a_leaveOut](const RE::TESObjectARMO* a_piece) { return std::ranges::find(a_leaveOut, a_piece) != a_leaveOut.end(); });
@@ -316,6 +324,9 @@ namespace
 		a_assignment.takenOff = result.takenOff;
 		a_assignment.worn = a_row;
 		a_assignment.wornOutfit = a_outfit;
+		if (!isPlayer && !result.worn.empty()) {
+			Dressing::LockOutfitCopies(a_actor, a_assignment.pieces, a_assignment.lockedCopies);
+		}
 		if (auto& row = a_assignment.rows[RowOf(a_row)]; row.random && a_outfit != 0) {
 			row.chosen = a_outfit;  // on the list: OutfitRows::Wears picks from it
 		}
@@ -423,12 +434,46 @@ namespace
 		g_assignments.erase(found);
 		SyncManaged();
 		Dressing::Release(actor, assignment.pieces, removeCopies);
+		Dressing::UnlockOutfitCopies(actor, assignment.lockedCopies);  // before PutBack, which skips a locked copy
 		return putBack ? Dressing::PutBack(actor, assignment.takenOff) : 0;
 	}
 
 	// --- Load, death ----------------------------------------------------------
 	//
-	// Contract: game thread (SKSE tasks from the event sinks), both.
+	// Contract: game thread (SKSE tasks from the event sinks), all.
+
+	// Locks the outfit copies of an NPC Livery has pieces on that came since the last lock
+	// (another mod's outfit change, the copies the take-off just took off), with a log line.
+	void LockNewOutfitCopies(Assignment& a_assignment, RE::Actor& a_actor)
+	{
+		if (a_assignment.pieces.empty() || a_actor.IsPlayerRef()) {
+			return;
+		}
+		if (const auto count = Dressing::LockOutfitCopies(a_actor, a_assignment.pieces, a_assignment.lockedCopies); count > 0) {
+			logger::info("Locked {} of their outfit item(s) on {:08X}", count, a_actor.GetFormID());
+		}
+	}
+
+	// None of the pieces Livery put on them is in their inventory any more (an outfit change,
+	// an inventory reset, a script that took their items): the guard would keep their outfit
+	// items off and leave them naked, so their own clothes go back on, as Restore leaves them.
+	// The record keeps their rows: a situation row dresses them again at their next change of
+	// situation; with none it ends (DropIfEmpty), and the next Apply dresses them.
+	// Contract: `a_assignment` is stale after this.
+	void ReturnToOwnClothes(Assignment& a_assignment, RE::Actor& a_actor)
+	{
+		const auto id = a_actor.GetFormID();
+		Dressing::UnlockOutfitCopies(a_actor, a_assignment.lockedCopies);  // before PutBack, which skips a locked copy
+		const auto putBack = Dressing::PutBack(a_actor, a_assignment.takenOff);
+		const auto outfitItems = Dressing::PutOnOutfitItems(a_actor);
+		a_assignment.pieces.clear();
+		a_assignment.takenOff.clear();
+		a_assignment.lockedCopies.clear();
+		logger::info("None of Livery's pieces on {:08X} is in their inventory any more; {} of their own piece(s) and {} outfit item(s) went back on", id,
+			putBack, outfitItems);
+		DropIfEmpty(id);
+		SyncManaged();
+	}
 
 	void PutPiecesBackOn(RE::FormID a_actor)
 	{
@@ -440,13 +485,18 @@ namespace
 		if (!actor) {
 			return;
 		}
+		if (!assignment->pieces.empty() && !Dressing::CarriesAny(*actor, assignment->pieces)) {
+			ReturnToOwnClothes(*assignment, *actor);
+			return;
+		}
 		if (const auto count = Dressing::PutBackOn(*actor, assignment->pieces); count > 0) {
 			logger::info("Put {} piece(s) back on or locked again on {:08X}", count, a_actor);
 		}
 		// After PutBackOn, so the pieces it put on again count as worn.
-		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
+		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
 		}
+		LockNewOutfitCopies(*assignment, *actor);
 	}
 
 	// The pieces the player took from them in the menu that just closed go on again, as
@@ -470,9 +520,10 @@ namespace
 			logger::info("Upgraded {} piece(s) on {:08X} to a better copy", count, a_actor);
 		}
 		// After Upgrade, so a better copy it put on counts as a piece.
-		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
+		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
 		}
+		LockNewOutfitCopies(*assignment, *actor);
 	}
 
 	// Whether the game skips the actor update that shows an NPC's equip change: a menu pauses
@@ -499,11 +550,12 @@ namespace
 		if (!actor || actor->IsDead()) {
 			return false;
 		}
-		const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces);
+		const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies);
 		if (count == 0) {
-			return false;
+			return false;  // nothing changed: no lock pass either, this runs after every worn-gear pass
 		}
 		logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
+		LockNewOutfitCopies(*assignment, *actor);
 		// Only a halted game needs the rebuild: it costs, and its NiNodeUpdate event makes
 		// body-morph mods refit, for a change a running game's actor update shows anyway.
 		if (GameHalted()) {
@@ -526,10 +578,11 @@ namespace
 
 	// --- Co-save --------------------------------------------------------------
 	//
-	// Record ASGN v5: assignment count; per assignment the actor FormID, the library outfit
+	// Record ASGN v6: assignment count; per assignment the actor FormID, the library outfit
 	// worn (wornOutfit), the piece count, per piece its instance key (armor FormID, the
 	// ExtraUniqueID's baseID and uniqueID), added and locked; the count of their own copies
-	// taken off and their instance keys; the Default's piece count and their armor FormIDs;
+	// taken off and their instance keys; the count of their outfit copies Livery locked and
+	// their instance keys; the Default's piece count and their armor FormIDs;
 	// the situation of the row worn; the row count (one byte), per row its situation, random
 	// (one byte), chosen, the outfit count and the outfit ids. A situation is stored by its key
 	// (Situations::Name): its length (one byte) and its characters, so situations can be
@@ -565,6 +618,37 @@ namespace
 		return true;
 	}
 
+	// A key count and the keys.
+	bool WriteKeys(const SKSE::SerializationInterface& a_intfc, const std::vector<Dressing::InstanceKey>& a_keys)
+	{
+		bool written = Write(a_intfc, static_cast<std::uint32_t>(a_keys.size()));
+		for (const auto& key : a_keys) {
+			written = written && WriteKey(a_intfc, key);
+		}
+		return written;
+	}
+
+	// Reads what WriteKeys wrote. A key whose plugin is gone is dropped. Returns false when the
+	// record ends early.
+	bool ReadKeys(const SKSE::SerializationInterface& a_intfc, std::vector<Dressing::InstanceKey>& a_keys)
+	{
+		std::uint32_t count = 0;
+		if (!Read(a_intfc, count)) {
+			return false;
+		}
+		for (; count > 0; --count) {
+			Dressing::InstanceKey key;
+			bool                  resolved = false;
+			if (!ReadKey(a_intfc, key, resolved)) {
+				return false;
+			}
+			if (resolved) {
+				a_keys.push_back(key);
+			}
+		}
+		return true;
+	}
+
 	bool WriteSituation(const SKSE::SerializationInterface& a_intfc, Situation a_situation)
 	{
 		const std::string_view key = Situations::Name(a_situation);
@@ -588,10 +672,7 @@ namespace
 		for (const auto& [key, added, locked] : a_assignment.pieces) {
 			written = written && WriteKey(a_intfc, key) && Write(a_intfc, static_cast<std::uint8_t>(added)) && Write(a_intfc, static_cast<std::uint8_t>(locked));
 		}
-		written = written && Write(a_intfc, static_cast<std::uint32_t>(a_assignment.takenOff.size()));
-		for (const auto& key : a_assignment.takenOff) {
-			written = written && WriteKey(a_intfc, key);
-		}
+		written = written && WriteKeys(a_intfc, a_assignment.takenOff) && WriteKeys(a_intfc, a_assignment.lockedCopies);
 		written = written && Write(a_intfc, static_cast<std::uint32_t>(a_assignment.defaultPieces.size()));
 		for (const auto armor : a_assignment.defaultPieces) {
 			written = written && Write(a_intfc, armor);
@@ -605,7 +686,7 @@ namespace
 
 	// Record EXCL v2, written after ASGN while a row's outfit leaves items off
 	// (OutfitRows::Exclusion): entry count; per entry the actor FormID, the row's situation (by
-	// its key, as in ASGN v5), the outfit id, the armor count and the armor FormIDs. A record
+	// its key, as in ASGN), the outfit id, the armor count and the armor FormIDs. A record
 	// of its own, so a Livery that does not know EXCL skips it and dresses every item.
 
 	std::uint32_t CountExclusions()
@@ -677,8 +758,8 @@ namespace
 		return true;
 	}
 
-	// Reads the pieces and the copies taken off. Returns false when the record ends early. A
-	// piece or copy whose plugin is gone is dropped.
+	// Reads the pieces, the copies taken off and the outfit copies locked. Returns false when
+	// the record ends early. A piece or copy whose plugin is gone is dropped.
 	bool ReadWorn(const SKSE::SerializationInterface& a_intfc, Assignment& a_assignment)
 	{
 		std::uint32_t pieces = 0;
@@ -695,21 +776,7 @@ namespace
 				a_assignment.pieces.push_back(piece);
 			}
 		}
-		std::uint32_t takenOff = 0;
-		if (!Read(a_intfc, takenOff)) {
-			return false;
-		}
-		for (; takenOff > 0; --takenOff) {
-			Dressing::InstanceKey key;
-			bool                  resolved = false;
-			if (!ReadKey(a_intfc, key, resolved)) {
-				return false;
-			}
-			if (resolved) {
-				a_assignment.takenOff.push_back(key);
-			}
-		}
-		return true;
+		return ReadKeys(a_intfc, a_assignment.takenOff) && ReadKeys(a_intfc, a_assignment.lockedCopies);
 	}
 
 	// Reads an armor count and the FormIDs. A form whose plugin is gone is dropped. Returns
@@ -1088,6 +1155,7 @@ namespace Assignments
 		for (const auto& assignment : std::exchange(g_assignments, {})) {
 			if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(assignment.actor)) {
 				Dressing::Release(*actor, assignment.pieces, true);
+				Dressing::UnlockOutfitCopies(*actor, assignment.lockedCopies);  // before PutBack, which skips a locked copy
 				Dressing::PutBack(*actor, assignment.takenOff);
 				++released;
 			}
@@ -1383,7 +1451,8 @@ namespace Assignments
 	}
 
 	// Release without removing copies takes exactly Livery's locks off (another mod's stay);
-	// the pieces then read as unlocked, which PutBackOn sets right again at ResumeLocks.
+	// the pieces then read as unlocked, which PutBackOn sets right again at ResumeLocks. Their
+	// outfit copies are unlocked too, so the preview can show one; ResumeLocks locks them again.
 	void SuspendLocks(RE::Actor& a_actor)
 	{
 		const auto id = a_actor.GetFormID();
@@ -1396,6 +1465,8 @@ namespace Assignments
 		for (auto& piece : assignment->pieces) {
 			piece.locked = false;
 		}
+		Dressing::UnlockOutfitCopies(a_actor, assignment->lockedCopies);
+		assignment->lockedCopies.clear();
 	}
 
 	void ResumeLocks(RE::FormID a_actor)
