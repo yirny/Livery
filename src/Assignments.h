@@ -192,10 +192,11 @@ namespace Assignments
 	// Takes off the armor the engine's worn-gear pass put on this NPC that Livery keeps off
 	// (Dressing::TakeOffExtras: outfit items that are none of the pieces, armor in slots the
 	// outfit leaves empty as [General] UnusedSlots says); when it took any, locks their outfit
-	// copies that came since (Dressing::LockOutfitCopies), and while the game is paused or
-	// frozen rebuilds their model, which a running game's actor update does itself. Nothing
-	// while the preview has their locks off (OutfitPreview::Reapply's turn). Returns whether it
-	// took any off.
+	// copies that came since (Dressing::LockOutfitCopies). When they carry none of the pieces
+	// any more, their own clothes go back on instead, unless a trade or container menu lists
+	// them. After either change, while the game is paused or frozen, rebuilds their model,
+	// which a running game's actor update does itself. Nothing while the preview has their
+	// locks off (OutfitPreview::Reapply's turn). Returns whether what they wear changed.
 	// Contract: game thread, in the SKSE task OwnOutfitGuard queues as the pass begins.
 	bool TakeOffAfterPass(RE::FormID a_actor);
 }

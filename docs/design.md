@@ -159,13 +159,17 @@ says so), so a lock would be needed anyway.
   again at its end). A lock already on a copy is another mod's and stays. A locked copy the
   engine marks worn comes off: `Dressing::TakeOffExtras` takes the lock off first. Never the
   player.
-- On `TESObjectLoadedEvent` for a managed NPC: if they carry none of the pieces Livery put on
-  them any more (an outfit change, an inventory reset, a script that took their items), their
-  own clothes go back on, as Restore leaves them: the outfit copies are unlocked, their own
+- An NPC who carries none of the pieces Livery put on them any more (an outfit change, an
+  inventory reset, a script that took their items) gets their own clothes back, as Restore
+  leaves them (`Assignments::ReturnIfPiecesGone`): the outfit copies are unlocked, their own
   pieces Livery took off go back on, then each outfit item they carry fills a slot no worn
   armor takes (`Dressing::PutOnOutfitItems`), and the pieces are forgotten. The record keeps
   their rows, so a situation row dresses them again at their next change of situation; with
-  none it ends, and the next Apply dresses them. Otherwise, if the instance chosen for a piece is
+  none it ends, and the next Apply dresses them. Checked at their 3D load, as a trade or
+  container menu closes (after the replenish, below), and at each take-off check after the
+  worn-gear pass, not while such a menu lists them: a follower going through a door with the
+  player need not reload their 3D (§6).
+- On `TESObjectLoadedEvent` for a managed NPC, after that check: if the instance chosen for a piece is
   still in the inventory but not worn (another mod took it off; taking off clears the
   lock), equip it again with the lock. Pieces whose instance is gone are left alone. No
   copies are created here. Then worn armor that is none of the pieces and is an outfit item
@@ -478,6 +482,10 @@ can come later if sharing across characters is wanted.
 - The worn-gear pass's thread (same build): the hook ran once on another thread than the SKSE
   task it queued (likely a door's load), and afterwards on the same thread as its tasks. The
   hook cannot count on the game thread.
+- A follower going through load doors with the player (2026-11-10, same build and the
+  locks' build): three door changes showed no worn-gear pass on the follower, and with their
+  only piece removed by console the 3D-load check did not run until the window's close; they
+  stayed unclothed until then.
 - An NPC's own outfit copy taken off and equipped again, the same instance in a later
   frame, goes back on (live preview).
 - Situation outfits on a follower (§7): Town in a town and the default outside it; Cold
