@@ -640,7 +640,8 @@ setting, off by default). Open:
   schools of magic in the game's order and magic effect, the elements, book, potion, misc),
   then BOOBIES' `bodyparts` from head to feet; ten to a row. An icon drawn the same as one listed is left out (SkyUI's forearms and calves,
   BOOBIES' torso, ring and circlet). The colours are `OutfitIcons::kColors`, each a key, a name
-  and a tint: three rows of ten, the colours, then each `- Light` and `- Muted`; each row
+  and a tint: three rows of ten, the colours, then each `- Light` and `- Muted`
+  (the leftmost of those rows are Nordic silver and Ash grey); each row
   Bone white, Snowberry red, Sheogorath pink, Deathbell purple, Jazbay blue, Coldharbour
   cyan, Glass teal, Spriggan green, Luna yellow and Dwarven gold. A key is never changed once
   shipped; a tint may be.
