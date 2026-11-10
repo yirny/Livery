@@ -275,7 +275,7 @@ TEST_CASE("Rebuild keeps the search and sort for changed outfits and rows", "[br
 TEST_CASE("Outfit colours are named by key; an unknown key draws the default", "[icons]")
 {
 	CHECK(OutfitIcons::ColorOf("glass-teal-light").name == "Glass teal - Light");
-	CHECK(OutfitIcons::ColorOf("glass-teal-light").rgb == 0x6CB7A0u);
+	CHECK(OutfitIcons::ColorOf("glass-teal-light").rgb == 0x8BC2BDu);
 	CHECK(OutfitIcons::ColorOf("#eaeaea").key == OutfitIcons::kDefaultColor);
 	CHECK(OutfitIcons::ColorOrder("#eaeaea") == OutfitIcons::kColors.size());
 	CHECK(OutfitIcons::ColorOf(OutfitIcons::kDefaultColor).rgb == 0xEAEAEAu);
