@@ -191,7 +191,8 @@ namespace Assignments
 	// (Dressing::TakeOffExtras: outfit items that are none of the pieces, armor in slots the
 	// outfit leaves empty as [General] UnusedSlots says); when it took any while the game is
 	// paused or frozen, rebuilds their model, which a running game's actor update does itself.
-	// Nothing while the preview has their locks off (OutfitPreview::Reapply's turn).
+	// Nothing while the preview has their locks off (OutfitPreview::Reapply's turn). Returns
+	// whether it took any off.
 	// Contract: game thread, in the SKSE task OwnOutfitGuard queues as the pass begins.
-	void TakeOffAfterPass(RE::FormID a_actor);
+	bool TakeOffAfterPass(RE::FormID a_actor);
 }

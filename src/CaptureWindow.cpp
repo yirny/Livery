@@ -2399,11 +2399,13 @@ namespace CaptureWindow
 		return g_open;
 	}
 
-	void SetOutfits(OutfitList a_list)
+	// SetOutfits' work, and SetOutfitsWhileIdle's with `a_onlyWhileEditing`: then a window waiting
+	// for a change of its own (kSaving) is left for that change's SetOutfits to end.
+	static void ShowOutfitList(OutfitList a_list, bool a_onlyWhileEditing)
 	{
 		auto&                  state = GetState();
 		const std::scoped_lock lock(state.mutex);
-		if (state.status == Status::kClosed) {
+		if (state.status == Status::kClosed || (a_onlyWhileEditing && state.status != Status::kEditing)) {
 			return;
 		}
 		const auto idOf = [&state](int a_index) { return a_index >= 0 ? OutfitAt(state, a_index).id : std::uint32_t{ 0 }; };
@@ -2489,6 +2491,16 @@ namespace CaptureWindow
 		state.discardFor = -1;
 		state.status = Status::kEditing;
 		state.quietSave = false;
+	}
+
+	void SetOutfits(OutfitList a_list)
+	{
+		ShowOutfitList(std::move(a_list), false);
+	}
+
+	void SetOutfitsWhileIdle(OutfitList a_list)
+	{
+		ShowOutfitList(std::move(a_list), true);
 	}
 
 	void RefusePreview(const std::string& a_reason)
