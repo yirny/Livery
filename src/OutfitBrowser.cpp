@@ -39,7 +39,7 @@ namespace
 		if (const auto order = OutfitIcons::KeyOrder(a_left.key) <=> OutfitIcons::KeyOrder(a_right.key); order != 0) {
 			return order;
 		}
-		return OutfitIcons::ColorOrder(a_left.rgb) <=> OutfitIcons::ColorOrder(a_right.rgb);
+		return OutfitIcons::ColorOrder(a_left.color) <=> OutfitIcons::ColorOrder(a_right.color);
 	}
 
 	// Contract: the situation group's n-th category is row n of Request::assigned
