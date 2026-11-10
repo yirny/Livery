@@ -44,8 +44,8 @@ Restore Presets popup's lines keep their own form (quoted outfit names).
 
 The outfit list shared by the Load page, the Save page's Update tab, the Wardrobe page and
 the Situations page. Each page keeps its own search and sort; a click on a column label also
-writes that sort to the INI (`[Window] OutfitSort`, `OutfitSortDescending`), and every page's
-list starts in it when the window opens.
+makes that sort the one every page's list starts in when the window opens, written to the INI
+(`[Window] OutfitSort`, `OutfitSortDescending`) as the window closes.
 
 - Wording: the window calls the library the wardrobe (`12 outfits in the wardrobe`,
   `Not in Wardrobe`).
@@ -234,7 +234,7 @@ list starts in it when the window opens.
     8px on either side, as tall as the name field, filled in the hover colour while hovered
     (`Outfit Icon` on hover); then the name, as the Save page's field.
   - A click on the icon field opens `Choose icon` (no title, as every popup): the icons
-    whose PNG is loaded, in `OutfitIcons::kKeys`' order, 8 to a row, each a tile with 6px
+    whose PNG is loaded, in `OutfitIcons::kKeys`' order, ten to a row, each a tile with 6px
     around it, filled in the hover colour while hovered and in the selected colour with a
     rim while chosen; under them the thirty colours of `OutfitIcons::kColors`, ten to a row,
     each row as wide as the icons, a 1px rim while hovered and 2px while chosen, the colour's

@@ -132,7 +132,10 @@ says so), so a lock would be needed anyway.
   else `Assignments::TakeOffAfterPass` takes off what that step put on them that Livery keeps
   off (`Dressing::TakeOffExtras`, below), rebuilding their model only while the game is paused
   or frozen (a menu, the window with Live Preview off): a running game's actor update shows
-  the change, and a rebuild makes body-morph mods refit. After Create and Apply dressed a
+  the change, and a rebuild makes body-morph mods refit. When it took something off the NPC
+  the open window dresses (not a Save only one), the window reads what they wear again
+  (`CaptureWindow::SetOutfitsWhileIdle`, skipped while a change of the window's own runs).
+  After Create and Apply dressed a
   follower in body armor alone, the hat the dressing took off and their own outfit boots were
   on again seconds later, with no dressing by Livery between (2026-11-09, log; §6 for the
   take-off). The hook writes nothing, so it leaves no
@@ -359,9 +362,11 @@ would have to be kept in step).
 - Settings: `Data/SKSE/Plugins/Livery.ini`, written with defaults at first start; keys a newer
   version adds are appended to an existing file, so an update never resets it. Read once at
   start through the profile API; written only by Livery's own file I/O, which edits the file as
-  the profile API would and replaces it through a temporary file and a rename, never
-  `WritePrivateProfileString`: INI cache plugins such as PrivateProfileRedirector hold those
-  writes in memory and drop them when they reload the file.
+  the profile API would, in the file's encoding as the API reads it (UTF-16 LE after its byte
+  order mark, else the ANSI code page), and replaces it through a temporary file and a rename,
+  never `WritePrivateProfileString`: INI cache plugins such as PrivateProfileRedirector hold those
+  writes in memory and drop them when they reload the file. A setting is written as it changes,
+  the lists' sorts as the window closes (lost if the game crashes first).
   The SKSE Menu Framework page shows the same settings and applies a change at once;
   its Restore default settings, after a popup, resets every one but the palette. README.md's
   Settings table lists the keys.

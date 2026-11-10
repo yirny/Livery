@@ -134,9 +134,12 @@ namespace PieceFile
 
 	FileState ReadText(const std::filesystem::path& a_path, std::string& a_text);
 
-	// Writes a temporary file and moves it over `a_path`, so a crash mid-write leaves the old
-	// file whole. `a_fileName` names the file in the log and the message. Returns why it
-	// failed, or nullopt.
+	// Writes `a_text` as it is to a temporary file and moves it over `a_path`, so a crash
+	// mid-write leaves the old file whole. `a_fileName` names the file in the log and the
+	// message. Returns why it failed, or nullopt.
+	std::optional<std::string> WriteText(const std::filesystem::path& a_path, std::string_view a_text, std::string_view a_fileName);
+
+	// WriteText of the JSON, indented for people reading the file.
 	// Contract: game names come in the game's code page; the dump replaces bytes that are not
 	// UTF-8 instead of throwing.
 	std::optional<std::string> WriteJson(const std::filesystem::path& a_path, const nlohmann::ordered_json& a_json, std::string_view a_fileName);
