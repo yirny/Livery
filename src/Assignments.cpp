@@ -474,6 +474,20 @@ namespace
 		SyncManaged();
 	}
 
+	// When they carry none of the pieces Livery put on them any more, their own clothes go back
+	// on (ReturnToOwnClothes). A follower going through a door with the player, or an item
+	// taken from them, need not reload their 3D (docs/design.md §6), so this runs at their 3D
+	// load, at a menu's close after the replenish, and at each take-off check after the
+	// worn-gear pass. Returns whether it did; `a_assignment` is stale then.
+	bool ReturnIfPiecesGone(Assignment& a_assignment, RE::Actor& a_actor)
+	{
+		if (a_assignment.pieces.empty() || Dressing::CarriesAny(a_actor, a_assignment.pieces)) {
+			return false;
+		}
+		ReturnToOwnClothes(a_assignment, a_actor);
+		return true;
+	}
+
 	void PutPiecesBackOn(RE::FormID a_actor)
 	{
 		if (a_actor == g_suspended) {
@@ -484,8 +498,7 @@ namespace
 		if (!actor) {
 			return;
 		}
-		if (!assignment->pieces.empty() && !Dressing::CarriesAny(*actor, assignment->pieces)) {
-			ReturnToOwnClothes(*assignment, *actor);
+		if (ReturnIfPiecesGone(*assignment, *actor)) {
 			return;
 		}
 		if (const auto count = Dressing::PutBackOn(*actor, assignment->pieces); count > 0) {
@@ -499,9 +512,11 @@ namespace
 	}
 
 	// The pieces the player took from them in the menu that just closed go on again, as
-	// copies when they carry none, so the outfit does not change by itself; then a better
-	// copy the player gave them goes on in place of a worn piece, and armor the engine put on
-	// them outside the pieces (a helmet given for a slot the outfit leaves empty) comes off.
+	// copies when they carry none, so the outfit does not change by itself; with none of the
+	// pieces left after that (only Livery's copies were taken, which are not replaced), their
+	// own clothes go back on. Then a better copy the player gave them goes on in place of a
+	// worn piece, and armor the engine put on them outside the pieces (a helmet given for a
+	// slot the outfit leaves empty) comes off.
 	void ReplenishTaken(RE::FormID a_actor)
 	{
 		if (a_actor == g_suspended) {
@@ -514,6 +529,9 @@ namespace
 		}
 		if (const auto count = Dressing::Replenish(*actor, assignment->pieces); count > 0) {
 			logger::info("Replenished {} piece(s) on {:08X} taken in a menu", count, a_actor);
+		}
+		if (ReturnIfPiecesGone(*assignment, *actor)) {
+			return;
 		}
 		if (const auto count = Dressing::Upgrade(*actor, assignment->pieces); count > 0) {
 			logger::info("Upgraded {} piece(s) on {:08X} to a better copy", count, a_actor);
@@ -537,8 +555,10 @@ namespace
 	// Armor the engine put on them that Livery keeps off comes off at once: given while the
 	// trade, container or pickpocket menu is open (a helmet for a slot the outfit leaves empty),
 	// not as it closes, or put on by the worn-gear pass's best-armor step (their outfit items or
-	// a hat after a dressing took them off). `a_when` ends the log line. Returns whether it took
-	// any off.
+	// a hat after a dressing took them off). With none of the pieces left, their own clothes go
+	// back on instead (ReturnIfPiecesGone), except while a trade or container menu lists them:
+	// the pieces the player took there go on again as it closes (ReplenishTaken). `a_when` ends
+	// the log line. Returns whether what they wear changed.
 	bool TakeOffGiven(RE::FormID a_actor, std::string_view a_when)
 	{
 		if (a_actor == g_suspended) {
@@ -549,17 +569,24 @@ namespace
 		if (!actor || actor->IsDead()) {
 			return false;
 		}
+		// Only a halted game needs the rebuild: it costs, and its NiNodeUpdate event makes
+		// body-morph mods refit, for a change a running game's actor update shows anyway.
+		const auto refreshIfHalted = [actor] {
+			if (GameHalted()) {
+				Dressing::RefreshModel(*actor);
+			}
+		};
+		if (g_shownInMenu.load() != a_actor && ReturnIfPiecesGone(*assignment, *actor)) {
+			refreshIfHalted();
+			return true;
+		}
 		const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies);
 		if (count == 0) {
 			return false;  // nothing changed: no lock pass either, this runs after every worn-gear pass
 		}
 		logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
 		LockNewOutfitCopies(*assignment, *actor);
-		// Only a halted game needs the rebuild: it costs, and its NiNodeUpdate event makes
-		// body-morph mods refit, for a change a running game's actor update shows anyway.
-		if (GameHalted()) {
-			Dressing::RefreshModel(*actor);
-		}
+		refreshIfHalted();
 		return true;
 	}
 
