@@ -1,5 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
+// FILE MAP
+//   Constants  - the INI's sections, keys and defaults (kIniKeys, with the comments a new
+//                file gets), the setting options, the NPC groups
+//   State      - each setting as last read or chosen, in atomics the game and render threads share
+//   Keys       - the hotkey's modifiers and key names
+//   INI        - Livery.ini's own writer (WriteIniValues: one read and one write, in the file's
+//                encoding, through a temporary file), the template, the keys a newer version
+//                adds, and each setting's save and load
+//   Page       - the SKSE Menu Framework settings page: hotkey picking, Restore defaults,
+//                Release everyone, window skin, NPC access, Gear in unused slots and the rest
+//   Settings   - Load at start, RegisterMenu, and the getters and setters the plugin calls
+//
 // Keep imgui.h out of this file: SKSEMenuFramework.h defines IM_COL32 and other
 // ImGui macros of its own. Its ImGuiMCP calls draw with SKSE Menu Framework's
 // ImGui context, not the one Hooks.cpp creates.
@@ -221,7 +233,7 @@ namespace
 	constexpr std::array<UnusedSlotsOption, 3> kUnusedSlotsOptions{ {
 		{ L"All", "Allow all" },
 		{ L"ExceptHeadgear", "Except headgear" },
-		{ L"OutfitOnly", "Outfit only" },
+		{ L"OutfitOnly", "Block all" },
 	} };
 
 	constexpr auto kDefaultUnusedSlots = UnusedSlots::kExceptHeadgear;  // keep in step with kIniKeys
@@ -849,7 +861,7 @@ namespace
 				}
 				ImGuiMCP::EndCombo();
 			}
-			ImGuiMCP::SetItemTooltip("%s\n%s\nDefault: %s", setting.who, kAccessHelp, kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
+			ImGuiMCP::SetItemTooltip("%s\n\n%s\n\nDefault: %s", setting.who, kAccessHelp, kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
 			ImGuiMCP::PopID();
 			SettingGap();
 		}
@@ -876,10 +888,10 @@ namespace
 			ImGuiMCP::EndCombo();
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Whether NPCs can equip additional gear in slots not used by their Livery outfit. "
-			"For example, an NPC may equip a helmet you give them if the outfit has no headgear. "
-			"Their own default outfit never goes on there.\n"
-			"\"Except headgear\" prevents additional helmets, hoods, and circlets.\n"
+			"Controls whether NPCs can equip extra gear in slots their Livery outfit leaves empty. "
+			"For example, with \"Allow all\" they can wear a helmet you give them if the outfit has no headgear. "
+			"Their original outfit never goes back on.\n\n"
+			"\"Except headgear\" blocks helmets, hoods, and circlets.\n\n"
 			"Default: Except headgear");
 	}
 
@@ -899,7 +911,7 @@ namespace
 		if (ImGuiMCP::Button(label.c_str())) {
 			g_pickingHotkey = !picking;
 		}
-		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\nDefault: Shift + X");
+		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n\nDefault: Shift + X");
 
 		SettingGap();
 
@@ -910,7 +922,7 @@ namespace
 			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
 			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
 		}
-		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\nDefault: OFF");
+		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\n\nDefault: OFF");
 
 		SettingGap();
 
@@ -922,8 +934,8 @@ namespace
 			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Adds a Chests tab to Livery. A chest holds any number of items, several for one body slot too, which you can load on the Dress page. "
-			"Handy for keeping the variants of an item together.\n"
+			"Adds a Chests tab to Livery. Each chest can hold any number of items, including several for the same slot. "
+			"Load a chest on the Dress page to choose between variants.\n\n"
 			"Default: OFF");
 
 		SettingGap();
@@ -942,7 +954,7 @@ namespace
 			SaveFlag(kIniSection, kNpcReactionKey, npcReaction);
 			logger::info("NpcReaction = {} (SKSE Menu Framework)", npcReaction);
 		}
-		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.\n\nDefault: ON");
 
 		SettingGap();
 
@@ -954,8 +966,8 @@ namespace
 			logger::info("MoveFromPlayer = {} (SKSE Menu Framework)", moveFromPlayer);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n"
-			"Off: the NPC receives plain copies, and you keep yours.\n"
+			"On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n\n"
+			"Off: the NPC receives plain copies, and you keep yours.\n\n"
 			"Default: ON");
 
 		SettingGap();
@@ -969,8 +981,8 @@ namespace
 			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", !inventoryOnly);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Dressing yourself uses only items you carry. NPCs always get what they need, but you can't take those items from them.\n"
-			"Off: missing items are created in your inventory for free, which can break game balance. Keeping this on is strongly recommended.\n"
+			"Dressing yourself uses only items you carry. NPCs always get what they need, but you can't take those items from them.\n\n"
+			"Off: missing items are created in your inventory for free, which can break game balance. Keeping this on is strongly recommended.\n\n"
 			"Default: ON");
 
 		Heading("Window");
@@ -982,7 +994,7 @@ namespace
 			SaveLivePreview(livePreview);
 			logger::info("LivePreview = {} (SKSE Menu Framework)", livePreview);
 		}
-		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.\n\nDefault: ON");
 
 		SettingGap();
 
@@ -1011,7 +1023,7 @@ namespace
 			SaveFlag(kWindowSection, kShowPlayerInventoryKey, showInventory);
 			logger::info("ShowPlayerInventory = {} (SKSE Menu Framework)", showInventory);
 		}
-		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".\n\nDefault: ON");
 		ImGuiMCP::Indent();
 		ImGuiMCP::BeginDisabled(!showInventory);
 		// The tick is the opposite of ShowPlayerWornPieces, so that on excludes like the tick
@@ -1022,14 +1034,14 @@ namespace
 			SaveFlag(kWindowSection, kShowPlayerWornKey, !excludeWorn);
 			logger::info("ShowPlayerWornPieces = {} (SKSE Menu Framework)", !excludeWorn);
 		}
-		ImGuiMCP::SetItemTooltip("Leaves out items you're wearing unless you carry another copy.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Leaves out items you're wearing unless you carry another copy.\n\nDefault: ON");
 		bool protectFavorites = g_protectFavorites.load();
 		if (ImGuiMCP::Checkbox("Exclude favorites", &protectFavorites)) {
 			g_protectFavorites = protectFavorites;
 			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
 			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
 		}
-		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.\n\nDefault: ON");
 		ImGuiMCP::EndDisabled();
 		ImGuiMCP::Unindent();
 
@@ -1042,7 +1054,7 @@ namespace
 			SaveFlag(kWindowSection, kShowSlotColumnKey, showSlots);
 			logger::info("ShowSlotColumn = {} (SKSE Menu Framework)", showSlots);
 		}
-		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\nDefault: OFF");
+		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\n\nDefault: OFF");
 
 		Heading("Appearance");
 
@@ -1055,7 +1067,7 @@ namespace
 		if (ImGuiMCP::Checkbox("Play menu sounds", &menuSounds)) {
 			Settings::SetMenuSounds(menuSounds, kMenuSource);
 		}
-		ImGuiMCP::SetItemTooltip("Plays the game's menu sounds for clicks in Livery.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Plays the game's menu sounds for clicks in Livery.\n\nDefault: ON");
 
 		Heading("System");
 
