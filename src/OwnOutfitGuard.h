@@ -7,8 +7,12 @@
 // VR and AE before 1.6.640 are not covered: Install() logs that and returns.
 namespace OwnOutfitGuard
 {
+	// Called with an NPC once the armor the pass put on them that Livery keeps off came off, so
+	// what they wear changed. Contract: game thread.
+	using TakenOff = void (*)(RE::FormID a_actor);
+
 	// The call is checked against its byte signature first; one that does not match is left alone.
 	// Contract: call once at kDataLoaded. SPID hooks the same call at kPostLoad and its hook never
 	// calls what it replaced, so this one has to go in after it, and calls it in turn.
-	void Install();
+	void Install(TakenOff a_takenOff);
 }

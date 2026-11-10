@@ -27,7 +27,8 @@
 //                    situation out of it: the captured actor at once, the others at the
 //                    window's close or, out of reach, when they load; both hand the window the
 //                    rebuilt list (CaptureWindow::SetOutfits), with the captured actor's pieces
-//                    as they are after a redress;
+//                    as they are after a redress, and again after the worn-gear pass that
+//                    follows changed them (RefreshAfterPass);
 //                    the Situations page's Save Changes writes the situations' names
 //                    (SituationStore), then the captured actor's rows
 //                    (Assignments::SetRows) and redresses them as Update does; Remove
@@ -865,9 +866,16 @@ namespace
 	}
 
 	// Contract: game thread. The captured actor's GapsOf, read from their inventory with no
-	// preview on: as the window opens and after each dressing with it open (DressCaptured).
-	// The window freezes the game, so what they wear holds until the next.
+	// preview on: as the window opens, after each dressing with it open (DressCaptured) and
+	// after the worn-gear pass that follows one changed what they wear (RefreshAfterPass). The
+	// window freezes the game, so what they wear holds until the next.
 	WornGaps g_capturedGaps;
+
+	// Contract: game thread. The captured actor of a window that dresses them, and what shows
+	// the window what they wear after the worn-gear pass changed it (RefreshAfterPass); set as
+	// the window opens, cleared as it closes.
+	RE::FormID            g_capturedActor = 0;
+	std::function<void()> g_refreshCapturedWorn;
 
 	// `, 1 item not worn`, `, 2 extra items worn`, both, or "".
 	std::string GapsText(const WornGaps& gaps)
@@ -1118,6 +1126,17 @@ namespace
 				continue;
 			}
 			Assignments::WearFor(*actor, Situations::Evaluate(*actor));
+		}
+	}
+
+	// After the worn-gear pass's take-off changed what an NPC wears (OwnOutfitGuard): when that is
+	// the captured actor, the open window shows it. That pass follows a dressing with Live
+	// Preview off; with it on, the preview dresses them again instead and this is not called.
+	// Contract: game thread (OwnOutfitGuard's SKSE task).
+	void RefreshAfterPass(RE::FormID actor)
+	{
+		if (actor == g_capturedActor && g_refreshCapturedWorn) {
+			g_refreshCapturedWorn();
 		}
 	}
 
@@ -1602,10 +1621,30 @@ namespace
 			}
 		}
 		BeginCamera(request, actor);
+		// A Save only window lists what they wear as it opened: its game runs, and a refresh at each
+		// pass would undo the ticks the player is choosing.
+		if (!saveOnly) {
+			g_capturedActor = actor.GetFormID();
+			g_refreshCapturedWorn = [handle = actor.GetHandle(), actorID = actor.GetFormID(), armors, offered] {
+				const auto target = handle.get();
+				if (!target) {
+					return;
+				}
+				std::size_t skipped = 0;
+				std::size_t substituted = 0;
+				const auto  inventory = CollectArmor(*target, skipped, substituted);
+				g_capturedGaps = GapsOf(Assignments::ChoicesOf(actorID), inventory);
+				auto list = CurrentOutfitList(actorID, armors);
+				list.actorPieces = CurrentActorPieces(*target, inventory, armors, offered);
+				CaptureWindow::SetOutfitsWhileIdle(std::move(list));
+			};
+		}
 		// Every close, whatever closed the window, ends the camera and the preview, redresses the actors
 		// the Wardrobe page or the Situations page left for it, lets saving back on, lets an NPC
 		// walk again and writes the lists' sorts the player changed.
 		request.onClose = [] {
+			g_capturedActor = 0;
+			g_refreshCapturedWorn = nullptr;
 			FreeCamera::End();
 			OutfitPreview::End();
 			RedressAtClose();
@@ -1774,7 +1813,7 @@ namespace
 			SKSE::GetCrosshairRefEventSource()->AddEventSink(&CrosshairSink::Get());
 			Assignments::RegisterSinks();
 			Overlay::RegisterMenu();
-			OwnOutfitGuard::Install();  // not before this: it has to wrap the hook SPID makes at kPostLoad
+			OwnOutfitGuard::Install(RefreshAfterPass);  // not before this: it has to wrap the hook SPID makes at kPostLoad
 			break;
 
 		case SKSE::MessagingInterface::kPreLoadGame:

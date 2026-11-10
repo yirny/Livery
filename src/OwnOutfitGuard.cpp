@@ -21,14 +21,18 @@ namespace
 	using SignatureSE = CallSite::Signature<"E8 ?? ?? ?? ?? 41 BF 01 00 00 00 4C 89 7C 24 60">;
 	using SignatureAE = CallSite::Signature<"E8 ?? ?? ?? ?? 41 BC 01 00 00 00 4C 89 64 24 60">;
 
+	// Install's argument. Contract: set once at Install, before the hook goes in.
+	OwnOutfitGuard::TakenOff g_takenOff = nullptr;
+
 	// After the pass on an NPC Livery has pieces on, the armor its best-armor step put on them
 	// that Livery keeps off comes off: while the window's Live Preview shows them, by the
-	// preview dressing them in its pieces again; else by Assignments, as Livery's rules say.
+	// preview dressing them in its pieces again; else by Assignments, as Livery's rules say,
+	// and when it took any off g_takenOff hears of it.
 	// Contract: game thread (the SKSE task the thunk queues).
 	void AfterPass(RE::FormID a_actor)
 	{
-		if (!OutfitPreview::Reapply(a_actor)) {
-			Assignments::TakeOffAfterPass(a_actor);
+		if (!OutfitPreview::Reapply(a_actor) && Assignments::TakeOffAfterPass(a_actor) && g_takenOff) {
+			g_takenOff(a_actor);
 		}
 	}
 
@@ -52,8 +56,9 @@ namespace
 
 namespace OwnOutfitGuard
 {
-	void Install()
+	void Install(TakenOff a_takenOff)
 	{
+		g_takenOff = a_takenOff;
 		if (REL::Module::IsVR()) {
 			logger::info("Skyrim VR: no own-outfit guard, an NPC's own outfit items can take their locked pieces off");
 			return;
