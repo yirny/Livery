@@ -149,10 +149,13 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   library and one for the dressing. Then the window goes back to the Dress page, as Back
   does: it follows what they wear when they were dressed, else the preview shows the ticks
   (`SetOutfits`). After a Create the Create tab starts again: its name the next free `New
-  Outfit NNN` (`OutfitList::suggestedName`), its icon following the ticks.
+  Outfit NNN` (`OutfitList::suggestedName`), its icon following the ticks; the new outfit
+  becomes the Dress page's loaded outfit (`OutfitList::created`), as Load makes one, so
+  Apply with the ticks unchanged gives it as that outfit (§5).
 
 Checks: Create saves, changes no row and goes back to the Dress page, the Create tab then
-named with the next free `New Outfit NNN`; Create and Apply while wearing a Town outfit asks
+named with the next free `New Outfit NNN`, and Apply then dresses the actor in the new outfit
+by name, not as `Outfit (Not in Wardrobe)`; Create and Apply while wearing a Town outfit asks
 (Yes, Apply as Default, Cancel saves nothing), with a Default held asks before replacing it,
 and with neither dresses at once, the window open, Live Preview on and off; Update renames,
 changes no row and dresses the actor again when they wear it; a failed write assigns nothing
@@ -161,15 +164,18 @@ and stays on the Save page with its error.
 ## 5. Apply
 
 - Apply assigns the ticks as the default, after the transfer (§3). The Default then holds the
-  outfit last loaded on the Load page when the ticks are exactly its pieces, else the ticks as
-  pieces with no outfit (`outfit` 0 in `Request::onApply`).
+  outfit last loaded on the Load page, or created on the Save page (§4), when the ticks are
+  exactly its pieces, else the ticks as pieces with no outfit (`outfit` 0 in
+  `Request::onApply`).
 - When the outfit worn now is a library outfit X (the default's id when the default is worn,
   else the worn situation's) and the ticks are all or some of its loaded pieces and nothing
   else, Apply asks nothing: X goes to the row it is worn for in one `Assignments::Change`,
   the unticked pieces left off there (`OutfitRows::Exclusion`, as the Wardrobe page's Apply
   leaves them; none unticked wears all its items). The library does not change.
-- Modal `Update X with the selected items?` when the ticks hold a piece X does not. For a
-  situation it adds `This is #{Name}'s Town outfit.`
+- Ticks that are exactly the loaded outfit's pieces ask nothing either: it goes to the Default,
+  as with no library outfit worn.
+- Modal `Update X with the selected items?` when the ticks hold a piece X does not and are not
+  exactly the loaded outfit. For a situation it adds `This is #{Name}'s Town outfit.`
   - `Update`: `Library::Update(X, pieces = ticks, name kept)`. Default
     worn: then `Assign(ticks, X)`. Situation worn: the default is not touched; a forced
     redress puts the updated outfit on (`Assignments::Refresh`; `WearFor` only redresses on a
