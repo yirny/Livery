@@ -234,7 +234,7 @@ makes that sort the one every page's list starts in when the window opens, writt
     8px on either side, as tall as the name field, filled in the hover colour while hovered
     (`Outfit Icon` on hover); then the name, as the Save page's field.
   - A click on the icon field opens `Choose icon` (no title, as every popup): the icons
-    whose PNG is loaded, in `OutfitIcons::kKeys`' order, 8 to a row, each a tile with 6px
+    whose PNG is loaded, in `OutfitIcons::kKeys`' order, ten to a row, each a tile with 6px
     around it, filled in the hover colour while hovered and in the selected colour with a
     rim while chosen; under them the thirty colours of `OutfitIcons::kColors`, ten to a row,
     each row as wide as the icons, a 1px rim while hovered and 2px while chosen, the colour's
