@@ -118,11 +118,16 @@ TEST_CASE("Reset lists every outfit by name, ignoring case", "[browser]")
 
 TEST_CASE("Reset starts in the sort it is given", "[browser]")
 {
-	const auto           request = MakeRequest();
+	// Icons as in the icon sort's test below; the Icon sort, not the default Name, shows Reset took the key.
+	auto request = MakeRequest();
+	request.existingOutfits[0].icon = IconOf(4, 2);
+	request.existingOutfits[1].icon = IconOf(0, 0);
+	request.existingOutfits[2].icon = IconOf(4, 0);
+	request.existingOutfits[3].icon = { "unknown/icon", "unknown-colour" };
 	OutfitBrowser::State state;
-	OutfitBrowser::Reset(state, request, OutfitBrowser::SortKey::kName, true);
-	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Town Dress", "Scout", "iron set", "Guard Uniform", "Bare" });
-	CHECK(state.sort == OutfitBrowser::SortKey::kName);
+	OutfitBrowser::Reset(state, request, OutfitBrowser::SortKey::kIcon, true);
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare", "iron set", "Town Dress", "Scout", "Guard Uniform" });
+	CHECK(state.sort == OutfitBrowser::SortKey::kIcon);
 	CHECK(state.descending);
 }
 
