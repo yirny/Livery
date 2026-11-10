@@ -1603,8 +1603,8 @@ namespace
 		}
 		BeginCamera(request, actor);
 		// Every close, whatever closed the window, ends the camera and the preview, redresses the actors
-		// the Wardrobe page or the Situations page left for it, lets saving back on and lets an NPC
-		// walk again.
+		// the Wardrobe page or the Situations page left for it, lets saving back on, lets an NPC
+		// walk again and writes the lists' sorts the player changed.
 		request.onClose = [] {
 			FreeCamera::End();
 			OutfitPreview::End();
@@ -1612,6 +1612,7 @@ namespace
 			AllowSaving();
 			MovementHold::End();
 			NpcReaction::End();
+			Settings::SaveSorts();
 		};
 		BlockSaving();
 		MovementHold::Begin(actor);

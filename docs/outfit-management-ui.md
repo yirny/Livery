@@ -44,8 +44,8 @@ Restore Presets popup's lines keep their own form (quoted outfit names).
 
 The outfit list shared by the Load page, the Save page's Update tab, the Wardrobe page and
 the Situations page. Each page keeps its own search and sort; a click on a column label also
-writes that sort to the INI (`[Window] OutfitSort`, `OutfitSortDescending`), and every page's
-list starts in it when the window opens.
+makes that sort the one every page's list starts in when the window opens, written to the INI
+(`[Window] OutfitSort`, `OutfitSortDescending`) as the window closes.
 
 - Wording: the window calls the library the wardrobe (`12 outfits in the wardrobe`,
   `Not in Wardrobe`).
