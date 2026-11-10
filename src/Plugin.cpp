@@ -1183,7 +1183,8 @@ namespace
 	// to, in one call that redresses once, and Update dresses the actor again when they wear
 	// the outfit, each at once with the window open, Live Preview on or off (DressCaptured, as
 	// Apply). The window, still open, shows the library as written, after Create with the
-	// next free name for the Create tab, and goes back to the Dress page (SetOutfits).
+	// next free name for the Create tab and the new outfit as the Dress page's loaded one, and
+	// goes back to the Dress page (SetOutfits).
 	// Contract: game thread; `armors` matches request.pieces index for index, `offered` are the
 	// player's armor among them. A refused or failed write assigns nothing (CLAUDE.md §2.1).
 	void AttachSave(CaptureWindow::Request& request, RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& armors,
@@ -1225,6 +1226,7 @@ namespace
 			list.actorPieces = std::move(redressed);
 			if (save.outfit == 0) {
 				list.suggestedName = NextAutomaticName();
+				list.created = outfit;
 			}
 			CaptureWindow::SetOutfits(std::move(list));
 		};

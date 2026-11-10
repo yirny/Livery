@@ -385,6 +385,9 @@ namespace CaptureWindow
 		// After the Save page's Create: the first "New Outfit NNN" the library does not have yet,
 		// which the Create tab's name starts again from; "" leaves the tab as it is.
 		std::string suggestedName;
+		// After the Save page's Create: the new outfit's id, which the Dress page then holds as
+		// its loaded outfit, as Load does; 0 otherwise.
+		std::uint32_t created = 0;
 	};
 
 	void Open(Request request);
@@ -396,7 +399,8 @@ namespace CaptureWindow
 	// situations.json or the actor's rows took: the window shows `list` and lets the user
 	// edit again, Restore shown while `list.dressed`. A Save page save goes back to the Dress
 	// page, as Back does, the Create tab starting again from `list.suggestedName` with its icon
-	// following the ticks when that is set. The pages'
+	// following the ticks when that is set; the outfit a Create made (`list.created`) becomes
+	// the loaded outfit. The pages'
 	// selections, the loaded outfit and the Update tab's outfit are found again by id (none
 	// when gone; the Update tab is left when the wardrobe is empty), each
 	// list keeps its search, sort and folded headings, the Dress page drops ticks on
