@@ -1473,18 +1473,22 @@ namespace CaptureWindow::Internal
 
 	// Apply: when Livery has a library outfit on the actor, the ticks all or some of its pieces
 	// and nothing else go on at once as that outfit, the unticked ones left off (as Manage
-	// Wardrobe's Apply leaves them); other ticks ask first in the popup. Else the ticks go on
-	// at once.
+	// Wardrobe's Apply leaves them); ticks that are exactly the loaded outfit (Load, or the
+	// Save page's Create) go on at once as it, for the popup's Update would put them into the
+	// worn one; other ticks ask first in the popup. Else the ticks go on at once.
 	// Contract: called in the window's own ID scope, as DrawApplyPopup is.
 	void BeginApply(State& a_state)
 	{
 		const int worn = WornOutfitIndex(a_state);
-		if (worn < 0) {
-			RequestApply(a_state, TickedOutfitId(a_state), false);
-			return;
+		if (worn >= 0) {
+			if (auto unticked = UntickedOfWorn(a_state, worn)) {
+				RequestApply(a_state, a_state.request.wornOutfit, false, std::move(*unticked));
+				return;
+			}
 		}
-		if (auto unticked = UntickedOfWorn(a_state, worn)) {
-			RequestApply(a_state, a_state.request.wornOutfit, false, std::move(*unticked));
+		const auto loaded = TickedOutfitId(a_state);
+		if (worn < 0 || loaded != 0) {
+			RequestApply(a_state, loaded, false);
 			return;
 		}
 		ImGui::OpenPopup(kApplyPopup);
@@ -2410,7 +2414,8 @@ namespace CaptureWindow
 		}
 		const auto idOf = [&state](int a_index) { return a_index >= 0 ? OutfitAt(state, a_index).id : std::uint32_t{ 0 }; };
 		const auto previewed = idOf(state.previewedOutfit);
-		const auto loaded = idOf(state.loadedOutfit);
+		// A Create's new outfit is held as loaded, as Load holds one, so Apply gives it by id.
+		const auto loaded = a_list.created != 0 ? a_list.created : idOf(state.loadedOutfit);
 		const auto chosen = idOf(state.chosenOutfit);
 		const auto managed = idOf(state.manage.outfit);
 		const auto chestIdOf = [&state](int a_index) { return a_index >= 0 ? ChestAt(state, a_index).id : std::uint32_t{ 0 }; };
