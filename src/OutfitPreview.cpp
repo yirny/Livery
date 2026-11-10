@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <format>
 #include <optional>
@@ -68,6 +69,11 @@ namespace
 	bool                            g_isPlayer = false;
 	std::vector<RE::TESObjectARMO*> g_pieces;
 	Snapshot                        g_snapshot;
+
+	// The NPC the preview shows, or 0 (no preview, or the player's). Contract: written on the
+	// game thread, read by OwnOutfitGuard on the worn-gear pass's thread, which is not always
+	// the game thread (docs/design.md §6), hence atomic.
+	std::atomic<RE::FormID> g_previewedNpc{ 0 };
 
 	// --- Inventory ------------------------------------------------------------
 
@@ -515,6 +521,7 @@ namespace
 
 	void ClearState()
 	{
+		g_previewedNpc.store(0);
 		g_actorID = 0;
 		g_pieces.clear();
 		g_snapshot = {};
@@ -528,6 +535,8 @@ namespace OutfitPreview
 		End();  // a preview still on goes back first
 		g_isPlayer = actor.IsPlayerRef();
 		g_actorID = actor.GetFormID();
+		// Before the first change to their inventory, which can run the worn-gear pass.
+		g_previewedNpc.store(g_isPlayer ? 0 : g_actorID);
 		// Contract: no InitInventoryIfRequired before the snapshot. On an NPC who wears outfit
 		// items it took ExtraWorn off every outfit copy (seen in game), so nothing read as worn.
 
@@ -621,5 +630,10 @@ namespace OutfitPreview
 	bool IsActive()
 	{
 		return g_active;
+	}
+
+	bool IsPreviewedNpc(RE::FormID actor)
+	{
+		return actor != 0 && g_previewedNpc.load() == actor;
 	}
 }

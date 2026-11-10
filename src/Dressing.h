@@ -9,8 +9,10 @@
 // never through their outfit record (docs/design.md §2). With the lock, each worn
 // piece gets PreventRemoval (ExtraCannotWear), so the engine's best-gear pass leaves
 // that slot alone and better armor given later stays in the inventory, as long as
-// OwnOutfitGuard keeps the NPC's own outfit items from taking the piece off first. For the
-// trade-menu filter it disguises the copies it added as outfit items (docs/design.md §3).
+// OwnOutfitGuard keeps the NPC's own outfit items from taking the piece off first; the
+// same lock on their unworn outfit copies keeps the pass's best-armor step from putting
+// them on. For the trade-menu filter it disguises the copies it added as outfit items
+// (docs/design.md §3).
 //
 // Contract: every function runs on the game thread (SKSE task).
 // The inventory is read again after every native call; an instance is found again only by
@@ -61,19 +63,39 @@ namespace Dressing
 	// Takes off worn armor that is none of the pieces and is an outfit item (any ExtraOutfitItem:
 	// their own outfit, or another mod's distributed one, which the trade menu hides), wherever it
 	// is, or shares a body slot with a piece they wear, or takes a slot no piece has, as [General]
-	// UnusedSlots allows (Settings). OwnOutfitGuard keeps the worn-gear pass from putting outfit
-	// items on; this catches the rest: the pass's best-armor step puts an outfit item on over armor
-	// given to them that is the same armor or weaker (docs/design.md §2), after fast travel the
-	// engine can mark outfit items worn again beside the locked pieces (§6), and a runtime without
-	// the guard puts them on. An outfit item taken off where other armor may stay is replaced,
-	// unlocked, by the armor they carry that is no outfit item and fits there, the highest base
-	// armor rating, then the highest value, when they have one; the pass may put the outfit item on
-	// again at its next run, and this swaps it again. The best-gear pass also fills a slot the
-	// outfit leaves empty with armor given to them (a helmet the outfit has not, or one it leaves
-	// off on the row). Other armor only in the slots of pieces they no longer wear stays.
-	// Non-playable armor and a piece another mod locked stay, as in Dress. Nothing with no pieces
-	// (their own clothes). Returns how many came off.
-	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces);
+	// UnusedSlots allows (Settings). OwnOutfitGuard and LockOutfitCopies keep the worn-gear pass
+	// from putting outfit items on; this catches the rest: an outfit copy that came after the last
+	// lock (another mod's outfit change), after fast travel the engine can mark outfit items worn
+	// again beside the locked pieces (§6), and a runtime without the guard puts them on. A copy of
+	// `lockedCopies` found worn has its lock taken off first, so it can come off. The best-gear
+	// pass also fills a slot the outfit leaves empty with armor given to them (a helmet the outfit
+	// has not, or one it leaves off on the row). Other armor only in the slots of pieces they no
+	// longer wear stays. Non-playable armor and a piece another mod locked stay, as in Dress.
+	// Nothing with no pieces (their own clothes). Returns how many came off.
+	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces, const std::vector<InstanceKey>& lockedCopies);
+
+	// Whether they carry a copy of any of the pieces, worn or not.
+	bool CarriesAny(RE::Actor& actor, const std::vector<Piece>& pieces);
+
+	// Locks each copy of an outfit item they carry (any ExtraOutfitItem) that is unworn,
+	// unlocked and none of the pieces, tagging it: the worn-gear pass's best-armor step does
+	// not put a locked unworn copy on (docs/design.md §6), so their outfit items stay off
+	// without a take-off after each pass. `lockedCopies` holds the copies this module locked:
+	// on return those they still carry locked, then the ones locked here. Returns how many it
+	// locked.
+	// Contract: an NPC Livery has pieces on; UnlockOutfitCopies runs before anything that puts
+	// their own copies on (PutBack, Dress, the preview), since a locked unworn copy cannot be
+	// equipped.
+	std::size_t LockOutfitCopies(RE::Actor& actor, const std::vector<Piece>& pieces, std::vector<InstanceKey>& lockedCopies);
+
+	// Takes the locks LockOutfitCopies set off the copies of `lockedCopies` they still carry.
+	void UnlockOutfitCopies(RE::Actor& actor, const std::vector<InstanceKey>& lockedCopies);
+
+	// Puts on, unlocked, each outfit item they carry unworn and unlocked whose body slots no
+	// worn armor takes, as the worn-gear pass does for an NPC Livery does not dress: for one
+	// whose pieces are all gone, which the guard kept their outfit items off. Returns how many
+	// went on.
+	std::size_t PutOnOutfitItems(RE::Actor& actor);
 
 	// Puts on again, locked, each piece that was theirs or the player's (not `added`) and
 	// that they no longer carry (taken from them in a menu): a copy of that armor they carry,
