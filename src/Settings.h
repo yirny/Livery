@@ -110,11 +110,15 @@ namespace Settings
 	SortOrder OutfitSort();
 	SortOrder ItemSort();
 
-	// Remember a sort the player chose and write it to the INI; a column the list does not have
+	// Remember a sort the player chose, for SaveSorts to write; a column the list does not have
 	// changes nothing. Safe from any thread.
-	// Contract: each call writes the file, so call it on a click on a column label, never per frame.
 	void SetOutfitSort(SortOrder a_order);
 	void SetItemSort(SortOrder a_order);
+
+	// Writes the sorts to the INI in one write when they changed since the last call; a game
+	// that crashes before then loses them. Safe from any thread.
+	// Contract: writes the file, so call it as the window closes, never per frame.
+	void SaveSorts();
 
 	// Whether Apply in an NPC's window moves the ticked pieces from the player's inventory to
 	// the NPC; off, the NPC gets new copies. Safe from any thread.

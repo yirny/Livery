@@ -12,6 +12,7 @@
 
 #include "SituationStore.h"
 
+#include "PieceFile.h"
 #include "SituationTable.h"
 
 #include <filesystem>
@@ -50,30 +51,11 @@ namespace
 		return std::filesystem::current_path() / kSituationsFile;
 	}
 
-	// Writes a temporary file and moves it over situations.json, so a crash mid-write leaves
-	// the old file whole. Returns why it failed, or nullopt.
+	// Writes through a temporary file (PieceFile::WriteText), so a crash mid-write leaves the
+	// old file whole. Returns why it failed, or nullopt.
 	std::optional<std::string> WriteSituations(const SituationTable::Table& a_table)
 	{
-		const auto path = SituationsPath();
-		auto       temporary = path;
-		temporary += L".tmp";
-		{
-			std::ofstream file{ temporary, std::ios::binary | std::ios::trunc };
-			file << SituationTable::Serialize(a_table);
-			file.close();
-			if (!file) {
-				logger::error("Cannot write situations.json.tmp");
-				return "Livery could not write situations.json (see Livery.log).";
-			}
-		}
-		std::error_code error;
-		std::filesystem::rename(temporary, path, error);
-		if (error) {
-			logger::error("Cannot replace situations.json: {}", error.message());
-			std::filesystem::remove(temporary, error);
-			return "Livery could not write situations.json (see Livery.log).";
-		}
-		return std::nullopt;
+		return PieceFile::WriteText(SituationsPath(), SituationTable::Serialize(a_table), "situations.json");
 	}
 
 	// Writes `a_table`, and only once it took makes it the store's. Returns why it refused.

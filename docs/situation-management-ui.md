@@ -125,7 +125,7 @@ nothing for the Default; the summary line names the Default too. Only these:
 | Change HUD, the end | `. Dressed now for Town` |
 | Refresh HUD | `Livery: Lydia now wears "X" for Town` |
 
-The names also show in: the Apply popup's `"X" is Lydia's Town outfit.`, the star's `For Town,
+The names also show in: the Apply popup's `This is Lydia's Town outfit.`, the star's `For Town,
 Cold`, the Situation headings, the rows' labels and change lines (`Town: added`),
 Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Cold` and `no
 outfit for Town any more`.

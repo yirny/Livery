@@ -487,25 +487,29 @@ namespace
 	// Armor the engine put on them that Livery keeps off comes off at once: given while the
 	// trade, container or pickpocket menu is open (a helmet for a slot the outfit leaves empty),
 	// not as it closes, or put on by the worn-gear pass's best-armor step (their outfit items or
-	// a hat after a dressing took them off). `a_when` ends the log line.
-	void TakeOffGiven(RE::FormID a_actor, std::string_view a_when)
+	// a hat after a dressing took them off). `a_when` ends the log line. Returns whether it took
+	// any off.
+	bool TakeOffGiven(RE::FormID a_actor, std::string_view a_when)
 	{
 		if (a_actor == g_suspended) {
-			return;  // the preview has them off on purpose
+			return false;  // the preview has them off on purpose
 		}
 		auto* assignment = FindAssignment(a_actor);
 		auto* actor = assignment ? RE::TESForm::LookupByID<RE::Actor>(a_actor) : nullptr;
 		if (!actor || actor->IsDead()) {
-			return;
+			return false;
 		}
-		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces); count > 0) {
-			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
-			// Only a halted game needs the rebuild: it costs, and its NiNodeUpdate event makes
-			// body-morph mods refit, for a change a running game's actor update shows anyway.
-			if (GameHalted()) {
-				Dressing::RefreshModel(*actor);
-			}
+		const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces);
+		if (count == 0) {
+			return false;
 		}
+		logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
+		// Only a halted game needs the rebuild: it costs, and its NiNodeUpdate event makes
+		// body-morph mods refit, for a change a running game's actor update shows anyway.
+		if (GameHalted()) {
+			Dressing::RefreshModel(*actor);
+		}
+		return true;
 	}
 
 	// The corpse behaves like vanilla: the locks go, the copies stay lootable, and their
@@ -1433,8 +1437,8 @@ namespace Assignments
 		return std::ranges::find(g_dressed, a_actor) != g_dressed.end();
 	}
 
-	void TakeOffAfterPass(RE::FormID a_actor)
+	bool TakeOffAfterPass(RE::FormID a_actor)
 	{
-		TakeOffGiven(a_actor, "after the game's worn-gear pass");
+		return TakeOffGiven(a_actor, "after the game's worn-gear pass");
 	}
 }

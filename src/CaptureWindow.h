@@ -412,6 +412,12 @@ namespace CaptureWindow
 	// Contract: `list.actorPieces->groups` has one group per Request::pieces.
 	void SetOutfits(OutfitList list);
 
+	// SetOutfits for a change the game made rather than the window (the worn-gear pass's
+	// take-off after a dressing): nothing while the window waits for a change of its own,
+	// whose handler's SetOutfits shows what it finds then.
+	// Contract: as SetOutfits'.
+	void SetOutfitsWhileIdle(OutfitList list);
+
 	// The live preview could not start again after a change made while it was on: the
 	// Live Preview tick goes off and greys with `reason`, and the game freezes, as when
 	// it cannot start at Open.

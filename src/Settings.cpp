@@ -1,5 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
+// FILE MAP
+//   Constants  - the INI's sections, keys and defaults (kIniKeys, with the comments a new
+//                file gets), the setting options, the NPC groups
+//   State      - each setting as last read or chosen, in atomics the game and render threads share
+//   Keys       - the hotkey's modifiers and key names
+//   INI        - Livery.ini's own writer (WriteIniValues: one read and one write, in the file's
+//                encoding, through a temporary file), the template, the keys a newer version
+//                adds, and each setting's save and load
+//   Page       - the SKSE Menu Framework settings page: hotkey picking, Restore defaults,
+//                Release everyone, window skin, NPC access, Gear in unused slots and the rest
+//   Settings   - Load at start, RegisterMenu, and the getters and setters the plugin calls
+//
 // Keep imgui.h out of this file: SKSEMenuFramework.h defines IM_COL32 and other
 // ImGui macros of its own. Its ImGuiMCP calls draw with SKSE Menu Framework's
 // ImGui context, not the one Hooks.cpp creates.
@@ -7,6 +19,7 @@
 
 #include "Settings.h"
 
+#include "PieceFile.h"
 #include "Utils.h"
 
 #include <algorithm>
@@ -14,16 +27,19 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <cwchar>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <iterator>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 #include <SKSEMenuFramework.h>
 
@@ -84,6 +100,10 @@ namespace
 	constexpr std::array<const wchar_t*, 3> kItemSortColumns{ L"Name", L"Type", L"Slot" };
 	constexpr Settings::SortOrder           kDefaultOutfitSort{ 1, false };  // Name ascending; keep in step with kIniKeys
 	constexpr Settings::SortOrder           kDefaultItemSort{ 0, false };    // Name ascending; keep in step with kIniKeys
+
+	// The profile API reads an INI that starts with this mark (Notepad's "Unicode") as UTF-16 LE,
+	// any other in the ANSI code page.
+	constexpr std::string_view kUtf16Bom = "\xFF\xFE";
 
 	struct IniKey
 	{
@@ -213,7 +233,7 @@ namespace
 	constexpr std::array<UnusedSlotsOption, 3> kUnusedSlotsOptions{ {
 		{ L"All", "Allow all" },
 		{ L"ExceptHeadgear", "Except headgear" },
-		{ L"OutfitOnly", "Outfit only" },
+		{ L"OutfitOnly", "Block all" },
 	} };
 
 	constexpr auto kDefaultUnusedSlots = UnusedSlots::kExceptHeadgear;  // keep in step with kIniKeys
@@ -242,6 +262,7 @@ namespace
 	// The sorts the window's lists open with (Settings::OutfitSort, ItemSort).
 	std::atomic<Settings::SortOrder> g_outfitSort{ kDefaultOutfitSort };
 	std::atomic<Settings::SortOrder> g_itemSort{ kDefaultItemSort };
+	std::atomic<bool>                g_sortsChanged{ false };  // since the last SaveSorts
 
 	// --- Keys -----------------------------------------------------------------
 
@@ -350,45 +371,89 @@ namespace
 		a_text.insert(insertAt, a_text[insertAt - 1] == '\n' ? entry : "\r\n" + entry);
 	}
 
+	// UTF-8 of `a_text`; the conversion refuses an empty string, which is "" here.
+	std::string ToUtf8(std::wstring_view a_text)
+	{
+		return a_text.empty() ? std::string{} : SKSE::stl::utf16_to_utf8(a_text).value_or("");
+	}
+
+	// A UTF-16 LE INI's bytes after the mark as UTF-8, which SetIniValue edits; nullopt when
+	// they are no UTF-16.
+	std::optional<std::string> Utf16IniToUtf8(std::string_view a_bytes)
+	{
+		if (a_bytes.size() % sizeof(wchar_t) != 0) {
+			return std::nullopt;
+		}
+		std::wstring wide(a_bytes.size() / sizeof(wchar_t), L'\0');
+		std::memcpy(wide.data(), a_bytes.data(), a_bytes.size());
+		return wide.empty() ? std::optional{ std::string{} } : SKSE::stl::utf16_to_utf8(wide);
+	}
+
+	// UTF-8 `a_text` as a UTF-16 LE INI's bytes, the mark first; nullopt when it is no UTF-8.
+	std::optional<std::string> Utf8ToUtf16Ini(std::string_view a_text)
+	{
+		const auto wide = a_text.empty() ? std::optional{ std::wstring{} } : SKSE::stl::utf8_to_utf16(a_text);
+		if (!wide) {
+			return std::nullopt;
+		}
+		std::string bytes{ kUtf16Bom };
+		bytes.append(reinterpret_cast<const char*>(wide->data()), wide->size() * sizeof(wchar_t));
+		return bytes;
+	}
+
+	// One setting for WriteIniValues.
+	struct IniValue
+	{
+		std::wstring_view section;
+		std::wstring_view key;
+		std::wstring_view value;
+	};
+
+	// Writes the values in one read and one write of Livery.ini, in the file's own encoding:
+	// UTF-16 LE when it starts with kUtf16Bom, else the ANSI code page.
 	// Contract: Livery.ini is written only here, never through WritePrivateProfileString: INI
 	// cache plugins (PrivateProfileRedirector) keep those writes in memory and drop them when they
 	// reload the file. Reads stay on the profile API, since Load reads once at start. Writes come
 	// from the settings page's render thread and input path and from Livery's window, so the lock
 	// keeps them apart.
-	bool WriteIniValue(std::wstring_view a_section, std::wstring_view a_key, std::wstring_view a_value)
+	bool WriteIniValues(std::span<const IniValue> a_values)
 	{
 		static std::mutex     lock;
 		const std::lock_guard guard{ lock };
 
 		std::string text;
-		if (std::ifstream file{ g_iniPath, std::ios::binary }) {
-			text.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-		} else if (std::error_code error; std::filesystem::exists(g_iniPath, error) || error) {
-			logger::warn("Could not read Livery.ini, so the setting is not saved");
+		if (PieceFile::ReadText(g_iniPath, text) == PieceFile::FileState::kUnreadable) {
+			logger::warn("Could not read Livery.ini, so the settings are not saved");
 			return false;
 		}
-		SetIniValue(text, ToAnsi(a_section), ToAnsi(a_key), ToAnsi(a_value));
-
-		// A failed write leaves the old file.
-		auto temporary = g_iniPath;
-		temporary += L".tmp";
-		{
-			std::ofstream file{ temporary, std::ios::binary | std::ios::trunc };
-			file << text;
-			file.close();
-			if (!file) {
-				logger::warn("Could not write Livery.ini.tmp");
+		const bool utf16 = text.starts_with(kUtf16Bom);
+		if (utf16) {
+			auto utf8 = Utf16IniToUtf8(std::string_view{ text }.substr(kUtf16Bom.size()));
+			if (!utf8) {
+				logger::warn("Could not read Livery.ini as UTF-16, so the settings are not saved");
 				return false;
 			}
+			text = std::move(*utf8);
 		}
-		std::error_code error;
-		std::filesystem::rename(temporary, g_iniPath, error);
-		if (error) {
-			logger::warn("Could not replace Livery.ini: {}", error.message());
-			std::filesystem::remove(temporary, error);
-			return false;
+		for (const auto& value : a_values) {
+			const auto encode = [utf16](std::wstring_view a_text) { return utf16 ? ToUtf8(a_text) : ToAnsi(a_text); };
+			SetIniValue(text, encode(value.section), encode(value.key), encode(value.value));
 		}
-		return true;
+		if (utf16) {
+			auto bytes = Utf8ToUtf16Ini(text);
+			if (!bytes) {
+				logger::warn("Could not write Livery.ini as UTF-16, so the settings are not saved");
+				return false;
+			}
+			text = std::move(*bytes);
+		}
+		return !PieceFile::WriteText(g_iniPath, text, "Livery.ini");  // a failed write leaves the old file
+	}
+
+	bool WriteIniValue(std::wstring_view a_section, std::wstring_view a_key, std::wstring_view a_value)
+	{
+		const std::array values{ IniValue{ a_section, a_key, a_value } };
+		return WriteIniValues(values);
 	}
 
 	// Writes a fresh INI holding every key with its comment and default.
@@ -419,22 +484,24 @@ namespace
 	}
 
 	// Appends keys a newer version introduced to an INI the player already has, without
-	// their comments.
+	// their comments, all in one write.
 	void AddMissingIniKeys()
 	{
-		constexpr auto kMissing = L"\x01";  // never a real value
-		wchar_t        value[8]{};
+		constexpr auto        kMissing = L"\x01";  // never a real value
+		wchar_t               value[8]{};
+		std::vector<IniValue> missing;
 		for (const auto& entry : kIniKeys) {
 			::GetPrivateProfileStringW(entry.section, entry.key, kMissing, value, static_cast<DWORD>(std::size(value)),
 				g_iniPath.c_str());
-			if (std::wstring_view{ value } != kMissing) {
-				continue;
+			if (std::wstring_view{ value } == kMissing) {
+				missing.push_back({ entry.section, entry.key, entry.defaultValue });
 			}
-			if (!WriteIniValue(entry.section, entry.key, entry.defaultValue)) {
-				return;
-			}
-			logger::info("Added missing INI key [{}] {}", SKSE::stl::utf16_to_utf8(entry.section).value_or(""),
-				SKSE::stl::utf16_to_utf8(entry.key).value_or(""));
+		}
+		if (missing.empty() || !WriteIniValues(missing)) {
+			return;
+		}
+		for (const auto& entry : missing) {
+			logger::info("Added missing INI key [{}] {}", ToUtf8(entry.section), ToUtf8(entry.key));
 		}
 	}
 
@@ -512,9 +579,10 @@ namespace
 
 	void SaveHotkey(std::uint32_t a_key, std::uint32_t a_modifier)
 	{
-		if (WriteIniValue(kHotkeySection, kHotkeyKeyKey, std::to_wstring(a_key))) {
-			WriteIniValue(kHotkeySection, kHotkeyModifierKey, std::to_wstring(a_modifier));
-		}
+		const auto       key = std::to_wstring(a_key);
+		const auto       modifier = std::to_wstring(a_modifier);
+		const std::array values{ IniValue{ kHotkeySection, kHotkeyKeyKey, key }, IniValue{ kHotkeySection, kHotkeyModifierKey, modifier } };
+		WriteIniValues(values);
 	}
 
 	// A missing column or one Livery does not know keeps the default's; a missing direction is ascending.
@@ -534,14 +602,6 @@ namespace
 		logger::info("{} = {}{}", SKSE::stl::utf16_to_utf8(a_columnKey).value_or(""),
 			SKSE::stl::utf16_to_utf8(a_columns[static_cast<std::size_t>(order.column)]).value_or(""), order.descending ? ", descending" : "");
 		return order;
-	}
-
-	// Contract: `a_order.column` indexes `a_columns` (Settings::SetOutfitSort and SetItemSort check it).
-	void SaveSort(const wchar_t* a_columnKey, const wchar_t* a_descendingKey, std::span<const wchar_t* const> a_columns, Settings::SortOrder a_order)
-	{
-		if (WriteIniValue(kWindowSection, a_columnKey, a_columns[static_cast<std::size_t>(a_order.column)])) {
-			WriteIniValue(kWindowSection, a_descendingKey, a_order.descending ? L"1" : L"0");
-		}
 	}
 
 	bool IsColumnOf(std::span<const wchar_t* const> a_columns, Settings::SortOrder a_order)
@@ -801,7 +861,7 @@ namespace
 				}
 				ImGuiMCP::EndCombo();
 			}
-			ImGuiMCP::SetItemTooltip("%s\n%s\nDefault: %s", setting.who, kAccessHelp, kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
+			ImGuiMCP::SetItemTooltip("%s\n\n%s\n\nDefault: %s", setting.who, kAccessHelp, kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
 			ImGuiMCP::PopID();
 			SettingGap();
 		}
@@ -828,10 +888,10 @@ namespace
 			ImGuiMCP::EndCombo();
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Whether NPCs can equip additional gear in slots not used by their Livery outfit. "
-			"For example, an NPC may equip a helmet you give them if the outfit has no headgear. "
-			"Their own default outfit never goes on there.\n"
-			"\"Except headgear\" prevents additional helmets, hoods, and circlets.\n"
+			"Controls whether NPCs can equip extra gear in slots their Livery outfit leaves empty. "
+			"For example, with \"Allow all\" they can wear a helmet you give them if the outfit has no headgear. "
+			"Their original outfit never goes back on.\n\n"
+			"\"Except headgear\" blocks helmets, hoods, and circlets.\n\n"
 			"Default: Except headgear");
 	}
 
@@ -851,7 +911,7 @@ namespace
 		if (ImGuiMCP::Button(label.c_str())) {
 			g_pickingHotkey = !picking;
 		}
-		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\nDefault: Shift + X");
+		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n\nDefault: Shift + X");
 
 		SettingGap();
 
@@ -862,7 +922,7 @@ namespace
 			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
 			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
 		}
-		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\nDefault: OFF");
+		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\n\nDefault: OFF");
 
 		SettingGap();
 
@@ -874,8 +934,8 @@ namespace
 			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Adds a Chests tab to Livery. A chest holds any number of items, several for one body slot too, which you can load on the Dress page. "
-			"Handy for keeping the variants of an item together.\n"
+			"Adds a Chests tab to Livery. Each chest can hold any number of items, including several for the same slot. "
+			"Load a chest on the Dress page to choose between variants.\n\n"
 			"Default: OFF");
 
 		SettingGap();
@@ -894,7 +954,7 @@ namespace
 			SaveFlag(kIniSection, kNpcReactionKey, npcReaction);
 			logger::info("NpcReaction = {} (SKSE Menu Framework)", npcReaction);
 		}
-		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.\n\nDefault: ON");
 
 		SettingGap();
 
@@ -906,8 +966,8 @@ namespace
 			logger::info("MoveFromPlayer = {} (SKSE Menu Framework)", moveFromPlayer);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n"
-			"Off: the NPC receives plain copies, and you keep yours.\n"
+			"On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n\n"
+			"Off: the NPC receives plain copies, and you keep yours.\n\n"
 			"Default: ON");
 
 		SettingGap();
@@ -921,8 +981,8 @@ namespace
 			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", !inventoryOnly);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Dressing yourself uses only items you carry. NPCs always get what they need, but you can't take those items from them.\n"
-			"Off: missing items are created in your inventory for free, which can break game balance. Keeping this on is strongly recommended.\n"
+			"Dressing yourself uses only items you carry. NPCs always get what they need, but you can't take those items from them.\n\n"
+			"Off: missing items are created in your inventory for free, which can break game balance. Keeping this on is strongly recommended.\n\n"
 			"Default: ON");
 
 		Heading("Window");
@@ -934,7 +994,7 @@ namespace
 			SaveLivePreview(livePreview);
 			logger::info("LivePreview = {} (SKSE Menu Framework)", livePreview);
 		}
-		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.\n\nDefault: ON");
 
 		SettingGap();
 
@@ -963,7 +1023,7 @@ namespace
 			SaveFlag(kWindowSection, kShowPlayerInventoryKey, showInventory);
 			logger::info("ShowPlayerInventory = {} (SKSE Menu Framework)", showInventory);
 		}
-		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".\n\nDefault: ON");
 		ImGuiMCP::Indent();
 		ImGuiMCP::BeginDisabled(!showInventory);
 		// The tick is the opposite of ShowPlayerWornPieces, so that on excludes like the tick
@@ -974,14 +1034,14 @@ namespace
 			SaveFlag(kWindowSection, kShowPlayerWornKey, !excludeWorn);
 			logger::info("ShowPlayerWornPieces = {} (SKSE Menu Framework)", !excludeWorn);
 		}
-		ImGuiMCP::SetItemTooltip("Leaves out items you're wearing unless you carry another copy.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Leaves out items you're wearing unless you carry another copy.\n\nDefault: ON");
 		bool protectFavorites = g_protectFavorites.load();
 		if (ImGuiMCP::Checkbox("Exclude favorites", &protectFavorites)) {
 			g_protectFavorites = protectFavorites;
 			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
 			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
 		}
-		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.\n\nDefault: ON");
 		ImGuiMCP::EndDisabled();
 		ImGuiMCP::Unindent();
 
@@ -994,7 +1054,7 @@ namespace
 			SaveFlag(kWindowSection, kShowSlotColumnKey, showSlots);
 			logger::info("ShowSlotColumn = {} (SKSE Menu Framework)", showSlots);
 		}
-		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\nDefault: OFF");
+		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\n\nDefault: OFF");
 
 		Heading("Appearance");
 
@@ -1007,7 +1067,7 @@ namespace
 		if (ImGuiMCP::Checkbox("Play menu sounds", &menuSounds)) {
 			Settings::SetMenuSounds(menuSounds, kMenuSource);
 		}
-		ImGuiMCP::SetItemTooltip("Plays the game's menu sounds for clicks in Livery.\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Plays the game's menu sounds for clicks in Livery.\n\nDefault: ON");
 
 		Heading("System");
 
@@ -1266,7 +1326,7 @@ namespace Settings
 	{
 		if (IsColumnOf(kOutfitSortColumns, a_order)) {
 			g_outfitSort = a_order;
-			SaveSort(kOutfitSortKey, kOutfitSortDescendingKey, kOutfitSortColumns, a_order);
+			g_sortsChanged = true;
 		}
 	}
 
@@ -1274,7 +1334,25 @@ namespace Settings
 	{
 		if (IsColumnOf(kItemSortColumns, a_order)) {
 			g_itemSort = a_order;
-			SaveSort(kItemSortKey, kItemSortDescendingKey, kItemSortColumns, a_order);
+			g_sortsChanged = true;
+		}
+	}
+
+	void SaveSorts()
+	{
+		if (!g_sortsChanged.exchange(false)) {
+			return;
+		}
+		const auto       outfit = g_outfitSort.load();
+		const auto       item = g_itemSort.load();
+		const std::array values{
+			IniValue{ kWindowSection, kOutfitSortKey, kOutfitSortColumns[static_cast<std::size_t>(outfit.column)] },
+			IniValue{ kWindowSection, kOutfitSortDescendingKey, outfit.descending ? L"1" : L"0" },
+			IniValue{ kWindowSection, kItemSortKey, kItemSortColumns[static_cast<std::size_t>(item.column)] },
+			IniValue{ kWindowSection, kItemSortDescendingKey, item.descending ? L"1" : L"0" },
+		};
+		if (!WriteIniValues(values)) {
+			g_sortsChanged = true;  // tried again at the next close
 		}
 	}
 
