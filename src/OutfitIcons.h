@@ -127,7 +127,7 @@ namespace OutfitIcons
 		{ "snowberry-red", "Snowberry red", 0xB13847 },
 		{ "sheogorath-pink", "Sheogorath pink", 0xC356A5 },
 		{ "deathbell-purple", "Deathbell purple", 0x5F53C3 },
-		{ "jazbay-blue", "Jazbay blue", 0x36509A },
+		{ "jazbay-blue", "Jazbay blue", 0x3E5CB1 },
 		{ "coldharbour-cyan", "Coldharbour cyan", 0x59B1C9 },
 		{ "glass-teal", "Glass teal", 0x51A49C },
 		{ "spriggan-green", "Spriggan green", 0x9CD15F },
