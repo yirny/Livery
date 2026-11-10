@@ -65,7 +65,7 @@ namespace CaptureWindow::Internal
 	// A piece list row of an item the player would not get (Request::carriedOnly): its opacity
 	// and its hover text. Shared by the piece lists of CaptureWindow.cpp and OutfitPages.cpp.
 	constexpr float       kNotCarriedAlpha = 0.5f;
-	constexpr const char* kNotCarriedHint = "You don't carry this item. Dressing from inventory only leaves it off.";
+	constexpr const char* kNotCarriedHint = "You don't carry this item.\nDressing from inventory only leaves it off.";
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.

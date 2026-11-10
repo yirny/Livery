@@ -1115,7 +1115,7 @@ namespace CaptureWindow::Internal
 		const auto& name = a_state.request.actorName;
 		const auto  apply = a_state.request.movesFromPlayer ? std::format("\"Apply\" moves the selected items from your inventory to {}.", name) :
 		                                                      std::format("\"Apply\" gives {} a new copy of each selected item; yours stay with you.", name);
-		DrawHelpTooltip(apply + (a_state.request.protectsFavorites ? " Quest items and your favorites are not listed." : " Quest items are not listed."));
+		DrawHelpTooltip(apply + (a_state.request.protectsFavorites ? "\nQuest items and your favorites are not listed." : "\nQuest items are not listed."));
 	}
 
 	// Height of the piece list with every listed piece and heading in view, capped as
@@ -1246,7 +1246,7 @@ namespace CaptureWindow::Internal
 		const bool restore = Theme::LineHelpLink("Restore Outfit", &hovered);
 		if (hovered) {
 			DrawHelpTooltip(std::format(
-				"Takes Livery's outfit off {} and forgets their situational outfits. Items moved from your inventory stay with them.",
+				"Takes Livery's outfit off {} and forgets their situational outfits.\nItems moved from your inventory stay with them.",
 				a_state.request.actorName));
 		}
 		return restore;
@@ -1541,7 +1541,7 @@ namespace CaptureWindow::Internal
 		if (helpHovered) {
 			auto help = std::format("Sets the selected items as {}'s Default without adding them to the wardrobe.", request.actorName);
 			if (HasSituationalOutfits(a_state)) {
-				help += " The new Default takes effect when no situational outfit applies.";
+				help += "\nThe new Default takes effect when no situational outfit applies.";
 			}
 			DrawHelpTooltip(help);
 		}
