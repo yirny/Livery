@@ -3,7 +3,7 @@
 // FILE MAP
 //   Library writes - SaveOutfit adds the outfit to Livery's library (Library); UpdateOutfit
 //                    replaces a confirmed existing outfit's pieces and name;
-//                    UpdateWornPieces only its pieces (the Apply popup's Yes)
+//                    UpdateWornPieces only its pieces (the Apply popup's Update)
 //   Preview        - the captured actor wears the ticked pieces, or the outfit selected on the
 //                    outfit pages, through OutfitPreview, while the window's Live Preview tick
 //                    is on; FreeCamera shows them, saving is off and an NPC is held where they
@@ -158,7 +158,7 @@ namespace
 		return std::nullopt;
 	}
 
-	// Contract: game thread; the user chose Yes in the Apply popup for the library outfit
+	// Contract: game thread; the user chose Update in the Apply popup for the library outfit
 	// Livery has on the actor. Only its pieces change; its name stays.
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> UpdateWornPieces(std::uint32_t id, const std::vector<RE::TESObjectARMO*>& armors)

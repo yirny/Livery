@@ -101,10 +101,10 @@ replaces it while the situation lasts, by the same steps: the worn pieces are re
 actor wears a library outfit and the ticks are all or some of its items and nothing else,
 Apply gives it the row it is worn for (`Assignments::Change`), the unticked ones left off
 there, as the Wardrobe page's Apply does, without asking and without a library write. When
-the ticks hold an item it does not have, Apply asks first: Yes updates
+the ticks hold an item it does not have, Apply asks first: Update updates
 that outfit's pieces (`Library::Update`, name kept), then the Default
 gets the outfit, or, for a situation outfit, `Assignments::Refresh` dresses the updated
-outfit with the Default untouched; No, apply as is makes the ticks the Default's pieces,
+outfit with the Default untouched; Apply Only makes the ticks the Default's pieces,
 not a saved outfit, with `chosen` 0 and random off. The library write comes first; a
 failed one moves and assigns nothing.
 
