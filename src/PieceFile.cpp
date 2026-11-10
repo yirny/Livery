@@ -85,15 +85,13 @@ namespace PieceFile
 		return ExampleMod::TrimWhitespace(a_text).empty() ? FileState::kEmpty : FileState::kText;
 	}
 
-	std::optional<std::string> WriteJson(const std::filesystem::path& a_path, const nlohmann::ordered_json& a_json, std::string_view a_fileName)
+	std::optional<std::string> WriteText(const std::filesystem::path& a_path, std::string_view a_text, std::string_view a_fileName)
 	{
-		constexpr int kIndent = 2;  // spaces per level, for people reading the file
-
 		auto temporary = a_path;
 		temporary += L".tmp";
 		{
 			std::ofstream file{ temporary, std::ios::binary | std::ios::trunc };
-			file << a_json.dump(kIndent, ' ', false, nlohmann::ordered_json::error_handler_t::replace) << '\n';
+			file << a_text;
 			file.close();
 			if (!file) {
 				logger::error("Cannot write {}.tmp", a_fileName);
@@ -108,5 +106,12 @@ namespace PieceFile
 			return std::format("Livery could not write {} (see Livery.log).", a_fileName);
 		}
 		return std::nullopt;
+	}
+
+	std::optional<std::string> WriteJson(const std::filesystem::path& a_path, const nlohmann::ordered_json& a_json, std::string_view a_fileName)
+	{
+		constexpr int kIndent = 2;  // spaces per level, for people reading the file
+
+		return WriteText(a_path, a_json.dump(kIndent, ' ', false, nlohmann::ordered_json::error_handler_t::replace) + '\n', a_fileName);
 	}
 }

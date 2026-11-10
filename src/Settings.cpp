@@ -7,6 +7,7 @@
 
 #include "Settings.h"
 
+#include "PieceFile.h"
 #include "Utils.h"
 
 #include <algorithm>
@@ -361,34 +362,12 @@ namespace
 		const std::lock_guard guard{ lock };
 
 		std::string text;
-		if (std::ifstream file{ g_iniPath, std::ios::binary }) {
-			text.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-		} else if (std::error_code error; std::filesystem::exists(g_iniPath, error) || error) {
+		if (PieceFile::ReadText(g_iniPath, text) == PieceFile::FileState::kUnreadable) {
 			logger::warn("Could not read Livery.ini, so the setting is not saved");
 			return false;
 		}
 		SetIniValue(text, ToAnsi(a_section), ToAnsi(a_key), ToAnsi(a_value));
-
-		// A failed write leaves the old file.
-		auto temporary = g_iniPath;
-		temporary += L".tmp";
-		{
-			std::ofstream file{ temporary, std::ios::binary | std::ios::trunc };
-			file << text;
-			file.close();
-			if (!file) {
-				logger::warn("Could not write Livery.ini.tmp");
-				return false;
-			}
-		}
-		std::error_code error;
-		std::filesystem::rename(temporary, g_iniPath, error);
-		if (error) {
-			logger::warn("Could not replace Livery.ini: {}", error.message());
-			std::filesystem::remove(temporary, error);
-			return false;
-		}
-		return true;
+		return !PieceFile::WriteText(g_iniPath, text, "Livery.ini");  // a failed write leaves the old file
 	}
 
 	// Writes a fresh INI holding every key with its comment and default.
