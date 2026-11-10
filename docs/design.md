@@ -132,7 +132,10 @@ says so), so a lock would be needed anyway.
   else `Assignments::TakeOffAfterPass` takes off what that step put on them that Livery keeps
   off (`Dressing::TakeOffExtras`, below), rebuilding their model only while the game is paused
   or frozen (a menu, the window with Live Preview off): a running game's actor update shows
-  the change, and a rebuild makes body-morph mods refit. After Create and Apply dressed a
+  the change, and a rebuild makes body-morph mods refit. When it took something off the NPC
+  the open window dresses (not a Save only one), the window reads what they wear again
+  (`CaptureWindow::SetOutfitsWhileIdle`, skipped while a change of the window's own runs).
+  After Create and Apply dressed a
   follower in body armor alone, the hat the dressing took off and their own outfit boots were
   on again seconds later, with no dressing by Livery between (2026-11-09, log; §6 for the
   take-off). The hook writes nothing, so it leaves no
