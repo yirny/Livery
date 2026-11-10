@@ -644,7 +644,7 @@ namespace
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
-		ImGuiMCP::Text("Restore every setting on this page to its default? Window skin stays as it is.");
+		ImGuiMCP::Text("Restore this page's default settings? Window skin stays unchanged.");
 		if (ImGuiMCP::Button("Yes")) {
 			RestoreDefaultSettings();
 			ImGuiMCP::CloseCurrentPopup();
@@ -671,7 +671,7 @@ namespace
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
-		ImGuiMCP::Text("Release every character Livery dresses? Do this before you uninstall Livery.");
+		ImGuiMCP::Text("Release all characters dressed by Livery? Do this before uninstalling.");
 		if (ImGuiMCP::Button("Yes")) {
 			if (g_releaseEveryone) {
 				g_releaseEveryone();
@@ -724,7 +724,7 @@ namespace
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
-		ImGuiMCP::Text("Restore %s.ini as Livery ships it? Your changes to it will be lost.", palettes.file.c_str());
+		ImGuiMCP::Text("Restore %s.ini to its original state? Your changes will be lost.", palettes.file.c_str());
 		if (ImGuiMCP::Button("Yes")) {
 			Settings::RestoreChosenPalette(kMenuSource);
 			ImGuiMCP::CloseCurrentPopup();

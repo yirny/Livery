@@ -770,14 +770,14 @@ namespace CaptureWindow::Internal
 		return DiffersFromLibrary(a_state, ManagedWorn(a_state));
 	}
 
-	// The line every unsaved-edits popup starts with; none with no outfit selected.
+	// The line the unsaved-changes alert starts with; none with no outfit selected.
 	void DrawUnsavedLine(const State& a_state)
 	{
 		if (a_state.manage.outfit < 0) {
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.manage.outfit);
-		RunLine({ TextRun("You have unsaved changes for "), OutfitRun(outfit.name, outfit.icon), TextRun(".") });
+		RunLine({ TextRun("Unsaved changes to "), OutfitRun(outfit.name, outfit.icon), TextRun(".") });
 	}
 
 	// Why Save is greyed, or nullptr: it needs something to write (HasSaveChanges) and a name.
@@ -970,8 +970,8 @@ namespace CaptureWindow::Internal
 
 	void DrawLibraryChangeLines(const State& a_state);
 
-	// A popup with DrawUnsavedLine, the library changes, and buttons `a_first` and `a_second`;
-	// Escape is the second.
+	// A popup with `Changes to X will be lost.`, the library changes, and buttons `a_first` and
+	// `a_second`; Escape is the second.
 	UnsavedChoice DrawUnsavedPopup(const State& a_state, const char* a_id, const char* a_first, const char* a_second)
 	{
 		if (!BeginModal(a_id)) {
@@ -982,7 +982,8 @@ namespace CaptureWindow::Internal
 			ImGui::EndPopup();
 			return UnsavedChoice::kNone;
 		}
-		DrawUnsavedLine(a_state);
+		const auto& outfit = OutfitAt(a_state, a_state.manage.outfit);
+		RunLine({ TextRun("Changes to "), OutfitRun(outfit.name, outfit.icon), TextRun(" will be lost.") });
 		DrawLibraryChangeLines(a_state);
 		BeginButtonRow({ a_first, a_second });
 		const bool first = Theme::Button(a_first);
@@ -999,21 +1000,21 @@ namespace CaptureWindow::Internal
 
 	void OpenEditPage(State& a_state);
 
-	// What the library write changes when `a_pieces` become the outfit's pieces, one line each,
-	// as the Save page's Update tab lists it: the pieces (`a_piecesWord`: "edited" or
-	// "selected"; left out without `a_piecesLine`), a rename, a new icon, the unloaded pieces kept.
-	void DrawChangeLines(const State& a_state, const std::vector<std::size_t>& a_pieces, const char* a_piecesWord, bool a_piecesLine = true)
+	// What the library write changes when `a_pieces` become the outfit's pieces, one line each:
+	// the item count (`Items: 5 to 3`; left out without `a_piecesLine`), a rename, a new icon,
+	// the unloaded pieces kept.
+	void DrawChangeLines(const State& a_state, const std::vector<std::size_t>& a_pieces, bool a_piecesLine = true)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		if (a_piecesLine && a_pieces != outfit.pieces) {
-			ImGui::TextUnformatted(std::format("Its {} items become the {} {} items.", outfit.pieces.size(), a_pieces.size(), a_piecesWord).c_str());
+			ImGui::TextUnformatted(std::format("Items: {} to {}", outfit.pieces.size(), a_pieces.size()).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
-			RunLine({ TextRun("It is renamed "), OutfitRun(name, form.icon), TextRun(".") });
+			RunLine({ TextRun("New name: "), OutfitRun(name, form.icon) });
 		}
 		if (form.icon != outfit.icon) {
-			ImGui::TextUnformatted("Its icon changes.");
+			ImGui::TextUnformatted("Icon: changed");
 		}
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", std::format("{} items from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
@@ -1023,13 +1024,13 @@ namespace CaptureWindow::Internal
 	// What the library edits change, which Save and Apply writes (all the edited pieces).
 	void DrawLibraryChangeLines(const State& a_state)
 	{
-		DrawChangeLines(a_state, a_state.manage.pieces, "edited");
+		DrawChangeLines(a_state, a_state.manage.pieces);
 	}
 
 	// What Save alone changes: the ticked pieces become the outfit's.
 	void DrawSaveChangeLines(const State& a_state)
 	{
-		DrawChangeLines(a_state, ManagedWorn(a_state), "selected");
+		DrawChangeLines(a_state, ManagedWorn(a_state));
 	}
 
 	// The selected outfit's library pieces that Save takes out of it for being unticked; those
@@ -1048,18 +1049,19 @@ namespace CaptureWindow::Internal
 	}
 
 	// Save's popup body when it takes unticked items out of the outfit: a title, those items,
-	// the other library changes, then Apply as the way to wear the selection without saving.
+	// the other library changes, then Apply to #{Name} as the way to keep them in the outfit
+	// (it leaves them off on one row, and saves the other edits with every item).
 	void DrawUnselectedSaveBody(const State& a_state, const std::vector<std::size_t>& a_unselected)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		Theme::PopupTitle("Remove items from the outfit?");
-		RunLine({ TextRun("These unselected items will be removed from "), OutfitRun(outfit.name, outfit.icon), TextRun(" when you save:") });
+		RunLine({ TextRun("These unselected items will be removed from "), OutfitRun(outfit.name, outfit.icon), TextRun(":") });
 		for (const auto i : a_unselected) {
 			ImGui::BulletText("%s", a_state.request.pieces[i].name.c_str());
 		}
-		DrawChangeLines(a_state, ManagedWorn(a_state), "selected", form.pieces != outfit.pieces);
-		ImGui::TextUnformatted("To wear only the selected items without changing the saved outfit, choose Apply instead.");
+		DrawChangeLines(a_state, ManagedWorn(a_state), form.pieces != outfit.pieces);
+		ImGui::TextUnformatted(std::format("To keep these items in the outfit, choose {} instead.", a_state.manageApplyLabel).c_str());
 	}
 
 	enum class SaveChoice
@@ -1135,46 +1137,77 @@ namespace CaptureWindow::Internal
 			.icon = outfit.icon,
 			.id = outfit.id,
 			.applyLabel = edits ? "Save and Apply" : "Apply",
-			.saveFirst = edits ? "Save your changes to " : "",
+			.saveFirst = edits ? ApplySubject::SaveFirst::kEdits : ApplySubject::SaveFirst::kNothing,
 			.saveFirstHelp = edits ? " Your changes are saved first." : "",
 			.drawSaveLines = edits ? &DrawLibraryChangeLines : nullptr };
 	}
 
+	// How an Apply popup's question starts, and goes on after the outfit's name, for what
+	// Apply does (`a_verb`, lower case): `Make A ...`, `Create A, then make it ...`, `Save
+	// changes and make A ...`.
+	struct QuestionStart
+	{
+		std::string lead;       // before the outfit's name
+		std::string afterName;  // after it, before the rest of the question
+	};
+
+	QuestionStart StartQuestion(ApplySubject::SaveFirst a_first, std::string_view a_verb)
+	{
+		switch (a_first) {
+		case ApplySubject::SaveFirst::kCreate:
+			return { "Create ", std::format(", then {} it", a_verb) };
+		case ApplySubject::SaveFirst::kEdits:
+			return { std::format("Save changes and {} ", a_verb), "" };
+		case ApplySubject::SaveFirst::kNothing:
+			break;
+		}
+		std::string lead{ a_verb };
+		lead[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(lead[0])));
+		return { lead + ' ', "" };
+	}
+
 	// The question of Apply's popup for offered row `a_row`: random off `Make A their new
-	// Town outfit?` (B leaves the row), random on `Add A to them and wear it now?`, or
-	// with A on that list already `Wear A from them now?`; with something saved first
-	// `Save your changes to A, then make it ...?` (`Create A, then ...?`).
+	// Town outfit?` (B leaves the row), random on `Add A to their Town outfits and dress them
+	// in it?`, or with A on that list already `Switch to A for Town?`; with something saved
+	// first `Save changes and make A ...?` (`Create A, then make it ...?`).
 	void DrawOfferQuestion(const State& a_state, const ApplySubject& a_subject, std::size_t a_row)
 	{
+		using SaveFirst = ApplySubject::SaveFirst;
 		const auto& row = a_state.request.assigned[a_row].row;
-		const bool  first = *a_subject.saveFirst != '\0';
 		const auto  outfit = OutfitRun(a_subject.name, a_subject.icon);
+		const auto  situation = RowRun(a_state, a_row);
+		const auto  first = a_subject.saveFirst;
 		if (!row.random) {
-			RunLine({ TextRun(first ? a_subject.saveFirst : "Make "), outfit, TextRun(first ? ", then make it their new " : " their new "), RowRun(a_state, a_row), TextRun(" outfit?") });
+			const auto start = StartQuestion(first, "make");
+			const auto rest = start.afterName + " their new ";
+			RunLine({ TextRun(start.lead.c_str()), outfit, TextRun(rest.c_str()), situation, TextRun(" outfit?") });
 		} else if (OutfitRows::Holds(row, a_subject.id)) {
-			RunLine({ TextRun(first ? a_subject.saveFirst : "Wear "), outfit, TextRun(first ? ", then wear it from them now?" : " from them now?") });
+			const auto start = StartQuestion(first, "switch to");
+			const auto rest = start.afterName + " for ";
+			RunLine({ TextRun(start.lead.c_str()), outfit, TextRun(rest.c_str()), situation, TextRun("?") });
 		} else {
-			RunLine({ TextRun(first ? a_subject.saveFirst : "Add "), outfit, TextRun(first ? ", then add it to them and wear it now?" : " to them and wear it now?") });
+			// Adding and dressing are two steps, so with something saved first the three read as a list.
+			const char* lead = first == SaveFirst::kCreate ? "Create " : (first == SaveFirst::kEdits ? "Save changes, add " : "Add ");
+			const char* to = first == SaveFirst::kCreate ? ", add it to their " : " to their ";
+			const char* end = first == SaveFirst::kNothing ? " outfits and dress them in it?" : " outfits, and dress them in it?";
+			RunLine({ TextRun(lead), outfit, TextRun(to), situation, TextRun(end) });
 		}
 	}
 
-	// What Apply as Default does, for its "(?)": the outfit becomes the Default and row
-	// `a_row` keeps its outfit, so the new Default shows only once no situation outfit applies.
-	std::string AsDefaultHelp(const State& a_state, const ApplySubject& a_subject, std::size_t a_row)
+	// What Apply as Default does, for its "(?)": the outfit becomes the Default, in the place
+	// of what the Default holds, and the situation's outfit stays on.
+	std::string AsDefaultHelp(const State& a_state, const ApplySubject& a_subject)
 	{
-		const auto& name = a_state.request.actorName;
-		const auto* situation = RowName(a_state, a_row);
-		auto        help = std::format("\"{}\" becomes {}'s Default instead, and their {} outfit stays. The new Default shows only when {} ends and no other situational outfit applies.",
-			a_subject.name, name, situation, situation);
+		auto help = std::format("Sets \"{}\" as {}'s Default", a_subject.name, a_state.request.actorName);
 		if (IsTaken(a_state, 0, a_subject.id)) {
-			help += std::format(" It replaces {} as their Default.", HeldOutfitName(a_state, 0));
+			help += std::format(", replacing {}", HeldOutfitName(a_state, 0));
 		}
-		return help + a_subject.saveFirstHelp;
+		return help + ". Their current situational outfit stays equipped." + a_subject.saveFirstHelp;
 	}
 
 	// Apply's popup when it offers row `a_row`, the situation the actor wears another outfit
-	// for now: `Lydia is wearing their Town outfit, B.` (`one of their Town outfits` with
-	// random on), the question (DrawOfferQuestion), the lines of what is saved first, then Yes, Apply as
+	// for now: `Lydia is wearing B for Town.` (`Lydia is wearing B, one of their Town outfits.`
+	// with random on), the question (DrawOfferQuestion), the lines of what is saved first, then Yes, Apply as
 	// Default (its "(?)" says what that does, AsDefaultHelp) and Cancel. Returns `a_row` on
 	// Yes, the Default (0) on Apply as Default.
 	std::optional<std::size_t> DrawOfferPopupBody(const State& a_state, const ApplySubject& a_subject, std::size_t a_row)
@@ -1184,8 +1217,8 @@ namespace CaptureWindow::Internal
 
 		const auto& request = a_state.request;
 		const bool  random = request.assigned[a_row].row.random;
-		const auto  wearing = std::format("{} is wearing {}", request.actorName, random ? "one of their " : "their ");
-		RunLine({ TextRun(wearing.c_str()), RowRun(a_state, a_row), TextRun(random ? " outfits, " : " outfit, "), WornOutfitRun(a_state), TextRun(".") });
+		const auto  wearing = std::format("{} is wearing ", request.actorName);
+		RunLine({ TextRun(wearing.c_str()), WornOutfitRun(a_state), TextRun(random ? ", one of their " : " for "), RowRun(a_state, a_row), TextRun(random ? " outfits." : ".") });
 		DrawOfferQuestion(a_state, a_subject, a_row);
 		if (a_subject.drawSaveLines) {
 			a_subject.drawSaveLines(a_state);
@@ -1196,7 +1229,7 @@ namespace CaptureWindow::Internal
 		bool       helpHovered = false;
 		const bool asDefault = Theme::HelpButton(kAsDefault, &helpHovered);
 		if (helpHovered) {
-			DrawHelpTooltip(AsDefaultHelp(a_state, a_subject, a_row));
+			DrawHelpTooltip(AsDefaultHelp(a_state, a_subject));
 		}
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
@@ -1213,26 +1246,22 @@ namespace CaptureWindow::Internal
 
 	// Apply's popup with no row offered: `Apply A as #{Name}'s Default?` (`... to #{Name} for
 	// Town?` when they wear it for that situation now), or with something saved first `Save
-	// your changes to A, then apply it ...?` (`Create A, then ...?`) and its lines; `A
-	// replaces B as #{Name}'s Default.` when one is held. Then `a_subject.applyLabel` and
-	// Cancel. Returns the row (DirectApplyRow) on the first.
+	// changes and apply A ...?` (`Create A, then apply it ...?`) and its lines; `This replaces
+	// B.` when the Default holds one. Then `a_subject.applyLabel` and Cancel. Returns the row
+	// (DirectApplyRow) on the first.
+	// Contract: the replaced outfit is named here, before Apply (CLAUDE.md §2.1).
 	std::optional<std::size_t> DrawDirectApplyPopupBody(const State& a_state, const ApplySubject& a_subject)
 	{
 		const auto& name = a_state.request.actorName;
 		const auto  row = DirectApplyRow(a_state);
-		const auto  outfit = OutfitRun(a_subject.name, a_subject.icon);
-		const auto  asDefault = std::format(" as {}'s ", name);
-		const auto  target = row == 0 ? asDefault : std::format(" to {} for ", name);
-		if (*a_subject.saveFirst != '\0') {
-			RunLine({ TextRun(a_subject.saveFirst), outfit, TextRun(", then apply it"), TextRun(target.c_str()), RowRun(a_state, row), TextRun("?") });
-		} else {
-			RunLine({ TextRun("Apply "), outfit, TextRun(target.c_str()), RowRun(a_state, row), TextRun("?") });
-		}
+		const auto  start = StartQuestion(a_subject.saveFirst, "apply");
+		const auto  target = start.afterName + (row == 0 ? std::format(" as {}'s ", name) : std::format(" to {} for ", name));
+		RunLine({ TextRun(start.lead.c_str()), OutfitRun(a_subject.name, a_subject.icon), TextRun(target.c_str()), RowRun(a_state, row), TextRun("?") });
 		if (a_subject.drawSaveLines) {
 			a_subject.drawSaveLines(a_state);
 		}
 		if (row == 0 && IsTaken(a_state, 0, a_subject.id)) {
-			RunLine({ outfit, TextRun(" replaces "), HeldOutfitRun(a_state, 0), TextRun(asDefault.c_str()), RowRun(a_state, 0), TextRun(".") });
+			RunLine({ TextRun("This replaces "), HeldOutfitRun(a_state, 0), TextRun(".") });
 		}
 		const char* applyLabel = a_subject.applyLabel.c_str();
 		BeginButtonRow({ applyLabel, "Cancel" });
@@ -1311,11 +1340,11 @@ namespace CaptureWindow::Internal
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		RunLine({ TextRun("Remove "), OutfitRun(outfit.name, outfit.icon), TextRun(" from the wardrobe?") });
 		if (!outfit.users.empty()) {
-			ImGui::TextUnformatted("It is used by:");
+			ImGui::TextUnformatted("Used by:");
 			for (const auto& user : outfit.users) {
 				ImGui::BulletText("%s", user.c_str());
 			}
-			ImGui::TextDisabled("Their situations without it fall back to the default; a default from it keeps its items.");
+			ImGui::TextDisabled("Situations using it fall back to the Default. Defaults made from it keep their items.");
 		}
 		BeginButtonRow({ "Remove", "Cancel" });
 		const bool remove = Theme::Button("Remove");
@@ -1364,7 +1393,7 @@ namespace CaptureWindow::Internal
 		}
 		const bool carriesNone = missing.size() == ManagedWorn(a_state).size();
 		if (!carriesNone) {
-			ImGui::TextUnformatted("Only the items you carry go on.");
+			ImGui::TextUnformatted("Only carried items will be equipped.");
 		}
 		BeginButtonRow({ "OK", "Back" });
 		const bool ok = ReasonButton("OK", carriesNone ? "You carry none of these items." : nullptr);
