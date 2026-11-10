@@ -3,7 +3,7 @@
 SKSE plugin for Skyrim SE/AE (target runtime 1.6.1170), CommonLibSSE-NG v13.1.0 (`lib/commonlibsse-ng`), MSVC (VS 2026) + CMake presets + vcpkg. Livery dresses NPCs and the player in outfits of its own (`docs/design.md`): the capture hotkey (INI, default Shift + X) on a crosshair NPC, or on the player when nothing is aimed at, opens an ImGui window that saves the worn armor into Livery's library (`Data/SKSE/Plugins/Livery/outfits.json`, `src/Library.cpp`) and assigns or releases an outfit by direct equip + PreventRemoval, kept in the SKSE co-save (`src/Assignments.cpp`, `src/Dressing.cpp`). Release everyone (the uninstall step) is a button on the SKSE Menu Framework settings page; no key does it.
 
 Build (Windows): run inside the VS developer environment (`.vscode/tasks.json` does this; default build task = `Ctrl+Shift+B`):
-`cmake --preset release-windows` then `cmake --build --preset release-windows` → `build/msvc/livery.dll`.
+`cmake --preset release-windows` then `cmake --build --preset release-windows --target deploy`. That builds `build/msvc/livery.dll` and copies it to the deploy directory.
 
 ## 0. Output discipline
 
@@ -29,7 +29,7 @@ Before Edit/Write, get approval for: (1) paths, (2) per file what/why/behavior, 
 
 **Model hint:** at the top of every approval request and every §8 review, print one line `⚖️ モデル目安: 重い / 軽い — 理由` ("重い" = any high-impact item, 3+ files, or a new invariant), so the user can switch model before implementation. Also print it the moment a conversation turns to a high-impact topic.
 
-**Speak up first** on ambiguous scope, unstated assumptions, or easy bugs / hard debt — surface the tradeoff (one question or alternative); never guess silently. Skip taste / easy reverts.
+**Speak up first** on ambiguous scope, unstated assumptions, easy bugs / hard debt, or a doubt about the instruction itself (a weak premise, a change that would barely meet its stated aim, a simpler alternative). Say it before doing the work. Skip taste / easy reverts.
 
 ## 2. Where you may work
 
