@@ -359,9 +359,11 @@ would have to be kept in step).
 - Settings: `Data/SKSE/Plugins/Livery.ini`, written with defaults at first start; keys a newer
   version adds are appended to an existing file, so an update never resets it. Read once at
   start through the profile API; written only by Livery's own file I/O, which edits the file as
-  the profile API would and replaces it through a temporary file and a rename, never
-  `WritePrivateProfileString`: INI cache plugins such as PrivateProfileRedirector hold those
-  writes in memory and drop them when they reload the file.
+  the profile API would, in the file's encoding as the API reads it (UTF-16 LE after its byte
+  order mark, else the ANSI code page), and replaces it through a temporary file and a rename,
+  never `WritePrivateProfileString`: INI cache plugins such as PrivateProfileRedirector hold those
+  writes in memory and drop them when they reload the file. A setting is written as it changes,
+  the lists' sorts as the window closes (lost if the game crashes first).
   The SKSE Menu Framework page shows the same settings and applies a change at once;
   its Restore default settings, after a popup, resets every one but the palette. README.md's
   Settings table lists the keys.
