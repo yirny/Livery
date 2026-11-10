@@ -52,4 +52,9 @@ namespace OutfitPreview
 	void Abandon();
 
 	bool IsActive();
+
+	// Whether the preview shows this NPC now (never the player), for OwnOutfitGuard: their
+	// outfit items must not take the pieces shown off.
+	// Contract: any thread; the only function here that is not game-thread only.
+	bool IsPreviewedNpc(RE::FormID actor);
 }

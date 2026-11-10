@@ -3,9 +3,11 @@
 // UpdateWornGear, the engine's worn-gear pass, starts by putting the actor's outfit items on:
 // their own, or another mod's distributed outfit (SPID). Those are items the trade menu hides, and
 // an NPC Livery dresses never wears them (docs/design.md §2): they would also take a locked piece
-// in the same slot off and clear its lock (§6). For such an NPC the hook leaves that one call out
-// (their outfit items then stayed off, §6); the rest of the pass, its best-armor step included,
-// runs as before, and what that step puts on them that Livery keeps off comes off after the
+// in the same slot off and clear its lock (§6). For such an NPC, and for the NPC the window's Live
+// Preview shows, whose shown pieces they would take off the same way, the hook leaves that one
+// call out (their outfit items then stayed off, §6); the rest of the pass, its best-armor step
+// included, runs as before. That step does not put on the outfit copies Livery locked
+// (Dressing::LockOutfitCopies); what it puts on them that Livery keeps off comes off after the
 // pass (AfterPass). The ID, offsets and signatures are SPID's
 // (SPID/src/Outfits/OutfitManager+Hooks.cpp, UpdateWornGear_AddWornOutfit).
 #include "PCH.h"
@@ -24,10 +26,10 @@ namespace
 	// Install's argument. Contract: set once at Install, before the hook goes in.
 	OwnOutfitGuard::TakenOff g_takenOff = nullptr;
 
-	// After the pass on an NPC Livery has pieces on, the armor its best-armor step put on them
-	// that Livery keeps off comes off: while the window's Live Preview shows them, by the
-	// preview dressing them in its pieces again; else by Assignments, as Livery's rules say,
-	// and when it took any off g_takenOff hears of it.
+	// After the pass on an NPC Livery has pieces on or the preview shows, the armor its
+	// best-armor step put on them that Livery keeps off comes off: while the window's Live
+	// Preview shows them, by the preview dressing them in its pieces again; else by
+	// Assignments, as Livery's rules say, and when it took any off g_takenOff hears of it.
 	// Contract: game thread (the SKSE task the thunk queues).
 	void AfterPass(RE::FormID a_actor)
 	{
@@ -36,16 +38,18 @@ namespace
 		}
 	}
 
-	// Contract: the pass's thread is not documented, so this only reads the guarded list of
-	// NPCs Livery has pieces on (Assignments::IsDressedNpc) and queues an SKSE task.
+	// Contract: the pass is not always on the game thread (docs/design.md §6), so this only
+	// reads the guarded list of NPCs Livery has pieces on (Assignments::IsDressedNpc) and the
+	// previewed NPC's atomic id, and queues an SKSE task.
 	struct AddWornOutfit
 	{
 		static void thunk(RE::Actor* a_actor, RE::BGSOutfit* a_outfit, bool a_forceUpdate)
 		{
-			if (a_actor && Assignments::IsDressedNpc(a_actor->GetFormID())) {
-				// The best-armor step after this call can still put on their outfit items, or
-				// headgear in a slot the outfit leaves empty: they come off after the pass.
-				SKSE::GetTaskInterface()->AddTask([id = a_actor->GetFormID()] { AfterPass(id); });
+			const auto id = a_actor ? a_actor->GetFormID() : 0;
+			if (a_actor && (Assignments::IsDressedNpc(id) || OutfitPreview::IsPreviewedNpc(id))) {
+				// The best-armor step after this call can still put on an outfit copy not locked
+				// yet, or headgear in a slot the outfit leaves empty: they come off after the pass.
+				SKSE::GetTaskInterface()->AddTask([id] { AfterPass(id); });
 				return;
 			}
 			func(a_actor, a_outfit, a_forceUpdate);

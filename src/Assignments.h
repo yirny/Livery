@@ -156,14 +156,16 @@ namespace Assignments
 	// nullopt when Livery does not dress them. Contract: game thread.
 	std::optional<Choices> ChoicesOf(RE::FormID a_actor);
 
-	// Takes Livery's locks off the pieces it put on an assigned NPC and holds off putting
-	// them back on, so the preview can dress them freely; the assignment stays. Nothing
+	// Takes Livery's locks off the pieces it put on an assigned NPC and off their outfit
+	// copies, and holds off putting them back on, so the preview can dress them freely; the
+	// assignment stays. Nothing
 	// for the player, whose pieces are never locked, or for an actor without an assignment.
 	// Contract: game thread; one actor at a time, ended by ResumeLocks or by a revert.
 	void SuspendLocks(RE::Actor& a_actor);
 
 	// Ends the suspension: the assigned pieces they still carry go back on, locked
-	// (Dressing::PutBackOn). The actor may be gone by then; the suspension ends either way.
+	// (Dressing::PutBackOn), and their outfit copies are locked again. The actor may be gone
+	// by then; the suspension ends either way.
 	// Contract: game thread.
 	void ResumeLocks(RE::FormID a_actor);
 
@@ -189,10 +191,12 @@ namespace Assignments
 
 	// Takes off the armor the engine's worn-gear pass put on this NPC that Livery keeps off
 	// (Dressing::TakeOffExtras: outfit items that are none of the pieces, armor in slots the
-	// outfit leaves empty as [General] UnusedSlots says); when it took any while the game is
-	// paused or frozen, rebuilds their model, which a running game's actor update does itself.
-	// Nothing while the preview has their locks off (OutfitPreview::Reapply's turn). Returns
-	// whether it took any off.
+	// outfit leaves empty as [General] UnusedSlots says); when it took any, locks their outfit
+	// copies that came since (Dressing::LockOutfitCopies). When they carry none of the pieces
+	// any more, their own clothes go back on instead, unless a trade or container menu lists
+	// them. After either change, while the game is paused or frozen, rebuilds their model,
+	// which a running game's actor update does itself. Nothing while the preview has their
+	// locks off (OutfitPreview::Reapply's turn). Returns whether what they wear changed.
 	// Contract: game thread, in the SKSE task OwnOutfitGuard queues as the pass begins.
 	bool TakeOffAfterPass(RE::FormID a_actor);
 }
