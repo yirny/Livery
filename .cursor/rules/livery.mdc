@@ -10,6 +10,7 @@ alwaysApply: true
 - Chat in Japanese. Comments, docs, and commit messages in English. Do not reword player-facing strings unless asked.
 - Before editing, state the paths, the change, and the behavior, then wait. Wording and small layout tweaks with nothing in doubt are exempt. High-impact work is never exempt: hooks, per-frame logic, outfit-library writes, co-save, SKSE init, CMake or vcpkg, a cross-cutting API. On an approval request or a code review, first line is `⚖️ モデル目安: 重い / 軽い — 理由`.
 - Edit `src/` and `test/`. Update `README.md` and `docs/` when code makes them stale. Never edit `lib/commonlibsse-ng`, `lib/vcpkg`, `build/`, or `docs/archive/`. Change `lib/sarrai-common` in `../sarrai-common`, then bump the submodule.
-- Do not touch the Skyrim install, MO2, or other mods. Deploy only to `build/msvc/deploy/` unless the user set `DEPLOY_DIR_OVERRIDE`. Windows build, from the VS 2026 x64 developer prompt: `cmake --preset release-windows` then `cmake --build --preset release-windows`. Tests: preset `test-windows`.
+- Do not touch the Skyrim install, MO2, or other mods. Deploy only to `build/msvc/deploy/` unless the user set `DEPLOY_DIR_OVERRIDE`. A Windows release build includes the deploy: from the VS 2026 x64 developer prompt, `cmake --preset release-windows` then `cmake --build --preset release-windows --target deploy`. Tests stay on preset `test-windows` and are not deployed.
 - Do not commit unless asked. Branch off `main`, Conventional Commits, English. Do not push unless asked.
 - Keep built, verified by a tool, and needs an in-game check separate. Do not report unverified behavior as confirmed.
+- When an instruction has a weak premise, a doubtful effect, or a simpler alternative, say so before carrying it out.
