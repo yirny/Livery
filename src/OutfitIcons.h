@@ -3,18 +3,16 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <cstddef>
 #include <cstdint>
-#include <format>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 // An outfit's icon (docs/design.md §9): a piece icon PNG, named by PieceIcons' key, tinted with
-// one of kColors. The tables set the order of the icon picker (Choose icon) and of the outfit
-// lists' icon sort. Pure data and logic with no ImGui or SKSE, so the unit tests build it.
+// one of kColors, named by its key. The tables set the order of the icon picker (Choose icon)
+// and of the outfit lists' icon sort. Pure data and logic with no ImGui or SKSE, so the unit
+// tests build it.
 namespace OutfitIcons
 {
 	constexpr std::string_view kDefaultKey = "skyui/icons_item_psychosteve/armor_body";
@@ -111,20 +109,58 @@ namespace OutfitIcons
 		"boobies immersive icons/bodyparts/armor_daedricshield",
 	});
 
-	// The picker's colours in order, 0xRRGGBB, in three rows of ten: pale, muted and dark. Each
-	// row is a grey (white in the first), then red, pink, purple, blue violet, blue, blue
-	// green, green, yellow green and orange.
-	constexpr std::array<std::uint32_t, 30> kColors{
-		0xEAEAEA, 0xE8A5A5, 0xE8A5CB, 0xC8A5E8, 0xAEA5E8, 0xA5CDE8, 0xA5E8E0, 0xA5E8B1, 0xC2E8A5, 0xE8C2A5,
-		0xB0B0B0, 0xA28989, 0xA28997, 0x9689A2, 0x8C89A2, 0x8998A2, 0x89A29F, 0x89A28D, 0x94A289, 0xA29489,
-		0x757575, 0x725454, 0x725465, 0x635472, 0x585472, 0x546672, 0x54726E, 0x547259, 0x617254, 0x726154
+	// A colour of the picker: the key outfits.json keeps, the name its tooltip shows, its tint.
+	// An outfit keeps the key, so a tint changed here shows on every outfit that has it.
+	struct Color
+	{
+		std::string_view key;   // ASCII lower case, never changed once shipped
+		std::string_view name;  // shown to the player
+		std::uint32_t    rgb;   // 0xRRGGBB
 	};
-	constexpr std::uint32_t kDefaultColor = kColors[0];
+
+	// The picker's colours in order, in three rows of ten: the colours, then each lighter
+	// ("- Light") and greyer ("- Muted"). The leftmost of those two rows are Nordic silver
+	// and Ash grey. Each row is white (grey below), then red, pink, purple, blue, cyan,
+	// teal, green, yellow and gold.
+	constexpr auto kColors = std::to_array<Color>({
+		{ "bone-white", "Bone white", 0xEAEAEA },
+		{ "snowberry-red", "Snowberry red", 0xB13847 },
+		{ "sheogorath-pink", "Sheogorath pink", 0xC356A5 },
+		{ "deathbell-purple", "Deathbell purple", 0x5F53C3 },
+		{ "jazbay-blue", "Jazbay blue", 0x36509A },
+		{ "coldharbour-cyan", "Coldharbour cyan", 0x59B1C9 },
+		{ "glass-teal", "Glass teal", 0x51A49C },
+		{ "spriggan-green", "Spriggan green", 0x9CD15F },
+		{ "luna-yellow", "Luna yellow", 0xE0E356 },
+		{ "dwarven-gold", "Dwarven gold", 0xD6962C },
+		{ "bone-white-light", "Nordic silver", 0xAEAEAE },
+		{ "snowberry-red-light", "Snowberry red - Light", 0xC4727E },
+		{ "sheogorath-pink-light", "Sheogorath pink - Light", 0xD38FC2 },
+		{ "deathbell-purple-light", "Deathbell purple - Light", 0x9288CF },
+		{ "jazbay-blue-light", "Jazbay blue - Light", 0x6E84B6 },
+		{ "coldharbour-cyan-light", "Coldharbour cyan - Light", 0x93CBD8 },
+		{ "glass-teal-light", "Glass teal - Light", 0x8BC2BD },
+		{ "spriggan-green-light", "Spriggan green - Light", 0xC2DF9C },
+		{ "luna-yellow-light", "Luna yellow - Light", 0xEAED96 },
+		{ "dwarven-gold-light", "Dwarven gold - Light", 0xE1BC6C },
+		{ "bone-white-muted", "Ash grey", 0x777777 },
+		{ "snowberry-red-muted", "Snowberry red - Muted", 0x836368 },
+		{ "sheogorath-pink-muted", "Sheogorath pink - Muted", 0x9D8096 },
+		{ "deathbell-purple-muted", "Deathbell purple - Muted", 0x6F6C89 },
+		{ "jazbay-blue-muted", "Jazbay blue - Muted", 0x596073 },
+		{ "coldharbour-cyan-muted", "Coldharbour cyan - Muted", 0x90A7AD },
+		{ "glass-teal-muted", "Glass teal - Muted", 0x859B98 },
+		{ "spriggan-green-muted", "Spriggan green - Muted", 0xB2C1A2 },
+		{ "luna-yellow-muted", "Luna yellow - Muted", 0xD8D8B2 },
+		{ "dwarven-gold-muted", "Dwarven gold - Muted", 0xB5A488 },
+	});
+
+	constexpr std::string_view kDefaultColor = kColors[0].key;
 
 	struct Icon
 	{
-		std::string   key{ kDefaultKey };   // PieceIcons' key, ASCII lower case; one with no PNG draws kDefaultKey's
-		std::uint32_t rgb = kDefaultColor;  // its tint, 0xRRGGBB
+		std::string key{ kDefaultKey };      // PieceIcons' key, ASCII lower case; one with no PNG draws kDefaultKey's
+		std::string color{ kDefaultColor };  // a kColors key; one not there draws kDefaultColor's
 
 		bool operator==(const Icon&) const = default;
 	};
@@ -172,31 +208,16 @@ namespace OutfitIcons
 		return kDefaultKey;
 	}
 
-	// Its place in kColors; kColors.size() for a colour not there, which sorts last.
-	inline std::size_t ColorOrder(std::uint32_t a_rgb)
+	// The colour's place in kColors; kColors.size() for a key not there, which sorts last.
+	inline std::size_t ColorOrder(std::string_view a_color)
 	{
-		return static_cast<std::size_t>(std::ranges::find(kColors, a_rgb) - kColors.begin());
+		return static_cast<std::size_t>(std::ranges::find(kColors, a_color, &Color::key) - kColors.begin());
 	}
 
-	// "#eaeaea", as outfits.json keeps it.
-	inline std::string ToHex(std::uint32_t a_rgb)
+	// The colour the key names; kDefaultColor's for a key not there.
+	inline const Color& ColorOf(std::string_view a_color)
 	{
-		return std::format("#{:06x}", a_rgb & 0xFFFFFF);
-	}
-
-	// "#rrggbb", hex digits of either case; nullopt for anything else.
-	inline std::optional<std::uint32_t> FromHex(std::string_view a_text)
-	{
-		constexpr std::size_t kLength = 7;  // "#" and six digits
-
-		if (a_text.size() != kLength || a_text[0] != '#') {
-			return std::nullopt;
-		}
-		std::uint32_t rgb = 0;
-		const auto [end, error] = std::from_chars(a_text.data() + 1, a_text.data() + kLength, rgb, 16);
-		if (error != std::errc{} || end != a_text.data() + kLength) {
-			return std::nullopt;
-		}
-		return rgb;
+		const auto order = ColorOrder(a_color);
+		return kColors[order < kColors.size() ? order : 0];
 	}
 }

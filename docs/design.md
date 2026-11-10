@@ -333,9 +333,10 @@ would have to be kept in step).
   Other fields are ignored and gone at the next write. Situations are per actor (§7), not in
   the library.
 - An outfit has an icon: `"icon"`, PieceIcons' key of a PNG under `icons/`
-  (`skyui/icons_item_psychosteve/armor_body`), and `"color"`, its tint as `#rrggbb`. A
-  missing or unreadable one is the default (`OutfitIcons::kDefaultKey`, `#eaeaea`), so a file
-  edited by hand still reads; `Library::Create` takes the Save page's Create tab's icon.
+  (`skyui/icons_item_psychosteve/armor_body`), and `"color"`, the key of its tint in
+  `OutfitIcons::kColors` (`glass-teal-light`), so a tint changed there shows on every outfit
+  that has it. A missing or unreadable one, or a colour key the table does not have, is the
+  default (`OutfitIcons::kDefaultKey`, `bone-white`), so a file edited by hand still reads; `Library::Create` takes the Save page's Create tab's icon.
 - `Library::Update` replaces pieces, name and icon; a name is taken when another outfit
   has it (ASCII case ignored). The Save page's Update keeps the icon.
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
@@ -638,6 +639,9 @@ setting, off by default). Open:
   heavy, light, clothing), Jelidity's cloak and backpack, SkyUI's other items (weapons, the
   schools of magic in the game's order and magic effect, the elements, book, potion, misc),
   then BOOBIES' `bodyparts` from head to feet; ten to a row. An icon drawn the same as one listed is left out (SkyUI's forearms and calves,
-  BOOBIES' torso, ring and circlet). The colours are `OutfitIcons::kColors`: three rows of ten,
-  pale, muted and dark; each a grey (`#eaeaea` in the first row), then red, pink, purple,
-  blue violet, blue, blue green, green, yellow green and orange.
+  BOOBIES' torso, ring and circlet). The colours are `OutfitIcons::kColors`, each a key, a name
+  and a tint: three rows of ten, the colours, then each `- Light` and `- Muted`
+  (the leftmost of those rows are Nordic silver and Ash grey); each row
+  Bone white, Snowberry red, Sheogorath pink, Deathbell purple, Jazbay blue, Coldharbour
+  cyan, Glass teal, Spriggan green, Luna yellow and Dwarven gold. A key is never changed once
+  shipped; a tint may be.

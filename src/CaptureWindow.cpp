@@ -1706,7 +1706,7 @@ namespace CaptureWindow::Internal
 			const auto& piece = a_state.request.pieces[index];
 			pieces.push_back({ .slots = piece.slots, .key = piece.icon });
 		}
-		return { .key = std::string{ OutfitIcons::SuggestKey(pieces, Theme::HasOutfitIcon) }, .rgb = OutfitIcons::kDefaultColor };
+		return { .key = std::string{ OutfitIcons::SuggestKey(pieces, Theme::HasOutfitIcon) } };
 	}
 
 	// The library outfit the Save page writes: the Update tab's, or 0 for a new one.

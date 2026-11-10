@@ -8,11 +8,12 @@
 //
 // outfits.json, version 1:
 //   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard",
-//     "icon": "skyui/icons_item_psychosteve/armor_body", "color": "#eaeaea",
+//     "icon": "skyui/icons_item_psychosteve/armor_body", "color": "bone-white",
 //     "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
 //     "name": "Imperial Light Armor" } ] } ] }
-// An outfit with no "icon" or "color", or one that is not a string ("color": "#rrggbb"), gets
-// the default (OutfitIcons), so a file edited by hand still reads. Other fields are ignored
+// An outfit with no "icon" or "color", or one that is not a string, gets the default
+// (OutfitIcons), and so does a "color" that is not a key of OutfitIcons::kColors, so a file
+// edited by hand still reads. Other fields are ignored
 // and gone at the next write.
 #include "PCH.h"
 
@@ -56,18 +57,26 @@ namespace
 
 	// --- File -----------------------------------------------------------------
 
-	// The outfit's icon key and colour; each that is missing or unreadable stays as `a_icon` has it.
+	// The field's string in ASCII lower case, as PieceIcons' and OutfitIcons' keys are; false
+	// when it is missing or not a string.
+	bool ReadKey(const nlohmann::json* a_field, std::string& a_key)
+	{
+		if (!ReadString(a_field, a_key)) {
+			return false;
+		}
+		std::ranges::transform(a_key, a_key.begin(), [](unsigned char a_c) { return static_cast<char>(a_c >= 'A' && a_c <= 'Z' ? a_c - 'A' + 'a' : a_c); });
+		return true;
+	}
+
+	// The outfit's icon key and colour; each that is missing or unreadable stays as `a_icon` has
+	// it, and so does a colour kColors does not name.
 	void ReadIcon(const nlohmann::json& a_json, OutfitIcons::Icon& a_icon)
 	{
-		if (std::string key; ReadString(Field(a_json, "icon"), key)) {
-			// PieceIcons' keys are in ASCII lower case.
-			std::ranges::transform(key, key.begin(), [](unsigned char a_c) { return static_cast<char>(a_c >= 'A' && a_c <= 'Z' ? a_c - 'A' + 'a' : a_c); });
+		if (std::string key; ReadKey(Field(a_json, "icon"), key)) {
 			a_icon.key = std::move(key);
 		}
-		if (const auto* color = Field(a_json, "color"); color && color->is_string()) {
-			if (const auto rgb = OutfitIcons::FromHex(color->get<std::string>())) {
-				a_icon.rgb = *rgb;
-			}
+		if (std::string color; ReadKey(Field(a_json, "color"), color) && OutfitIcons::ColorOrder(color) < OutfitIcons::kColors.size()) {
+			a_icon.color = std::move(color);
 		}
 	}
 
@@ -133,7 +142,7 @@ namespace
 			for (const auto& piece : outfit.pieces) {
 				pieces.push_back(PieceFile::ToJson(piece));
 			}
-			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "icon", outfit.icon.key }, { "color", OutfitIcons::ToHex(outfit.icon.rgb) },
+			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "icon", outfit.icon.key }, { "color", outfit.icon.color },
 				{ "pieces", std::move(pieces) } });
 		}
 		return { { "version", kLibraryVersion }, { "nextId", a_nextId }, { "outfits", std::move(list) } };

@@ -678,7 +678,7 @@ namespace CaptureWindow::Internal
 	// result lives no longer than it.
 	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon)
 	{
-		return { a_icon.key, a_icon.rgb };
+		return { a_icon.key, OutfitIcons::ColorOf(a_icon.color).rgb };
 	}
 
 	// --- names in popup lines -------------------------------------------------
