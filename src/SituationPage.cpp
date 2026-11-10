@@ -440,7 +440,8 @@ namespace CaptureWindow::Internal
 					.open = !entry.folded,
 					.foldable = foldable,
 					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
-					.dim = !shows });
+					.dim = !shows,
+					.icon = a_entry == 0 ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar });  // the Default's form, as its outfit rows' mark
 			const float bottom = top + Theme::SituationHeadingHeight();
 			if (form.scrollToSelected && form.selected == index) {
 				ImGui::SetScrollHereY(0.0f);
@@ -574,8 +575,9 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
-		// The settings every actor shares: the name, its label with the situation star (read
-		// only for the Default, which says so on hover), and the conditions, read only.
+		// The settings every actor shares: the name, its label with the situation star (the
+		// Default's form for the Default, whose name is read only and says so on hover), and the
+		// conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			constexpr const char* kDefaultName = "The Default's name cannot be changed.";
@@ -583,7 +585,7 @@ namespace CaptureWindow::Internal
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
 			const bool isDefault = a_entry == 0;
-			Theme::LabelText("Name", true, true);
+			Theme::LabelText("Name", isDefault ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar);
 			BeginItemDisabled(a_state, isDefault);
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);

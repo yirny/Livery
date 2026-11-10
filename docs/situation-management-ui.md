@@ -151,7 +151,7 @@ outfit for Town any more`.
   situation to move it, or back to the outfit list to take it off.` (The most specific:
   `Situations::Evaluate`'s order.)
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
-  order. Each: the star of the Situations tab, a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
+  order. Each: the star of the Situations tab (the Default: the bare form, an outfit row's mark of the Default), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
   random on, `(n)`, the length of `outfits`, in the small heading style, `ItemInnerSpacing.x`
   after the name; with random on and anything showing under it, a chevron, pointing
@@ -234,8 +234,8 @@ back.
 The situation's details, its fields evenly spaced with no headings:
 
 - `Name`, an underlined field (as the Save page's), its label starting with the star of the
-  Situations tab, a square of the label's line height in its grey, and 6px (`Theme::LabelText`'s
-  `star`). Ending the edit with it empty, or with a
+  Situations tab (the Default's: the bare form), a square of the label's line height in its grey, and 6px
+  (`Theme::LabelText` with a `HeadingIcon`). Ending the edit with it empty, or with a
   name another situation has (ASCII case ignored), puts the previous name back; with that
   empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
   is saved as any edit is; no save starts while it is being typed. The Default's is read only, greyed, and says `The Default's
