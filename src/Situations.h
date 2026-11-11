@@ -104,7 +104,8 @@ namespace Situations
 	}
 
 	// When the situation applies, in the README's words; the Default's says where it is worn.
-	// the Situations page shows it read only, until conditions can be edited (docs/design.md §8).
+	// the Situations page shows it read only, until conditions can be edited (docs/design.md §8);
+	// the Default's it draws itself with the situations' star (DrawDefaultConditions), worded so.
 	constexpr const char* ConditionsText(Situation a_situation) noexcept
 	{
 		switch (a_situation) {
@@ -119,7 +120,7 @@ namespace Situations
 		case Situation::kCold:
 			return "Outdoors in rain or snow, or anywhere outdoors in a snowy region.";
 		default:
-			return "Worn where no other situation applies.";
+			return "Worn where no situation applies,\nand in combat.";
 		}
 	}
 
