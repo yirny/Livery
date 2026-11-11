@@ -249,7 +249,7 @@ The situation's details, its fields evenly spaced with no headings:
   frame padding below the label, where a field's text would (`DrawFieldText`).
 - `Random Outfit (for #{Name}) (?)`, a checkbox: `On: Each time this situation begins, #{Name}
   wears a random outfit from the list until it ends.` then a blank line and `Off: #{Name} wears
-  the last picked outfit.` / `The others stay in the list but are hidden.` Unticking it keeps
+  the last picked outfit. The others stay in the list but are hidden.` Unticking it keeps
   the last pick on (§1).
 - The room above every button row (`ButtonRowGap`), then `Show Outfit List`, a button centred in the pane. A click shows
   the outfit list, keeps the situation selected, opens its heading if folded and scrolls the

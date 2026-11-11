@@ -663,7 +663,7 @@ namespace CaptureWindow::Internal
 			if (ImGui::IsItemHovered()) {
 				DrawHelpTooltip(std::format(
 					"On: Each time this situation begins, {0} wears a random outfit from the list until it ends.\n\n"
-					"Off: {0} wears the last picked outfit.\nThe others stay in the list but are hidden.",
+					"Off: {0} wears the last picked outfit. The others stay in the list but are hidden.",
 					name));
 			}
 
