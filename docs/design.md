@@ -608,7 +608,7 @@ so a situation outfit is kept on, locked and put back at 3D load like the defaul
 ## 8. Plan
 
 Built and checked in game: the dressing core (§2), the library and the capture window
-(hotkey Shift + X by default), the trade-menu filter (§3), situation outfits for NPCs and
+(hotkey Shift + V by default), the trade-menu filter (§3), situation outfits for NPCs and
 the player (§7), the window's pages (docs/ui-redesign.md, docs/outfit-management-ui.md,
 docs/situation-management-ui.md) and the chests (docs/chest-ui.md, behind the `Enable chests`
 setting, off by default). Open:

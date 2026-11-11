@@ -36,7 +36,7 @@ Building from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ### Opening Livery
 
-Press the hotkey (Shift + X by default). Aim at an NPC to open Livery on them; aim at anything else, a horse included, to open it on yourself. Children are never available.
+Press the hotkey (Shift + V by default). Aim at an NPC to open Livery on them; aim at anything else, a horse included, to open it on yourself. Children are never available.
 
 By default you can dress your followers and spouse, and save what your friends wear without changing it. Other NPCs are off limits. While the window is open, the HUD is hidden and the game cannot be saved.
 

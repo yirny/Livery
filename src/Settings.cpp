@@ -91,7 +91,7 @@ namespace
 	constexpr float kMaxSpeedPercent = 200.0f;
 
 	using Key = RE::BSKeyboardDevice::Keys::Key;
-	constexpr std::uint32_t kDefaultHotkey = Key::kX;            // keep in step with kIniKeys
+	constexpr std::uint32_t kDefaultHotkey = Key::kV;            // keep in step with kIniKeys
 	constexpr std::uint32_t kDefaultModifier = Key::kLeftShift;  // keep in step with kIniKeys
 	constexpr std::uint32_t kNoModifier = 0;
 
@@ -137,9 +137,9 @@ namespace
 			L"(Modern, Edge, Vanilla, Nordic, or your own copy of one)." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = Livery plays the game's menu sounds as it opens and as you click in it." },
-		{ kHotkeySection, kHotkeyKeyKey, L"45",
+		{ kHotkeySection, kHotkeyKeyKey, L"47",
 			L"Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n"
-			L"A DirectInput scan code (45 = X)." },
+			L"A DirectInput scan code (47 = V)." },
 		{ kHotkeySection, kHotkeyModifierKey, L"42",
 			L"Key to hold with the hotkey: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt. Left and right count the same." },
 		{ kCameraSection, kSpeedPercentKey, L"100",
@@ -911,7 +911,7 @@ namespace
 		if (ImGuiMCP::Button(label.c_str())) {
 			g_pickingHotkey = !picking;
 		}
-		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n\nDefault: Shift + X");
+		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n\nDefault: Shift + V");
 
 		SettingGap();
 
@@ -1121,7 +1121,7 @@ namespace Settings
 		g_menuSounds = std::wstring_view{ value } != L"0";
 		logger::info("MenuSounds = {}", g_menuSounds.load());
 
-		// An out-of-range key or an unknown modifier keeps the default (Shift + X); 0 is no modifier.
+		// An out-of-range key or an unknown modifier keeps the default (Shift + V); 0 is no modifier.
 		const auto key = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyKeyKey, kDefaultHotkey, g_iniPath.c_str());
 		if (key > Key::kNone && key <= 0xFF) {
 			g_hotkey = key;
