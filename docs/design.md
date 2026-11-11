@@ -420,7 +420,8 @@ as the Default.
   reads its outfit from the library each time it goes on; the window names the outfits
   from the ids. A row for a situation the version does not know is dropped with a log line.
 - A piece, own copy, locked outfit copy or Default piece whose plugin is gone is dropped at load, and an
-  assignment with nothing on the actor and no situation row holding an outfit. Before that
+  assignment with nothing on the actor, no row (the Default's included) holding an outfit and
+  no row random (`IsEmpty`; a row holding an outfit none of whose items is loaded keeps it). Before that
   check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
   line; pieces worn for it stay on until the poll's next dressing. A key whose
   instance is gone is skipped whenever the actor is dressed or released.
@@ -520,7 +521,7 @@ chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default al
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
 on. Each situation's name comes from `situations.json` (§4): the window and the HUD show
 it, the sentences that say what is worn end in ` for <name>` (the summary line in `as
-Default` for the Default, the HUD in nothing), and the logs keep the key. A removed situation offers no row
+<name>` for the Default, the HUD in nothing), and the logs keep the key. A removed situation offers no row
 and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on and kept until it changes, a forced redress keeping it while it is on the list,
 and recorded as `chosen`, so turning random off keeps the last pick on. A click on the

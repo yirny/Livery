@@ -200,7 +200,7 @@ namespace CaptureWindow::Internal
 
 	// One outfit of the list: its name, and at its right end the marks of the outfit the actor
 	// wears now or has as their Default and of one chosen for a situation (Theme::OutfitMarks), the last with `a_situationMark` only;
-	// `a_striped` for every second row.
+	// `a_striped` for every second row; with none of its items loaded, kNoLoadedPiece on hover.
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped, Theme::Grip a_grip,
 		bool a_situationMark)
 	{
@@ -219,7 +219,15 @@ namespace CaptureWindow::Internal
 			.defaultOutfit = edited ? OutfitRows::Holds(entries[0].row, outfit.id) : HoldsOutfit(a_state, 0, outfit.id),
 			.situations = a_situationMark && !situations->empty() ? situations->c_str() : nullptr };
 		const auto               icon = RowIconOf(outfit.icon);
-		return Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &icon);
+		const bool               clicked = Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &icon);
+		// An outfit none of whose items is loaded stays on its rows and drags as any other; its
+		// row says why it puts nothing on. Theme::BeginTooltip appends to a mark's tooltip.
+		if (outfit.pieces.empty() && ImGui::IsItemHovered()) {
+			Theme::BeginTooltip();
+			ImGui::TextUnformatted(kNoLoadedPiece);
+			Theme::EndTooltip();
+		}
+		return clicked;
 	}
 
 	// Left column of the outfit pages: the wardrobe's outfits that pass the
@@ -885,10 +893,10 @@ namespace CaptureWindow::Internal
 	{
 		const auto& name = a_state.request.actorName;
 		if (const auto offered = OfferedRow(a_state, ManagedOutfitId(a_state))) {
-			return std::format("Dress {} in this outfit as their {} outfit, or make it their Default.", name, RowName(a_state, *offered));
+			return std::format("Dress {} in this outfit as their {} outfit, or make it their default outfit.", name, RowName(a_state, *offered));
 		}
 		const auto row = DirectApplyRow(a_state);
-		return row == 0 ? std::format("Dress {} in this outfit as their Default.", name) : std::format("Dress {} in this outfit for {}.", name, RowName(a_state, row));
+		return row == 0 ? std::format("Dress {} in this outfit as their default outfit.", name) : std::format("Dress {} in this outfit for {}.", name, RowName(a_state, row));
 	}
 
 	// Whether Apply would change nothing: no library edits, and the actor wears the selected
@@ -1198,7 +1206,7 @@ namespace CaptureWindow::Internal
 	// of what the Default holds, and the situation's outfit stays on.
 	std::string AsDefaultHelp(const State& a_state, const ApplySubject& a_subject)
 	{
-		auto help = std::format("Sets \"{}\" as {}'s Default", a_subject.name, a_state.request.actorName);
+		auto help = std::format("Sets \"{}\" as {}'s default outfit", a_subject.name, a_state.request.actorName);
 		if (IsTaken(a_state, 0, a_subject.id)) {
 			help += std::format(", replacing {}", HeldOutfitName(a_state, 0));
 		}
@@ -1344,7 +1352,7 @@ namespace CaptureWindow::Internal
 			for (const auto& user : outfit.users) {
 				ImGui::BulletText("%s", user.c_str());
 			}
-			ImGui::TextDisabled("Situations using it fall back to the Default. Defaults made from it keep their items.");
+			ImGui::TextDisabled("Situations using it fall back to the default outfit. Default outfits made from it keep their items.");
 		}
 		BeginButtonRow({ "Remove", "Cancel" });
 		const bool remove = Theme::Button("Remove");
