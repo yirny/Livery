@@ -709,10 +709,10 @@ namespace CaptureWindow::Internal
 		return { .text = a_name, .icon = a_default ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar };
 	}
 
-	// Row `a_row`'s name: "Default" for the Default (0), else its situation's.
+	// Row `a_row`'s name as situations.json has it, the Default's (0) after its form.
 	inline Theme::SubtitleRun RowRun(const State& a_state, std::size_t a_row)
 	{
-		return a_row == 0 ? SituationRun("Default", true) : SituationRun(RowName(a_state, a_row));
+		return SituationRun(RowName(a_state, a_row), a_row == 0);
 	}
 
 	inline Theme::SubtitleRun ChestRun(const std::string& a_name)
