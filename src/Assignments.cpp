@@ -120,14 +120,21 @@ namespace
 		return std::ranges::any_of(Situations::kChoosable, [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
 	}
 
-	// An assignment with nothing on the actor and no situation row holding an outfit is no
-	// assignment: they keep what they wear, as a default outfit that could not be put on
-	// leaves them.
+	// An assignment with nothing on the actor, no row holding an outfit and no row random is
+	// no assignment: they keep what they wear. A row, the Default's included, keeps the record
+	// while it holds an outfit that puts nothing on (none of its items loaded) or is random
+	// with nothing on its list yet, so the window shows the row as the user left it.
+	// Contract: every record dropped as empty goes through this test (DropIfEmpty, the
+	// co-save load, ForgetOutfit, ForgetSituation).
+	bool IsEmpty(const Assignment& a_assignment)
+	{
+		return a_assignment.pieces.empty() &&
+		       std::ranges::none_of(a_assignment.rows, [](const OutfitRows::Row& a_row) { return a_row.random || OutfitRows::HoldsAny(a_row); });
+	}
+
 	void DropIfEmpty(RE::FormID a_actor)
 	{
-		std::erase_if(g_assignments, [a_actor](const Assignment& a_assignment) {
-			return a_assignment.actor == a_actor && a_assignment.pieces.empty() && !HasSituations(a_assignment);
-		});
+		std::erase_if(g_assignments, [a_actor](const Assignment& a_assignment) { return a_assignment.actor == a_actor && IsEmpty(a_assignment); });
 	}
 
 	// Contract: game thread, after every change of g_assignments, each dressing (Redress)
@@ -457,7 +464,8 @@ namespace
 	// an inventory reset, a script that took their items): the guard would keep their outfit
 	// items off and leave them naked, so their own clothes go back on, as Restore leaves them.
 	// The record keeps their rows: a situation row dresses them again at their next change of
-	// situation; with none it ends (DropIfEmpty), and the next Apply dresses them.
+	// situation; with no row holding an outfit or random it ends (DropIfEmpty), and the next
+	// Apply dresses them.
 	// Contract: `a_assignment` is stale after this.
 	void ReturnToOwnClothes(Assignment& a_assignment, RE::Actor& a_actor)
 	{
@@ -941,7 +949,7 @@ namespace
 				return assignments;
 			}
 			DropRemovedRows(assignment);
-			if (actorResolved && (!assignment.pieces.empty() || HasSituations(assignment))) {
+			if (actorResolved && !IsEmpty(assignment)) {
 				assignments.push_back(std::move(assignment));
 			}
 		}
@@ -1423,7 +1431,7 @@ namespace Assignments
 				assignment.wornOutfit = 0;
 			}
 		}
-		std::erase_if(g_assignments, [](const Assignment& a_assignment) { return a_assignment.pieces.empty() && !HasSituations(a_assignment); });
+		std::erase_if(g_assignments, IsEmpty);
 		SyncManaged();
 		return wearing;
 	}
@@ -1441,7 +1449,7 @@ namespace Assignments
 			}
 			assignment.rows[RowOf(a_situation)] = {};
 		}
-		std::erase_if(g_assignments, [](const Assignment& a_assignment) { return a_assignment.pieces.empty() && !HasSituations(a_assignment); });
+		std::erase_if(g_assignments, IsEmpty);
 		SyncManaged();
 		return wearing;
 	}
