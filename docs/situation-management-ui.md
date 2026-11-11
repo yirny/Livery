@@ -240,11 +240,12 @@ The situation's details, its fields evenly spaced with no headings:
   name another situation has (ASCII case ignored), puts the previous name back; with that
   empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
   is saved as any edit is; no save starts while it is being typed. Under the Default's, after
-  `SectionGap`, two lines (`Theme::RunText`): `This is #{Name}'s default outfit.` and `It is
-  worn when no ★situation applies, and in combat.`, the star the Situations tab's.
+  `SectionGap`, `This is #{Name}'s default outfit.` (`Theme::RunText`).
 - `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule in
   grey, as the README words it (Town: `A city, town, settlement, inn or other inhabited
-  interior.`); the Default's `Worn where no other situation applies.` The text sits a field's
+  interior.`); the Default's two lines `Worn where no ★situation applies,` and `and in
+  combat.`, the star the Situations tab's in the text's grey (`Theme::RunText`'s
+  `plainNames`), the lines as close as a wrapped text's. The text sits a field's
   frame padding below the label, where a field's text would (`DrawFieldText`).
 - `Random Outfit (for #{Name}) (?)`, a checkbox: `On: one outfit of the list is picked at random
   each time this situation begins for #{Name}, and worn until it ends. Off: only the outfit
