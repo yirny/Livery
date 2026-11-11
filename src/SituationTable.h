@@ -60,14 +60,13 @@ namespace SituationTable
 		return table;
 	}
 
-	// Why the names break the rules, or nullopt: every name has text, the Default keeps its
-	// name and is never removed, and no two situations not removed share a name (ASCII case
+	// Why the names break the rules, or nullopt: every name has text, the Default is never
+	// removed (it may be renamed), and no two situations not removed share a name (ASCII case
 	// ignored). Sentences, for the window and the log.
 	inline std::optional<std::string> CheckNames(const Table& a_table)
 	{
-		const auto& defaultEntry = a_table[IndexOf(Situations::Situation::kDefault)];
-		if (defaultEntry.removed || defaultEntry.name != Preset(Situations::Situation::kDefault).name) {
-			return "The Default cannot be renamed or removed.";
+		if (a_table[IndexOf(Situations::Situation::kDefault)].removed) {
+			return "The default outfit cannot be removed.";
 		}
 		for (std::size_t i = 0; i < a_table.size(); ++i) {
 			if (ExampleMod::TrimWhitespace(a_table[i].name).empty()) {

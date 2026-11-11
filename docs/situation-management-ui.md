@@ -63,8 +63,8 @@ Changes:
   `outfits`; `chosen` becomes 0 if it was that.
 - The Dress page's Apply popup: `Apply Only (?)`. The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
-  `Sets the selected items as #{Name}'s Default without adding them to the wardrobe.`,
-  then, while a situation row holds an outfit, `The new Default takes effect when no
+  `Sets the selected items as #{Name}'s default outfit without adding them to the wardrobe.`,
+  then, while a situation row holds an outfit, `The new default outfit takes effect when no
   situational outfit applies.`
 - Remove (`Assignments::ForgetOutfit`): the outfit leaves every row's `outfits`; a `chosen`
   that was it becomes 0, so an outfit hidden behind it is not worn. When this leaves the
@@ -100,7 +100,8 @@ items left off in `EXCL`; the layout is in design.md §5.
   rewrite drops them.
 - Presets: name as the key.
 - Names: never empty; unique among the situations not removed, ASCII case ignored. The
-  Default cannot be renamed or removed.
+  Default can be renamed but not removed; its name shows wherever a row is named (the
+  HUD still adds no ` for <name>` for it).
 - The same write rules as `outfits.json` (CLAUDE.md §2.1): `Load` sets the writable state
   once and never writes a file it could not read or that a newer version wrote; writes go
   through a temporary file and a rename; game thread only; only after the user's action
@@ -146,12 +147,12 @@ outfit for Town any more`.
 
 - Label `Situation List (?)` above the list (`Theme::LabelText` + `LabelHelpMark`):
   `Each situation lists the outfits #{Name} can wear there. When several
-  apply, the most specific one with an outfit is worn; otherwise, and in combat, the Default.
+  apply, the most specific one with an outfit is worn; otherwise, and in combat, the default outfit.
   Drag an outfit onto a situation to add it, between its outfits to place it, onto another
   situation to move it, or back to the outfit list to take it off.` (The most specific:
   `Situations::Evaluate`'s order.)
 - One heading per situation not removed, the Default first, then `Situations::kChoosable`
-  order. Each: the star of the Situations tab (the Default: the bare form, an outfit row's mark of the Default), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
+  order. Each: the star of the Situations tab (none for the Default, whose name starts in its place), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
   random on, `(n)`, the length of `outfits`, in the small heading style, `ItemInnerSpacing.x`
   after the name; with random on and anything showing under it, a chevron, pointing
@@ -234,12 +235,13 @@ back.
 The situation's details, its fields evenly spaced with no headings:
 
 - `Name`, an underlined field (as the Save page's), its label starting with the star of the
-  Situations tab (the Default's: the bare form), a square of the label's line height in its grey, and 6px
+  Situations tab (none for the Default), a square of the label's line height in its grey, and 6px
   (`Theme::LabelText` with a `HeadingIcon`). Ending the edit with it empty, or with a
   name another situation has (ASCII case ignored), puts the previous name back; with that
   empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
-  is saved as any edit is; no save starts while it is being typed. The Default's is read only, greyed, and says `The Default's
-  name cannot be changed.` on hover.
+  is saved as any edit is; no save starts while it is being typed. Under the Default's, after
+  `SectionGap`, two lines (`Theme::RunText`): `This is #{Name}'s default outfit.` and `It is
+  worn when no ★situation applies, and in combat.`, the star the Situations tab's.
 - `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule in
   grey, as the README words it (Town: `A city, town, settlement, inn or other inhabited
   interior.`); the Default's `Worn where no other situation applies.` The text sits a field's

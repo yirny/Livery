@@ -151,7 +151,7 @@ namespace SituationStore
 			return kUnreadable;
 		}
 		if (a_situation == Situations::Situation::kDefault) {
-			return "The Default cannot be removed.";
+			return "The default outfit cannot be removed.";
 		}
 		auto  table = g_table;
 		auto& entry = table[SituationTable::IndexOf(a_situation)];

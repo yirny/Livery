@@ -441,7 +441,7 @@ namespace CaptureWindow::Internal
 					.foldable = foldable,
 					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
 					.dim = !shows,
-					.icon = a_entry == 0 ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar });  // the Default's form, as its outfit rows' mark
+					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar });  // the Default is no situation: no star
 			const float bottom = top + Theme::SituationHeadingHeight();
 			if (form.scrollToSelected && form.selected == index) {
 				ImGui::SetScrollHereY(0.0f);
@@ -489,7 +489,7 @@ namespace CaptureWindow::Internal
 			if (Theme::LabelHelpMark()) {
 				DrawHelpTooltip(std::format(
 					"Each situation lists the outfits {} can wear there.\nWhen several apply, the most specific one with an "
-					"outfit is worn; otherwise, and in combat, the Default.\nDrag an outfit onto a situation to add it, between "
+					"outfit is worn; otherwise, and in combat, the default outfit.\nDrag an outfit onto a situation to add it, between "
 					"its outfits to place it, onto another situation to move it, or back to the outfit list to take it off.",
 					a_state.request.actorName));
 			}
@@ -575,18 +575,23 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
-		// The settings every actor shares: the name, its label with the situation star (the
-		// Default's form for the Default, whose name is read only and says so on hover), and the
-		// conditions, read only.
+		// What the Default is, under its name: worn when no situation applies, and in combat.
+		void DrawDefaultNote(const State& a_state)
+		{
+			const auto whose = std::format("This is {}'s default outfit.", a_state.request.actorName);
+			Theme::SectionGap();
+			RunLine({ TextRun(whose.c_str()) });
+			RunLine({ TextRun("It is worn when no "), SituationRun(""), TextRun("situation applies, and in combat.") });
+		}
+
+		// The settings every actor shares: the name, its label with the situation star (none for
+		// the Default, which says what it is under it), and the conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
-			constexpr const char* kDefaultName = "The Default's name cannot be changed.";
-
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
 			const bool isDefault = a_entry == 0;
-			Theme::LabelText("Name", isDefault ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar);
-			BeginItemDisabled(a_state, isDefault);
+			Theme::LabelText("Name", isDefault ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar);
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
 			if (ImGui::IsItemActivated()) {
@@ -594,11 +599,8 @@ namespace CaptureWindow::Internal
 				form.nameEditing = static_cast<int>(a_entry);
 				form.nameField = ImGui::GetItemID();
 			}
-			const bool nameHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-			EndItemDisabled();
-			// After EndDisabled, so the tooltip is not drawn faded.
-			if (isDefault && nameHovered) {
-				Theme::Tooltip(kDefaultName);
+			if (isDefault) {
+				DrawDefaultNote(a_state);
 			}
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));

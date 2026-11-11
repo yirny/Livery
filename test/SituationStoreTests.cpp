@@ -32,7 +32,7 @@ TEST_CASE("Presets are named by their keys", "[situations]")
 	CHECK(SituationTable::RestoreChanges(table).empty());
 }
 
-TEST_CASE("Names need text, are unique among the situations not removed, and the Default keeps its own", "[situations]")
+TEST_CASE("Names need text, are unique among the situations not removed, and the Default is never removed", "[situations]")
 {
 	auto table = SituationTable::Presets();
 	At(table, Situation::kHome).name = "  ";
@@ -49,7 +49,11 @@ TEST_CASE("Names need text, are unique among the situations not removed, and the
 	CHECK(SituationTable::CheckNames(table));
 
 	table = SituationTable::Presets();
-	At(table, Situation::kDefault).name = "Everyday";
+	At(table, Situation::kDefault).name = "Everyday";  // the Default may be renamed
+	CHECK_FALSE(SituationTable::CheckNames(table));
+	At(table, Situation::kCold).name = "Default";  // its old name is free to take
+	CHECK_FALSE(SituationTable::CheckNames(table));
+	At(table, Situation::kDefault).name = "town";
 	CHECK(SituationTable::CheckNames(table));
 
 	table = SituationTable::Presets();
@@ -135,5 +139,6 @@ TEST_CASE("RestoreChanges names each situation that differs, under its name now"
 	At(table, Situation::kTown).removed = true;
 	At(table, Situation::kHome).name = "Cottage";
 	At(table, Situation::kCold).name = "Chill";
-	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Town: restored", "Cottage: name reset", "Chill: name reset" });
+	At(table, Situation::kDefault).name = "Everyday";
+	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Everyday: name reset", "Town: restored", "Cottage: name reset", "Chill: name reset" });
 }
