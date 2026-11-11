@@ -575,13 +575,26 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
-		// What the Default is, under its name: worn when no situation applies, and in combat.
+		// What the Default is, under its name.
 		void DrawDefaultNote(const State& a_state)
 		{
 			const auto whose = std::format("This is {}'s default outfit.", a_state.request.actorName);
 			Theme::SectionGap();
 			RunLine({ TextRun(whose.c_str()) });
-			RunLine({ TextRun("It is worn when no "), SituationRun(""), TextRun("situation applies, and in combat.") });
+		}
+
+		// The Default's conditions as Situations::ConditionsText words them, with the star of the
+		// situations before "situation", all in the text colour pushed now, where a field's text
+		// sits (DrawFieldText); its two lines as close as a wrapped text's.
+		void DrawDefaultConditions()
+		{
+			const std::array<Theme::SubtitleRun, 3> first{ { TextRun("Worn where no "), SituationRun(""), TextRun("situation applies,") } };
+			const std::array<Theme::SubtitleRun, 1> second{ { TextRun("and in combat.") } };
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+			Theme::RunText(first, true);
+			ImGui::PopStyleVar();
+			Theme::RunText(second, true);
 		}
 
 		// The settings every actor shares: the name, its label with the situation star (none for
@@ -604,7 +617,11 @@ namespace CaptureWindow::Internal
 			}
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			DrawFieldText(a_state.request.situations[a_entry].conditions.c_str());
+			if (isDefault) {
+				DrawDefaultConditions();
+			} else {
+				DrawFieldText(a_state.request.situations[a_entry].conditions.c_str());
+			}
 			ImGui::PopStyleColor();
 		}
 
