@@ -403,12 +403,12 @@ namespace CaptureWindow::Internal
 			const bool  wears = request.wornOutfit != 0 && request.situations[a_entry].situation == request.wornFor &&
 			                    std::ranges::find(outfits, request.wornOutfit) != outfits.end();
 			if (!wears) {
-				return { .tip = std::format("{} {} is not wearing one of them now.", kRandomLine, request.actorName) };
+				return { .tip = std::format("{}\n{} is not wearing one of them now.", kRandomLine, request.actorName) };
 			}
 			if (outfits.size() < 2) {
-				return { .tip = std::format("{} Add another to pick from.", kRandomLine) };
+				return { .tip = std::format("{}\nAdd another to pick from.", kRandomLine) };
 			}
-			return { .button = true, .tip = std::format("{} Click to pick another now.", kRandomLine) };
+			return { .button = true, .tip = std::format("{}\nClick to pick another now.", kRandomLine) };
 		}
 
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
@@ -440,7 +440,8 @@ namespace CaptureWindow::Internal
 					.open = !entry.folded,
 					.foldable = foldable,
 					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
-					.dim = !shows });
+					.dim = !shows,
+					.icon = a_entry == 0 ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar });  // the Default's form, as its outfit rows' mark
 			const float bottom = top + Theme::SituationHeadingHeight();
 			if (form.scrollToSelected && form.selected == index) {
 				ImGui::SetScrollHereY(0.0f);
@@ -487,8 +488,8 @@ namespace CaptureWindow::Internal
 			Theme::LabelText("Situation List");
 			if (Theme::LabelHelpMark()) {
 				DrawHelpTooltip(std::format(
-					"Each situation lists the outfits {} can wear there. When several apply, the most specific one with an "
-					"outfit is worn; otherwise, and in combat, the Default. Drag an outfit onto a situation to add it, between "
+					"Each situation lists the outfits {} can wear there.\nWhen several apply, the most specific one with an "
+					"outfit is worn; otherwise, and in combat, the Default.\nDrag an outfit onto a situation to add it, between "
 					"its outfits to place it, onto another situation to move it, or back to the outfit list to take it off.",
 					a_state.request.actorName));
 			}
@@ -574,8 +575,9 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
-		// The settings every actor shares: the name, its label with the situation star (read
-		// only for the Default, which says so on hover), and the conditions, read only.
+		// The settings every actor shares: the name, its label with the situation star (the
+		// Default's form for the Default, whose name is read only and says so on hover), and the
+		// conditions, read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			constexpr const char* kDefaultName = "The Default's name cannot be changed.";
@@ -583,7 +585,7 @@ namespace CaptureWindow::Internal
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
 			const bool isDefault = a_entry == 0;
-			Theme::LabelText("Name", true, true);
+			Theme::LabelText("Name", isDefault ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar);
 			BeginItemDisabled(a_state, isDefault);
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
@@ -642,7 +644,7 @@ namespace CaptureWindow::Internal
 			if (ImGui::IsItemHovered()) {
 				DrawHelpTooltip(std::format(
 					"On: one outfit of the list is picked at random each time this situation begins for {}, and worn until it "
-					"ends. Off: only the outfit shown is worn, the last one picked; the others stay on the list, hidden.",
+					"ends.\nOff: only the outfit shown is worn, the last one picked; the others stay on the list, hidden.",
 					name));
 			}
 
@@ -743,7 +745,7 @@ namespace CaptureWindow::Internal
 		{
 			constexpr const char* kRestoreHelp =
 				"Brings the preset situations back as installed: a removed one returns, empty, and a renamed one "
-				"gets its name back. Nobody's outfits change.";
+				"gets its name back.\nNobody's outfits change.";
 
 			const auto& request = a_state.request;
 			BeginButtonRow({ "Exit" });

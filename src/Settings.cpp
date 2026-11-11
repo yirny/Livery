@@ -215,7 +215,7 @@ namespace
 	};
 	// In NpcGroup order.
 	constexpr std::array<NpcGroupSetting, 3> kNpcGroups{ {
-		{ kFollowersAndSpouseKey, "Followers and spouse", "Your followers and spouse. You can always open Livery for yourself.", NpcAccess::kFull },
+		{ kFollowersAndSpouseKey, "Followers and spouse", "Your followers and spouse.\nYou can always open Livery for yourself.", NpcAccess::kFull },
 		{ kFriendsKey, "Friends", "NPCs who count you as a friend or better.", NpcAccess::kSaveOnly },
 		{ kOtherNpcsKey, "Other NPCs", "Every other adult NPC.", NpcAccess::kDisabled },
 	} };
@@ -700,7 +700,7 @@ namespace
 		if (ImGuiMCP::Button("Restore default settings")) {
 			ImGuiMCP::OpenPopup(kPopup);
 		}
-		ImGuiMCP::SetItemTooltip("Puts every setting on this page back to its default. Window skin keeps your choice.");
+		ImGuiMCP::SetItemTooltip("Puts every setting on this page back to its default.\nWindow skin keeps your choice.");
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
@@ -726,7 +726,7 @@ namespace
 			ImGuiMCP::OpenPopup(kPopup);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Takes Livery's outfits off everyone, player included, and forgets their situational outfits. "
+			"Takes Livery's outfits off everyone, player included, and forgets their situational outfits.\n"
 			"Do this before you uninstall Livery.");
 		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
@@ -838,7 +838,7 @@ namespace
 	void RenderNpcAccess()
 	{
 		constexpr float kComboWidthEms = 10.0f;  // the dropdown's width, of the font size
-		constexpr auto  kAccessHelp = "Full management: you can dress them. Save only: you can save what they wear as an outfit. Disabled: the hotkey does nothing on them.";
+		constexpr auto  kAccessHelp = "Full management: you can dress them.\nSave only: you can save what they wear as an outfit.\nDisabled: the hotkey does nothing on them.";
 
 		float labelColumn = 0.0f;
 		for (const auto& setting : kNpcGroups) {
@@ -888,8 +888,8 @@ namespace
 			ImGuiMCP::EndCombo();
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Controls whether NPCs can equip extra gear in slots their Livery outfit leaves empty. "
-			"For example, with \"Allow all\" they can wear a helmet you give them if the outfit has no headgear. "
+			"Controls whether NPCs can equip extra gear in slots their Livery outfit leaves empty.\n"
+			"For example, with \"Allow all\" they can wear a helmet you give them if the outfit has no headgear.\n"
 			"Their original outfit never goes back on.\n\n"
 			"\"Except headgear\" blocks helmets, hoods, and circlets.\n\n"
 			"Default: Except headgear");
@@ -934,7 +934,7 @@ namespace
 			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Adds a Chests tab to Livery. Each chest can hold any number of items, including several for the same slot. "
+			"Adds a Chests tab to Livery.\nEach chest can hold any number of items, including several for the same slot.\n"
 			"Load a chest on the Dress page to choose between variants.\n\n"
 			"Default: OFF");
 
@@ -981,8 +981,8 @@ namespace
 			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", !inventoryOnly);
 		}
 		ImGuiMCP::SetItemTooltip(
-			"Dressing yourself uses only items you carry. NPCs always get what they need, but you can't take those items from them.\n\n"
-			"Off: missing items are created in your inventory for free, which can break game balance. Keeping this on is strongly recommended.\n\n"
+			"Dressing yourself uses only items you carry.\nNPCs always get what they need, but you can't take those items from them.\n\n"
+			"Off: missing items are created in your inventory for free, which can break game balance.\nKeeping this on is strongly recommended.\n\n"
 			"Default: ON");
 
 		Heading("Window");
@@ -1011,7 +1011,7 @@ namespace
 			SaveSpeedPercent(g_speedPercent.load());
 			logger::info("SpeedPercent = {:.0f} (SKSE Menu Framework)", g_speedPercent.load());
 		}
-		ImGuiMCP::SetItemTooltip("Adjusts camera movement speed. Use WASD, mouse drag, and scroll wheel to control the camera.");
+		ImGuiMCP::SetItemTooltip("Adjusts camera movement speed.\nUse WASD, mouse drag, and scroll wheel to control the camera.");
 
 		SettingGap();
 
@@ -1041,7 +1041,7 @@ namespace
 			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
 			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
 		}
-		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites. Quest items are always excluded.\n\nDefault: ON");
+		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites.\nQuest items are always excluded.\n\nDefault: ON");
 		ImGuiMCP::EndDisabled();
 		ImGuiMCP::Unindent();
 

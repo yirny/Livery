@@ -1138,7 +1138,7 @@ namespace CaptureWindow::Internal
 			.id = outfit.id,
 			.applyLabel = edits ? "Save and Apply" : "Apply",
 			.saveFirst = edits ? ApplySubject::SaveFirst::kEdits : ApplySubject::SaveFirst::kNothing,
-			.saveFirstHelp = edits ? " Your changes are saved first." : "",
+			.saveFirstHelp = edits ? "\nYour changes are saved first." : "",
 			.drawSaveLines = edits ? &DrawLibraryChangeLines : nullptr };
 	}
 
@@ -1202,7 +1202,7 @@ namespace CaptureWindow::Internal
 		if (IsTaken(a_state, 0, a_subject.id)) {
 			help += std::format(", replacing {}", HeldOutfitName(a_state, 0));
 		}
-		return help + ". Their current situational outfit stays equipped." + a_subject.saveFirstHelp;
+		return help + ".\nTheir current situational outfit stays equipped." + a_subject.saveFirstHelp;
 	}
 
 	// Apply's popup when it offers row `a_row`, the situation the actor wears another outfit

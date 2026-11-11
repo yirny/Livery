@@ -84,7 +84,7 @@ Livery's defaults lean towards immersion, but they're not there to tell you how 
 [size=4][b][color=#B8953E]Quick Start[/color][/b][/size]
 
 [b]Opening Livery[/b]
-Press the hotkey (Shift + X by default). Aim at an NPC to open Livery on them; aim at nothing to open it on yourself.
+Press the hotkey (Shift + X by default). Aim at an NPC to open Livery on them; aim at anything else, a horse included, to open it on yourself.
 By default, you can dress your followers and spouse and save what your friends wear. Other NPCs are off limits. (Configurable)
 
 [b]Dress a follower or your spouse[/b]
