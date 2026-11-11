@@ -1539,9 +1539,9 @@ namespace CaptureWindow::Internal
 		bool       helpHovered = false;
 		const bool justApply = Theme::HelpButton(kJustApply, &helpHovered);
 		if (helpHovered) {
-			auto help = std::format("Sets the selected items as {}'s Default without adding them to the wardrobe.", request.actorName);
+			auto help = std::format("Sets the selected items as {}'s default outfit without adding them to the wardrobe.", request.actorName);
 			if (HasSituationalOutfits(a_state)) {
-				help += "\nThe new Default takes effect when no situational outfit applies.";
+				help += "\nThe new default outfit takes effect when no situational outfit applies.";
 			}
 			DrawHelpTooltip(help);
 		}

@@ -521,7 +521,7 @@ chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default al
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
 on. Each situation's name comes from `situations.json` (§4): the window and the HUD show
 it, the sentences that say what is worn end in ` for <name>` (the summary line in `as
-Default` for the Default, the HUD in nothing), and the logs keep the key. A removed situation offers no row
+<name>` for the Default, the HUD in nothing), and the logs keep the key. A removed situation offers no row
 and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on and kept until it changes, a forced redress keeping it while it is on the list,
 and recorded as `chosen`, so turning random off keeps the last pick on. A click on the
