@@ -420,7 +420,8 @@ as the Default.
   reads its outfit from the library each time it goes on; the window names the outfits
   from the ids. A row for a situation the version does not know is dropped with a log line.
 - A piece, own copy, locked outfit copy or Default piece whose plugin is gone is dropped at load, and an
-  assignment with nothing on the actor and no situation row holding an outfit. Before that
+  assignment with nothing on the actor, no row (the Default's included) holding an outfit and
+  no row random (`IsEmpty`; a row holding an outfit none of whose items is loaded keeps it). Before that
   check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
   line; pieces worn for it stay on until the poll's next dressing. A key whose
   instance is gone is skipped whenever the actor is dressed or released.
