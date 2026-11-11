@@ -247,9 +247,9 @@ The situation's details, its fields evenly spaced with no headings:
   combat.`, the star the Situations tab's in the text's grey (`Theme::RunText`'s
   `plainNames`), the lines as close as a wrapped text's. The text sits a field's
   frame padding below the label, where a field's text would (`DrawFieldText`).
-- `Random Outfit (for #{Name}) (?)`, a checkbox: `On: one outfit of the list is picked at random
-  each time this situation begins for #{Name}, and worn until it ends. Off: only the outfit
-  shown is worn, the last one picked; the others stay on the list, hidden.` Unticking it keeps
+- `Random Outfit (for #{Name}) (?)`, a checkbox: `On: Each time this situation begins, #{Name}
+  wears a random outfit from the list until it ends.` then a blank line and `Off: #{Name} wears
+  the last picked outfit. The others stay in the list but are hidden.` Unticking it keeps
   the last pick on (§1).
 - The room above every button row (`ButtonRowGap`), then `Show Outfit List`, a button centred in the pane. A click shows
   the outfit list, keeps the situation selected, opens its heading if folded and scrolls the
