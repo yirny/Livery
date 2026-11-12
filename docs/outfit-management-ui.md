@@ -213,7 +213,11 @@ makes that sort the one every page's list starts in when the window opens, writt
   `AccentLight`, Nordic every one but `AccentLight` and `Selected`), and the shipped files
   hold only those. A colour left out or malformed keeps the skin's own; `Livery.log` names a
   malformed one. The game's art (scroll bar, checkbox, equipped marks) keeps its colours.
-  Shipped: Modern, Edge, Vanilla, Nordic, each written only when missing. A new file is listed
+  Shipped: Modern, Edge, Vanilla, Nordic, each written only when missing. A `[UI] Palette` key
+  Livery.ini lacks (a first start) is written with the palette that suits the UI mod a loose
+  file shows (`DetectUiPalette`, first match): Edge for Edge UI or Vel'dun UI, Modern for
+  Norden UI, Oathvein UI, Untarnished UI or Dear Diary DM, Nordic for NORDIC UI or Dragonborn
+  UI, else Vanilla; a palette already in the INI is never replaced. A new file is listed
   from the next start. The dropdowns list each as `Modern - Edge` (skin, then file), or the
   skin alone for its own palette; the settings page's choice takes effect at the next open.
 - The skins: Modern, dark panels with nearly square frames after Edge UI, in Jost; Vanilla,
