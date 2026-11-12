@@ -55,7 +55,7 @@ Convenient outfit management shouldn't feel like stepping out of Skyrim.
 
 [i]An interface that belongs in Skyrim[/i]
 [list]
-[*]Three skins: Vanilla, NORDIC UI and Modern.
+[*]Three skins: Vanilla, NORDIC UI and Modern, picked to match your UI mod.
 [*]Editable colour palettes, including one made to match Edge UI.
 [*]A window that looks and handles like the game's own menus.
 [*]Compact, so the NPC stays in view: dressing them feels like part of the conversation, not a trip to a menu.

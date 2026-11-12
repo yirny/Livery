@@ -82,7 +82,7 @@ namespace
 	constexpr auto kReleaseEveryoneKey = L"ReleaseEveryone";
 
 	constexpr auto kPaletteDir = L"Data/SKSE/Plugins/Livery/palettes";
-	constexpr auto kDefaultPalette = L"Modern";  // keep in step with kIniKeys
+	constexpr auto kDefaultPalette = L"Modern";  // only when Livery.ini lacks [UI] Palette and could not be written (see NewKeyValue)
 
 	constexpr auto kMenuSource = "SKSE Menu Framework";  // the settings page, as the log names it
 
@@ -132,9 +132,10 @@ namespace
 		{ kIniSection, kUnusedSlotsKey, L"ExceptHeadgear",
 			L"What NPCs in a Livery outfit may equip in body slots the outfit doesn't use, such as a helmet you give them.\n"
 			L"All = anything. ExceptHeadgear = anything but helmets, hoods and circlets. OutfitOnly = nothing." },
-		{ kUiSection, kPaletteKey, L"Modern",
+		{ kUiSection, kPaletteKey, L"Modern",  // a new key gets DetectUiPalette's choice instead (NewKeyValue)
 			L"Window skin: a palette file in Data/SKSE/Plugins/Livery/palettes, named without .ini\n"
-			L"(Modern, Edge, Vanilla, Nordic, or your own copy of one)." },
+			L"(Modern, Edge, Vanilla, Nordic, or your own copy of one).\n"
+			L"The first time, Livery picks the one that suits your UI mod." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = Livery plays the game's menu sounds as it opens and as you click in it." },
 		{ kHotkeySection, kHotkeyKeyKey, L"47",
@@ -456,6 +457,50 @@ namespace
 		return WriteIniValues(values);
 	}
 
+	// The palette that suits the player's UI mod, found by a loose file only that mod (or its
+	// family) installs, else Vanilla. Edge UI holds Untarnished UI's file too, being built on it,
+	// so the Edge checks come first. A UI packed in a BSA is not found. The paths are relative to
+	// the working directory, the game folder (MO2's virtual Data included).
+	// Contract: only for a [UI] Palette key the INI lacks (a first start), so a palette the
+	// player chose is never replaced.
+	const wchar_t* DetectUiPalette()
+	{
+		struct Marker
+		{
+			const wchar_t* file;
+			const wchar_t* palette;
+			const char*    ui;  // as the log names it
+		};
+		constexpr std::array<Marker, 7> kMarkers{ {
+			{ L"Data/Interface/fonts_highvoltage.swf", L"Edge", "Edge UI" },
+			{ L"Data/Interface/Lato.swf", L"Edge", "Vel'dun UI" },
+			{ L"Data/Interface/JostRegular.swf", L"Modern", "Norden UI or Oathvein UI" },
+			{ L"Data/Interface/UntarnishedUI/buttonart_config.txt", L"Modern", "Untarnished UI" },
+			{ L"Data/Interface/deardiary_dm/config.txt", L"Modern", "Dear Diary DM" },
+			{ L"Data/Textures/Interface/menu_scene/LAYER_BG.dds", L"Nordic", "NORDIC UI" },
+			{ L"Data/Interface/ImGuiIcons/Fonts/SovngardeLight.ttf", L"Nordic", "Dragonborn UI" },
+		} };
+		for (const auto& marker : kMarkers) {
+			std::error_code ec;
+			if (std::filesystem::exists(marker.file, ec)) {
+				logger::info("Found {}: palette {}", marker.ui, ToUtf8(marker.palette));
+				return marker.palette;
+			}
+		}
+		logger::info("No known UI mod found: palette Vanilla");
+		return L"Vanilla";
+	}
+
+	// The value a key the INI lacks is written with: its kIniKeys default, or for [UI] Palette
+	// DetectUiPalette's choice.
+	std::wstring_view NewKeyValue(const IniKey& a_entry)
+	{
+		if (std::wstring_view{ a_entry.section } == kUiSection && std::wstring_view{ a_entry.key } == kPaletteKey) {
+			return DetectUiPalette();
+		}
+		return a_entry.defaultValue;
+	}
+
 	// Writes a fresh INI holding every key with its comment and default.
 	void WriteIniTemplate()
 	{
@@ -478,7 +523,7 @@ namespace
 				file << L"; " << comment.substr(0, end) << L'\n';
 				comment = end == std::wstring_view::npos ? std::wstring_view{} : comment.substr(end + 1);
 			}
-			file << entry.key << L'=' << entry.defaultValue << L'\n';
+			file << entry.key << L'=' << NewKeyValue(entry) << L'\n';
 		}
 		logger::info("Created Livery.ini with default settings");
 	}
@@ -494,7 +539,7 @@ namespace
 			::GetPrivateProfileStringW(entry.section, entry.key, kMissing, value, static_cast<DWORD>(std::size(value)),
 				g_iniPath.c_str());
 			if (std::wstring_view{ value } == kMissing) {
-				missing.push_back({ entry.section, entry.key, entry.defaultValue });
+				missing.push_back({ entry.section, entry.key, NewKeyValue(entry) });
 			}
 		}
 		if (missing.empty() || !WriteIniValues(missing)) {
