@@ -1221,7 +1221,7 @@ namespace Assignments
 		}
 		// The new Default goes on even when they already wore the Default; a situation
 		// outfit they wear stays on and the Default waits for its turn.
-		const auto now = Situations::Evaluate(a_actor);
+		const auto now = Situations::Evaluate(a_actor, assignment.rows);
 		options.force = OutfitRows::Resolve(LiveRows(assignment), now) == Situation::kDefault;
 		const auto result = Redress(assignment, a_actor, now, options);
 		const auto wornFor = assignment.worn;  // read before DropIfEmpty, which may end the record
@@ -1255,7 +1255,7 @@ namespace Assignments
 		for (const auto row : a_changes.remove) {
 			(OutfitRows::HoldsAny(assignment.rows[RowOf(row)]) ? kept : emptied).push_back(row);
 		}
-		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor),
+		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor, assignment.rows),
 			{ .force = true, .leaveOut = a_changes.leaveOut, .given = a_changes.outfit, .givenRows = a_changes.assign });
 		const auto worn = assignment.worn;  // read before DropIfEmpty, which may end the record
 		const auto pieces = assignment.pieces.size();
@@ -1314,7 +1314,7 @@ namespace Assignments
 			Notify(std::format("Livery: {} is dead.", NameOf(a_actor)));
 			return;
 		}
-		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor),
+		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor, assignment->rows),
 			{ .force = true, .leaveOut = a_leaveOut, .given = a_pick, .givenRows = { assignment->worn } });
 		const auto worn = assignment->worn;  // read before DropIfEmpty, which may end the record
 		const auto outfit = assignment->wornOutfit;
@@ -1363,6 +1363,12 @@ namespace Assignments
 			Notify(text);
 		}
 		return true;
+	}
+
+	Situations::Applicable SituationsNow(RE::Actor& a_actor)
+	{
+		const auto* assignment = FindAssignment(a_actor.GetFormID());
+		return assignment ? Situations::Evaluate(a_actor, assignment->rows) : Situations::Applicable{};
 	}
 
 	std::vector<RE::FormID> ActorsWithSituations()

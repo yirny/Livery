@@ -716,15 +716,19 @@ namespace
 	}
 
 	// The window's rows (Request::situations): the Default, then the situations not removed
-	// (SituationStore::Offered), each with its name, conditions and who has outfits on it.
+	// (SituationStore::Offered), each with its name, conditions (a user's situation's rules and
+	// their Applies line) and who has outfits on it.
 	// Contract: game thread.
 	std::vector<CaptureWindow::SituationInfo> SituationInfos()
 	{
 		std::vector<CaptureWindow::SituationInfo> infos;
 		const auto                                add = [&infos](Situations::Situation situation, std::vector<std::string> holders) {
+			const auto* rules = SituationStore::RulesOf(situation);
 			infos.push_back({ .situation = situation,
 				.name = SituationStore::Name(situation),
-				.conditions = Situations::ConditionsText(situation),
+				.conditions = rules ? SituationRules::Text(*rules) : Situations::ConditionsText(situation),
+				.user = rules != nullptr,
+				.rules = rules ? *rules : SituationRules::Rules{},
 				.holders = std::move(holders) });
 		};
 		add(Situations::Situation::kDefault, {});
@@ -1033,7 +1037,7 @@ namespace
 		} else if (redress.updated != 0) {
 			RedressFor(actor, redress.updated);
 		} else {
-			Assignments::WearFor(actor, Situations::Evaluate(actor));
+			Assignments::WearFor(actor, Assignments::SituationsNow(actor));
 		}
 	}
 
@@ -1125,7 +1129,7 @@ namespace
 			if (!actor || !actor->Is3DLoaded() || actor->IsDead()) {
 				continue;
 			}
-			Assignments::WearFor(*actor, Situations::Evaluate(*actor));
+			Assignments::WearFor(*actor, Assignments::SituationsNow(*actor));
 		}
 	}
 
@@ -1432,14 +1436,16 @@ namespace
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
 			if (!save.edits.empty()) {
 				std::vector<SituationStore::Edit> edits;
-				for (const auto& [situation, name] : save.edits) {
-					edits.push_back({ .situation = situation, .name = name });
+				for (const auto& [situation, name, rules] : save.edits) {
+					edits.push_back({ .situation = situation, .name = name, .rules = rules });
 				}
 				if (const auto error = SituationStore::Apply(edits)) {
 					CaptureWindow::SetError(*error);
 					return;
 				}
-				logger::info("Saved the situations' names.");  // no HUD message: the page saves as it is edited
+				// No HUD message: the page saves as it is edited. Nobody is redressed for changed
+				// conditions here: the poll, which waits while the window is open, follows them.
+				logger::info("Saved the situations' names and conditions.");
 			}
 			const auto                                target = handle.get();
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};
@@ -1456,6 +1462,18 @@ namespace
 			}
 			auto list = CurrentOutfitList(actorID, armors);  // after the rows changed
 			list.actorPieces = std::move(redressed);
+			CaptureWindow::SetOutfits(std::move(list));
+		};
+		// A user's situation with no conditions: it never applies, and nobody's rows change.
+		request.onSituationCreate = [actorID, armors](const std::string& name) {
+			auto created = Situations::Situation::kDefault;
+			if (const auto error = SituationStore::Create(name, created)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			Notify(std::format("Livery: created the situation \"{}\".", name));
+			auto list = CurrentOutfitList(actorID, armors);
+			list.createdSituation = created;
 			CaptureWindow::SetOutfits(std::move(list));
 		};
 		// Every row of the situation goes (Assignments::ForgetSituation), and those wearing it

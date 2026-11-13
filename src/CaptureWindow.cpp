@@ -2466,6 +2466,9 @@ namespace CaptureWindow
 			OutfitBrowser::Rebuild(*browser, request);
 		}
 		FillSituationForm(state, situationsBefore);
+		if (a_list.createdSituation) {
+			SelectSituation(state, *a_list.createdSituation);
+		}
 		FollowWornOutfit(state);
 		SetGroupHeadings(state);
 		FollowInventorySources(state);

@@ -15,12 +15,15 @@
 //                     chevron folds, the die of the row worn puts on another of its outfits)
 //                     over the outfits it shows; a click on an outfit row of either pane shows
 //                     its details and puts it on the preview
+//   Condition editor - a user's situation's conditions (docs/custom-situations.md §7): a line
+//                     per row with Not, its kind and Remove, its values or times under it;
+//                     Add Condition..., Apply in combat, the Applies line
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
 //                     pieces ticked as the row it was clicked under wears them
-//   Buttons, popups - Exit, Restore Presets (?); Remove's and Restore Presets' popups, each
-//                     handing its write to the Request's handler
+//   Buttons, popups - New Situation..., Exit, Restore Presets (?); the New situation, Remove's and
+//                     Restore Presets' popups, each handing its write to the Request's handler
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
@@ -54,6 +57,8 @@ namespace CaptureWindow::Internal
 		constexpr double      kDragExpandDelay = 1.0;
 		constexpr const char* kRemoveSituationPopup = "Remove situation?";
 		constexpr const char* kRestorePresetsPopup = "Restore presets?";
+		constexpr const char* kNewSituationPopup = "New situation";
+		constexpr const char* kNewSituation = "New Situation...";
 		// Reasons a button is greyed out, shown on hover.
 		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
 		// The name a situation gets when neither the one typed nor the one before can be used.
@@ -79,6 +84,13 @@ namespace CaptureWindow::Internal
 				}
 			}
 			return false;
+		}
+
+		// Entry `a_index` is a user's situation whose conditions differ from situations.json.
+		bool RulesChanged(const State& a_state, std::size_t a_index)
+		{
+			const auto& saved = a_state.request.situations[a_index];
+			return saved.user && a_state.situationForm.entries[a_index].rules != saved.rules;
 		}
 
 		// A row differs from the actor's, or the Default's pieces were dropped.
@@ -515,6 +527,181 @@ namespace CaptureWindow::Internal
 			return diceClicked;
 		}
 
+		// --- Condition editor -------------------------------------------------
+
+		// The values of `a_row`'s kind as checkboxes, side by side while the pane has room.
+		// Returns true when one was ticked or unticked.
+		bool DrawRowValues(SituationRules::Row& a_row)
+		{
+			const auto& style = ImGui::GetStyle();
+			const float right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+			const auto  values = SituationRules::InfoOf(a_row.kind).values;
+			bool        changed = false;
+			for (std::size_t i = 0; i < values.size(); ++i) {
+				const auto& value = values[i];
+				if (i > 0) {
+					const float width = ImGui::GetFrameHeight() + style.ItemInnerSpacing.x + ImGui::CalcTextSize(value.label).x;
+					if (ImGui::GetItemRectMax().x + style.ItemSpacing.x + width <= right) {
+						ImGui::SameLine();
+					}
+				}
+				bool ticked = (a_row.values & value.bit) != 0;
+				if (Theme::Checkbox(value.label, &ticked)) {
+					a_row.values ^= value.bit;
+					changed = true;
+				}
+			}
+			return changed;
+		}
+
+		// A dropdown of the times of day, `a_minutes` (after midnight) its choice. Returns true
+		// when another was chosen.
+		bool DrawTimeDropdown(const char* a_id, std::uint16_t& a_minutes)
+		{
+			constexpr std::uint16_t kTimeStep = 30;  // minutes between the times offered
+
+			const Theme::FieldStyle style{};
+			const auto              current = SituationRules::TimeText(a_minutes);
+			ImGui::SetNextItemWidth(Theme::DropdownWidth("12:30 AM", style));
+			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_HeightLarge, style);
+			bool       changed = false;
+			if (open) {
+				for (std::uint16_t minute = 0; minute < SituationRules::kMinutesPerDay; minute += kTimeStep) {
+					bool chosen = minute == a_minutes;
+					if (Theme::DropdownRow(SituationRules::TimeText(minute).c_str(), &chosen, false) && minute != a_minutes) {
+						a_minutes = minute;
+						changed = true;
+					}
+				}
+			}
+			Theme::EndCombo(open, current.c_str(), style);
+			return changed;
+		}
+
+		enum class ConditionEdit
+		{
+			kNone,
+			kChanged,
+			kRemove
+		};
+
+		// One condition row: Not, its kind (what it means on hover) and Remove at the line's
+		// right end, then indented under it its values, or From and to for Time of day.
+		ConditionEdit DrawConditionRow(SituationRules::Row& a_row)
+		{
+			const auto& info = SituationRules::InfoOf(a_row.kind);
+			auto        edit = ConditionEdit::kNone;
+			if (Theme::Checkbox("Not", &a_row.negated)) {
+				edit = ConditionEdit::kChanged;
+			}
+			if (ImGui::IsItemHovered()) {
+				Theme::Tooltip("Holds while this is not so.");
+			}
+			ImGui::SameLine();
+			ImGui::TextUnformatted(info.label);
+			if (ImGui::IsItemHovered()) {
+				Theme::Tooltip(info.tip);
+			}
+			if (Theme::LineLink("Remove")) {
+				edit = ConditionEdit::kRemove;
+			}
+			const float indent = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x;  // under the kind's name
+			ImGui::Indent(indent);
+			bool changed = false;
+			if (!info.values.empty()) {
+				changed = DrawRowValues(a_row);
+			} else if (a_row.kind == SituationRules::Kind::kTimeOfDay) {
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("From");
+				ImGui::SameLine();
+				changed = DrawTimeDropdown("##from", a_row.from);
+				ImGui::SameLine();
+				ImGui::TextUnformatted("to");
+				ImGui::SameLine();
+				changed = DrawTimeDropdown("##to", a_row.to) || changed;
+			}
+			ImGui::Unindent(indent);
+			return edit == ConditionEdit::kNone && changed ? ConditionEdit::kChanged : edit;
+		}
+
+		// Add Condition...: a dropdown of the kinds; returns the one chosen.
+		std::optional<SituationRules::Kind> DrawAddCondition()
+		{
+			constexpr const char* kAddCondition = "Add Condition...";
+
+			const Theme::FieldStyle style{ .previewIsHint = true };
+			ImGui::SetNextItemWidth(Theme::DropdownWidth(kAddCondition, style));
+			const bool                          open = Theme::BeginCombo("##addCondition", ImGuiComboFlags_HeightLargest, style);
+			std::optional<SituationRules::Kind> added;
+			if (open) {
+				for (const auto& info : SituationRules::kKinds) {
+					bool chosen = false;
+					if (Theme::DropdownRow(info.label, &chosen, false)) {
+						added = info.kind;
+					}
+				}
+			}
+			Theme::EndCombo(open, kAddCondition, style);
+			return added;
+		}
+
+		// Apply in combat, ticked and greyed while an In combat condition needs it.
+		bool DrawApplyInCombat(const State& a_state, SituationRules::Rules& a_rules)
+		{
+			const bool forced = !a_rules.applyInCombat && SituationRules::AppliesInCombat(a_rules);
+			bool       ticked = forced || a_rules.applyInCombat;
+			BeginItemDisabled(a_state, forced);
+			const bool changed = Theme::Checkbox("Apply in combat", &ticked);
+			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			EndItemDisabled();
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (hovered) {
+				Theme::Tooltip(forced ? "On while the situation has an In combat condition." :
+										"The situation can apply during a fight.\n\nOff: In combat, the default outfit is worn.");
+			}
+			if (changed) {
+				a_rules.applyInCombat = ticked;
+			}
+			return changed;
+		}
+
+		// A user's situation's conditions as edited: a line per row (DrawConditionRow), Add
+		// Condition..., Apply in combat, then the Applies line they make. Returns true on a change.
+		bool DrawConditionEditor(const State& a_state, SituationRules::Rules& a_rules)
+		{
+			Theme::LabelText("Conditions");
+			if (Theme::LabelHelpMark()) {
+				DrawHelpTooltip("The situation applies while all its conditions hold.\nTick several values of one condition for any of them.");
+			}
+			bool                       changed = false;
+			std::optional<std::size_t> removed;
+			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
+				ImGui::PushID(static_cast<int>(i));
+				const auto edit = DrawConditionRow(a_rules.rows[i]);
+				ImGui::PopID();
+				changed = changed || edit != ConditionEdit::kNone;
+				if (edit == ConditionEdit::kRemove) {
+					removed = i;
+				}
+			}
+			if (removed) {
+				a_rules.rows.erase(a_rules.rows.begin() + static_cast<std::ptrdiff_t>(*removed));
+			}
+			if (const auto kind = DrawAddCondition()) {
+				a_rules.rows.push_back({ .kind = *kind });
+				changed = true;
+			}
+			changed = DrawApplyInCombat(a_state, a_rules) || changed;
+			Theme::LabelText("Applies");
+			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			DrawFieldText(SituationRules::Text(a_rules).c_str());
+			ImGui::PopStyleColor();
+			if (changed) {
+				QueueMenuSound(kFocusSound);
+			}
+			return changed;
+		}
+
 		// --- Right pane -------------------------------------------------------
 
 		enum class RightPane
@@ -598,7 +785,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// The settings every actor shares: the name, its label with the situation star (none for
-		// the Default, which says what it is under it), and the conditions, read only.
+		// the Default, which says what it is under it), and the conditions: a user's situation's
+		// in the condition editor, a preset's read only.
 		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			auto&      form = a_state.situationForm;
@@ -614,6 +802,12 @@ namespace CaptureWindow::Internal
 			}
 			if (isDefault) {
 				DrawDefaultNote(a_state);
+			}
+			if (a_state.request.situations[a_entry].user) {
+				if (DrawConditionEditor(a_state, entry.rules)) {
+					ScheduleAutosave(a_state);
+				}
+				return;
 			}
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -752,13 +946,14 @@ namespace CaptureWindow::Internal
 		enum class SituationAction
 		{
 			kNone,
+			kNew,
 			kRestore,
 			kExit
 		};
 
-		// Exit, centred as the other pages' buttons, then Restore Presets (?) at the row's right
-		// end, a link as the details' Remove and Restore are, greyed while every preset is as
-		// installed. a_escapeTaken: the
+		// New Situation... and Exit, centred as the other pages' buttons, then Restore Presets (?)
+		// at the row's right end, a link as the details' Remove and Restore are, greyed while
+		// every preset is as installed. a_escapeTaken: the
 		// browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
@@ -767,7 +962,11 @@ namespace CaptureWindow::Internal
 				"gets its name back.\nNobody's outfits change.";
 
 			const auto& request = a_state.request;
-			BeginButtonRow({ "Exit" });
+			BeginButtonRow({ { kNewSituation, Theme::HeadingIcon::kStar }, "Exit" });
+			BeginItemDisabled(a_state, !request.onSituationCreate);
+			const bool create = Theme::Button(Theme::HeadingIcon::kStar, kNewSituation);
+			EndItemDisabled();
+			ImGui::SameLine();
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 			const bool exit = Theme::Button("Exit") || escape;
 
@@ -784,6 +983,9 @@ namespace CaptureWindow::Internal
 				DrawHelpTooltip(kRestoreHelp);
 			}
 
+			if (create) {
+				return SituationAction::kNew;
+			}
 			if (restore) {
 				return SituationAction::kRestore;
 			}
@@ -806,8 +1008,8 @@ namespace CaptureWindow::Internal
 			return confirm;
 		}
 
-		// `Remove Town?` (the name after its star), who has outfits on it in this save, and what
-		// Restore Presets brings back; Remove / Cancel. Returns true on Remove.
+		// `Remove Town?` (the name after its star), who has outfits on it in this save, and for a
+		// preset what Restore Presets brings back; Remove / Cancel. Returns true on Remove.
 		bool DrawRemoveSituationPopup(const State& a_state)
 		{
 			if (!BeginModal(kRemoveSituationPopup)) {
@@ -828,7 +1030,9 @@ namespace CaptureWindow::Internal
 					ImGui::BulletText("%s", holder.c_str());
 				}
 			}
-			ImGui::TextUnformatted(saved.holders.empty() ? "Restore Presets can bring it back." : "Restore Presets can bring it back, but not their outfits.");
+			if (!saved.user) {
+				ImGui::TextUnformatted(saved.holders.empty() ? "Restore Presets can bring it back." : "Restore Presets can bring it back, but not their outfits.");
+			}
 			const bool remove = DrawPopupButtons("Remove");
 			ImGui::EndPopup();
 			return remove;
@@ -850,6 +1054,30 @@ namespace CaptureWindow::Internal
 			return restore;
 		}
 
+		// The New situation popup: the name, then Create (Enter with a name typed) / Cancel
+		// (Escape). Returns true on Create; the name is SituationForm::newName.
+		bool DrawNewSituationPopup(State& a_state)
+		{
+			if (!BeginModal(kNewSituationPopup)) {
+				return false;
+			}
+			auto& name = a_state.situationForm.newName;
+			ImGui::TextUnformatted("Name the new situation.");
+			const bool enter = DrawNameField(a_state, name, nullptr, nullptr, "Situation Name");
+			BeginButtonRow({ "Create", "Cancel" });
+			const bool typed = !Trimmed(name.data()).empty();
+			const bool create = ReasonButton("Create", typed ? nullptr : kNeedName) || enter;
+			ImGui::SameLine();
+			const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			EndButtonRow();
+			if (create || cancel) {
+				QueueMenuSound(create ? kOkSound : kCancelSound);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+			return create;
+		}
+
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
 		// when any changed, and the outfit whose details show, which stays on
 		// the preview; with `a_reroll`, a die's click (SituationSave::reroll). Until the handler
@@ -864,8 +1092,11 @@ namespace CaptureWindow::Internal
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				const auto& saved = request.situations[i];
 				auto        name = Trimmed(form.entries[i].name.data());
-				if (name != saved.name) {
-					save.edits.push_back({ .situation = saved.situation, .name = std::move(name) });
+				const bool  rules = RulesChanged(a_state, i);
+				if (name != saved.name || rules) {
+					save.edits.push_back({ .situation = saved.situation,
+						.name = std::move(name),
+						.rules = rules ? std::optional{ form.entries[i].rules } : std::nullopt });
 				}
 			}
 			if (RowsChanged(a_state)) {
@@ -911,6 +1142,18 @@ namespace CaptureWindow::Internal
 				[onRemove, situation = a_state.request.situations[static_cast<std::size_t>(a_state.situationForm.selected)].situation] { onRemove(situation); });
 		}
 
+		// Hands the New situation popup's name to onSituationCreate; the page is greyed until the
+		// handler ends with SetOutfits or SetError.
+		// Contract: the handler writes situations.json first and changes nothing for a refused
+		// or failed write (CLAUDE.md §2.1).
+		void RequestSituationCreate(State& a_state)
+		{
+			a_state.status = Status::kSaving;
+			a_state.error.clear();
+			auto onCreate = a_state.request.onSituationCreate;
+			SKSE::GetTaskInterface()->AddTask([onCreate, name = Trimmed(a_state.situationForm.newName.data())] { onCreate(name); });
+		}
+
 		void RequestRestorePresets(State& a_state)
 		{
 			a_state.status = Status::kSaving;
@@ -940,6 +1183,9 @@ namespace CaptureWindow::Internal
 			if (DrawRestorePresetsPopup(a_state)) {
 				RequestRestorePresets(a_state);
 			}
+			if (DrawNewSituationPopup(a_state)) {
+				RequestSituationCreate(a_state);
+			}
 		}
 	}
 
@@ -964,6 +1210,7 @@ namespace CaptureWindow::Internal
 			auto&       entry = entries[i];
 			CopyToField(entry.name, info.name);
 			entry.row = request.assigned[i].row;
+			entry.rules = info.rules;
 			for (std::size_t j = 0; j < a_before.size() && j < form.entries.size(); ++j) {
 				if (a_before[j].situation == info.situation) {
 					entry.folded = form.entries[j].folded;
@@ -983,8 +1230,30 @@ namespace CaptureWindow::Internal
 		form.dragHover = -1;
 	}
 
+	void SelectSituation(State& a_state, Situations::Situation a_situation)
+	{
+		auto&       form = a_state.situationForm;
+		const auto& situations = a_state.request.situations;
+		for (std::size_t i = 0; i < situations.size() && i < form.entries.size(); ++i) {
+			if (situations[i].situation == a_situation) {
+				if (form.viewedOutfit != 0) {
+					CloseOutfitView(a_state);
+				}
+				form.selected = static_cast<int>(i);
+				form.details = true;
+				form.scrollToSelected = true;
+				return;
+			}
+		}
+	}
+
 	bool HasSituationEdits(const State& a_state)
 	{
+		for (std::size_t i = 0; i < a_state.situationForm.entries.size(); ++i) {
+			if (RulesChanged(a_state, i)) {
+				return true;
+			}
+		}
 		return NamesChanged(a_state) || RowsChanged(a_state);
 	}
 
@@ -1107,6 +1376,13 @@ namespace CaptureWindow::Internal
 			OpenAfterSave(a_state, kRemoveSituationPopup);
 		}
 		switch (action) {
+		case SituationAction::kNew:
+			QueueMenuSound(kOkSound);
+			form.newName.fill('\0');
+			a_state.error.clear();
+			a_state.focusNameField = true;
+			OpenAfterSave(a_state, kNewSituationPopup);
+			break;
 		case SituationAction::kRestore:
 			QueueMenuSound(kOkSound);
 			OpenAfterSave(a_state, kRestorePresetsPopup);

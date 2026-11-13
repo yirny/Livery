@@ -1,10 +1,11 @@
 # User-defined situations
 
-Design, decided 2026-11-13; nothing below is implemented. It extends the situations of
-docs/design.md §7 (five presets with fixed rules, `Situations::Priority()`) with situations the
-user defines: a key, a name, a list of conditions, a place in the priority order. The
-registry (`Situations::Count`, `Choosable`, `Priority`, `kMaxSituations = 64`; done on
-`feat/cs-registry`) is its base. docs/memo-custom-situations.md keeps the place and spell
+Design, decided 2026-11-13. Built: 2a (§9) on `feat/cs-model`, in-game check pending; 2b and
+2c are not. It extends the situations of docs/design.md §7 (five presets with fixed rules,
+`Situations::Priority()`) with situations the user defines: a key, a name, a list of
+conditions, a place in the priority order. The registry (`Situations::Count`, `Choosable`,
+`Priority`, `AddUser`, `kMaxSituations = 64`) is its base; the model is `src/SituationRules.h`,
+the file `src/SituationTable.h`. docs/memo-custom-situations.md keeps the place and spell
 decisions in detail and the Skyrim.esm facts behind them; this file is the specification.
 Items marked *provisional* are tried in a prototype first and may change.
 
@@ -58,9 +59,9 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 
 Notes:
 
-- In Water keeps its hysteresis in a per-actor flag of the poll ("last seen in water"), no
-  longer by looking for a situation whose condition is `kInWater` (`WasSeenInWater` today), since
-  a situation now has several rows. Swimming needs none: the flag is the engine's.
+- In Water keeps its hysteresis in a per-actor list of those last told in water
+  (`g_inWater`, changed only as someone goes in or out). Swimming needs none: the flag is the
+  engine's.
 - Indoors is the cell's kind. Worldspaces that are underground or elsewhere (Blackreach,
   Sovngarde, the Soul Cairn) count as outdoors; a known quirk, documented, not worked around.
 - Location type reads the location's own keywords only, as the presets do (a room of a city is
@@ -69,7 +70,7 @@ Notes:
 - Weather does not test the cell: the user adds `not Indoors` for outdoors only. The Cold preset
   reads as `Weather {Rain, Snow, Snowy region}` and `not Indoors`.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
-  its next run.
+  its next run. From equal to To is the whole day.
 - Spell: the condition names spells, powers, shouts, potions and abilities (`MagicItem`), not
   magic effects, for the reasons in the memo; the window may still say "effect" where the
   player would. Whether `kInactive` and `kDispelled` effects must be skipped is unverified
@@ -92,23 +93,33 @@ Not offered in the first version; added on request. The rule each would use:
 
 ## 5. Evaluation
 
-`Situations::Evaluate` keeps its shape: for each situation in `Priority()`, add it when it
-applies. For a preset that is its fixed rule, and never in combat. For a user-defined
-situation: in combat, only with `Apply in combat` on; then every row must hold. A row with a
+`Situations::Evaluate(actor, rows)` keeps its shape: for each situation in `Priority()`, add it
+when it applies. It reads only the situations whose row in the actor's rows holds an outfit
+(`Assignments::SituationsNow` passes them): one they have no outfit for cannot be worn, so
+`OutfitRows::Resolve` gives the same row, and with none it returns before any engine read.
+For a preset that is its fixed rule, and never in combat. For a user-defined situation: in
+combat, only with `Apply in combat` on; then every row must hold (`SituationStore::RulesOf`).
+What a row reads of the actor (the location, in water) is read once per evaluation. A row with a
 list of forms compares FormIDs resolved once at load (`TESDataHandler::LookupForm`) and kept in
 the registry, so the poll compares integers and walks parents; no name lookups, no allocation,
 no logging. The poll, its one-redress-per-run rule and the 3 s hold are unchanged.
 
-The registry becomes mutable: adding or removing a situation (§7) happens on the game thread
-with the window open, when the poll does not run; every `OutfitRows::Rows` and the store's
-table grow with it (both already size themselves by the registry). `kMaxSituations` (64, the
-Default and the presets included) bounds the user-defined ones; the window refuses more.
+The registry is mutable: `SituationStore::Load` adds the file's user situations at
+`kDataLoaded`, before any co-save load, and `SituationStore::Create` adds one after its write
+took, both on the game thread; the window is open then, so the poll does not run. Each list is
+reserved for `kMaxSituations` (64, the Default and the presets included), so adding moves
+nothing. A removed situation stays in the registry and the store's table until the game is
+closed, so no id moves or is reused; it counts toward the 64 until then, and Create refuses
+past them. `OutfitRows::Rows` reads empty past what it stores, so a new situation needs no
+row change.
 
 ## 6. Data
 
-situations.json becomes version 2 when it first holds a user-defined situation; the parser
-reads version 1 (presets' names and removed flags only) as version 2 without user situations.
-The presets' entries are as in version 1. Shape:
+situations.json becomes version 2 when the first user-defined situation is made (`nextKey`
+above 1), and stays so after every one is removed; until then it is written as version 1, so
+a Livery without user situations still reads it. The parser reads version 1 (presets' names
+and removed flags only) as version 2 without user situations. The presets' entries are as in
+version 1; the user's follow them in the order they were made. Shape:
 
 ```json
 {
@@ -148,37 +159,48 @@ The presets' entries are as in version 1. Shape:
 
 ## 7. Situations page (provisional)
 
-The prototype decides the final form; this is the starting point.
+The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Condition editor).
 
-- The situation list gains `New situation...` and, on a user-defined situation, Remove (the
-  same popup and row clearing as a preset's Remove) and the condition editor below the name.
-- The editor: `Add condition...` (a dropdown of the kinds), then one line per row with a NOT
-  toggle, the kind, its values and a Remove. A kind with a small fixed set (Location type,
-  Weather) shows its values as checkboxes on the line; a kind with forms (Place, Spell) shows
-  the names, Remove on each and an add button; Time of day shows From and To; a kind without
-  values shows the toggle alone.
+- The page's button row gains `New Situation...` (before Exit): the `New situation` popup asks
+  for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
+  situation, with no conditions, is then selected with its details shown. A user-defined
+  situation has Remove (the same popup and row clearing as a preset's Remove, without the
+  Restore Presets line) and the condition editor below the name.
+- The editor: one line per row with a `Not` checkbox, the kind (its tooltip says what it
+  means) and Remove at the line's right end; under it, indented, the values of a kind with a
+  small fixed set (Location type, Weather) as checkboxes, side by side while the pane has
+  room, or for Time of day `From [time] to [time]`, two dropdowns in 30-minute steps (a time
+  read from the file off those steps shows as it is). Then `Add Condition...`, a dropdown of
+  the kinds, which adds a row with nothing ticked. A kind with forms (Place, Spell) will show
+  the names, Remove on each and an add button.
 - Place's add button opens the memo's popup: the captured actor's current location by default,
   `This room only` for the cell, and a list of the holds (`LocTypeHold`) to pick one instead.
   Spell's opens the memo's picker (known spells first, all spells by search).
-- `Apply in combat` is a checkbox under the rows; with an In Combat row it is on and disabled.
-- The `Applies` line replaces `ConditionsText` for a user-defined situation and is built from
-  the rows in order, one phrase per row, `not` first: `In a town or castle, in rain or snow,
-  not indoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh is on.` A row with nothing
-  selected reads `(nothing selected)`; a situation without rows `Never applies.`
+- `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
+  negated) it is on and disabled.
+- The `Applies` line, under its own label, replaces `ConditionsText` for a user-defined
+  situation and is built from the rows in order, one phrase per row, `not` first: `In a town
+  or a castle, in rain or snow, not indoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh
+  is on.` A row with nothing selected reads `Weather (nothing selected)`; a situation without
+  rows `Never applies.`
 - Edits save as the page's other edits do: 0.5 s after the last one or as the page is left,
-  the file first; a situation's rows redress after the write took.
+  the file first. Nobody is redressed for changed conditions then: the poll, which waits
+  while the window is open, follows them once it closes.
 
 ## 8. Priority
 
 Open. Where user-defined situations stand among Sleep, Cold, Home, Castle and Town, and whether
 they and the presets are ordered as one list, is decided after the prototype. Constraint from
-the memo: a Place situation for a player home must come before Home.
+the memo: a Place situation for a player home must come before Home. Provisional, as built:
+every user-defined situation before the presets, in the order they were made
+(`Situations::AddUser`).
 
 ## 9. Implementation order
 
 1. 2a: the condition model, situations.json version 2, the mutable registry, the editor, and
    the kinds that need no form picker: In Combat, Sleeping, In Water, Swimming, Indoors,
    Location type, Weather, Time of day. Usable on its own; the prototype of §7 is checked here.
+   Built on `feat/cs-model`; in-game check pending.
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).
 3. 2c: Spell, reusing 2b's list line, with the search picker and the active-effect walk.
 

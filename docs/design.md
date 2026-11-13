@@ -375,9 +375,10 @@ would have to be kept in step).
   shows (docs/situation-management-ui.md §1); restoring outfits.json brings it back.
 - Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
   presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
-  situation key its name and removed flag, only for the situations that
-  differ from the presets; a missing or empty file is every preset as installed and is not
-  written at load. The same load and write rules as the library (docs/situation-management-ui.md
+  situation key its name and removed flag, only for the presets that
+  differ from as installed, and the situations the user defines with their conditions
+  (version 2, docs/custom-situations.md §6); a missing or empty file is every preset as
+  installed and is not written at load. The same load and write rules as the library (docs/situation-management-ui.md
   §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
 - Chests (docs/chest-ui.md): `chests.json` beside the library (`src/Chests.cpp`), named sets of
   items that are never worn, several on one body slot too, offered when dressing; a chest may
@@ -514,8 +515,8 @@ can come later if sharing across characters is wanted.
 
 ## 7. Situations
 
-An assigned actor has a row per situation, Town, Castle, Home, Sleep, Cold
-(`Situations::Choosable()`), and the Default, what the window's Apply gives, worn where
+An assigned actor has a row per situation, Town, Castle, Home, Sleep, Cold and those the
+user defines (docs/custom-situations.md) (`Situations::Choosable()`), and the Default, what the window's Apply gives, worn where
 none of them applies. A row is a list of library outfit ids, a random flag and the one
 chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
@@ -553,18 +554,21 @@ player has the same rows.
 
 The situations an actor is in, the most specific first (`Situations::Applicable`); the
 first one whose row holds an outfit is worn, else the Default (`OutfitRows::Resolve`).
-Each situation applies while its condition holds (`Situations::Condition`,
-`Situations::ConditionOf`); Evaluate checks the situations in `Situations::Priority()`
-order, Sleep, Cold, Home, Castle, Town, and only their conditions. The rules are Tailor 3.0's
+A preset applies while its condition holds (`Situations::Condition`,
+`Situations::ConditionOf`), a user's situation while its conditions do
+(docs/custom-situations.md §2-§5); Evaluate checks the situations in `Situations::Priority()`
+order, the user's first, then Sleep, Cold, Home, Castle, Town, and only those whose row holds
+an outfit for the actor. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
 (§6): Town, Cold by weather (while cloudy weather counted), combat, in water by wading.
-Not yet: Castle, Home, Sleep, Cold by a snowy region. In combat no situation applies, so
-a fight is fought in the default outfit. The conditions:
+Not yet: Castle, Home, Sleep, Cold by a snowy region. In combat no preset applies, so
+a fight is fought in the default outfit unless a user's situation applies in combat. The
+conditions:
 
-- In water (no situation Livery installs uses it; kept for situations whose conditions
-  can be chosen): the actor state's swimming flag, or the engine reports a water height
-  relevant to them no lower than 40 units under their feet (wading counts); once the poll
-  saw them in a situation in water, they stay in it until that water is 60 units under
+- In water (no preset uses it; a user's situation's In water condition): the actor state's
+  swimming flag, or the engine reports a water height
+  relevant to them no lower than 40 units under their feet (wading counts); once they were
+  told in water, they stay in it until that water is 60 units under
   their feet, so a shore does not flip it on and off. On a mount only the swimming flag
   counts: a rider's feet are above the water the horse wades.
 - Sleeping (Sleep): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
@@ -583,8 +587,7 @@ a fight is fought in the default outfit. The conditions:
   `LocTypeInn`, or Home's. Keywords keep their editor IDs at runtime and are found by
   them; a location's own keywords only.
 
-A situation is thus an ordered list of conditions; user-defined conditions, as Skyrim
-Outfit Equipment System NG offers them, would extend this list.
+The conditions of the user's situations are in docs/custom-situations.md §3.
 
 ### Switching
 
@@ -613,8 +616,9 @@ the player (§7), the window's pages (docs/ui-redesign.md, docs/outfit-managemen
 docs/situation-management-ui.md) and the chests (docs/chest-ui.md, behind the `Enable chests`
 setting, off by default). Open:
 
-1. Later: user-defined conditions in the way of Skyrim Outfit Equipment System NG,
-   extending `Situations::Applicable` (§7); layer outfits (docs/memo-layer-outfits.md).
+1. User-defined situations (docs/custom-situations.md) on `feature/custom-situations`: the
+   conditions without a form picker built, Place and Spell next; layer outfits
+   (docs/memo-layer-outfits.md).
 2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
    snowy region (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given

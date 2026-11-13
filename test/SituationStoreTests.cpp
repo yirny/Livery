@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <string>
 #include <vector>
 
+#include "SituationRules.h"
 #include "SituationTable.h"
 
 namespace
@@ -101,7 +103,7 @@ TEST_CASE("Parse refuses the whole file for an unknown key and leaves the preset
 	CHECK(SituationTable::Parse(R"({ "version": 1, "situations": [ { "key": "Town", "name": 3 } ] })", table));
 	CHECK(SituationTable::Parse(R"({ "version": 1, "situations": [ { "key": "Town", "removed": "yes" } ] })", table));
 	CHECK(SituationTable::Parse(R"({ "version": 1, "situations": [ { "key": "Home", "name": "Town" } ] })", table));
-	CHECK(SituationTable::Parse(R"({ "version": 2, "situations": [] })", table));  // a newer version
+	CHECK(SituationTable::Parse(R"({ "version": 3, "situations": [] })", table));  // a newer version
 	CHECK(SituationTable::Parse(R"({ "version": 1 })", table));
 	CHECK(SituationTable::Parse("not json", table));
 	CHECK(table == SituationTable::Presets());
@@ -154,4 +156,172 @@ TEST_CASE("RestoreChanges names each situation that differs, under its name now"
 	At(table, Situation::kCold).name = "Chill";
 	At(table, Situation::kDefault).name = "Everyday";
 	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Everyday: name reset", "Town: restored", "Cottage: name reset", "Chill: name reset" });
+}
+
+namespace
+{
+	using SituationRules::Kind;
+	using SituationRules::Row;
+	using SituationRules::Rules;
+
+	// A user's situation's entry, as SituationStore::Create and Parse add it.
+	SituationTable::Entry User(std::uint32_t a_number, std::string a_name, Rules a_rules = {})
+	{
+		return { .name = std::move(a_name), .key = SituationTable::UserKey(a_number), .rules = std::move(a_rules) };
+	}
+
+	const Rules kRainyTown{ .rows = { { .kind = Kind::kLocationType, .values = SituationRules::kTown | SituationRules::kCastle },
+								{ .kind = Kind::kWeather, .values = SituationRules::kRain | SituationRules::kSnow },
+								{ .kind = Kind::kIndoors, .negated = true },
+								{ .kind = Kind::kTimeOfDay, .from = 20 * 60, .to = 6 * 60 } } };
+}
+
+TEST_CASE("The Applies line has a phrase per row, not first", "[situations]")
+{
+	CHECK(SituationRules::Text(kRainyTown) == "In a town or a castle, in rain or snow, not indoors, from 8 PM to 6 AM.");
+	CHECK(SituationRules::Text({}) == "Never applies.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather } } }) == "Weather (nothing selected).");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kInCombat, .negated = true }, { .kind = Kind::kSwimming } } }) == "Not in combat, swimming.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType,
+									 .values = SituationRules::kTown | SituationRules::kPlayerHome | SituationRules::kDungeon } } }) ==
+		  "In a town, a player home or a dungeon.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kTimeOfDay, .from = 9 * 60 + 30, .to = 12 * 60 } } }) == "From 9:30 AM to 12 PM.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kTimeOfDay, .from = 0, .to = 0 } } }) == "At any hour.");
+}
+
+TEST_CASE("Time of day wraps midnight when To is before From", "[situations]")
+{
+	using SituationRules::InTimeRange;
+	CHECK(InTimeRange(20 * 60, 6 * 60, 23 * 60));
+	CHECK(InTimeRange(20 * 60, 6 * 60, 0));
+	CHECK(InTimeRange(20 * 60, 6 * 60, 20 * 60));
+	CHECK_FALSE(InTimeRange(20 * 60, 6 * 60, 6 * 60));
+	CHECK_FALSE(InTimeRange(20 * 60, 6 * 60, 12 * 60));
+	CHECK(InTimeRange(9 * 60, 17 * 60, 9 * 60));
+	CHECK_FALSE(InTimeRange(9 * 60, 17 * 60, 17 * 60));
+	CHECK(InTimeRange(7 * 60, 7 * 60, 3 * 60));  // the whole day
+	CHECK(SituationRules::TimeText(0) == "12 AM");
+	CHECK(SituationRules::TimeText(12 * 60 + 30) == "12:30 PM");
+}
+
+TEST_CASE("An In combat row makes a situation apply in combat", "[situations]")
+{
+	CHECK_FALSE(SituationRules::AppliesInCombat({}));
+	CHECK(SituationRules::AppliesInCombat({ .applyInCombat = true }));
+	CHECK(SituationRules::AppliesInCombat({ .rows = { { .kind = Kind::kInCombat } } }));
+	CHECK_FALSE(SituationRules::AppliesInCombat({ .rows = { { .kind = Kind::kInCombat, .negated = true } } }));
+}
+
+TEST_CASE("User keys are user: and a number from 1", "[situations]")
+{
+	CHECK(SituationTable::UserKey(3) == "user:3");
+	CHECK(SituationTable::UserKeyNumber("user:12") == 12u);
+	CHECK_FALSE(SituationTable::UserKeyNumber("user:0"));
+	CHECK_FALSE(SituationTable::UserKeyNumber("user:"));
+	CHECK_FALSE(SituationTable::UserKeyNumber("user:3a"));
+	CHECK_FALSE(SituationTable::UserKeyNumber("Town"));
+}
+
+TEST_CASE("Serialize writes version 1 until a user's situation is made, then version 2, and Parse reads it back", "[situations]")
+{
+	auto table = SituationTable::Presets();
+	At(table, Situation::kCold).name = "Chill";
+	CHECK(SituationTable::Serialize(table).find("\"version\": 1") != std::string::npos);
+	CHECK(SituationTable::Serialize(table).find("nextKey") == std::string::npos);
+
+	table.nextKey = 4;
+	table.entries.push_back(User(1, "Rainy town", kRainyTown));
+	table.entries.push_back(User(3, "Night", { .rows = { { .kind = Kind::kTimeOfDay, .from = 22 * 60, .to = 5 * 60 + 30 } }, .applyInCombat = true }));
+	const auto text = SituationTable::Serialize(table);
+	CHECK(text.find("\"version\": 2") != std::string::npos);
+	CHECK(text.find("\"nextKey\": 4") != std::string::npos);
+	CHECK(text.find("\"05:30\"") != std::string::npos);
+	SituationTable::Table read;
+	REQUIRE_FALSE(SituationTable::Parse(text, read));
+	CHECK(read == table);
+
+	// A removed user's situation leaves the file; its key is not used again.
+	table[Situations::kPresetCount].removed = true;
+	REQUIRE_FALSE(SituationTable::Parse(SituationTable::Serialize(table), read));
+	REQUIRE(read.size() == Situations::kPresetCount + 1);
+	CHECK(read[Situations::kPresetCount].key == "user:3");
+	CHECK(read.nextKey == 4);
+
+	// Removing every one keeps version 2, so nextKey stays.
+	table[Situations::kPresetCount + 1].removed = true;
+	CHECK(SituationTable::Serialize(table).find("\"nextKey\": 4") != std::string::npos);
+}
+
+TEST_CASE("Parse reads version 2's user's situations after the presets, in the file's order", "[situations]")
+{
+	SituationTable::Table table;
+	REQUIRE_FALSE(SituationTable::Parse(R"({ "version": 2, "nextKey": 6, "situations": [
+		{ "key": "user:5", "name": "Night", "conditions": [ { "kind": "timeOfDay", "from": "8:00", "to": "06:00" } ] },
+		{ "key": "Town", "name": "City" },
+		{ "key": "user:2", "name": "Wet", "applyInCombat": true, "comment": "ignored",
+		  "conditions": [ { "kind": "weather", "values": ["rain"] }, { "kind": "indoors", "not": true } ] } ] })",
+		table));
+	REQUIRE(table.size() == Situations::kPresetCount + 2);
+	CHECK(table.nextKey == 6);
+	CHECK(At(table, Situation::kTown).name == "City");
+	CHECK(table[Situations::kPresetCount] == User(5, "Night", { .rows = { { .kind = Kind::kTimeOfDay, .from = 8 * 60, .to = 6 * 60 } } }));
+	CHECK(table[Situations::kPresetCount + 1] ==
+		  User(2, "Wet", { .rows = { { .kind = Kind::kWeather, .values = SituationRules::kRain }, { .kind = Kind::kIndoors, .negated = true } }, .applyInCombat = true }));
+}
+
+TEST_CASE("Parse refuses the whole file for a user's situation it cannot read", "[situations]")
+{
+	SituationTable::Table table;
+	const auto            refuses = [&table](const char* a_text) {
+		const bool refused = SituationTable::Parse(a_text, table).has_value();
+		return refused && table == SituationTable::Presets();
+	};
+	CHECK(refuses(R"({ "version": 2, "situations": [] })"));  // no nextKey
+	CHECK(refuses(R"({ "version": 3, "nextKey": 1, "situations": [] })"));
+	CHECK(refuses(R"({ "version": 1, "situations": [ { "key": "user:1", "name": "A", "conditions": [] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:2", "name": "A", "conditions": [] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 3, "situations": [ { "key": "user:1", "name": "A", "conditions": [] },
+		{ "key": "user:1", "name": "B", "conditions": [] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "conditions": [] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A" } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "Town", "conditions": [] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "faction" } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "weather", "values": ["fog"] } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "weather" } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "timeOfDay", "from": "24:00", "to": "6:00" } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "indoors", "not": "yes" } ] } ] })"));
+}
+
+TEST_CASE("Restore Presets leaves the user's situations as they are", "[situations]")
+{
+	auto table = SituationTable::Presets();
+	table.nextKey = 3;
+	At(table, Situation::kTown).removed = true;
+	table.entries.push_back(User(1, "Rainy town", kRainyTown));
+	table.entries.push_back(User(2, "Gone"));
+	table[Situations::kPresetCount + 1].removed = true;
+	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Town: restored" });
+
+	const auto restored = SituationTable::RestorePresets(table);
+	CHECK(restored[IndexOf(Situation::kTown)] == SituationTable::Preset(Situation::kTown));
+	CHECK(restored[Situations::kPresetCount] == table[Situations::kPresetCount]);
+	CHECK(restored[Situations::kPresetCount + 1].removed);
+	CHECK(restored.nextKey == 3);
+	CHECK(SituationTable::RestoreChanges(restored).empty());
+}
+
+TEST_CASE("A user's situation's name follows the same rules as a preset's", "[situations]")
+{
+	auto table = SituationTable::Presets();
+	table.nextKey = 3;
+	table.entries.push_back(User(1, "Rainy town"));
+	CHECK_FALSE(SituationTable::CheckNames(table));
+	table.entries.push_back(User(2, "TOWN"));
+	CHECK(SituationTable::CheckNames(table));
+	At(table, Situation::kTown).removed = true;
+	CHECK_FALSE(SituationTable::CheckNames(table));
+	table[Situations::kPresetCount + 1].name = "rainy town";
+	CHECK(SituationTable::CheckNames(table));
+	table[Situations::kPresetCount].removed = true;  // a removed one's name is free to take
+	CHECK_FALSE(SituationTable::CheckNames(table));
 }

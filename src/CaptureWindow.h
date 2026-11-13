@@ -3,6 +3,7 @@
 
 #include "OutfitIcons.h"
 #include "OutfitRows.h"
+#include "SituationRules.h"
 #include "sarrai/FreeCamera.h"
 
 #include <cstdint>
@@ -25,8 +26,9 @@ namespace RE
 // assignments: the Save page's Create and Update hand the outfit (and Create and Apply
 // the row it is worn for) to Request::onSave, the Wardrobe page's Save and Remove the outfit to
 // Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
-// the Situations page's edits as they are saved, Remove (a situation) and Restore Presets go to
-// Request::onSituationsSave, onSituationRemove and onRestorePresets,
+// the Situations page's edits as they are saved, New Situation..., Remove (a situation) and
+// Restore Presets go to Request::onSituationsSave, onSituationCreate, onSituationRemove and
+// onRestorePresets,
 // Apply and Restore go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
@@ -124,17 +126,20 @@ namespace CaptureWindow
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;  // its key, which the handlers take
 		std::string           name;
-		std::string           conditions;  // when it applies, shown read only on the Situations page
+		std::string           conditions;    // when it applies: a preset's shown read only on the Situations page, a user's Applies line
+		bool                  user = false;  // one the user defined (docs/custom-situations.md), with `rules` the page edits
+		SituationRules::Rules rules;
 		// Who has outfits on its list in this save, one line each, for the Remove situation? popup:
 		// "Lydia: 2 outfits", the actor's FormID when not in memory. Empty for the Default.
 		std::vector<std::string> holders;
 	};
 
-	// A situation's name as the Situations page leaves it.
+	// A situation's name, and a user's situation's rules, as the Situations page leaves them.
 	struct SituationEdit
 	{
-		Situations::Situation situation = Situations::Situation::kDefault;
-		std::string           name;  // trimmed, non-empty
+		Situations::Situation                situation = Situations::Situation::kDefault;
+		std::string                          name;   // trimmed, non-empty
+		std::optional<SituationRules::Rules> rules;  // a user's situation's when they changed; nullopt keeps them
 	};
 
 	// One of the actor's rows as the Situations page leaves it.
@@ -147,7 +152,7 @@ namespace CaptureWindow
 	// What the Situations page saves.
 	struct SituationSave
 	{
-		std::vector<SituationEdit> edits;                      // the situations whose name changed; empty for none
+		std::vector<SituationEdit> edits;                      // the situations whose name or rules changed; empty for none
 		std::vector<RowEdit>       rows;                       // every row of Request::assigned when any changed, else empty
 		bool                       dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
 		// The outfit whose details show, less the items the row they were opened from leaves
@@ -296,15 +301,17 @@ namespace CaptureWindow
 		// Empty greys the button.
 		std::function<void(std::uint32_t outfit, std::size_t row, const std::vector<std::uint32_t>& excluded)> onManageApply;
 
-		// Run on the game thread from the Situations page (docs/situation-management-ui.md §5, §6):
-		// onSituationsSave with the page's edits, shortly after the last one or as the page is
-		// left, or with them and `reroll` as a die is clicked, onSituationRemove with the
-		// situation Remove Situation's popup confirmed,
-		// onRestorePresets after Restore Presets' popup. Each writes
+		// Run on the game thread from the Situations page (docs/situation-management-ui.md §5, §6;
+		// docs/custom-situations.md §7): onSituationsSave with the page's edits, shortly after
+		// the last one or as the page is left, or with them and `reroll` as a die is clicked,
+		// onSituationCreate with the New situation popup's name (no conditions; OutfitList::
+		// createdSituation names it), onSituationRemove with the situation Remove Situation's
+		// popup confirmed, onRestorePresets after Restore Presets' popup. Each writes
 		// situations.json first, when it has anything to write, and a refused or failed write
 		// changes no row; each must end by calling SetOutfits() or SetError(). Empty greys the
 		// button.
 		std::function<void(const SituationSave& save)>       onSituationsSave;
+		std::function<void(const std::string& name)>         onSituationCreate;
 		std::function<void(Situations::Situation situation)> onSituationRemove;
 		std::function<void()>                                onRestorePresets;
 
@@ -388,6 +395,9 @@ namespace CaptureWindow
 		// After the Save page's Create: the new outfit's id, which the Dress page then holds as
 		// its loaded outfit, as Load does; 0 otherwise.
 		std::uint32_t created = 0;
+		// After onSituationCreate: the new situation, which the Situations page then selects
+		// with its details shown; nullopt otherwise.
+		std::optional<Situations::Situation> createdSituation;
 	};
 
 	void Open(Request request);
