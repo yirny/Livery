@@ -216,8 +216,12 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   kept until the game closes), listed only once something is typed (`Type to search.`). Both
   leave out what has no name or no visible effect, enchantments, and forms made in game; both
   are by name, and of spells with the same name and visible effects keep the lowest FormID
-  (`SituationRules::MergeSameSpells`: Stoneflesh is in Skyrim.esm twice). The first 100
-  matches are listed, then `<n> more. Type more to narrow.`. Add is greyed with none picked or
+  (`SituationRules::MergeSameSpells`: Stoneflesh is in Skyrim.esm twice). Spells with the same
+  name and other effects stay apart (decided 2026-11-14): Skyrim.esm's eleven "Flames" are five
+  by their effects (the player's, the traps', a creature's, a cloak's, J'zargo's), each a
+  different effect named "Flames", told apart by the FormID line alone without editor IDs;
+  reading the plugins' editor IDs into Livery was judged not worth its load cost for this
+  hover. The first 100 matches are listed, then `<n> more. Type more to narrow.`. Add is greyed with none picked or
   one the row has already; Escape clears the search, or with none typed is Cancel.
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
   negated) it is on and disabled.
