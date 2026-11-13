@@ -63,7 +63,7 @@ Changes:
   `outfits`; `chosen` becomes 0 if it was that.
 - The Dress page's Apply popup: `Apply Only (?)`. The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
-  `Sets the selected items as #{Name}'s default outfit without adding them to the wardrobe.`,
+  `Sets the selected items as #{Name}'s default outfit without adding them to the Wardrobe.`,
   then, while a situation row holds an outfit, `The new default outfit takes effect when no
   situational outfit applies.`
 - Remove (`Assignments::ForgetOutfit`): the outfit leaves every row's `outfits`; a `chosen`
@@ -183,7 +183,7 @@ outfit for Town any more`.
   outfit list where its fold headings' text starts, after the chevron (`kEdge`); the name
   starts 12px past the dots. Random on: every outfit on the list. Random off: `chosen`
   only. A row that wears nothing shows nothing under its heading; the Default wearing its
-  `pieces` shows a `Items not in the wardrobe` line with no grip; an id the library no longer
+  `pieces` shows a `Items not in the Wardrobe` line with no grip; an id the library no longer
   has (another save's) shows nothing (§1).
 - A click on an outfit row, here or in the right pane's outfit list, shows the outfit's
   details in the right pane (§5) and puts it on the preview; a click on the outfit whose
@@ -200,7 +200,7 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 | an outfit list row (right), or the name row of an outfit's details | between two outfit rows of a situation | added there |
 | a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target with the items it left off there, unless the target has it already; its details, when shown from the source, follow it |
 | a situation's outfit row | its own situation | reordered |
-| a situation's outfit row, or `Items not in the wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
+| a situation's outfit row, or `Items not in the Wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
 
 - Random on: an outfit the target already holds moves to the drop position instead of being
   added twice. Random off: the outfit dropped becomes `chosen` by §1's rule, the one it

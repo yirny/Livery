@@ -358,7 +358,7 @@ would have to be kept in step).
   `TESDataHandler::LookupForm` (ESL ids are 12-bit), as Tailor's `outfits.json`. A file that
   cannot be read leaves the library empty and is never written; `Livery.log` says why
   (`Documents/My Games/Skyrim Special Edition/SKSE/`, `Skyrim Special Edition GOG` for GOG).
-- An outfit has no categories and no gender (the window calls the library the wardrobe).
+- An outfit has no categories and no gender (the window calls the library the Wardrobe).
   Other fields are ignored and gone at the next write. Situations are per actor (§7), not in
   the library.
 - An outfit has an icon: `"icon"`, PieceIcons' key of a PNG under `icons/`

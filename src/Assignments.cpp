@@ -209,7 +209,7 @@ namespace
 	std::string QuotedOutfitName(std::uint32_t a_outfit)
 	{
 		const auto* stored = Library::Find(a_outfit);
-		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the wardrobe";
+		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the Wardrobe";
 	}
 
 	// The HUD line for a redress because a situation began or ended (WearFor): what they wear
