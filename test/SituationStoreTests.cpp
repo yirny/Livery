@@ -325,3 +325,61 @@ TEST_CASE("A user's situation's name follows the same rules as a preset's", "[si
 	table[Situations::kPresetCount].removed = true;  // a removed one's name is free to take
 	CHECK_FALSE(SituationTable::CheckNames(table));
 }
+
+namespace
+{
+	SituationRules::Place PlaceOf(const char* a_plugin, std::uint32_t a_localID, const char* a_name, std::uint32_t a_formID = 0)
+	{
+		return { .ref = { a_plugin, a_localID, a_name }, .formID = a_formID };
+	}
+}
+
+TEST_CASE("A Place row reads at its places, and never holds with none", "[situations]")
+{
+	using SituationRules::Kind;
+	const SituationRules::Row home{ .kind = Kind::kPlace, .places = { PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome"), PlaceOf("Skyrim.esm", 0x01A26F, "") } };
+	CHECK(SituationRules::Text({ .rows = { home } }) == "At Breezehome or Skyrim.esm 01A26F.");
+	auto negated = home;
+	negated.negated = true;
+	negated.places.pop_back();
+	CHECK(SituationRules::Text({ .rows = { negated } }) == "Not at Breezehome.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kPlace } } }) == "Place (nothing selected).");
+	CHECK(SituationRules::NothingSelected({ .kind = Kind::kPlace }));
+	CHECK_FALSE(SituationRules::NothingSelected(home));
+	CHECK_FALSE(SituationRules::NothingSelected({ .kind = Kind::kIndoors }));
+}
+
+TEST_CASE("A place is the same by plugin and FormID, its load order FormID neither written nor compared", "[situations]")
+{
+	CHECK(SituationRules::SamePlace(PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome").ref, PlaceOf("SKYRIM.ESM", 0x0165EC, "Other").ref));
+	CHECK_FALSE(SituationRules::SamePlace(PlaceOf("Skyrim.esm", 0x0165EC, "").ref, PlaceOf("Update.esm", 0x0165EC, "").ref));
+	CHECK(PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome", 0x000165EC) == PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome"));
+
+	auto table = SituationTable::Presets();
+	table.nextKey = 2;
+	const SituationRules::Rules rules{ .rows = { { .kind = SituationRules::Kind::kPlace,
+										   .places = { PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome", 0x000165EC), PlaceOf("MyHome.esp", 0x000801, "Lakeside", 0) } } } };
+	table.entries.push_back(User(1, "Home sweet home", rules));
+	const auto text = SituationTable::Serialize(table);
+	CHECK(text.find("\"kind\": \"place\"") != std::string::npos);
+	CHECK(text.find("\"formId\": \"0x0165EC\"") != std::string::npos);
+	CHECK(text.find("formID") == std::string::npos);
+	SituationTable::Table read;
+	REQUIRE_FALSE(SituationTable::Parse(text, read));
+	CHECK(read == table);
+	CHECK(read[Situations::kPresetCount].rules.rows[0].places[0].formID == 0);  // SituationStore resolves it
+}
+
+TEST_CASE("Parse refuses the whole file for a place it cannot read", "[situations]")
+{
+	SituationTable::Table table;
+	const auto            refuses = [&table](const char* a_text) {
+		const bool refused = SituationTable::Parse(a_text, table).has_value();
+		return refused && table == SituationTable::Presets();
+	};
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "place" } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "place", "values": ["Whiterun"] } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "place", "values": [ { "plugin": "Skyrim.esm", "formId": "1A26F" } ] } ] } ] })"));
+	CHECK_FALSE(SituationTable::Parse(
+		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "place", "not": true, "values": [] } ] } ] })", table));
+}

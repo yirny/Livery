@@ -21,6 +21,11 @@ namespace OutfitRows
 	class Rows;
 }
 
+namespace SituationRules
+{
+	struct PlaceChoices;
+}
+
 // The situations an actor can have an outfit for besides their default (docs/design.md §7):
 // the presets with fixed rules and those the user defines (docs/custom-situations.md), how
 // the ones an actor is in are told, and the poll that redresses assigned actors, the player
@@ -217,6 +222,11 @@ namespace Situations
 	// A situation in water ends later for an actor last told in it (hysteresis on a shore).
 	// Contract: game thread.
 	Applicable Evaluate(RE::Actor& a_actor, const OutfitRows::Rows& a_rows);
+
+	// The places the Add place popup offers for `a_actor` (SituationRules::PlaceChoices): where
+	// they stand. Read as the window opens, which freezes the game.
+	// Contract: game thread.
+	SituationRules::PlaceChoices PlacesAround(RE::Actor& a_actor);
 
 	// The poll that keeps assigned actors dressed for their situations: Start at
 	// kPostLoadGame and kNewGame, Stop at kPreLoadGame.

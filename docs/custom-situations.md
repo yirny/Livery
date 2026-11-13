@@ -1,7 +1,7 @@
 # User-defined situations
 
-Design, decided 2026-11-13. Built: 2a (§9) on `feat/cs-model`, in-game check pending; 2b and
-2c are not. It extends the situations of docs/design.md §7 (five presets with fixed rules,
+Design, decided 2026-11-13. Built and checked in game: 2a and 2b
+(§9); 2c is not. It extends the situations of docs/design.md §7 (five presets with fixed rules,
 `Situations::Priority()`) with situations the user defines: a key, a name, a list of
 conditions, a place in the priority order. The registry (`Situations::Count`, `Choosable`,
 `Priority`, `AddUser`, `kMaxSituations = 64`) is its base; the model is `src/SituationRules.h`,
@@ -52,7 +52,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Swimming | none | the actor state's swimming flag | `ActorState::IsSwimming` | not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no (`IsExteriorCell` is used by Cold) |
 | Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = the Town preset's keywords (`LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse`, `LocTypePlayerHouse`; `LocTypeHouse` for the player too, unlike the preset), Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
-| Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list | `GetCurrentLocation`, `GetParentCell` | not yet |
+| Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell | a list of `MagicItem`s | any active effect on the actor comes from one of them (memo: Magic conditions) | `MagicTarget::GetActiveEffectList`, `ActiveEffect::spell` | no |
@@ -65,8 +65,10 @@ Notes:
 - Indoors is the cell's kind. Worldspaces that are underground or elsewhere (Blackreach,
   Sovngarde, the Soul Cairn) count as outdoors; a known quirk, documented, not worked around.
 - Location type reads the location's own keywords only, as the presets do (a room of a city is
-  not in it by its parent); Place walks the parents. A hold is chosen as a Place: the holds are
-  the locations with `LocTypeHold` (§7).
+  not in it by its parent); Place walks the parents. A hold is not offered as a Place (decided
+  2026-11-13): it would hold in the hold's towns, farms, camps and dungeons only, never on the
+  roads between them, which is not what its name promises; a region condition (§10) would
+  cover the open country.
 - Weather does not test the cell: the user adds `not Indoors` for outdoors only. The Cold preset
   reads as `Weather {Rain, Snow, Snowy region}` and `not Indoors`.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
@@ -100,8 +102,9 @@ when it applies. It reads only the situations whose row in the actor's rows hold
 For a preset that is its fixed rule, and never in combat. For a user-defined situation: in
 combat, only with `Apply in combat` on; then every row must hold (`SituationStore::RulesOf`).
 What a row reads of the actor (the location, in water) is read once per evaluation. A row with a
-list of forms compares FormIDs resolved once at load (`TESDataHandler::LookupForm`) and kept in
-the registry, so the poll compares integers and walks parents; no name lookups, no allocation,
+list of forms compares FormIDs resolved as the store reads or saves the rules
+(`PieceFile::FormIDOf`) and kept with them (`SituationRules::Place::formID`), so the poll
+compares integers and walks parents (at most 32, against a loop in a mod's data); no name lookups, no allocation,
 no logging. The poll, its one-redress-per-run rule and the 3 s hold are unchanged.
 
 The registry is mutable: `SituationStore::Load` adds the file's user situations at
@@ -171,11 +174,17 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   small fixed set (Location type, Weather) as checkboxes, side by side while the pane has
   room, or for Time of day `From [time] to [time]`, two dropdowns in 30-minute steps (a time
   read from the file off those steps shows as it is). Then `Add Condition...`, a dropdown of
-  the kinds, which adds a row with nothing ticked. A kind with forms (Place, Spell) will show
-  the names, Remove on each and an add button.
-- Place's add button opens the memo's popup: the captured actor's current location by default,
-  `This room only` for the cell, and a list of the holds (`LocTypeHold`) to pick one instead.
-  Spell's opens the memo's picker (known spells first, all spells by search).
+  the kinds, closed by the choice, which adds a row with nothing ticked (a Place row opens the
+  Add place popup at once). Place lists its places, one a line with
+  Remove at its right end (one whose plugin is not loaded greyed, saying so on hover), then
+  `Add Place...`; Spell will do the same.
+- `Add Place...` opens the `Add place` popup, its choices read as the window opens
+  (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location, and
+  `This Cell (<name>)`, their cell (a cell without a name shows its editor ID, else its
+  FormID), each followed by a (?) saying what it covers. The game's own terms, as "room" or
+  "area" would blur the two. It opens on the location, or on the cell when they are outside
+  any. Add is greyed for a place the row has already.
+  Spell's add opens the memo's picker (known spells first, all spells by search).
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
   negated) it is on and disabled.
 - The `Applies` line, under its own label, replaces `ConditionsText` for a user-defined
@@ -200,8 +209,9 @@ every user-defined situation before the presets, in the order they were made
 1. 2a: the condition model, situations.json version 2, the mutable registry, the editor, and
    the kinds that need no form picker: In Combat, Sleeping, In Water, Swimming, Indoors,
    Location type, Weather, Time of day. Usable on its own; the prototype of §7 is checked here.
-   Built on `feat/cs-model`; in-game check pending.
+   Built on `feat/cs-model`, checked in game.
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).
+   Built on `feat/cs-place`, checked in game.
 3. 2c: Spell, reusing 2b's list line, with the search picker and the active-effect walk.
 
 ## 10. Open and in-game checks
@@ -211,4 +221,8 @@ every user-defined situation before the presets, in the order they were made
 - Which Skyrim.esm locations carry `LocTypeDungeon`, and whether the DLC dungeons do.
 - What `Sky::currentWeather` holds in an interior cell (the last exterior weather is assumed).
 - A Time of day range that wraps midnight, at the wrap.
+- Whether an NPC's parent cell follows them across exterior cells (an exterior `This Cell` place).
+- The open country belongs to no hold in the data (§3): a region condition (the cell's
+  regions, `TESObjectCELL::GetRegionList`; the Cold preset reads the sky's weather region,
+  `Sky::region`) would cover it, if wanted; regions have editor IDs only (`WeatherTundra`).
 - OR groups, and the priority of user-defined situations, after the prototype (§2, §8).

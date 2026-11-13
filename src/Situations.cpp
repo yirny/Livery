@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants - the poll interval and redress hold, the water reach and leave, the snow share
+//   Constants - the poll interval and redress hold, the water reach and leave, the snow share,
+//               the location depth
 //   Detection - the presets' conditions (sleep, cold outdoors, home, castle, town), the
 //               rows of the user's situations (SituationRules), in water with its
 //               hysteresis, and the player's beast form
+//   Places    - what the Add place popup offers: where the actor stands
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
-//   API       - Evaluate / Start / Stop
+//   API       - Evaluate / PlacesAround / Start / Stop
 //
 // The presets' rules follow Tailor 3.0's src/events/SituationHandler.cpp and its policy headers
 // (SwimmingPolicy, SleepStatePolicy, WarmPolicy, WarmWeather, LocationSituationPolicy).
@@ -27,7 +29,9 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <format>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <unordered_map>
@@ -49,6 +53,8 @@ namespace
 	constexpr float kWaterLeave = 60.0f;  // game units
 	// A snowy region: snow weathers hold at least one part in this many of its weather chance.
 	constexpr std::uint64_t kSnowShare = 4;
+	// The most parents a Place row walks up from a location; a mod's loop of parents ends there.
+	constexpr int kMaxLocationDepth = 32;
 
 	// --- Detection ------------------------------------------------------------
 	//
@@ -263,9 +269,10 @@ namespace
 	// What one evaluation reads of an actor, each part once, and only when a row asks for it.
 	struct Facts
 	{
-		RE::Actor&                            actor;
-		std::optional<const RE::BGSLocation*> location;
-		std::optional<bool>                   inWater;
+		RE::Actor&                              actor;
+		std::optional<const RE::BGSLocation*>   location;
+		std::optional<const RE::TESObjectCELL*> cell;
+		std::optional<bool>                     inWater;
 
 		const RE::BGSLocation* Location()
 		{
@@ -273,6 +280,14 @@ namespace
 				location = actor.GetCurrentLocation();
 			}
 			return *location;
+		}
+
+		const RE::TESObjectCELL* Cell()
+		{
+			if (!cell) {
+				cell = actor.GetParentCell();
+			}
+			return *cell;
 		}
 
 		bool InWater()
@@ -284,12 +299,31 @@ namespace
 		}
 	};
 
+	// Their cell, or their location or a location it is in (parentLoc), is one of `a_places`
+	// (SituationRules::Place::formID; 0, a place not loaded, matches nothing).
+	bool InPlaces(const std::vector<SituationRules::Place>& a_places, Facts& a_facts)
+	{
+		const auto listed = [&a_places](RE::FormID a_id) {
+			return std::ranges::any_of(a_places, [a_id](const SituationRules::Place& a_place) { return a_place.formID == a_id; });
+		};
+		if (const auto* cell = a_facts.Cell(); cell && listed(cell->GetFormID())) {
+			return true;
+		}
+		const auto* location = a_facts.Location();
+		for (int depth = 0; location && depth < kMaxLocationDepth; ++depth, location = location->parentLoc) {
+			if (listed(location->GetFormID())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	// Whether one row of a user's situation holds: its kind's test, inverted by `not`. A row
-	// with values and none ticked never holds.
+	// with nothing selected never holds.
 	bool RowHolds(const SituationRules::Row& a_row, Facts& a_facts)
 	{
 		using Kind = SituationRules::Kind;
-		if (SituationRules::HasValues(a_row.kind) && a_row.values == 0) {
+		if (SituationRules::NothingSelected(a_row)) {
 			return false;
 		}
 		auto&       actor = a_facts.actor;
@@ -310,7 +344,7 @@ namespace
 			break;
 		case Kind::kIndoors:
 			{
-				const auto* cell = actor.GetParentCell();
+				const auto* cell = a_facts.Cell();
 				holds = cell && cell->IsInteriorCell();
 			}
 			break;
@@ -319,6 +353,9 @@ namespace
 				const auto* location = a_facts.Location();
 				holds = location && HasLocationType(*location, a_row.values);
 			}
+			break;
+		case Kind::kPlace:
+			holds = InPlaces(a_row.places, a_facts);
 			break;
 		case Kind::kWeather:
 			holds = HasWeather(a_row.values);
@@ -346,6 +383,26 @@ namespace
 	{
 		const auto* race = a_actor.IsPlayerRef() ? a_actor.GetRace() : nullptr;
 		return race && !race->data.flags.all(RE::RACE_DATA::Flag::kPlayable);
+	}
+
+	// --- Places ---------------------------------------------------------------
+	//
+	// Contract: game thread, all; read as the window opens, never on the poll.
+
+	// A location or cell as a Place, named for the reader: its name, else its editor ID (cells
+	// keep theirs), else its FormID. nullopt for a form made in game, which no plugin names.
+	std::optional<SituationRules::Place> PlaceOf(const RE::TESForm& a_form)
+	{
+		const auto* file = a_form.IsDynamicForm() ? nullptr : a_form.GetFile(0);
+		if (!file) {
+			return std::nullopt;
+		}
+		std::string name = a_form.GetName();
+		if (name.empty()) {
+			const auto* editorID = a_form.GetFormEditorID();
+			name = editorID && *editorID ? editorID : std::format("{:08X}", a_form.GetFormID());
+		}
+		return SituationRules::Place{ .ref = { std::string{ file->GetFilename() }, a_form.GetLocalFormID(), std::move(name) }, .formID = a_form.GetFormID() };
 	}
 
 	// --- Poll -----------------------------------------------------------------
@@ -461,6 +518,19 @@ namespace Situations
 			}
 		}
 		return applicable;
+	}
+
+	SituationRules::PlaceChoices PlacesAround(RE::Actor& a_actor)
+	{
+		SituationRules::PlaceChoices choices;
+		const auto*                  location = a_actor.GetCurrentLocation();
+		if (location) {
+			choices.location = PlaceOf(*location);
+		}
+		if (const auto* cell = a_actor.GetParentCell()) {
+			choices.cell = PlaceOf(*cell);
+		}
+		return choices;
 	}
 
 	void Start()

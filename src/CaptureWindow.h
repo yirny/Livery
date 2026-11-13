@@ -222,11 +222,12 @@ namespace CaptureWindow
 		Situations::Situation wornFor = Situations::Situation::kDefault;
 		// kSituationGroup, one entry per row of `assigned`, in its order. The outfit lists tag
 		// and sort by them.
-		std::vector<CategoryOption> categories;
-		std::vector<ExistingOutfit> existingOutfits;  // listed on the outfit pages and the Update tab, in display order
-		std::vector<SituationInfo>  situations;       // one per row of `assigned`: the Default, then the situations not removed
-		std::vector<RowAssignment>  assigned;         // one per row, in `situations`' order
-		std::vector<std::string>    restoreChanges;   // what Restore Presets would change, one line each; empty while every preset is as installed
+		std::vector<CategoryOption>  categories;
+		std::vector<ExistingOutfit>  existingOutfits;  // listed on the outfit pages and the Update tab, in display order
+		std::vector<SituationInfo>   situations;       // one per row of `assigned`: the Default, then the situations not removed
+		std::vector<RowAssignment>   assigned;         // one per row, in `situations`' order
+		std::vector<std::string>     restoreChanges;   // what Restore Presets would change, one line each; empty while every preset is as installed
+		SituationRules::PlaceChoices places;           // what the Situations page's Add place popup offers, read at Open
 		// The chests (docs/chest-ui.md), in display order, with `offersChests`: the Chests tab
 		// and Add from Chest... (Settings::ItemChests at Open; never with `saveOnly`).
 		// Their items are in `pieces` as PieceGroup::kNotCarried, like the outfits' (listed while

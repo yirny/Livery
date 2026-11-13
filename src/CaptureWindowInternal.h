@@ -212,6 +212,13 @@ namespace CaptureWindow::Internal
 		SituationRules::Rules           rules;           // a user's situation's conditions as edited (SituationInfo::user)
 	};
 
+	// What the Add place popup adds (request.places): the actor's location or their cell.
+	enum class PlacePick
+	{
+		kLocation,
+		kCell
+	};
+
 	// the Situations page's edits, kept while the window is open; a change a handler made
 	// (SetOutfits) and Discard Changes start them again from the request.
 	struct SituationForm
@@ -229,6 +236,10 @@ namespace CaptureWindow::Internal
 		double                          dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
 		float                           outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
 		std::array<char, kNameCapacity> newName{};                 // the New situation popup's field
+		// The Add place popup: the Place row it adds to (index into the selected entry's
+		// rules.rows) and its choice.
+		int       placeRow = -1;
+		PlacePick placePick = PlacePick::kLocation;
 	};
 
 	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), saved as they are
