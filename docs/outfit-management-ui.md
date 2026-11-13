@@ -205,7 +205,7 @@ makes that sort the one every page's list starts in when the window opens, writt
 - `Window skin`: a dropdown of the palettes, as wide as its longest name, as the settings
   page's dropdown lists them. A choice is written to `[UI] Palette` at once and the window is
   drawn in it from the next frame (`Theme::Apply` runs every frame from `Settings::Skin` and
-  `Palette`; every skin's fonts and textures are loaded at start). Restore original palette
+  `Palette`; every skin's fonts and textures are loaded at start). Restore Original Palette
   at the line's right end while the chosen shipped palette's file differs from what Livery
   ships: its popup `Restore Edge.ini to its original state? Your changes will be lost.`,
   Restore / Cancel.
