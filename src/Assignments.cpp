@@ -351,12 +351,52 @@ namespace
 		return result;
 	}
 
+	// Why a situation outfit put nothing on, so the Default went on instead (Redress).
+	struct Fallback
+	{
+		Situation     row = Situation::kDefault;
+		std::uint32_t outfit = 0;
+		std::size_t   notCarried = 0;  // its pieces left out: not carried and adding was off
+		std::size_t   refused = 0;     // its pieces the engine would not put on
+		bool          loaded = false;  // any of its pieces is loaded
+	};
+
+	struct Redressed
+	{
+		Dressing::Result        result;    // the last dressing's: the Default's after a fallback
+		std::optional<Fallback> fallback;  // set when the situation outfit put nothing on
+	};
+
+	// The HUD's words for a fallback, without "Livery: " or the full stop: "you carry none of
+	// the items of "Noble Robes" for Castle".
+	std::string FallbackText(RE::Actor& a_actor, const Fallback& a_fallback)
+	{
+		const auto outfit = QuotedOutfitName(a_fallback.outfit) + SituationStore::Suffix(a_fallback.row);
+		if (!a_fallback.loaded) {
+			return std::format("no item of {} is loaded", outfit);
+		}
+		if (a_actor.IsPlayerRef() && a_fallback.notCarried > 0 && a_fallback.refused == 0) {
+			return std::format("you carry none of the items of {}", outfit);
+		}
+		return std::format("none of the items of {} could be put on {}", outfit, a_actor.IsPlayerRef() ? "you" : NameOf(a_actor));
+	}
+
+	// DressingNotes of the last dressing, then why the situation outfit gave way, if it did.
+	std::string RedressNotes(RE::Actor& a_actor, const Redressed& a_redressed)
+	{
+		auto notes = DressingNotes(a_redressed.result);
+		if (a_redressed.fallback) {
+			notes += "; " + FallbackText(a_actor, *a_redressed.fallback);
+		}
+		return notes;
+	}
+
 	// Dresses them for `a_now` unless they already wear the row it resolves to and the
 	// outfit that row wears (`force` dresses them anyway), the rows as LiveRows sees them. A
-	// situation outfit that puts nothing on falls back to the Default. Returns the dressing's
-	// result, or nullopt when nothing changed; the assignment's `worn` and `wornOutfit` tell
-	// what went on.
-	std::optional<Dressing::Result> Redress(Assignment& a_assignment, RE::Actor& a_actor, const Situations::Applicable& a_now, const RedressOptions& a_options = {})
+	// situation outfit that puts nothing on falls back to the Default, with a log line that
+	// says why. Returns the dressing's result, or nullopt when nothing changed; the
+	// assignment's `worn` and `wornOutfit` tell what went on.
+	std::optional<Redressed> Redress(Assignment& a_assignment, RE::Actor& a_actor, const Situations::Applicable& a_now, const RedressOptions& a_options = {})
 	{
 		const auto rows = LiveRows(a_assignment);
 		const auto row = OutfitRows::Resolve(rows, a_now);
@@ -365,13 +405,21 @@ namespace
 			return std::nullopt;
 		}
 		// Read before Wear, which changes what they wear and so a random Default's kept pick.
-		const auto fallback = row != Situation::kDefault ? OutfitFor(a_assignment, rows, Situation::kDefault, a_options) : outfit;
-		auto       result = Wear(a_assignment, a_actor, row, outfit, a_options.leaveOut);
-		if (result.worn.empty() && row != Situation::kDefault) {
-			logger::info("No piece of the {} outfit went on {:08X}; the default outfit instead", Situations::Name(row), a_actor.GetFormID());
-			result = Wear(a_assignment, a_actor, Situation::kDefault, fallback, a_options.leaveOut);
+		const auto defaultOutfit = row != Situation::kDefault ? OutfitFor(a_assignment, rows, Situation::kDefault, a_options) : outfit;
+		Redressed  redressed{ .result = Wear(a_assignment, a_actor, row, outfit, a_options.leaveOut) };
+		if (redressed.result.worn.empty() && row != Situation::kDefault) {
+			const auto* stored = Library::Find(outfit);
+			const auto& missed = redressed.result;
+			redressed.fallback = Fallback{ .row = row,
+				.outfit = outfit,
+				.notCarried = missed.notCarried.size(),
+				.refused = missed.refused.size(),
+				.loaded = stored && !Library::LoadedPieces(*stored).empty() };
+			logger::info("No piece of the {} outfit {} went on {:08X}: {} not carried, {} could not be put on; the default outfit instead", Situations::Name(row),
+				QuotedOutfitName(outfit), a_actor.GetFormID(), missed.notCarried.size(), missed.refused.size());
+			redressed.result = Wear(a_assignment, a_actor, Situation::kDefault, defaultOutfit, a_options.leaveOut);
 		}
-		return result;
+		return redressed;
 	}
 
 	// Children and the dead are never dressed; a HUD message says why.
@@ -1232,13 +1280,13 @@ namespace Assignments
 			return;
 		}
 
-		const auto added = std::ranges::count_if(result->worn, &Dressing::Piece::added);
+		const auto added = std::ranges::count_if(result->result.worn, &Dressing::Piece::added);
 		auto       text = a_actor.IsPlayerRef() ? std::string("Livery: you now wear these") : std::format("Livery: {} now wears these", NameOf(a_actor));
 		text += SituationStore::Suffix(wornFor);
 		if (added > 0) {
 			text += std::format(", {} added", added);
 		}
-		Notify(text + DressingNotes(*result) + ".");
+		Notify(text + RedressNotes(a_actor, *result) + ".");
 	}
 
 	void Change(RE::Actor& a_actor, const Changes& a_changes)
@@ -1277,7 +1325,7 @@ namespace Assignments
 			text += (i == 0 ? " " : "; ") + parts[i];
 		}
 		text += pieces > 0 ? std::format(". Dressed now{}", SituationStore::Suffix(worn)) : ". Own clothes now";
-		Notify(text + (result ? DressingNotes(*result) : "") + ".");
+		Notify(text + (result ? RedressNotes(a_actor, *result) : "") + ".");
 	}
 
 	std::optional<std::uint32_t> SetRows(RE::Actor& a_actor, const OutfitRows::Rows& a_rows, bool a_dropDefaultPieces)
@@ -1324,7 +1372,7 @@ namespace Assignments
 		auto text = pieces > 0 ? std::format("Livery: {} now wears {}{}", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default items",
 									 SituationStore::Suffix(worn)) :
 		                         std::format("Livery: {}: own clothes now", NameOf(a_actor));
-		Notify(text + (result ? DressingNotes(*result) : "") + ".");
+		Notify(text + (result ? RedressNotes(a_actor, *result) : "") + ".");
 	}
 
 	std::uint32_t PickAnother(RE::FormID a_actor)
@@ -1350,13 +1398,14 @@ namespace Assignments
 		if (!assignment) {
 			return false;
 		}
-		if (!Redress(*assignment, a_actor, a_now)) {
+		const auto redressed = Redress(*assignment, a_actor, a_now);
+		if (!redressed) {
 			return false;
 		}
 		logger::info("Dressed {:08X} for {}: {} piece(s) on", id, Situations::Name(assignment->worn), assignment->pieces.size());
 		// Read before DropIfEmpty: a situation outfit gone from their rows (ForgetOutfit) may
-		// leave nothing, which ends the record.
-		const auto text = SituationChangeText(a_actor, *assignment);
+		// leave nothing, which ends the record. After a fallback, why it gave way alone.
+		const auto text = redressed->fallback ? std::format("Livery: {}.", FallbackText(a_actor, *redressed->fallback)) : SituationChangeText(a_actor, *assignment);
 		DropIfEmpty(id);
 		SyncManaged();
 		if (Settings::NotifySituationChanges()) {

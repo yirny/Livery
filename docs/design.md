@@ -603,7 +603,9 @@ actor at most once in 3 seconds; a change it holds back is not marked seen, so i
 evaluated again at a later poll. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
 again until the situations change. With `[Situations] NotifyChanges` on (off by default),
-each such redress shows a HUD message naming what they wear now. Apply and the Save page
+each such redress shows a HUD message naming what they wear now; after a fallback to the
+default it says why instead (they carry none of the outfit's items, none could be put on, or
+none is loaded). The window's messages add the same reason, and the log always has it. Apply and the Save page
 dress for the current situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
 `kNewGame`, forgetting what it last saw. The record's `pieces` describe whatever is worn,
 so a situation outfit is kept on, locked and put back at 3D load like the default.
