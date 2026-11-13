@@ -59,7 +59,7 @@ namespace CaptureWindow::Internal
 		// The name a situation gets when neither the one typed nor the one before can be used.
 		constexpr const char* kUnnamed = "Unnamed Situation";
 		// A line in an outfit row's place under a heading.
-		constexpr const char* kPiecesLine = "Items not in the wardrobe";
+		constexpr const char* kPiecesLine = "Items not in the Wardrobe";
 
 		// --- Edits ------------------------------------------------------------
 
