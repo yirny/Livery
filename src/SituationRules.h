@@ -81,8 +81,49 @@ namespace SituationRules
 	struct PlaceChoices
 	{
 		std::optional<Place> location;  // the actor's current location; nullopt outside any
+		std::vector<Place>   parents;   // the locations it is in, nearest first, below any hold
 		std::optional<Place> cell;      // the cell they stand in
+
+		// The choice at `a_index` in the order the popup shows them: the location, its parents,
+		// the cell. nullptr past them.
+		const Place* At(int a_index) const
+		{
+			if (a_index < 0) {
+				return nullptr;
+			}
+			auto index = static_cast<std::size_t>(a_index);
+			if (location) {
+				if (index == 0) {
+					return &*location;
+				}
+				--index;
+			}
+			if (index < parents.size()) {
+				return &parents[index];
+			}
+			index -= parents.size();
+			return index == 0 && cell ? &*cell : nullptr;
+		}
 	};
+
+	// Of two locations in a row with the same name, the location and its parents keep the wider:
+	// it holds wherever the narrower does, and the popup shows a name once. Solitude's Avenues, a
+	// group of its houses without its streets, is named "Solitude" as the city is.
+	inline void MergeSameNames(PlaceChoices& a_choices)
+	{
+		auto& parents = a_choices.parents;
+		for (std::size_t i = 0; i + 1 < parents.size();) {
+			if (parents[i].ref.name == parents[i + 1].ref.name) {
+				parents.erase(parents.begin() + static_cast<std::ptrdiff_t>(i));
+			} else {
+				++i;
+			}
+		}
+		if (a_choices.location && !parents.empty() && a_choices.location->ref.name == parents.front().ref.name) {
+			a_choices.location = std::move(parents.front());
+			parents.erase(parents.begin());
+		}
+	}
 
 	struct Row
 	{

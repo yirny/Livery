@@ -383,3 +383,44 @@ TEST_CASE("Parse refuses the whole file for a place it cannot read", "[situation
 	CHECK_FALSE(SituationTable::Parse(
 		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "place", "not": true, "values": [] } ] } ] })", table));
 }
+
+TEST_CASE("The Add place popup's choices run location, its parents, then the cell", "[situations]")
+{
+	SituationRules::PlaceChoices choices{ .location = PlaceOf("Skyrim.esm", 0x01, "Proudspire Manor"),
+		.parents = { PlaceOf("Skyrim.esm", 0x02, "Solitude Avenues"), PlaceOf("Skyrim.esm", 0x03, "Solitude") },
+		.cell = PlaceOf("Skyrim.esm", 0x04, "Proudspire Manor") };
+	REQUIRE(choices.At(0));
+	CHECK(choices.At(0)->ref.localID == 0x01);
+	CHECK(choices.At(2)->ref.localID == 0x03);
+	CHECK(choices.At(3)->ref.localID == 0x04);
+	CHECK_FALSE(choices.At(4));
+	CHECK_FALSE(choices.At(-1));
+
+	const SituationRules::PlaceChoices outdoors{ .cell = PlaceOf("Skyrim.esm", 0x05, "") };  // no location in the open country
+	REQUIRE(outdoors.At(0));
+	CHECK(outdoors.At(0)->ref.localID == 0x05);
+	CHECK_FALSE(outdoors.At(1));
+}
+
+TEST_CASE("Of two locations in a row with the same name, the popup keeps the wider", "[situations]")
+{
+	// Proudspire Manor -> Solitude Avenues ("Solitude") -> Solitude.
+	SituationRules::PlaceChoices manor{ .location = PlaceOf("Skyrim.esm", 0x01, "Proudspire Manor"),
+		.parents = { PlaceOf("Skyrim.esm", 0x02, "Solitude"), PlaceOf("Skyrim.esm", 0x03, "Solitude") } };
+	SituationRules::MergeSameNames(manor);
+	REQUIRE(manor.parents.size() == 1);
+	CHECK(manor.location->ref.localID == 0x01);
+	CHECK(manor.parents[0].ref.localID == 0x03);
+
+	// Standing in the narrower one: This Location becomes the wider.
+	SituationRules::PlaceChoices avenues{ .location = PlaceOf("Skyrim.esm", 0x02, "Solitude"), .parents = { PlaceOf("Skyrim.esm", 0x03, "Solitude") } };
+	SituationRules::MergeSameNames(avenues);
+	CHECK(avenues.location->ref.localID == 0x03);
+	CHECK(avenues.parents.empty());
+
+	// Different names stay.
+	SituationRules::PlaceChoices hall{ .location = PlaceOf("Skyrim.esm", 0x04, "Dragonsreach"), .parents = { PlaceOf("Skyrim.esm", 0x05, "Whiterun") } };
+	SituationRules::MergeSameNames(hall);
+	CHECK(hall.location->ref.localID == 0x04);
+	CHECK(hall.parents.size() == 1);
+}
