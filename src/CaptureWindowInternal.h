@@ -209,24 +209,26 @@ namespace CaptureWindow::Internal
 		std::string                     nameBefore;      // its name as its field's edit began, put back for an empty or taken one
 		OutfitRows::Row                 row;             // the actor's row for it
 		bool                            folded = false;  // its heading in the Situation List is folded
+		SituationRules::Rules           rules;           // a user's situation's conditions as edited (SituationInfo::user)
 	};
 
 	// the Situations page's edits, kept while the window is open; a change a handler made
 	// (SetOutfits) and Discard Changes start them again from the request.
 	struct SituationForm
 	{
-		std::vector<SituationEntry> entries;
-		bool                        defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
-		int                         selected = -1;             // index into entries; -1 for none
-		bool                        details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
-		std::uint32_t               viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
-		int                         viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
-		bool                        scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
-		int                         nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
-		ImGuiID                     nameField = 0;             // that field's ImGui ID
-		int                         dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
-		double                      dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
-		float                       outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
+		std::vector<SituationEntry>     entries;
+		bool                            defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
+		int                             selected = -1;             // index into entries; -1 for none
+		bool                            details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
+		std::uint32_t                   viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
+		int                             viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
+		bool                            scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
+		int                             nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
+		ImGuiID                         nameField = 0;             // that field's ImGui ID
+		int                             dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
+		double                          dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
+		float                           outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
+		std::array<char, kNameCapacity> newName{};                 // the New situation popup's field
 	};
 
 	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), saved as they are
@@ -659,7 +661,12 @@ namespace CaptureWindow::Internal
 	// none for a situation gone.
 	void FillSituationForm(State& a_state, const std::vector<CaptureWindow::SituationInfo>& a_before);
 
-	// A situation's name differs from situations.json, or a row from the actor's.
+	// Selects `a_situation` with its details shown, an outfit's details closed, and scrolls the
+	// Situation List to it (a situation just created); nothing for one the page does not list.
+	void SelectSituation(State& a_state, Situations::Situation a_situation);
+
+	// A situation's name or a user's situation's conditions differ from situations.json, or a
+	// row from the actor's.
 	bool HasSituationEdits(const State& a_state);
 
 	// Saves the page's edits now, a name still being typed ended first. Returns whether a save
