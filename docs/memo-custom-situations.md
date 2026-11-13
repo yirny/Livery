@@ -21,7 +21,7 @@ Stoneflesh is on"). The place condition ships first.
   not holding. The user-defined situation is the group: no separate "custom location" record.
 - Registration: the Situations page adds the place the captured actor stands in to a new or an
   existing user-defined situation. The popup names what would be registered. By default
-  that is the cell's location; `This room only` (wording provisional) registers the cell
+  that is the cell's location; `This Cell` registers the cell
   instead, for a cell without a location of its own. A hold is not offered (2026-11-13): the
   open country has no location in the data, so a hold would hold in its named places only.
   The window freezes the game, so the actor's place is where they stand.

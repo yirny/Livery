@@ -80,9 +80,8 @@ namespace SituationRules
 	// (Situations::PlacesAround).
 	struct PlaceChoices
 	{
-		std::optional<Place> location;          // the actor's current location; nullopt outside any
-		std::optional<Place> cell;              // the cell they stand in
-		bool                 interior = false;  // it is a room, not a patch of land
+		std::optional<Place> location;  // the actor's current location; nullopt outside any
+		std::optional<Place> cell;      // the cell they stand in
 	};
 
 	struct Row

@@ -529,7 +529,6 @@ namespace Situations
 		}
 		if (const auto* cell = a_actor.GetParentCell()) {
 			choices.cell = PlaceOf(*cell);
-			choices.interior = cell->IsInteriorCell();
 		}
 		return choices;
 	}

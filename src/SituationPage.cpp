@@ -1156,8 +1156,8 @@ namespace CaptureWindow::Internal
 			return a_state.situationForm.placePick == PlacePick::kLocation ? places.location : places.cell;
 		}
 
-		// Opens the Add place popup on where the actor stands: their location, or this room only
-		// when they are outside any.
+		// Opens the Add place popup on where the actor stands: This Location, or This Cell when
+		// they are outside any location.
 		// Contract: in the page's ID scope, as the popups are drawn there.
 		void OpenAddPlacePopup(State& a_state)
 		{
@@ -1165,9 +1165,9 @@ namespace CaptureWindow::Internal
 			ImGui::OpenPopup(kAddPlacePopup);
 		}
 
-		// The Add place popup (docs/custom-situations.md §7): the actor's location, or this room
-		// (or patch of land) only; Add, greyed for a place the row has already, / Cancel (Escape).
-		// Returns the place to add on Add.
+		// The Add place popup (docs/custom-situations.md §7): This Location or This Cell, each
+		// with the place's name and a (?) saying what it covers; Add, greyed for a place the row
+		// has already, / Cancel (Escape). Returns the place to add on Add.
 		std::optional<SituationRules::Place> DrawAddPlacePopup(State& a_state)
 		{
 			if (!BeginModal(kAddPlacePopup)) {
@@ -1176,23 +1176,26 @@ namespace CaptureWindow::Internal
 			auto&       form = a_state.situationForm;
 			const auto& places = a_state.request.places;
 			const auto& name = a_state.request.actorName;
-			const auto  radio = [&form](const char* a_label, PlacePick a_pick, const std::string& a_tip) {
-				if (Theme::RadioButton(a_label, form.placePick == a_pick)) {
+			const auto  radio = [&form](const char* a_kind, const SituationRules::Place& a_place, PlacePick a_pick, const std::string& a_help) {
+				const auto label = std::format("{} ({})", a_kind, SituationRules::PlaceName(a_place));
+				if (Theme::RadioButton(label.c_str(), form.placePick == a_pick)) {
 					form.placePick = a_pick;
 					QueueMenuSound(kFocusSound);
 				}
+				ImGui::SameLine();
+				ImGui::TextDisabled("(?)");
 				if (ImGui::IsItemHovered()) {
-					Theme::Tooltip(a_tip.c_str());
+					DrawHelpTooltip(a_help);
 				}
 			};
 			ImGui::TextUnformatted(std::format("Add the place {} is in.", name).c_str());
 			if (places.location) {
-				radio(SituationRules::PlaceName(*places.location).c_str(), PlacePick::kLocation, "Here, with every room and area of this place.");
+				radio("This Location", *places.location, PlacePick::kLocation,
+					std::format("The named place {} is in.\nMay include multiple rooms or outdoor areas.", name));
 			}
 			if (places.cell) {
-				const auto label = std::format("{} ({})", places.interior ? "This room only" : "This area only", SituationRules::PlaceName(*places.cell));
-				radio(label.c_str(), PlacePick::kCell,
-					places.interior ? "Only this room, not the rest of the place." : std::format("Only the land around {}, not the rest of the place.", name));
+				radio("This Cell", *places.cell, PlacePick::kCell,
+					std::format("The individual area {} is in.\nTypically an entire building interior or a section of the outdoors.", name));
 			}
 			const auto  picked = PickedPlace(a_state);
 			const auto* row = PlaceRow(a_state);

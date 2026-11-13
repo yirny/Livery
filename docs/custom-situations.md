@@ -179,9 +179,10 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   Remove at its right end (one whose plugin is not loaded greyed, saying so on hover), then
   `Add Place...`; Spell will do the same.
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
-  (`Situations::PlacesAround`): the actor's current location; `This room only (<cell>)` for an
-  interior cell, `This area only (<cell>)` for an exterior one (a cell without a name shows its
-  editor ID, else its FormID). It opens on the location, or on the cell when they are outside
+  (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location, and
+  `This Cell (<name>)`, their cell (a cell without a name shows its editor ID, else its
+  FormID), each followed by a (?) saying what it covers. The game's own terms, as "room" or
+  "area" would blur the two. It opens on the location, or on the cell when they are outside
   any. Add is greyed for a place the row has already.
   Spell's add opens the memo's picker (known spells first, all spells by search).
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
@@ -220,7 +221,7 @@ every user-defined situation before the presets, in the order they were made
 - Which Skyrim.esm locations carry `LocTypeDungeon`, and whether the DLC dungeons do.
 - What `Sky::currentWeather` holds in an interior cell (the last exterior weather is assumed).
 - A Time of day range that wraps midnight, at the wrap.
-- Whether an NPC's parent cell follows them across exterior cells (a `This area only` place).
+- Whether an NPC's parent cell follows them across exterior cells (an exterior `This Cell` place).
 - The open country belongs to no hold in the data (§3): a region condition (the cell's
   regions, `TESObjectCELL::GetRegionList`; the Cold preset reads the sky's weather region,
   `Sky::region`) would cover it, if wanted; regions have editor IDs only (`WeatherTundra`).
