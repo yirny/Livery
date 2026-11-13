@@ -6,6 +6,8 @@
 //   Browser   - Reset / Rebuild / Refresh / SetSort, and the search and filter accessors
 #include "OutfitBrowser.h"
 
+#include "Utils.h"
+
 #include <algorithm>
 #include <compare>
 #include <string_view>
@@ -18,13 +20,6 @@ namespace
 	unsigned char AsciiLower(unsigned char a_c)
 	{
 		return a_c >= 'A' && a_c <= 'Z' ? static_cast<unsigned char>(a_c - 'A' + 'a') : a_c;
-	}
-
-	// Every name contains the empty text; ranges::search finds it as an empty match.
-	bool ContainsIgnoringCase(std::string_view a_text, std::string_view a_part)
-	{
-		const auto equal = [](unsigned char a, unsigned char b) { return AsciiLower(a) == AsciiLower(b); };
-		return a_part.empty() || !std::ranges::search(a_text, a_part, equal).empty();
 	}
 
 	std::weak_ordering CompareNames(std::string_view a_left, std::string_view a_right)
@@ -168,7 +163,7 @@ namespace OutfitBrowser
 		const std::string_view search = a_state.search.data();
 		a_state.visible.clear();
 		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			if (ContainsIgnoringCase(outfits[i].name, search) && PassesFilter(a_state, a_request, i)) {
+			if (ExampleMod::ContainsIgnoringCase(outfits[i].name, search) && PassesFilter(a_state, a_request, i)) {
 				a_state.visible.push_back(static_cast<int>(i));
 			}
 		}

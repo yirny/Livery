@@ -1,7 +1,7 @@
 # User-defined situations
 
 Design, decided 2026-11-13. Built and checked in game: 2a and 2b
-(§9); 2c is not. It extends the situations of docs/design.md §7 (five presets with fixed rules,
+(§9); 2c is built, not yet checked in game. It extends the situations of docs/design.md §7 (five presets with fixed rules,
 `Situations::Priority()`) with situations the user defines: a key, a name, a list of
 conditions, a place in the priority order. The registry (`Situations::Count`, `Choosable`,
 `Priority`, `AddUser`, `kMaxSituations = 64`) is its base; the model is `src/SituationRules.h`,
@@ -55,7 +55,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
-| Spell | a list of `MagicItem`s | any active effect on the actor comes from one of them (memo: Magic conditions) | `MagicTarget::GetActiveEffectList`, `ActiveEffect::spell` | no |
+| Spell | a list of `MagicItem`s | any active effect on the actor, neither inactive nor dispelled, comes from one of them (memo: Magic conditions) | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags` | no |
 
 Notes:
 
@@ -73,10 +73,12 @@ Notes:
   reads as `Weather {Rain, Snow, Snowy region}` and `not Indoors`.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
   its next run. From equal to To is the whole day.
-- Spell: the condition names spells, powers, shouts, potions and abilities (`MagicItem`), not
-  magic effects, for the reasons in the memo; the window may still say "effect" where the
-  player would. Whether `kInactive` and `kDispelled` effects must be skipped is unverified
-  (§10).
+- Spell: the condition names spells, powers, shouts (by their words' spells), potions, scrolls,
+  ingredients and abilities (`MagicItem`), not magic effects, for the reasons in the memo; the
+  window may still say "effect" where the player would. The walk is the engine's
+  (`MagicTarget::VisitEffects`, which CommonLibSSE-NG names the one walk right on every
+  runtime); it skips effects flagged `kInactive` or `kDispelled`, as an effect that does not
+  act is not on the actor (whether the engine leaves such effects in the list: §10).
 
 ## 4. Pending kinds
 
@@ -103,7 +105,7 @@ For a preset that is its fixed rule, and never in combat. For a user-defined sit
 combat, only with `Apply in combat` on; then every row must hold (`SituationStore::RulesOf`).
 What a row reads of the actor (the location, in water) is read once per evaluation. A row with a
 list of forms compares FormIDs resolved as the store reads or saves the rules
-(`PieceFile::FormIDOf`) and kept with them (`SituationRules::Place::formID`), so the poll
+(`PieceFile::FormIDOf`) and kept with them (`SituationRules::FormRef::formID`), so the poll
 compares integers and walks parents (at most 32, against a loop in a mod's data); no name lookups, no allocation,
 no logging. The poll, its one-redress-per-run rule and the 3 s hold are unchanged.
 
@@ -174,10 +176,10 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   small fixed set (Location type, Weather) as checkboxes, side by side while the pane has
   room, or for Time of day `From [time] to [time]`, two dropdowns in 30-minute steps (a time
   read from the file off those steps shows as it is). Then `Add Condition...`, a dropdown of
-  the kinds, closed by the choice, which adds a row with nothing ticked (a Place row opens the
-  Add place popup at once). Place lists its places, one a line with
+  the kinds, closed by the choice, which adds a row with nothing ticked (a Place or Spell row
+  opens its Add popup at once). Place and Spell list their forms, one a line with
   Remove at its right end (one whose plugin is not loaded greyed, saying so on hover), then
-  `Add Place...`; Spell will do the same.
+  `Add Place...` or `Add Spell...`.
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
   `Parent Location (<name>)` for each location it is in, nearest first, up to the first hold
@@ -188,7 +190,18 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   (?) saying what it covers. The game's own terms, as "room" or "area" would blur the two. It
   opens on the location, or on the cell when they are outside any. Add is greyed for a place
   the row has already.
-  Spell's add opens the memo's picker (known spells first, all spells by search).
+- `Add Spell...` opens the `Add spell` popup: `Add a spell to look for on <name>.`, a search
+  field (`Search by name`, ASCII case ignored, as the outfit search), `Show all spells`, and a
+  list ten rows tall of the spells whose name holds the search, a click picking one (its plugin
+  and FormID on hover, to tell same names apart). Off, the list is the actor's spells
+  (`Situations::SpellsAround`, read as the window opens): learned (`addedSpells`), of their NPC
+  record and race (`actorEffects`, a shout by its words' spells), and behind the effects on
+  them now. On, every named `SpellItem`, `AlchemyItem`, `ScrollItem` and `IngredientItem` of
+  the loaded plugins (`Situations::AllSpells`, built at the first open and kept until the game
+  closes), listed only once something is typed (`Type to search.`). Both by name, each spell
+  once; the first 100 matches are listed, then `<n> more. Type more to narrow.`. Add is greyed
+  with none picked or one the row has already; Escape clears the search, or with none typed
+  is Cancel.
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
   negated) it is on and disabled.
 - The `Applies` line, under its own label, replaces `ConditionsText` for a user-defined
@@ -217,11 +230,13 @@ every user-defined situation before the presets, in the order they were made
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).
    Built on `feat/cs-place`, checked in game.
 3. 2c: Spell, reusing 2b's list line, with the search picker and the active-effect walk.
+   Built on `feat/cs-spell`; in-game check pending.
 
 ## 10. Open and in-game checks
 
-- Whether `MagicTarget::HasMagicEffect` and the active effect list skip `kInactive` or
-  `kDispelled` effects, or the walk must test the flags.
+- Whether the engine keeps `kInactive` or `kDispelled` effects in the list the walk visits
+  (the Spell rule skips them either way), and whether a cast flesh spell holds for its whole
+  duration and ends with it.
 - Which Skyrim.esm locations carry `LocTypeDungeon`, and whether the DLC dungeons do.
 - What `Sky::currentWeather` holds in an interior cell (the last exterior weather is assumed).
 - A Time of day range that wraps midnight, at the wrap.

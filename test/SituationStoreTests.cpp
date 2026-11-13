@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <format>
 #include <string>
 #include <vector>
 
@@ -351,8 +352,8 @@ TEST_CASE("A Place row reads at its places, and never holds with none", "[situat
 
 TEST_CASE("A place is the same by plugin and FormID, its load order FormID neither written nor compared", "[situations]")
 {
-	CHECK(SituationRules::SamePlace(PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome").ref, PlaceOf("SKYRIM.ESM", 0x0165EC, "Other").ref));
-	CHECK_FALSE(SituationRules::SamePlace(PlaceOf("Skyrim.esm", 0x0165EC, "").ref, PlaceOf("Update.esm", 0x0165EC, "").ref));
+	CHECK(SituationRules::SameForm(PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome").ref, PlaceOf("SKYRIM.ESM", 0x0165EC, "Other").ref));
+	CHECK_FALSE(SituationRules::SameForm(PlaceOf("Skyrim.esm", 0x0165EC, "").ref, PlaceOf("Update.esm", 0x0165EC, "").ref));
 	CHECK(PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome", 0x000165EC) == PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome"));
 
 	auto table = SituationTable::Presets();
@@ -423,4 +424,55 @@ TEST_CASE("Of two locations in a row with the same name, the popup keeps the wid
 	SituationRules::MergeSameNames(hall);
 	CHECK(hall.location->ref.localID == 0x04);
 	CHECK(hall.parents.size() == 1);
+}
+
+TEST_CASE("A Spell row reads while its spells are on, and never holds with none", "[situations]")
+{
+	using SituationRules::Kind;
+	const SituationRules::Row flesh{ .kind = Kind::kSpell,
+		.spells = { PlaceOf("Skyrim.esm", 0x051B15, "Oakflesh"), PlaceOf("Skyrim.esm", 0x059B7A, "Stoneflesh") } };
+	CHECK(SituationRules::Text({ .rows = { flesh } }) == "While Oakflesh or Stoneflesh is on.");
+	auto negated = flesh;
+	negated.negated = true;
+	negated.spells.erase(negated.spells.begin());
+	CHECK(SituationRules::Text({ .rows = { negated } }) == "Not while Stoneflesh is on.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kSpell } } }) == "Spell (nothing selected).");
+	CHECK(SituationRules::NothingSelected({ .kind = Kind::kSpell }));
+	CHECK_FALSE(SituationRules::NothingSelected(flesh));
+	// A Spell row's forms are its spells, a Place row's its places.
+	CHECK(SituationRules::FormsOf(flesh).size() == 2);
+	CHECK(SituationRules::FormsOf({ .kind = Kind::kPlace, .spells = flesh.spells }).empty());
+}
+
+TEST_CASE("A Spell row is written and read as pieces, and the whole file refused for one it cannot read", "[situations]")
+{
+	auto table = SituationTable::Presets();
+	table.nextKey = 2;
+	const SituationRules::Rules rules{ .rows = { { .kind = SituationRules::Kind::kSpell,
+										   .spells = { PlaceOf("Skyrim.esm", 0x059B7A, "Stoneflesh", 0x00059B7A), PlaceOf("Magic.esp", 0x000812, "Frost Skin", 0) } } },
+		.applyInCombat = true };
+	table.entries.push_back(User(1, "Stone skin", rules));
+	const auto text = SituationTable::Serialize(table);
+	CHECK(text.find("\"kind\": \"spell\"") != std::string::npos);
+	CHECK(text.find("\"formId\": \"0x059B7A\"") != std::string::npos);
+	SituationTable::Table read;
+	REQUIRE_FALSE(SituationTable::Parse(text, read));
+	CHECK(read == table);
+	CHECK(read[Situations::kPresetCount].rules.rows[0].spells[1].ref.name == "Frost Skin");
+
+	const auto refuses = [&read](const char* a_text) {
+		const bool refused = SituationTable::Parse(a_text, read).has_value();
+		return refused && read == SituationTable::Presets();
+	};
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "spell" } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "spell", "values": ["Stoneflesh"] } ] } ] })"));
+}
+
+TEST_CASE("Every kind's tooltip formats with the actor's name", "[situations]")
+{
+	const std::string name = "Lydia";
+	for (const auto& info : SituationRules::kKinds) {
+		const auto tip = std::vformat(info.tip, std::make_format_args(name));
+		CHECK((tip.find("Lydia") != std::string::npos) == (info.kind == SituationRules::Kind::kSpell));
+	}
 }

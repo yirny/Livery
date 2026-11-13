@@ -45,6 +45,14 @@ namespace ExampleMod
 			[](unsigned char x, unsigned char y) { return AsciiToLower(x) == AsciiToLower(y); });
 	}
 
+	// `text` contains `part`, ASCII case ignored (only ASCII letters fold, as typed text is ASCII
+	// only); every text contains the empty part.
+	[[nodiscard]] inline bool ContainsIgnoringCase(std::string_view text, std::string_view part)
+	{
+		const auto equal = [](unsigned char x, unsigned char y) { return AsciiToLower(x) == AsciiToLower(y); };
+		return part.empty() || !std::ranges::search(text, part, equal).empty();
+	}
+
 	// Sanitises a (typically config-sourced) float: returns `defaultVal` when `value` is
 	// non-finite or below `minVal`, clamps to `maxVal` when above, otherwise returns `value`.
 	// Precondition: minVal <= defaultVal <= maxVal — these are caller-supplied bounds

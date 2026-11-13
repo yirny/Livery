@@ -7,10 +7,12 @@
 //               rows of the user's situations (SituationRules), in water with its
 //               hysteresis, and the player's beast form
 //   Places    - what the Add place popup offers: the actor's location and its parents, their cell
+//   Spells    - what the Add spell popup offers: the actor's spells and those behind the effects
+//               on them, or every named spell of the loaded plugins
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
-//   API       - Evaluate / PlacesAround / Start / Stop
+//   API       - Evaluate / PlacesAround / SpellsAround / AllSpells / Start / Stop
 //
 // The presets' rules follow Tailor 3.0's src/events/SituationHandler.cpp and its policy headers
 // (SwimmingPolicy, SleepStatePolicy, WarmPolicy, WarmWeather, LocationSituationPolicy).
@@ -29,6 +31,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <compare>
 #include <format>
 #include <optional>
 #include <string>
@@ -318,6 +321,48 @@ namespace
 		return false;
 	}
 
+	// Calls `a_visit` with each effect on the actor that is neither inactive nor dispelled, until
+	// it returns true. The engine's own walk (MagicTarget::VisitEffects, the one CommonLibSSE-NG
+	// says is right on every runtime), with no allocation.
+	// Contract: game thread; `a_visit` must not change the actor's effects.
+	template <class Visit>
+	void ForEachLiveEffect(RE::Actor& a_actor, Visit&& a_visit)
+	{
+		struct Visitor : RE::MagicTarget::ForEachActiveEffectVisitor
+		{
+			explicit Visitor(Visit& a_function) :
+				function(a_function) {}
+
+			RE::BSContainer::ForEachResult Accept(RE::ActiveEffect* a_effect) override
+			{
+				using Flag = RE::ActiveEffect::Flag;
+				if (!a_effect || a_effect->flags.any(Flag::kInactive, Flag::kDispelled)) {
+					return RE::BSContainer::ForEachResult::kContinue;
+				}
+				return function(*a_effect) ? RE::BSContainer::ForEachResult::kStop : RE::BSContainer::ForEachResult::kContinue;
+			}
+
+			Visit& function;
+		};
+		if (auto* target = a_actor.AsMagicTarget()) {
+			Visitor visitor{ a_visit };
+			target->VisitEffects(visitor);
+		}
+	}
+
+	// An effect on them comes from one of `a_spells` (SituationRules::Spell::formID; 0, a spell
+	// not loaded, matches nothing).
+	bool UnderSpells(const std::vector<SituationRules::Spell>& a_spells, RE::Actor& a_actor)
+	{
+		bool found = false;
+		ForEachLiveEffect(a_actor, [&a_spells, &found](const RE::ActiveEffect& a_effect) {
+			const auto* spell = a_effect.spell;
+			found = spell && std::ranges::any_of(a_spells, [id = spell->GetFormID()](const SituationRules::Spell& a_listed) { return a_listed.formID == id; });
+			return found;
+		});
+		return found;
+	}
+
 	// Whether one row of a user's situation holds: its kind's test, inverted by `not`. A row
 	// with nothing selected never holds.
 	bool RowHolds(const SituationRules::Row& a_row, Facts& a_facts)
@@ -362,6 +407,9 @@ namespace
 			break;
 		case Kind::kTimeOfDay:
 			holds = SituationRules::InTimeRange(a_row.from, a_row.to, MinuteOfDay());
+			break;
+		case Kind::kSpell:
+			holds = UnderSpells(a_row.spells, actor);
 			break;
 		}
 		return holds != a_row.negated;
@@ -442,6 +490,72 @@ namespace
 			}
 		}
 		return parents;
+	}
+
+	// --- Spells ---------------------------------------------------------------
+	//
+	// Contract: game thread, all; read as the window opens, never on the poll.
+
+	// A spell as a Spell row lists it, named for the reader. nullopt for one without a name,
+	// which the player never sees, or made in game, which no plugin names.
+	std::optional<SituationRules::Spell> SpellOf(const RE::MagicItem& a_item)
+	{
+		const char* name = a_item.GetName();
+		const auto* file = a_item.IsDynamicForm() ? nullptr : a_item.GetFile(0);
+		if (!file || !name || !*name) {
+			return std::nullopt;
+		}
+		return SituationRules::Spell{ .ref = { std::string{ file->GetFilename() }, a_item.GetLocalFormID(), name }, .formID = a_item.GetFormID() };
+	}
+
+	void AddSpell(const RE::MagicItem* a_item, std::vector<SituationRules::Spell>& a_spells)
+	{
+		if (a_item) {
+			if (auto spell = SpellOf(*a_item)) {
+				a_spells.push_back(std::move(*spell));
+			}
+		}
+	}
+
+	// The spells of an NPC record's or a race's spell list, a shout by the spells of its words.
+	void AddSpellList(const RE::TESSpellList* a_list, std::vector<SituationRules::Spell>& a_spells)
+	{
+		const auto* data = a_list ? a_list->actorEffects : nullptr;
+		if (!data) {
+			return;
+		}
+		for (std::uint32_t i = 0; data->spells && i < data->numSpells; ++i) {
+			AddSpell(data->spells[i], a_spells);
+		}
+		for (std::uint32_t i = 0; data->shouts && i < data->numShouts; ++i) {
+			if (const auto* shout = data->shouts[i]) {
+				for (const auto& word : shout->variations) {
+					AddSpell(word.spell, a_spells);
+				}
+			}
+		}
+	}
+
+	template <class T>
+	void AddEveryForm(RE::TESDataHandler& a_data, std::vector<SituationRules::Spell>& a_spells)
+	{
+		for (const auto* item : a_data.GetFormArray<T>()) {
+			AddSpell(item, a_spells);
+		}
+	}
+
+	// By name, ASCII case ignored, then by FormID; each spell once.
+	void SortSpells(std::vector<SituationRules::Spell>& a_spells)
+	{
+		const auto compare = [](unsigned char a, unsigned char b) { return ExampleMod::AsciiToLower(a) <=> ExampleMod::AsciiToLower(b); };
+		std::ranges::sort(a_spells, [&compare](const SituationRules::Spell& a_left, const SituationRules::Spell& a_right) {
+			const auto& left = a_left.ref.name;
+			const auto& right = a_right.ref.name;
+			const auto  order = std::lexicographical_compare_three_way(left.begin(), left.end(), right.begin(), right.end(), compare);
+			return order != 0 ? order < 0 : a_left.formID < a_right.formID;
+		});
+		const auto repeated = std::ranges::unique(a_spells, {}, &SituationRules::Spell::formID);
+		a_spells.erase(repeated.begin(), repeated.end());
 	}
 
 	// --- Poll -----------------------------------------------------------------
@@ -572,6 +686,40 @@ namespace Situations
 			choices.cell = PlaceOf(*cell);
 		}
 		return choices;
+	}
+
+	std::vector<SituationRules::Spell> SpellsAround(RE::Actor& a_actor)
+	{
+		std::vector<SituationRules::Spell> spells;
+		for (const auto* spell : a_actor.GetActorRuntimeData().addedSpells) {
+			AddSpell(spell, spells);
+		}
+		AddSpellList(a_actor.GetActorBase(), spells);
+		AddSpellList(a_actor.GetRace(), spells);
+		ForEachLiveEffect(a_actor, [&spells](const RE::ActiveEffect& a_effect) {
+			AddSpell(a_effect.spell, spells);
+			return false;
+		});
+		SortSpells(spells);
+		return spells;
+	}
+
+	// Contract: built at the first call and never changed after, so the span stays valid until the
+	// game closes: the loaded plugins' forms do not change while it runs.
+	std::span<const SituationRules::Spell> AllSpells()
+	{
+		static const std::vector<SituationRules::Spell> all = [] {
+			std::vector<SituationRules::Spell> spells;
+			if (auto* data = RE::TESDataHandler::GetSingleton()) {
+				AddEveryForm<RE::SpellItem>(*data, spells);
+				AddEveryForm<RE::AlchemyItem>(*data, spells);
+				AddEveryForm<RE::ScrollItem>(*data, spells);
+				AddEveryForm<RE::IngredientItem>(*data, spells);
+			}
+			SortSpells(spells);
+			return spells;
+		}();
+		return all;
 	}
 
 	void Start()

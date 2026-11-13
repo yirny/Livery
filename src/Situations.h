@@ -23,6 +23,7 @@ namespace OutfitRows
 
 namespace SituationRules
 {
+	struct FormRef;
 	struct PlaceChoices;
 }
 
@@ -228,6 +229,18 @@ namespace Situations
 	// opens, which freezes the game.
 	// Contract: game thread.
 	SituationRules::PlaceChoices PlacesAround(RE::Actor& a_actor);
+
+	// The spells the Add spell popup offers for `a_actor` (SituationRules::Spell): those they
+	// know (learned, and of their NPC record and race, a shout by its words) and those behind
+	// the effects on them now; each once, named, by name. Read as the window opens.
+	// Contract: game thread.
+	std::vector<SituationRules::FormRef> SpellsAround(RE::Actor& a_actor);
+
+	// Every named spell, power, potion, scroll and ingredient of the loaded plugins, by name:
+	// what the Add spell popup offers with Show all spells. Built at the first call, kept until
+	// the game closes.
+	// Contract: game thread, after kDataLoaded.
+	std::span<const SituationRules::FormRef> AllSpells();
 
 	// The poll that keeps assigned actors dressed for their situations: Start at
 	// kPostLoadGame and kNewGame, Stop at kPreLoadGame.
