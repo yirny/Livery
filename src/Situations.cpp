@@ -6,7 +6,7 @@
 //   Detection - the presets' conditions (sleep, cold outdoors, home, castle, town), the
 //               rows of the user's situations (SituationRules), in water with its
 //               hysteresis, and the player's beast form
-//   Places    - what the Add place popup offers: where the actor stands
+//   Places    - what the Add place popup offers: the actor's location and its parents, their cell
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
@@ -389,6 +389,31 @@ namespace
 	//
 	// Contract: game thread, all; read as the window opens, never on the poll.
 
+	bool IsHold(const RE::BGSLocation& a_location)
+	{
+		return a_location.HasKeywordString("LocTypeHold"sv);
+	}
+
+	// A hold, or a location a hold is in (Tamriel in Skyrim.esm): too wide for a place, which
+	// would hold in its named places only, never in the open country between them
+	// (docs/custom-situations.md §3). The locations holding a hold are worked out once: the
+	// game's locations do not change while it runs.
+	bool IsHoldOrWider(const RE::BGSLocation& a_location)
+	{
+		static const std::vector<RE::FormID> wider = [] {
+			std::vector<RE::FormID> parents;
+			if (auto* dataHandler = RE::TESDataHandler::GetSingleton()) {
+				for (const auto* location : dataHandler->GetFormArray<RE::BGSLocation>()) {
+					if (location && location->parentLoc && IsHold(*location)) {
+						parents.push_back(location->parentLoc->GetFormID());
+					}
+				}
+			}
+			return parents;
+		}();
+		return IsHold(a_location) || std::ranges::find(wider, a_location.GetFormID()) != wider.end();
+	}
+
 	// A location or cell as a Place, named for the reader: its name, else its editor ID (cells
 	// keep theirs), else its FormID. nullopt for a form made in game, which no plugin names.
 	std::optional<SituationRules::Place> PlaceOf(const RE::TESForm& a_form)
@@ -403,6 +428,20 @@ namespace
 			name = editorID && *editorID ? editorID : std::format("{:08X}", a_form.GetFormID());
 		}
 		return SituationRules::Place{ .ref = { std::string{ file->GetFilename() }, a_form.GetLocalFormID(), std::move(name) }, .formID = a_form.GetFormID() };
+	}
+
+	// The locations `a_location` is in, nearest first, up to the first that is a hold or wider
+	// (IsHoldOrWider), which is left out with all above it.
+	std::vector<SituationRules::Place> ParentsOf(const RE::BGSLocation& a_location)
+	{
+		std::vector<SituationRules::Place> parents;
+		const auto*                        parent = a_location.parentLoc;
+		for (int depth = 0; parent && depth < kMaxLocationDepth && !IsHoldOrWider(*parent); ++depth, parent = parent->parentLoc) {
+			if (auto place = PlaceOf(*parent)) {
+				parents.push_back(std::move(*place));
+			}
+		}
+		return parents;
 	}
 
 	// --- Poll -----------------------------------------------------------------
@@ -526,6 +565,7 @@ namespace Situations
 		const auto*                  location = a_actor.GetCurrentLocation();
 		if (location) {
 			choices.location = PlaceOf(*location);
+			choices.parents = ParentsOf(*location);
 		}
 		if (const auto* cell = a_actor.GetParentCell()) {
 			choices.cell = PlaceOf(*cell);

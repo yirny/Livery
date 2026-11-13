@@ -1149,25 +1149,18 @@ namespace CaptureWindow::Internal
 			return index < rows.size() && rows[index].kind == SituationRules::Kind::kPlace ? &rows[index] : nullptr;
 		}
 
-		// What the Add place popup's choice adds; nullopt where the actor has neither (not loaded).
-		std::optional<SituationRules::Place> PickedPlace(const State& a_state)
-		{
-			const auto& places = a_state.request.places;
-			return a_state.situationForm.placePick == PlacePick::kLocation ? places.location : places.cell;
-		}
-
-		// Opens the Add place popup on where the actor stands: This Location, or This Cell when
-		// they are outside any location.
+		// Opens the Add place popup on its first choice: This Location, or This Cell when the
+		// actor is outside any location.
 		// Contract: in the page's ID scope, as the popups are drawn there.
 		void OpenAddPlacePopup(State& a_state)
 		{
-			a_state.situationForm.placePick = a_state.request.places.location ? PlacePick::kLocation : PlacePick::kCell;
+			a_state.situationForm.placePick = 0;
 			ImGui::OpenPopup(kAddPlacePopup);
 		}
 
-		// The Add place popup (docs/custom-situations.md §7): This Location or This Cell, each
-		// with the place's name and a (?) saying what it covers; Add, greyed for a place the row
-		// has already, / Cancel (Escape). Returns the place to add on Add.
+		// The Add place popup (docs/custom-situations.md §7): This Location, each Parent Location
+		// and This Cell, each with the place's name and a (?) saying what it covers; Add, greyed
+		// for a place the row has already, / Cancel (Escape). Returns the place to add on Add.
 		std::optional<SituationRules::Place> DrawAddPlacePopup(State& a_state)
 		{
 			if (!BeginModal(kAddPlacePopup)) {
@@ -1176,10 +1169,13 @@ namespace CaptureWindow::Internal
 			auto&       form = a_state.situationForm;
 			const auto& places = a_state.request.places;
 			const auto& name = a_state.request.actorName;
-			const auto  radio = [&form](const char* a_kind, const SituationRules::Place& a_place, PlacePick a_pick, const std::string& a_help) {
+			int         shown = 0;  // the choices drawn so far, in request.places.At's order
+			const auto  radio = [&form, &shown](const char* a_kind, const SituationRules::Place& a_place, const std::string& a_help) {
+				const int  pick = shown++;
 				const auto label = std::format("{} ({})", a_kind, SituationRules::PlaceName(a_place));
-				if (Theme::RadioButton(label.c_str(), form.placePick == a_pick)) {
-					form.placePick = a_pick;
+				ImGui::PushID(pick);
+				if (Theme::RadioButton(label.c_str(), form.placePick == pick)) {
+					form.placePick = pick;
 					QueueMenuSound(kFocusSound);
 				}
 				ImGui::SameLine();
@@ -1187,17 +1183,21 @@ namespace CaptureWindow::Internal
 				if (ImGui::IsItemHovered()) {
 					DrawHelpTooltip(a_help);
 				}
+				ImGui::PopID();
 			};
 			ImGui::TextUnformatted(std::format("Add the place {} is in.", name).c_str());
 			if (places.location) {
-				radio("This Location", *places.location, PlacePick::kLocation,
-					std::format("The named place {} is in.\nMay include multiple rooms or outdoor areas.", name));
+				radio("This Location", *places.location, std::format("The named place {} is in.\nMay include multiple rooms or outdoor areas.", name));
+				const auto here = SituationRules::PlaceName(*places.location);
+				for (const auto& parent : places.parents) {
+					radio("Parent Location", parent, std::format("Includes {} and every place in it.", here));
+				}
 			}
 			if (places.cell) {
-				radio("This Cell", *places.cell, PlacePick::kCell,
+				radio("This Cell", *places.cell,
 					std::format("The individual area {} is in.\nTypically an entire building interior or a section of the outdoors.", name));
 			}
-			const auto  picked = PickedPlace(a_state);
+			const auto* picked = places.At(form.placePick);
 			const auto* row = PlaceRow(a_state);
 			const bool  listed = picked && row && std::ranges::any_of(row->places, [&picked](const SituationRules::Place& a_place) {
 				return SituationRules::SamePlace(a_place.ref, picked->ref);
@@ -1213,7 +1213,7 @@ namespace CaptureWindow::Internal
 				ImGui::CloseCurrentPopup();
 			}
 			ImGui::EndPopup();
-			return add ? picked : std::nullopt;
+			return add && picked ? std::optional{ *picked } : std::nullopt;
 		}
 
 		// Hands the page's edits to onSituationsSave: the names that changed, every row

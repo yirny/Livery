@@ -81,7 +81,29 @@ namespace SituationRules
 	struct PlaceChoices
 	{
 		std::optional<Place> location;  // the actor's current location; nullopt outside any
+		std::vector<Place>   parents;   // the locations it is in, nearest first, below any hold
 		std::optional<Place> cell;      // the cell they stand in
+
+		// The choice at `a_index` in the order the popup shows them: the location, its parents,
+		// the cell. nullptr past them.
+		const Place* At(int a_index) const
+		{
+			if (a_index < 0) {
+				return nullptr;
+			}
+			auto index = static_cast<std::size_t>(a_index);
+			if (location) {
+				if (index == 0) {
+					return &*location;
+				}
+				--index;
+			}
+			if (index < parents.size()) {
+				return &parents[index];
+			}
+			index -= parents.size();
+			return index == 0 && cell ? &*cell : nullptr;
+		}
 	};
 
 	struct Row

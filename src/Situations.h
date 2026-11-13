@@ -223,8 +223,9 @@ namespace Situations
 	// Contract: game thread.
 	Applicable Evaluate(RE::Actor& a_actor, const OutfitRows::Rows& a_rows);
 
-	// The places the Add place popup offers for `a_actor` (SituationRules::PlaceChoices): where
-	// they stand. Read as the window opens, which freezes the game.
+	// The places the Add place popup offers for `a_actor` (SituationRules::PlaceChoices): the
+	// location and cell they stand in, and the locations that location is in. Read as the window
+	// opens, which freezes the game.
 	// Contract: game thread.
 	SituationRules::PlaceChoices PlacesAround(RE::Actor& a_actor);
 

@@ -65,10 +65,10 @@ Notes:
 - Indoors is the cell's kind. Worldspaces that are underground or elsewhere (Blackreach,
   Sovngarde, the Soul Cairn) count as outdoors; a known quirk, documented, not worked around.
 - Location type reads the location's own keywords only, as the presets do (a room of a city is
-  not in it by its parent); Place walks the parents. A hold is not offered as a Place (decided
-  2026-11-13): it would hold in the hold's towns, farms, camps and dungeons only, never on the
-  roads between them, which is not what its name promises; a region condition (§10) would
-  cover the open country.
+  not in it by its parent); Place walks the parents. A hold is not offered as a Place, nor
+  Tamriel above the holds (decided 2026-11-13): it would hold in the hold's towns, farms,
+  camps and dungeons only, never on the roads between them, which is not what its name
+  promises; a region condition (§10) would cover the open country.
 - Weather does not test the cell: the user adds `not Indoors` for outdoors only. The Cold preset
   reads as `Weather {Rain, Snow, Snowy region}` and `not Indoors`.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
@@ -179,11 +179,13 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   Remove at its right end (one whose plugin is not loaded greyed, saying so on hover), then
   `Add Place...`; Spell will do the same.
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
-  (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location, and
-  `This Cell (<name>)`, their cell (a cell without a name shows its editor ID, else its
-  FormID), each followed by a (?) saying what it covers. The game's own terms, as "room" or
-  "area" would blur the two. It opens on the location, or on the cell when they are outside
-  any. Add is greyed for a place the row has already.
+  (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
+  `Parent Location (<name>)` for each location it is in, nearest first, up to the first hold
+  or location holding a hold (Tamriel), left out with all above it; and `This Cell (<name>)`,
+  their cell (a cell without a name shows its editor ID, else its FormID); each followed by a
+  (?) saying what it covers. The game's own terms, as "room" or "area" would blur the two. It
+  opens on the location, or on the cell when they are outside any. Add is greyed for a place
+  the row has already.
   Spell's add opens the memo's picker (known spells first, all spells by search).
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
   negated) it is on and disabled.

@@ -383,3 +383,21 @@ TEST_CASE("Parse refuses the whole file for a place it cannot read", "[situation
 	CHECK_FALSE(SituationTable::Parse(
 		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "place", "not": true, "values": [] } ] } ] })", table));
 }
+
+TEST_CASE("The Add place popup's choices run location, its parents, then the cell", "[situations]")
+{
+	SituationRules::PlaceChoices choices{ .location = PlaceOf("Skyrim.esm", 0x01, "Proudspire Manor"),
+		.parents = { PlaceOf("Skyrim.esm", 0x02, "Solitude Avenues"), PlaceOf("Skyrim.esm", 0x03, "Solitude") },
+		.cell = PlaceOf("Skyrim.esm", 0x04, "Proudspire Manor") };
+	REQUIRE(choices.At(0));
+	CHECK(choices.At(0)->ref.localID == 0x01);
+	CHECK(choices.At(2)->ref.localID == 0x03);
+	CHECK(choices.At(3)->ref.localID == 0x04);
+	CHECK_FALSE(choices.At(4));
+	CHECK_FALSE(choices.At(-1));
+
+	const SituationRules::PlaceChoices outdoors{ .cell = PlaceOf("Skyrim.esm", 0x05, "") };  // no location in the open country
+	REQUIRE(outdoors.At(0));
+	CHECK(outdoors.At(0)->ref.localID == 0x05);
+	CHECK_FALSE(outdoors.At(1));
+}
