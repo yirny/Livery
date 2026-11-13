@@ -6,7 +6,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -36,9 +35,9 @@ namespace SituationTable
 		friend bool operator==(const Entry&, const Entry&) = default;
 	};
 
-	// One entry per Situations::Situation, at the index of its value: the Default first.
-	inline constexpr std::size_t kCount = Situations::kChoosable.size() + 1;
-	using Table = std::array<Entry, kCount>;
+	// One entry per Situations::Situation, at the index of its id: the Default first,
+	// Situations::Count() of them (Presets).
+	using Table = std::vector<Entry>;
 
 	constexpr std::size_t IndexOf(Situations::Situation a_situation) noexcept
 	{
@@ -53,7 +52,7 @@ namespace SituationTable
 
 	inline Table Presets()
 	{
-		Table table;
+		Table table(Situations::Count());
 		for (std::size_t i = 0; i < table.size(); ++i) {
 			table[i] = Preset(static_cast<Situations::Situation>(i));
 		}
@@ -153,7 +152,7 @@ namespace SituationTable
 		} else if (const auto list = json.find("situations"); list == json.end() || !list->is_array()) {
 			problem = "It has no situation list.";
 		} else {
-			std::vector<bool> seen(kCount, false);
+			std::vector<bool> seen(a_table.size(), false);
 			for (std::size_t i = 0; i < list->size() && !problem; ++i) {
 				problem = Detail::ParseEntry((*list)[i], i + 1, a_table, seen);
 			}

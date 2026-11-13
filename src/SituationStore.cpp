@@ -117,7 +117,7 @@ namespace SituationStore
 	std::vector<Situations::Situation> Offered()
 	{
 		std::vector<Situations::Situation> offered;
-		for (const auto situation : Situations::kChoosable) {
+		for (const auto situation : Situations::Choosable()) {
 			if (!IsRemoved(situation)) {
 				offered.push_back(situation);
 			}
