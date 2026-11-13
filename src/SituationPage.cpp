@@ -665,7 +665,7 @@ namespace CaptureWindow::Internal
 			return edit == ConditionEdit::kNone && changed ? ConditionEdit::kChanged : edit;
 		}
 
-		// Add Condition...: a dropdown of the kinds; returns the one chosen.
+		// Add Condition...: a dropdown of the kinds, closed by a choice; returns the one chosen.
 		std::optional<SituationRules::Kind> DrawAddCondition()
 		{
 			constexpr const char* kAddCondition = "Add Condition...";
@@ -679,6 +679,7 @@ namespace CaptureWindow::Internal
 					bool chosen = false;
 					if (Theme::DropdownRow(info.label, &chosen, false)) {
 						added = info.kind;
+						ImGui::CloseCurrentPopup();
 					}
 				}
 			}
@@ -738,6 +739,11 @@ namespace CaptureWindow::Internal
 			if (const auto kind = DrawAddCondition()) {
 				a_rules.rows.push_back({ .kind = *kind });
 				changed = true;
+				// A Place row starts empty, so its Add Place... is pressed for the user.
+				if (*kind == SituationRules::Kind::kPlace) {
+					a_state.situationForm.placeRow = static_cast<int>(a_rules.rows.size() - 1);
+					a_addPlace = true;
+				}
 			}
 			changed = DrawApplyInCombat(a_state, a_rules) || changed;
 			Theme::LabelText("Applies");
@@ -1232,7 +1238,7 @@ namespace CaptureWindow::Internal
 			ImGui::TextUnformatted(std::format("Add the place {} is in, or a hold.", name).c_str());
 			if (places.location) {
 				radio(SituationRules::PlaceName(*places.location).c_str(), PlacePick::kLocation,
-					places.locationIsHold ? "The whole hold." : "Here, with every room and area of this place.");
+					places.locationIsHold ? "The hold's towns, farms, camps and dungeons." : "Here, with every room and area of this place.");
 			}
 			if (places.cell) {
 				const auto label = std::format("{} ({})", places.interior ? "This room only" : "This area only", SituationRules::PlaceName(*places.cell));
@@ -1241,7 +1247,7 @@ namespace CaptureWindow::Internal
 			}
 			bool listOpen = false;
 			if (!places.holds.empty()) {
-				radio("Hold", PlacePick::kHold, "A whole hold, wherever in it.");
+				radio("Hold", PlacePick::kHold, "The hold's towns, farms, camps and dungeons.\nNot the open country, which belongs to no hold.");
 				ImGui::SameLine();
 				if (DrawHoldDropdown(form.placeHold, places.holds, listOpen)) {
 					form.placePick = PlacePick::kHold;

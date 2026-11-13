@@ -52,7 +52,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Swimming | none | the actor state's swimming flag | `ActorState::IsSwimming` | not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no (`IsExteriorCell` is used by Cold) |
 | Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = the Town preset's keywords (`LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse`, `LocTypePlayerHouse`; `LocTypeHouse` for the player too, unlike the preset), Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
-| Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list | `GetCurrentLocation`, `GetParentCell` | not yet |
+| Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. A hold holds in its towns, farms, camps and dungeons only: most open-country cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell | a list of `MagicItem`s | any active effect on the actor comes from one of them (memo: Magic conditions) | `MagicTarget::GetActiveEffectList`, `ActiveEffect::spell` | no |
@@ -172,7 +172,8 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   small fixed set (Location type, Weather) as checkboxes, side by side while the pane has
   room, or for Time of day `From [time] to [time]`, two dropdowns in 30-minute steps (a time
   read from the file off those steps shows as it is). Then `Add Condition...`, a dropdown of
-  the kinds, which adds a row with nothing ticked. Place lists its places, one a line with
+  the kinds, closed by the choice, which adds a row with nothing ticked (a Place row opens the
+  Add place popup at once). Place lists its places, one a line with
   Remove at its right end (one whose plugin is not loaded greyed, saying so on hover), then
   `Add Place...`; Spell will do the same.
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
@@ -218,6 +219,8 @@ every user-defined situation before the presets, in the order they were made
 - Which Skyrim.esm locations carry `LocTypeDungeon`, and whether the DLC dungeons do.
 - What `Sky::currentWeather` holds in an interior cell (the last exterior weather is assumed).
 - A Time of day range that wraps midnight, at the wrap.
-- Whether an NPC's parent cell follows them across exterior cells (a `This area only` place),
-  and whether a whole-hold location is what `GetCurrentLocation` returns in the wilderness.
+- Whether an NPC's parent cell follows them across exterior cells (a `This area only` place).
+- The open country belongs to no hold in the data (§3): a region condition (the cell's
+  regions, `TESObjectCELL::GetRegionList`; the Cold preset reads the sky's weather region,
+  `Sky::region`) would cover it, if wanted; regions have editor IDs only (`WeatherTundra`).
 - OR groups, and the priority of user-defined situations, after the prototype (§2, §8).
