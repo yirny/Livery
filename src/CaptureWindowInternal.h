@@ -51,7 +51,7 @@ namespace CaptureWindow::Internal
 	constexpr const char* kNeedOutfit = "Select an outfit.";
 	constexpr const char* kAddFrom = "Add from";  // the words of the links under a piece list, before their icon (DrawCountLink)
 	constexpr float       kLinkRowGap = 4.0f;     // pixels at 1080p, between those two links, on top of a next line's own gap
-	constexpr const char* kNoOutfits = "No outfits in the wardrobe.";
+	constexpr const char* kNoOutfits = "No outfits in the Wardrobe.";
 	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
 	// The Chests page's and the chest editor's (docs/chest-ui.md).
 	constexpr const char* kChestCreatePopup = "New chest";
