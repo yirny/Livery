@@ -1,7 +1,7 @@
 # User-defined situations
 
-Design, decided 2026-11-13. Built: 2a (§9), checked in game; 2b on `feat/cs-place`, in-game
-check pending; 2c is not. It extends the situations of docs/design.md §7 (five presets with fixed rules,
+Design, decided 2026-11-13. Built and checked in game: 2a and 2b
+(§9); 2c is not. It extends the situations of docs/design.md §7 (five presets with fixed rules,
 `Situations::Priority()`) with situations the user defines: a key, a name, a list of
 conditions, a place in the priority order. The registry (`Situations::Count`, `Choosable`,
 `Priority`, `AddUser`, `kMaxSituations = 64`) is its base; the model is `src/SituationRules.h`,
@@ -211,7 +211,7 @@ every user-defined situation before the presets, in the order they were made
    Location type, Weather, Time of day. Usable on its own; the prototype of §7 is checked here.
    Built on `feat/cs-model`, checked in game.
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).
-   Built on `feat/cs-place`; in-game check pending.
+   Built on `feat/cs-place`, checked in game.
 3. 2c: Spell, reusing 2b's list line, with the search picker and the active-effect walk.
 
 ## 10. Open and in-game checks
