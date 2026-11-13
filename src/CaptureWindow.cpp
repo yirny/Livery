@@ -32,7 +32,7 @@
 //                  ones in three columns (ChooseOutfit), its confirm popup before the write;
 //                  both tabs hand over to onSave, and a save that took goes back to the Dress
 //                  page, the window open (SetOutfits)
-//   Appearance   - Window skin, Restore original palette and Play menu sounds, written to the
+//   Appearance   - Window skin, Restore Original Palette and Play menu sounds, written to the
 //                  INI at once (Settings); the window is drawn in a new skin from the next frame
 //   Outfit pages - the outfit browser and lists, the Load, the Wardrobe page and Edit pages:
 //                  OutfitPages.cpp; the Situations page: SituationPage.cpp; the Chests page and
@@ -2232,7 +2232,7 @@ namespace CaptureWindow::Internal
 		if (!palettes.labels.empty()) {
 			DrawWindowSkin(palettes, kSource);
 			if (palettes.edited) {
-				restore = Theme::LineLink("Restore original palette");
+				restore = Theme::LineLink("Restore Original Palette");
 				if (ImGui::IsItemHovered()) {
 					Theme::Tooltip("Writes the palette file back as Livery ships it.");
 				}

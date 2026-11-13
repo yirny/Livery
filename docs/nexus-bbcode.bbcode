@@ -124,7 +124,7 @@ Turn on [b][color=#EAD08F]Enable chests[/color][/b] in the settings first.[/font
 [*][font=Roboto]Click items from your inventory or the NPC's to put them in. [b][color=#EAD08F]Add from Wardrobe...[/color][/b] puts in a whole outfit.[/font][/*]
 [*][font=Roboto]When dressing, press [b][color=#EAD08F]Add from Chest...[/color][/b], select the chest, [b][color=#EAD08F]Load[/color][/b]. Select the items you want, then [b][color=#EAD08F]Apply[/color][/b].[/font][/*]
 [/list]
-[font=Roboto]- From the chest editor, [b][color=#EAD08F]Dress with this Chest...[/color][/b] takes you straight to the Dress page with its items already on the list.[/font]
+[font=Roboto]- From the chest editor, [b][color=#EAD08F]Dress with Chest...[/color][/b] takes you straight to the Dress page with its items already on the list.[/font]
 
 [font=Roboto][b][size=4][color=#a7c17b]◆ Configure Livery ◆[/color][/size][/b]
 
@@ -135,7 +135,7 @@ Settings are available on the Livery page of SKSE Menu Framework, or in [font=Co
 The window's Appearance tab lets you change the skin, palette and menu sounds, even without SKSE Menu Framework.
 
 To change the window's colours, edit the #RRGGBB values in your palette's .ini under [font=Courier New]Data\SKSE\Plugins\Livery\palettes\[/font], or copy one under a new name and edit the copy.
-[b][color=#EAD08F]Restore original palette[/color][/b] on the Appearance tab undoes edits to a shipped palette.[/font]
+[b][color=#EAD08F]Restore Original Palette[/color][/b] on the Appearance tab undoes edits to a shipped palette.[/font]
 
 
 [center][img]https://raw.githubusercontent.com/yirny/Livery/main/docs/assets/nexus/h2_requirements.png[/img][/center]
@@ -174,8 +174,8 @@ Then remove Livery; it adds no plugin file, so your save loads without it.
 [font=Roboto][b][color=#a7c17b]An NPC changed back after a bath or a scene.[/color][/b]
 By design. Livery puts the outfit back on when the NPC's 3D loads or their situation changes, not every frame, so other mods can undress them for a while.
 
-[b][color=#a7c17b]I added an item to an Outfit or Chest, but it's still in my inventory.[/color][/b]
-Think of Outfits and Chests as lists of items, not storage containers. Adding an item to a list doesn't make the actual item disappear. 
+[b][color=#a7c17b]I added an item to an outfit or chest, but it's still in my inventory.[/color][/b]
+Think of outfits and chests as lists of items, not storage containers. Adding an item to a list doesn't make the actual item disappear. 
 When dressing a character, Livery uses the items they already have or provides what's missing.
 
 [b][color=#a7c17b]I can't wear an outfit myself.[/color][/b]
@@ -191,7 +191,7 @@ Enchanted items from a plugin, like a Ring of Alchemy, are items in their own ri
 [b][color=#a7c17b]An NPC won't equip gear I give them—or equips gear I don't want them to.[/color][/b]
 NPCs won't replace gear assigned by Livery. To change it, edit their outfit in Livery instead.
 Empty slots work differently: by default, NPCs can equip extra gear there, except headgear, so a shield goes on and a helmet comes off again.
-You can change this under [b][color=#EAD08F]Gear in unused slots[/color][/b] in Settings.
+You can change this under [b][color=#EAD08F]Gear in unused slots[/color][/b] in the settings.
 
 [b][color=#a7c17b]My Sleep outfit never goes on.[/color][/b]
 The game's own beds just pass the time. It goes on with a mod that actually puts you into bed.
@@ -234,7 +234,7 @@ Should be handy, but a second kind of outfit to keep track of.[/font][/*]
 [*][font=Roboto][b]Custom tags[/b] on outfits, like "Light Armor", "Casual" or a mod author's name. 
 Easier to find things, but busier lists. 
 For now, icons and colours are the way to organise.[/font][/*]
-[*][font=Roboto][b]A wardrobe per save[/b]. 
+[*][font=Roboto][b]A Wardrobe per save[/b]. 
 Outfits would belong to the playthrough: nothing from items this character never found. 
 But losing your outfit edits because you died before saving the game would feel silly too. 
 For now, managing [font=Courier New]outfits.json[/font] by hand gets you part of the way.[/font][/*]
