@@ -8,7 +8,7 @@ The version lives in two places: `CMakeLists.txt` (`project(... VERSION x.y.z)`)
 
 1. Run `./scripts/release.sh <major|minor|patch|X.Y.Z>` on `main`. It bumps `CMakeLists.txt` and `vcpkg.json` on a `chore/release-X.Y.Z` branch, opens a PR (labeled `ignore-for-release`), waits for its checks, squash-merges it, then tags and pushes `vX.Y.Z`. That push triggers `release.yml` to build the plugin, package it via `scripts/package.sh`, and publish a GitHub Release with the zip and PDB. The `CMakeLists.txt` version is also embedded in the DLL through the `SKSEPlugin_Version` that `add_commonlibsse_plugin` generates, and `release.yml` names the zip after the tag. Keep all three (files, tag, DLL) in lockstep. Requires the GitHub CLI (`gh`), authenticated with push/merge access.
 2. `nexus-upload.yml` auto-triggers once `release.yml` finishes. Approve the pending deployment under the `nexus` environment (on the workflow run's page, or the repo's Environments tab) to let the upload proceed. If it doesn't fire, or you need to re-run a failed upload, trigger it manually via workflow_dispatch with the version (no `v` prefix). It must match the tag exactly, since the workflow resolves the tag from the checked-out commit and fails outright if that tag doesn't exist. See [Nexus Mods upload](#nexus-mods-upload) for the environment setup.
-3. If the Nexus page changed, regenerate it with `python3 scripts/generate-nexus-page.py` and paste the output into the Nexus Mods page editor.
+3. If the Nexus page changed, paste `docs/nexus-bbcode.bbcode` into the Nexus Mods page editor.
 
 ## Nexus Mods upload
 
