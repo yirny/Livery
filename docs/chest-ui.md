@@ -56,12 +56,12 @@ Reached from the Chests page; no tab column. Title `Edit <chest icon> #{Chest}`
 field once it is entered, by Enter or the field losing focus. A name left empty, or one another
 chest has (ASCII case ignored), gives way to the name as saved, with no message. Both lists' rows start at the list's left edge
 (`Theme::Grip::kFlush`), level with the group headings. The name field, then two
-columns, `Dress with this chest...` (the Dress tab's bare form before it), `Back`, and `Remove`
+columns, `Dress with Chest...` (the Dress tab's bare form before it), `Back`, and `Remove`
 as a link at the row's right end, as the Wardrobe page's:
 
 - Left, `Items` (the backpack before the label): the items someone carries that are not in the chest, under the Dress
   page's group headings in its order (`State::pieceOrder`), each row its icon and name; then,
-  under `Taken out of chest` (the chest icon), the items taken out that nobody carries, listed
+  under `Taken Out of Chest` (the chest icon), the items taken out that nobody carries, listed
   until the page is left. A click puts the item in. Under the list, each on its own line at the
   column's right end, `Add from Wardrobe...` and `Add from Chest...` (each with its icon before the last word)
   open the Load page (`LoadTarget::kChest`) listing the outfits or the other
@@ -78,7 +78,7 @@ as a link at the row's right end, as the Wardrobe page's:
   stays and shows the error, and leaving again with the error showing drops the edits and
   returns. `Remove` asks (`Remove #{Chest}?`, Remove / Cancel) and hands the chest to
   `onChestRemove`; the editor returns to the Chests page.
-- `Dress with this chest...` leaves as `Back` does (`PendingLeave::loadChest`), but for the Dress
+- `Dress with Chest...` leaves as `Back` does (`PendingLeave::loadChest`), but for the Dress
   page with the chest as written loaded there, as its `Add from Chest...` and `Load` would. Greyed
   with `None of its items is loaded.` while the chest as edited has no loaded item, and with
   `Not available while dressing from your inventory only.` while the Dress page hides its links
@@ -136,7 +136,7 @@ uses), `src/OutfitPages.cpp` (the Load page's chest mode and targets), `src/Capt
 - Setting on: Chests tab; Create New Chest... writes `chests.json` with the empty chest; the editor
   moves items between the columns and about 0.5 s later they are in the file; Back right after
   an edit saves it with no alert; a name left empty or taken goes back to the saved one; Remove
-  takes the chest out of the file; Dress with this chest... right after an edit saves it and
+  takes the chest out of the file; Dress with Chest... right after an edit saves it and
   shows the Dress page with the chest's items listed unticked under its heading.
 - Dress page: `Add from Chest...` lists the chest's items unticked under their
   heading; ticking one unticks the item on its slot; Apply dresses the NPC in it (HUD message,

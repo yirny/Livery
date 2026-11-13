@@ -14,7 +14,7 @@
 //                  then the items taken out that nobody carries under their own heading, a
 //                  click putting an item in; right the chest's items, a click taking one out;
 //                  Add from Wardrobe... / Add from Chest... open the Load page, whose Add puts
-//                  an outfit's or another chest's items in; Dress with this chest... (the
+//                  an outfit's or another chest's items in; Dress with Chest... (the
 //                  Dress page with the chest loaded), Back, Remove (Remove chest?,
 //                  onChestRemove) at the row's right end. An edit is saved shortly after the
 //                  last one, or as the page is left (onChestUpdate). Nothing here dresses
@@ -230,7 +230,7 @@ namespace CaptureWindow::Internal
 		ScheduleAutosave(a_state);
 	}
 
-	// Takes item `a_piece` out; one nobody carries stays listed left, under Taken out of chest,
+	// Takes item `a_piece` out; one nobody carries stays listed left, under Taken Out of Chest,
 	// until the page is left.
 	void TakeOut(State& a_state, std::size_t a_piece)
 	{
@@ -341,7 +341,7 @@ namespace CaptureWindow::Internal
 				++listed;
 			}
 			if (!a_state.chest.takenOut.empty()) {
-				Theme::ListHeading("Taken out of chest", Theme::HeadingIcon::kChest);
+				Theme::ListHeading("Taken Out of Chest", Theme::HeadingIcon::kChest);
 				drawn = 0;
 				for (const auto i : a_state.chest.takenOut) {
 					if (DrawItemRow(a_state, i, drawn % 2 == 1)) {
@@ -394,12 +394,12 @@ namespace CaptureWindow::Internal
 		kBack
 	};
 
-	// Dress with this chest... and Back centred, Remove a link at the row's right end, as the
+	// Dress with Chest... and Back centred, Remove a link at the row's right end, as the
 	// Wardrobe page's. Dress is greyed while the chest as edited has no loaded item, and while the
 	// Dress page offers no Add from Chest... (the player dressing from their inventory only).
 	ChestAction DrawChestButtons(const State& a_state)
 	{
-		constexpr const char* kDressWithChest = "Dress with this chest...";
+		constexpr const char* kDressWithChest = "Dress with Chest...";
 		constexpr const char* kInventoryOnly = "Not available while dressing from your inventory only.";
 
 		const char* noDress = nullptr;
@@ -507,7 +507,7 @@ namespace CaptureWindow::Internal
 		return remove;
 	}
 
-	// The name field, the two columns and their links, then Dress with this chest... / Back /
+	// The name field, the two columns and their links, then Dress with Chest... / Back /
 	// Remove. A click on an item
 	// moves it to the other column; every edit is saved shortly after the last one, or as the
 	// page is left.

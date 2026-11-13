@@ -1539,7 +1539,7 @@ namespace CaptureWindow::Internal
 		bool       helpHovered = false;
 		const bool justApply = Theme::HelpButton(kJustApply, &helpHovered);
 		if (helpHovered) {
-			auto help = std::format("Sets the selected items as {}'s default outfit without adding them to the wardrobe.", request.actorName);
+			auto help = std::format("Sets the selected items as {}'s default outfit without adding them to the Wardrobe.", request.actorName);
 			if (HasSituationalOutfits(a_state)) {
 				help += "\nThe new default outfit takes effect when no situational outfit applies.";
 			}
@@ -1739,7 +1739,7 @@ namespace CaptureWindow::Internal
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, a_outfit, &CaptureWindow::ExistingOutfit::id);
-		return found != outfits.end() ? std::format("\"{}\"", found->name) : std::string("an outfit no longer in the wardrobe");
+		return found != outfits.end() ? std::format("\"{}\"", found->name) : std::string("an outfit no longer in the Wardrobe");
 	}
 
 	// What row `a_row` wears now with random off, as Apply as Default's help names it.
@@ -1757,7 +1757,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, outfit, &CaptureWindow::ExistingOutfit::id);
-		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun("an outfit no longer in the wardrobe");
+		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun("an outfit no longer in the Wardrobe");
 	}
 
 	Theme::SubtitleRun WornOutfitRun(const State& a_state)

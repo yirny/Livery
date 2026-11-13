@@ -283,7 +283,7 @@ namespace CaptureWindow::Internal
 		ImGui::PopStyleVar();
 		Theme::EndList();
 		if (visible.size() == outfits.size()) {
-			Theme::CountText(std::format("{} outfits in the wardrobe", outfits.size()).c_str(), false);
+			Theme::CountText(std::format("{} outfits in the Wardrobe", outfits.size()).c_str(), false);
 		} else {
 			Theme::CountText(std::format("{} of {} outfits", visible.size(), outfits.size()).c_str(), false);
 		}
@@ -1346,7 +1346,7 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		RunLine({ TextRun("Remove "), OutfitRun(outfit.name, outfit.icon), TextRun(" from the wardrobe?") });
+		RunLine({ TextRun("Remove "), OutfitRun(outfit.name, outfit.icon), TextRun(" from the Wardrobe?") });
 		if (!outfit.users.empty()) {
 			ImGui::TextUnformatted("Used by:");
 			for (const auto& user : outfit.users) {

@@ -36,7 +36,7 @@ in Nordic 0.7 of the body (14px). Count lines, the links (`Add from Wardrobe...`
 Popup lines name an outfit, a situation, the Default or a chest without quotes, after its icon
 (the outfit's own, the star, the Default's form, the chest), the name and its icon in the
 palette's emphasis (`Theme::RunText` through `RunLine`, `OutfitRun`, `RowRun`, `ChestRun`);
-the docs write such a name plainly (`Remove A from the wardrobe?`). Wording that is no name
+the docs write such a name plainly (`Remove A from the Wardrobe?`). Wording that is no name
 (`items that are not a saved outfit`) stays plain text. Tooltips, HUD messages, errors and the
 Restore Presets popup's lines keep their own form (quoted outfit names).
 
@@ -47,8 +47,10 @@ the Situations page. Each page keeps its own search and sort; a click on a colum
 makes that sort the one every page's list starts in when the window opens, written to the INI
 (`[Window] OutfitSort`, `OutfitSortDescending`) as the window closes.
 
-- Wording: the window calls the library the wardrobe (`12 outfits in the wardrobe`,
-  `Not in Wardrobe`).
+- Wording: the window calls the library the Wardrobe (`12 outfits in the Wardrobe`,
+  `Not in Wardrobe`). A page or tab name (Wardrobe, Dress, Situations, Chests) and Live Preview
+  are capitalised everywhere; a chest, situation or outfit is a common noun, lower case in running
+  text and capitalised only in a Title Case button, link or heading (`Dress with Chest...`).
 - One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
   the library.
@@ -100,7 +102,7 @@ makes that sort the one every page's list starts in when the window opens, writt
   and colours not in the tables last); Name by the name, ASCII case ignored; descending
   reverses the whole order. Each page's list starts in the sort last clicked on any of them
   (Name ascending until one is).
-- The count line under the list, as the piece list's: `12 outfits in the wardrobe`, or
+- The count line under the list, as the piece list's: `12 outfits in the Wardrobe`, or
   `3 of 12 outfits` while the search narrows it. The list's height cap leaves room for it,
   and the list keeps the height of the whole library.
 - Search: keeps the outfits whose name contains the typed text, ASCII case ignored. While it
@@ -147,7 +149,7 @@ makes that sort the one every page's list starts in when the window opens, writt
   `Quest items are not listed.` or, with ProtectFavorites, `Quest items and your favorites
   are not listed.`
 - The Apply popup's `Apply Only (?)` help: `Sets the selected items as #{Name}'s default outfit
-  without adding them to the wardrobe.`, then, while a situation row of #{Name}
+  without adding them to the Wardrobe.`, then, while a situation row of #{Name}
   holds an outfit, `The new default outfit takes effect when no situational outfit applies.` A button
   with a `(?)` (the Apply popup's `Apply Only`) draws it inside its frame.
 - Vanilla and Nordic draw text fields and dropdowns underlined, not framed. A text field has
