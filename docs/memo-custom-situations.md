@@ -32,14 +32,16 @@ Stoneflesh is on"). The place condition ships first.
 
 ### Implementation order
 
-1. The framework, with no change in behaviour: `Situations::Situation` becomes a dynamic
-   registry with the presets as built-in entries (the enum spans 11 source files and 3 test
-   files; `OutfitRows::Rows`, `SituationTable::Table` and `Situations::Applicable` are fixed
-   arrays today), and situations.json version 2. The co-save stores a situation by its key
-   string already, so ASGN needs no new version; situations.json version 1 needs a migration
-   read, since the parser refuses any other version.
+1. Done: the registry (`Situations::Count`, `Choosable`, `Priority`, `kMaxSituations`) holds
+   the presets; `Situation` ids past `kCold` are free for user-defined situations;
+   `OutfitRows::Rows` and `SituationTable::Table` are sized by the registry. situations.json
+   stays version 1 and the co-save format is unchanged.
 2. The place condition and the Situations page's part: a new situation, the list of its
-   places with Remove, the add-current-place popup.
+   places with Remove, the add-current-place popup. situations.json becomes version 2 when
+   it first holds a user-defined situation; version 1 then needs a migration read, since the
+   parser refuses any other version. The registry is built once today: adding a situation
+   at runtime needs it mutable (game thread only), and every assignment's `Rows` and the
+   store's table grow with it.
 
 ### Magic conditions
 
