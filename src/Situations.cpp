@@ -7,9 +7,9 @@
 //               rows of the user's situations (SituationRules), in water with its
 //               hysteresis, and the player's beast form
 //   Places    - what the Add place popup offers: the actor's location and its parents, their cell
-//   Spells    - what the Add spell popup offers: the spells the actor casts and those behind the
-//               visible effects on them, or every spell, potion, scroll and ingredient of the
-//               loaded plugins with a visible effect; a spell's visible effects
+//   Spells    - what the Add spell popup offers: the spells the actor casts on themselves and
+//               those behind the visible effects on them, or every spell, potion, scroll and
+//               ingredient of the loaded plugins with a visible effect; a spell's visible effects
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
@@ -593,17 +593,25 @@ namespace
 		}
 	}
 
-	// A spell, power or shout's word the actor can cast or use at will; abilities, diseases
-	// and the rest are offered only while one of their effects is on them.
-	bool IsCast(const RE::MagicItem& a_item)
+	// A spell, power or shout's word the actor can cast or use at will, with a visible effect
+	// delivered to themselves: one that only lands on others (Flames, a Conjure) never puts an
+	// effect on them. Abilities, diseases and the rest are offered only while one of their
+	// effects is on them.
+	bool IsCastOnSelf(const RE::MagicItem& a_item)
 	{
 		using Type = RE::MagicSystem::SpellType;
 		const auto type = a_item.GetSpellType();
-		return type == Type::kSpell || type == Type::kPower || type == Type::kLesserPower || type == Type::kVoicePower;
+		if (type != Type::kSpell && type != Type::kPower && type != Type::kLesserPower && type != Type::kVoicePower) {
+			return false;
+		}
+		return std::ranges::any_of(a_item.effects, [](const RE::Effect* a_effect) {
+			const auto* base = a_effect ? a_effect->baseEffect : nullptr;
+			return IsVisible(base) && base->data.delivery == RE::MagicSystem::Delivery::kSelf;
+		});
 	}
 
-	// The spells of an NPC record's or a race's spell list that are cast (IsCast), a shout by the
-	// spells of its words.
+	// The spells of an NPC record's or a race's spell list that are cast on themselves
+	// (IsCastOnSelf), a shout by the spells of its words.
 	void AddCastSpells(const RE::TESSpellList* a_list, std::vector<SituationRules::SpellChoice>& a_choices)
 	{
 		const auto* data = a_list ? a_list->actorEffects : nullptr;
@@ -611,14 +619,16 @@ namespace
 			return;
 		}
 		for (std::uint32_t i = 0; data->spells && i < data->numSpells; ++i) {
-			if (const auto* spell = data->spells[i]; spell && IsCast(*spell)) {
+			if (const auto* spell = data->spells[i]; spell && IsCastOnSelf(*spell)) {
 				AddChoice(spell, a_choices);
 			}
 		}
 		for (std::uint32_t i = 0; data->shouts && i < data->numShouts; ++i) {
 			if (const auto* shout = data->shouts[i]) {
 				for (const auto& word : shout->variations) {
-					AddChoice(word.spell, a_choices);
+					if (word.spell && IsCastOnSelf(*word.spell)) {
+						AddChoice(word.spell, a_choices);
+					}
 				}
 			}
 		}
@@ -766,7 +776,7 @@ namespace Situations
 	{
 		std::vector<SituationRules::SpellChoice> choices;
 		for (const auto* spell : a_actor.GetActorRuntimeData().addedSpells) {
-			if (spell && IsCast(*spell)) {
+			if (spell && IsCastOnSelf(*spell)) {
 				AddChoice(spell, choices);
 			}
 		}

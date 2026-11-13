@@ -208,7 +208,9 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   a mod such as powerofthree's Tweaks loads them). Off, the list is the actor's
   (`Situations::SpellsAround`, read as the window opens): the spells, powers and shouts they
   cast, learned (`addedSpells`) or of their NPC record and race (`actorEffects`, a shout by its
-  words' spells), and the items behind the visible effects on them now (an ability, a disease
+  words' spells), those with a visible effect delivered to themselves only (Flames or a Conjure
+  never puts one on them; diseases, poisons and others' spells, which do, come through `Show all
+  spells` or while they act), and the items behind the visible effects on them now (an ability, a disease
   or a potion only while it acts). On, every `SpellItem`, `AlchemyItem`, `ScrollItem` and
   `IngredientItem` of the loaded plugins (`Situations::AllSpells`, built at the first open and
   kept until the game closes), listed only once something is typed (`Type to search.`). Both
