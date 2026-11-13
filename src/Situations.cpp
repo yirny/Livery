@@ -566,6 +566,7 @@ namespace Situations
 		if (location) {
 			choices.location = PlaceOf(*location);
 			choices.parents = ParentsOf(*location);
+			SituationRules::MergeSameNames(choices);
 		}
 		if (const auto* cell = a_actor.GetParentCell()) {
 			choices.cell = PlaceOf(*cell);

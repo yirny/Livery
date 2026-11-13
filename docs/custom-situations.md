@@ -181,7 +181,9 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
   `Parent Location (<name>)` for each location it is in, nearest first, up to the first hold
-  or location holding a hold (Tamriel), left out with all above it; and `This Cell (<name>)`,
+  or location holding a hold (Tamriel), left out with all above it, and of two in a row with
+  the same name only the wider (`SituationRules::MergeSameNames`: Solitude's Avenues, a group of
+  its houses without its streets, is named "Solitude" as the city is); and `This Cell (<name>)`,
   their cell (a cell without a name shows its editor ID, else its FormID); each followed by a
   (?) saying what it covers. The game's own terms, as "room" or "area" would blur the two. It
   opens on the location, or on the cell when they are outside any. Add is greyed for a place

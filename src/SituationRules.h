@@ -106,6 +106,25 @@ namespace SituationRules
 		}
 	};
 
+	// Of two locations in a row with the same name, the location and its parents keep the wider:
+	// it holds wherever the narrower does, and the popup shows a name once. Solitude's Avenues, a
+	// group of its houses without its streets, is named "Solitude" as the city is.
+	inline void MergeSameNames(PlaceChoices& a_choices)
+	{
+		auto& parents = a_choices.parents;
+		for (std::size_t i = 0; i + 1 < parents.size();) {
+			if (parents[i].ref.name == parents[i + 1].ref.name) {
+				parents.erase(parents.begin() + static_cast<std::ptrdiff_t>(i));
+			} else {
+				++i;
+			}
+		}
+		if (a_choices.location && !parents.empty() && a_choices.location->ref.name == parents.front().ref.name) {
+			a_choices.location = std::move(parents.front());
+			parents.erase(parents.begin());
+		}
+	}
+
 	struct Row
 	{
 		Kind               kind = Kind::kInCombat;

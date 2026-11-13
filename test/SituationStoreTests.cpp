@@ -401,3 +401,26 @@ TEST_CASE("The Add place popup's choices run location, its parents, then the cel
 	CHECK(outdoors.At(0)->ref.localID == 0x05);
 	CHECK_FALSE(outdoors.At(1));
 }
+
+TEST_CASE("Of two locations in a row with the same name, the popup keeps the wider", "[situations]")
+{
+	// Proudspire Manor -> Solitude Avenues ("Solitude") -> Solitude.
+	SituationRules::PlaceChoices manor{ .location = PlaceOf("Skyrim.esm", 0x01, "Proudspire Manor"),
+		.parents = { PlaceOf("Skyrim.esm", 0x02, "Solitude"), PlaceOf("Skyrim.esm", 0x03, "Solitude") } };
+	SituationRules::MergeSameNames(manor);
+	REQUIRE(manor.parents.size() == 1);
+	CHECK(manor.location->ref.localID == 0x01);
+	CHECK(manor.parents[0].ref.localID == 0x03);
+
+	// Standing in the narrower one: This Location becomes the wider.
+	SituationRules::PlaceChoices avenues{ .location = PlaceOf("Skyrim.esm", 0x02, "Solitude"), .parents = { PlaceOf("Skyrim.esm", 0x03, "Solitude") } };
+	SituationRules::MergeSameNames(avenues);
+	CHECK(avenues.location->ref.localID == 0x03);
+	CHECK(avenues.parents.empty());
+
+	// Different names stay.
+	SituationRules::PlaceChoices hall{ .location = PlaceOf("Skyrim.esm", 0x04, "Dragonsreach"), .parents = { PlaceOf("Skyrim.esm", 0x05, "Whiterun") } };
+	SituationRules::MergeSameNames(hall);
+	CHECK(hall.location->ref.localID == 0x04);
+	CHECK(hall.parents.size() == 1);
+}
