@@ -73,8 +73,9 @@ namespace
 	// --- Forms ----------------------------------------------------------------
 
 	// Gives every place and spell of the user's situations its FormID in this game's load order
-	// (SituationRules::FormRef::formID), which the poll compares. Returns how many have none:
-	// their plugin is not loaded.
+	// (SituationRules::FormRef::formID), and every spell its visible effects (effects), which the
+	// poll compares. Returns how many have no FormID: their plugin is not loaded.
+	// Contract: game thread, after kDataLoaded.
 	std::size_t ResolveForms(SituationTable::Table& a_table)
 	{
 		std::size_t unloaded = 0;
@@ -85,6 +86,9 @@ namespace
 						form.formID = PieceFile::FormIDOf(form.ref);
 						unloaded += form.formID == 0 ? 1 : 0;
 					}
+				}
+				for (auto& spell : row.spells) {
+					spell.effects = Situations::VisibleEffectsOf(spell.formID);
 				}
 			}
 		}

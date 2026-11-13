@@ -55,7 +55,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
-| Spell | a list of `MagicItem`s | any active effect on the actor, neither inactive nor dispelled, comes from one of them (memo: Magic conditions) | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags` | no |
+| Spell Effect (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
 
 Notes:
 
@@ -73,12 +73,22 @@ Notes:
   reads as `Weather {Rain, Snow, Snowy region}` and `not Indoors`.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
   its next run. From equal to To is the whole day.
-- Spell: the condition names spells, powers, shouts (by their words' spells), potions, scrolls,
-  ingredients and abilities (`MagicItem`), not magic effects, for the reasons in the memo; the
-  window may still say "effect" where the player would. The walk is the engine's
-  (`MagicTarget::VisitEffects`, which CommonLibSSE-NG names the one walk right on every
-  runtime); it skips effects flagged `kInactive` or `kDispelled`, as an effect that does not
-  act is not on the actor (whether the engine leaves such effects in the list: §10).
+- Spell Effect: the row lists spells, powers, shouts (by their words' spells), potions,
+  scrolls, ingredients and abilities (`MagicItem`), by the names the player knows, not magic
+  effects (the memo's reasons), and holds by their effects. A visible effect is one the game's
+  menus show: named and not `kHideInUI`. Each listed spell's visible effects are resolved as
+  the store reads or saves the rules (`Situations::VisibleEffectsOf`, kept in
+  `SituationRules::FormRef::effects`); an effect on the actor counts when it is visible itself
+  and its item's visible effects are exactly that set (`SituationRules::SameEffects`), so
+  Stoneflesh's scroll counts for Stoneflesh and a potion made in game for the potion with its
+  effects. Exactly, not any shared one: hidden effects are shared widely (every flesh spell
+  carries the hidden `PerkArmorFFSelf30/50/70`), and visible ones too (all food shares one,
+  the shrine blessings share Cure Disease). A spell without visible effects counts by its own
+  FormID. The walk is the engine's (`MagicTarget::VisitEffects`, which CommonLibSSE-NG names
+  the one walk right on every runtime); it skips effects flagged `kInactive` or `kDispelled`,
+  as an effect that does not act is not on the actor (whether the engine leaves such effects in
+  the list: §10). Per effect it compares the item's few effects against a sorted set: no
+  allocation, no lookup.
 
 ## 4. Pending kinds
 
@@ -192,16 +202,21 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   the row has already.
 - `Add Spell...` opens the `Add spell` popup: `Add a spell to look for on <name>.`, a search
   field (`Search by name`, ASCII case ignored, as the outfit search), `Show all spells`, and a
-  list ten rows tall of the spells whose name holds the search, a click picking one (its plugin
-  and FormID on hover, to tell same names apart). Off, the list is the actor's spells
-  (`Situations::SpellsAround`, read as the window opens): learned (`addedSpells`), of their NPC
-  record and race (`actorEffects`, a shout by its words' spells), and behind the effects on
-  them now. On, every named `SpellItem`, `AlchemyItem`, `ScrollItem` and `IngredientItem` of
-  the loaded plugins (`Situations::AllSpells`, built at the first open and kept until the game
-  closes), listed only once something is typed (`Type to search.`). Both by name, each spell
-  once; the first 100 matches are listed, then `<n> more. Type more to narrow.`. Add is greyed
-  with none picked or one the row has already; Escape clears the search, or with none typed
-  is Cancel.
+  list ten rows tall of the spells whose name holds the search, a click picking one. Hovering a
+  spell there or on the row shows its plugin and FormID, then its visible effects a line each,
+  `- <name> (<editor ID>)`, the editor ID only when the game keeps one (it does not by itself;
+  a mod such as powerofthree's Tweaks loads them). Off, the list is the actor's
+  (`Situations::SpellsAround`, read as the window opens): the spells, powers and shouts they
+  cast, learned (`addedSpells`) or of their NPC record and race (`actorEffects`, a shout by its
+  words' spells), and the items behind the visible effects on them now (an ability, a disease
+  or a potion only while it acts). On, every `SpellItem`, `AlchemyItem`, `ScrollItem` and
+  `IngredientItem` of the loaded plugins (`Situations::AllSpells`, built at the first open and
+  kept until the game closes), listed only once something is typed (`Type to search.`). Both
+  leave out what has no name or no visible effect, enchantments, and forms made in game; both
+  are by name, and of spells with the same name and visible effects keep the lowest FormID
+  (`SituationRules::MergeSameSpells`: Stoneflesh is in Skyrim.esm twice). The first 100
+  matches are listed, then `<n> more. Type more to narrow.`. Add is greyed with none picked or
+  one the row has already; Escape clears the search, or with none typed is Cancel.
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
   negated) it is on and disabled.
 - The `Applies` line, under its own label, replaces `ConditionsText` for a user-defined
@@ -235,8 +250,9 @@ every user-defined situation before the presets, in the order they were made
 ## 10. Open and in-game checks
 
 - Whether the engine keeps `kInactive` or `kDispelled` effects in the list the walk visits
-  (the Spell rule skips them either way), and whether a cast flesh spell holds for its whole
-  duration and ends with it.
+  (the Spell Effect rule skips them either way), and whether a cast flesh spell holds for its
+  whole duration and ends with it (checked in game for Stoneflesh by its FormID; again by its
+  effects, with its scroll).
 - Which Skyrim.esm locations carry `LocTypeDungeon`, and whether the DLC dungeons do.
 - What `Sky::currentWeather` holds in an interior cell (the last exterior weather is assumed).
 - A Time of day range that wraps midnight, at the wrap.

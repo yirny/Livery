@@ -592,10 +592,37 @@ namespace CaptureWindow::Internal
 			kAddForm  // a Place row's Add Place... or a Spell row's Add Spell... pressed
 		};
 
+		// A spell's hover: its plugin and FormID, then its visible effects a line each
+		// (SituationRules::SpellChoice::effectLines; none when `a_effectLines` is empty).
+		std::string SpellTip(const SituationRules::Spell& a_spell, const std::string& a_effectLines)
+		{
+			const auto head = std::format("{} {:06X}", a_spell.ref.plugin, a_spell.ref.localID);
+			return a_effectLines.empty() ? head : head + "\n" + a_effectLines;
+		}
+
+		// The effect lines the Add spell popup's lists have for a spell of a row: the same spell,
+		// or one it was merged with (the same name and effects); "" when neither list has it.
+		const std::string& EffectLinesOf(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		{
+			static const std::string none;
+			const auto               same = [&a_spell](const SituationRules::SpellChoice& a_choice) {
+				const auto& spell = a_choice.spell;
+				return SituationRules::SameForm(spell.ref, a_spell.ref) ||
+				       (!a_spell.effects.empty() && spell.effects == a_spell.effects && ExampleMod::CaseInsensitiveEqual(spell.ref.name, a_spell.ref.name));
+			};
+			for (const std::span<const SituationRules::SpellChoice> list : { std::span<const SituationRules::SpellChoice>(a_request.spells), a_request.allSpells }) {
+				if (const auto found = std::ranges::find_if(list, same); found != list.end()) {
+					return found->effectLines;
+				}
+			}
+			return none;
+		}
+
 		// A Place or Spell row's forms, a line each with Remove at its right end, one whose plugin
-		// is not loaded greyed and saying so on hover; then Add Place... or Add Spell.... Returns
-		// true when one was removed; sets `a_add` when the Add link was pressed.
-		bool DrawFormList(SituationRules::Row& a_row, bool& a_add)
+		// is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
+		// Place... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
+		// link was pressed.
+		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, bool& a_add)
 		{
 			auto&                      forms = SituationRules::FormsOf(a_row);
 			std::optional<std::size_t> removed;
@@ -612,6 +639,8 @@ namespace CaptureWindow::Internal
 					if (ImGui::IsItemHovered()) {
 						Theme::Tooltip(std::format("{} is not loaded.", form.ref.plugin).c_str());
 					}
+				} else if (a_row.kind == SituationRules::Kind::kSpell && ImGui::IsItemHovered()) {
+					Theme::Tooltip(SpellTip(form, EffectLinesOf(a_request, form)).c_str());
 				}
 				if (Theme::LineLink("Remove")) {
 					removed = i;
@@ -625,10 +654,10 @@ namespace CaptureWindow::Internal
 			return removed.has_value();
 		}
 
-		// One condition row: Not, its kind (what it means on hover, `a_actorName` in it) and
+		// One condition row: Not, its kind (what it means on hover, the actor's name in it) and
 		// Remove at the line's right end, then indented under it its values, places or spells, or
 		// From and to for Time of day.
-		ConditionEdit DrawConditionRow(SituationRules::Row& a_row, const std::string& a_actorName)
+		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row)
 		{
 			const auto& info = SituationRules::InfoOf(a_row.kind);
 			auto        edit = ConditionEdit::kNone;
@@ -641,7 +670,7 @@ namespace CaptureWindow::Internal
 			ImGui::SameLine();
 			ImGui::TextUnformatted(info.label);
 			if (ImGui::IsItemHovered()) {
-				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_actorName)).c_str());
+				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
 			if (Theme::LineLink("Remove")) {
 				edit = ConditionEdit::kRemove;
@@ -653,7 +682,7 @@ namespace CaptureWindow::Internal
 			if (!info.values.empty()) {
 				changed = DrawRowValues(a_row);
 			} else if (SituationRules::HasForms(a_row.kind)) {
-				changed = DrawFormList(a_row, addForm);
+				changed = DrawFormList(a_request, a_row, addForm);
 			} else if (a_row.kind == SituationRules::Kind::kTimeOfDay) {
 				ImGui::AlignTextToFramePadding();
 				ImGui::TextUnformatted("From");
@@ -727,7 +756,7 @@ namespace CaptureWindow::Internal
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
 				ImGui::PushID(static_cast<int>(i));
-				const auto edit = DrawConditionRow(a_rules.rows[i], a_state.request.actorName);
+				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i]);
 				ImGui::PopID();
 				if (edit == ConditionEdit::kAddForm) {
 					a_state.situationForm.formRow = static_cast<int>(i);
@@ -1156,9 +1185,9 @@ namespace CaptureWindow::Internal
 		}
 
 		// What the Add spell popup lists from: the actor's spells, or with Show all spells every one.
-		std::span<const SituationRules::Spell> OfferedSpells(const State& a_state)
+		std::span<const SituationRules::SpellChoice> OfferedSpells(const State& a_state)
 		{
-			return a_state.situationForm.spellShowAll ? a_state.request.allSpells : std::span<const SituationRules::Spell>(a_state.request.spells);
+			return a_state.situationForm.spellShowAll ? a_state.request.allSpells : std::span<const SituationRules::SpellChoice>(a_state.request.spells);
 		}
 
 		// The spells the Add spell popup lists (SituationForm::spellShown): those offered whose name
@@ -1173,7 +1202,7 @@ namespace CaptureWindow::Internal
 			}
 			const auto spells = OfferedSpells(a_state);
 			for (std::size_t i = 0; i < spells.size(); ++i) {
-				if (ExampleMod::ContainsIgnoringCase(spells[i].ref.name, search)) {
+				if (ExampleMod::ContainsIgnoringCase(spells[i].spell.ref.name, search)) {
 					form.spellShown.push_back(i);
 				}
 			}
@@ -1320,7 +1349,8 @@ namespace CaptureWindow::Internal
 					if (form.spellShown[i] >= spells.size()) {
 						continue;
 					}
-					const auto& spell = spells[form.spellShown[i]];
+					const auto& choice = spells[form.spellShown[i]];
+					const auto& spell = choice.spell;
 					const bool  picked = form.spellPick && SituationRules::SameForm(form.spellPick->ref, spell.ref);
 					ImGui::PushID(static_cast<int>(i));
 					if (Theme::SelectRow(spell.ref.name.c_str(), picked)) {
@@ -1328,7 +1358,7 @@ namespace CaptureWindow::Internal
 						QueueMenuSound(kFocusSound);
 					}
 					if (ImGui::IsItemHovered()) {
-						Theme::Tooltip(std::format("{} {:06X}", spell.ref.plugin, spell.ref.localID).c_str());
+						Theme::Tooltip(SpellTip(spell, choice.effectLines).c_str());
 					}
 					ImGui::PopID();
 				}

@@ -231,8 +231,8 @@ namespace CaptureWindow
 		SituationRules::PlaceChoices places;           // what the Situations page's Add place popup offers, read at Open
 		// What the Situations page's Add spell popup offers: the actor's spells (read at Open), and
 		// with Show all spells every one (Situations::AllSpells, valid until the game closes).
-		std::vector<SituationRules::Spell>     spells;
-		std::span<const SituationRules::Spell> allSpells;
+		std::vector<SituationRules::SpellChoice>     spells;
+		std::span<const SituationRules::SpellChoice> allSpells;
 		// The chests (docs/chest-ui.md), in display order, with `offersChests`: the Chests tab
 		// and Add from Chest... (Settings::ItemChests at Open; never with `saveOnly`).
 		// Their items are in `pieces` as PieceGroup::kNotCarried, like the outfits' (listed while

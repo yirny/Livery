@@ -436,7 +436,7 @@ TEST_CASE("A Spell row reads while its spells are on, and never holds with none"
 	negated.negated = true;
 	negated.spells.erase(negated.spells.begin());
 	CHECK(SituationRules::Text({ .rows = { negated } }) == "Not while Stoneflesh is on.");
-	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kSpell } } }) == "Spell (nothing selected).");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kSpell } } }) == "Spell Effect (nothing selected).");
 	CHECK(SituationRules::NothingSelected({ .kind = Kind::kSpell }));
 	CHECK_FALSE(SituationRules::NothingSelected(flesh));
 	// A Spell row's forms are its spells, a Place row's its places.
@@ -475,4 +475,33 @@ TEST_CASE("Every kind's tooltip formats with the actor's name", "[situations]")
 		const auto tip = std::vformat(info.tip, std::make_format_args(name));
 		CHECK((tip.find("Lydia") != std::string::npos) == (info.kind == SituationRules::Kind::kSpell));
 	}
+}
+
+TEST_CASE("A spell's effects match exactly: none more, none fewer, repeats allowed", "[situations]")
+{
+	const std::vector<std::uint32_t> stone{ 0x5AD5D };
+	const std::vector<std::uint32_t> blessing{ 0x100, 0x200 };
+	CHECK(SituationRules::SameEffects(stone, std::vector<std::uint32_t>{ 0x5AD5D }));
+	CHECK(SituationRules::SameEffects(stone, std::vector<std::uint32_t>{ 0x5AD5D, 0x5AD5D }));
+	CHECK_FALSE(SituationRules::SameEffects(stone, std::vector<std::uint32_t>{ 0x5AD5C }));
+	CHECK(SituationRules::SameEffects(blessing, std::vector<std::uint32_t>{ 0x200, 0x100 }));
+	CHECK_FALSE(SituationRules::SameEffects(blessing, std::vector<std::uint32_t>{ 0x100 }));                // fewer
+	CHECK_FALSE(SituationRules::SameEffects(blessing, std::vector<std::uint32_t>{ 0x100, 0x200, 0x300 }));  // more
+}
+
+TEST_CASE("The popup keeps one of each spell with the same name and effects, by name", "[situations]")
+{
+	const auto choice = [](std::uint32_t a_formID, const char* a_name, std::vector<std::uint32_t> a_effects) {
+		return SituationRules::SpellChoice{ .spell = { .ref = { "Skyrim.esm", a_formID, a_name }, .formID = a_formID, .effects = std::move(a_effects) } };
+	};
+	std::vector<SituationRules::SpellChoice> choices{ choice(0x72316, "Stoneflesh", { 0x1 }), choice(0x965A3, "Scroll of Stoneflesh", { 0x1 }),
+		choice(0x5AD5D, "Stoneflesh", { 0x1 }), choice(0x5AD5C, "oakflesh", { 0x2 }), choice(0x10, "Flames", { 0x3 }), choice(0x11, "Flames", { 0x4 }),
+		choice(0x5AD5D, "Stoneflesh", { 0x1 }) };
+	SituationRules::MergeSameSpells(choices);
+	std::vector<std::uint32_t> kept;
+	for (const auto& c : choices) {
+		kept.push_back(c.spell.formID);
+	}
+	// Flames twice (other effects), oakflesh before Scroll (case ignored), the lower Stoneflesh.
+	CHECK(kept == std::vector<std::uint32_t>{ 0x10, 0x11, 0x5AD5C, 0x965A3, 0x5AD5D });
 }

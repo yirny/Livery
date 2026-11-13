@@ -6,7 +6,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -61,6 +63,10 @@ namespace SituationRules
 		// compares. SituationStore sets it as it reads or saves the rules (PieceFile::FormIDOf);
 		// not in the file, and not compared, being the same form.
 		std::uint32_t formID = 0;
+		// A spell's visible effects (named, not hidden in the menus; SameEffects): their FormIDs
+		// in this game's load order, ascending, each once. Set with formID; empty for a place, a
+		// spell not loaded, or one without a visible effect, which then holds by its own FormID.
+		std::vector<std::uint32_t> effects;
 
 		friend bool operator==(const FormRef& a_left, const FormRef& a_right) { return a_left.ref == a_right.ref; }
 	};
@@ -78,6 +84,66 @@ namespace SituationRules
 	inline std::string FormName(const FormRef& a_form)
 	{
 		return a_form.ref.name.empty() ? std::format("{} {:06X}", a_form.ref.plugin, a_form.ref.localID) : a_form.ref.name;
+	}
+
+	// Whether an item whose visible effects are `a_item` (FormIDs in any order, repeats allowed)
+	// has exactly the effects `a_set` (FormRef::effects): a Spell Effect row counts every spell,
+	// scroll or potion with the same effects as the one listed. An empty set matches an item
+	// without visible effects; the poll holds such a spell by its own FormID instead.
+	template <class Ids>
+	bool SameEffects(std::span<const std::uint32_t> a_set, Ids&& a_item)
+	{
+		for (const auto id : a_item) {
+			if (!std::ranges::binary_search(a_set, id)) {
+				return false;
+			}
+		}
+		for (const auto id : a_set) {
+			if (std::ranges::find(a_item, id) == std::ranges::end(a_item)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// A spell the Add spell popup offers: the spell, its visible effects resolved, and the lines
+	// its hover lists them in ("- Armor - Stone (ArmorFFSelf25)", the editor ID only when the
+	// game keeps one).
+	struct SpellChoice
+	{
+		Spell       spell;
+		std::string effectLines;
+	};
+
+	namespace Detail
+	{
+		inline std::weak_ordering CompareNames(std::string_view a_left, std::string_view a_right)
+		{
+			const auto compare = [](unsigned char a, unsigned char b) { return ExampleMod::AsciiToLower(a) <=> ExampleMod::AsciiToLower(b); };
+			return std::lexicographical_compare_three_way(a_left.begin(), a_left.end(), a_right.begin(), a_right.end(), compare);
+		}
+	}
+
+	// Sorts the choices by name (ASCII case ignored), and of those with the same name and the
+	// same visible effects keeps the lowest FormID alone: a Spell Effect row counts them all the
+	// same (Stoneflesh is in Skyrim.esm twice, once for the left hand).
+	inline void MergeSameSpells(std::vector<SpellChoice>& a_choices)
+	{
+		std::ranges::sort(a_choices, [](const SpellChoice& a_left, const SpellChoice& a_right) {
+			const auto& left = a_left.spell;
+			const auto& right = a_right.spell;
+			if (const auto order = Detail::CompareNames(left.ref.name, right.ref.name); order != 0) {
+				return order < 0;
+			}
+			if (left.effects != right.effects) {
+				return left.effects < right.effects;
+			}
+			return left.formID < right.formID;
+		});
+		const auto repeated = std::ranges::unique(a_choices, [](const SpellChoice& a_left, const SpellChoice& a_right) {
+			return Detail::CompareNames(a_left.spell.ref.name, a_right.spell.ref.name) == 0 && a_left.spell.effects == a_right.spell.effects;
+		});
+		a_choices.erase(repeated.begin(), repeated.end());
 	}
 
 	// What the Add place popup offers (docs/custom-situations.md §7), read as the window opens
@@ -196,7 +262,9 @@ namespace SituationRules
 		{ Kind::kWeather, "weather", "Weather",
 			"Rain and Snow follow the sky, indoors too.\nSnowy region: a region where it often snows, whatever the sky.", "", kWeathers },
 		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", {} },
-		{ Kind::kSpell, "spell", "Spell", "A spell, power, shout, potion or other effect currently affecting {}.\nListed by spell name, not effect name.",
+		{ Kind::kSpell, "spell", "Spell Effect",
+			"A spell, power, shout, potion or other effect currently affecting {}.\nListed by spell name, not effect name.\n"
+			"Any spell, scroll or potion with the same effects counts.",
 			"", {} },
 	} };
 

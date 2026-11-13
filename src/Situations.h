@@ -25,6 +25,7 @@ namespace SituationRules
 {
 	struct FormRef;
 	struct PlaceChoices;
+	struct SpellChoice;
 }
 
 // The situations an actor can have an outfit for besides their default (docs/design.md §7):
@@ -230,17 +231,23 @@ namespace Situations
 	// Contract: game thread.
 	SituationRules::PlaceChoices PlacesAround(RE::Actor& a_actor);
 
-	// The spells the Add spell popup offers for `a_actor` (SituationRules::Spell): those they
-	// know (learned, and of their NPC record and race, a shout by its words) and those behind
-	// the effects on them now; each once, named, by name. Read as the window opens.
+	// The spells the Add spell popup offers for `a_actor`: the spells, powers and shouts they
+	// cast (learned, and of their NPC record and race, a shout by its words) and the items behind
+	// the visible effects on them now; each with a name and a visible effect, by name, one of each
+	// with the same name and effects (SituationRules::MergeSameSpells). Read as the window opens.
 	// Contract: game thread.
-	std::vector<SituationRules::FormRef> SpellsAround(RE::Actor& a_actor);
+	std::vector<SituationRules::SpellChoice> SpellsAround(RE::Actor& a_actor);
 
-	// Every named spell, power, potion, scroll and ingredient of the loaded plugins, by name:
-	// what the Add spell popup offers with Show all spells. Built at the first call, kept until
-	// the game closes.
+	// Every spell, potion, scroll and ingredient of the loaded plugins with a name and a visible
+	// effect, as SpellsAround lists them: what the Add spell popup offers with Show all spells.
+	// Built at the first call, kept until the game closes.
 	// Contract: game thread, after kDataLoaded.
-	std::span<const SituationRules::FormRef> AllSpells();
+	std::span<const SituationRules::SpellChoice> AllSpells();
+
+	// The visible effects of the spell, potion, scroll or ingredient `a_formID` names
+	// (SituationRules::FormRef::effects); empty for 0 or a form that is none of them.
+	// Contract: game thread, after kDataLoaded.
+	std::vector<std::uint32_t> VisibleEffectsOf(std::uint32_t a_formID);
 
 	// The poll that keeps assigned actors dressed for their situations: Start at
 	// kPostLoadGame and kNewGame, Stop at kPreLoadGame.
