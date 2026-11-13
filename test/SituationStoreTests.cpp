@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -126,11 +128,22 @@ TEST_CASE("Serialize writes only what differs from the presets, and Parse reads 
 
 TEST_CASE("Keys name each situation once", "[situations]")
 {
-	for (std::size_t i = 0; i < SituationTable::kCount; ++i) {
+	for (std::size_t i = 0; i < Situations::Count(); ++i) {
 		const auto situation = static_cast<Situation>(i);
 		CHECK(Situations::FromKey(Situations::Name(situation)) == situation);
 	}
 	CHECK_FALSE(Situations::FromKey("Tavern"));
+}
+
+TEST_CASE("The registry holds the presets in the window's and Evaluate's orders", "[situations]")
+{
+	CHECK(Situations::Count() == 6);
+	CHECK(Situations::Count() <= Situations::kMaxSituations);
+	CHECK(std::ranges::equal(Situations::Choosable(), std::array{ Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kSleep, Situation::kCold }));
+	CHECK(std::ranges::equal(Situations::Priority(), std::array{ Situation::kSleep, Situation::kCold, Situation::kHome, Situation::kCastle, Situation::kTown }));
+	CHECK(std::string(Situations::Name(Situation::kDefault)) == "Default");
+	CHECK(Situations::ConditionOf(Situation::kSleep) == Situations::Condition::kSleeping);
+	CHECK(SituationTable::Presets().size() == Situations::Count());
 }
 
 TEST_CASE("RestoreChanges names each situation that differs, under its name now", "[situations]")

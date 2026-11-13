@@ -515,7 +515,7 @@ can come later if sharing across characters is wanted.
 ## 7. Situations
 
 An assigned actor has a row per situation, Town, Castle, Home, Sleep, Cold
-(`Situations::kChoosable`), and the Default, what the window's Apply gives, worn where
+(`Situations::Choosable()`), and the Default, what the window's Apply gives, worn where
 none of them applies. A row is a list of library outfit ids, a random flag and the one
 chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
@@ -554,7 +554,7 @@ player has the same rows.
 The situations an actor is in, the most specific first (`Situations::Applicable`); the
 first one whose row holds an outfit is worn, else the Default (`OutfitRows::Resolve`).
 Each situation applies while its condition holds (`Situations::Condition`,
-`Situations::ConditionOf`); Evaluate checks the situations in `Situations::kPriority`
+`Situations::ConditionOf`); Evaluate checks the situations in `Situations::Priority()`
 order, Sleep, Cold, Home, Castle, Town, and only their conditions. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
 (§6): Town, Cold by weather (while cloudy weather counted), combat, in water by wading.

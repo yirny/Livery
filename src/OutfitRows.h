@@ -4,7 +4,6 @@
 #include "Situations.h"
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -42,25 +41,42 @@ namespace OutfitRows
 		friend bool operator==(const Row&, const Row&) = default;
 	};
 
-	// One row per Situations::Situation, at the index of its value: the Default first, then
-	// the situations in Situations::kChoosable order.
-	using Rows = std::array<Row, Situations::kChoosable.size() + 1>;
+	// One row per Situations::Situation, at the index of its id (RowOf): the Default first, then
+	// the situations in Situations::Choosable() order. A row not stored yet is empty: reading
+	// one past the stored rows gives an empty row, and writing one stores the rows up to it.
+	class Rows
+	{
+	public:
+		Row& operator[](std::size_t a_index)
+		{
+			if (a_index >= rows.size()) {
+				rows.resize(a_index + 1);
+			}
+			return rows[a_index];
+		}
+
+		const Row& operator[](std::size_t a_index) const
+		{
+			static const Row empty;
+			return a_index < rows.size() ? rows[a_index] : empty;
+		}
+
+		// The rows stored, never more than Situations::Count(); those past them are empty.
+		std::size_t size() const noexcept { return rows.size(); }
+
+		auto begin() noexcept { return rows.begin(); }
+		auto end() noexcept { return rows.end(); }
+		auto begin() const noexcept { return rows.begin(); }
+		auto end() const noexcept { return rows.end(); }
+
+	private:
+		std::vector<Row> rows;
+	};
 
 	constexpr std::size_t RowOf(Situations::Situation a_situation) noexcept
 	{
 		return static_cast<std::size_t>(a_situation);
 	}
-
-	static_assert(
-		[] {
-			for (std::size_t i = 0; i < Situations::kChoosable.size(); ++i) {
-				if (RowOf(Situations::kChoosable[i]) != i + 1) {
-					return false;
-				}
-			}
-			return true;
-		}(),
-		"Rows: the situations follow the Default in Situations::kChoosable order");
 
 	// The items `a_outfit` leaves off on the row (Exclusion::armor); empty for none.
 	inline std::vector<std::uint32_t> ExcludedOf(const Row& a_row, std::uint32_t a_outfit)

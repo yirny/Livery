@@ -183,6 +183,23 @@ TEST_CASE("Wears gives chosen, or a random row's kept pick, or a new pick", "[ro
 	CHECK(OutfitRows::Wears(Row{ .random = true }, 0, NoPick) == 0);
 }
 
+TEST_CASE("Rows follow the Default in the window's order; a row not stored is empty", "[rows]")
+{
+	const auto choosable = Situations::Choosable();
+	for (std::size_t i = 0; i < choosable.size(); ++i) {
+		CHECK(OutfitRows::RowOf(choosable[i]) == i + 1);
+	}
+
+	OutfitRows::Rows rows;
+	const auto&      view = rows;
+	CHECK(view[OutfitRows::RowOf(Situation::kCold)] == Row{});
+	CHECK(rows.size() == 0);
+	rows[OutfitRows::RowOf(Situation::kHome)].chosen = 1;
+	CHECK(rows.size() == OutfitRows::RowOf(Situation::kHome) + 1);
+	CHECK(view[OutfitRows::RowOf(Situation::kHome)].chosen == 1);
+	CHECK(view[OutfitRows::RowOf(Situation::kCold)] == Row{});
+}
+
 TEST_CASE("Resolve takes the first situation whose row holds an outfit", "[rows]")
 {
 	OutfitRows::Rows rows{};

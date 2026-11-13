@@ -33,7 +33,7 @@ namespace SituationStore
 	// nothing wears it.
 	bool IsRemoved(Situations::Situation a_situation);
 
-	// The situations not removed, in Situations::kChoosable order: the window's rows after
+	// The situations not removed, in Situations::Choosable() order: the window's rows after
 	// the Default.
 	std::vector<Situations::Situation> Offered();
 

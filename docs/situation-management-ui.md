@@ -9,7 +9,7 @@ made on it; current spec only:
 - The Situations page (§3-§6).
 
 Terms: a *row* is the Default or one situation, per actor. The *preset situations* are
-the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::kChoosable`
+the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::Choosable()`
 plus Default).
 
 ## 1. Rows
@@ -151,7 +151,7 @@ outfit for Town any more`.
   Drag an outfit onto a situation to add it, between its outfits to place it, onto another
   situation to move it, or back to the outfit list to take it off.` (The most specific:
   `Situations::Evaluate`'s order.)
-- One heading per situation not removed, the Default first, then `Situations::kChoosable`
+- One heading per situation not removed, the Default first, then `Situations::Choosable()`
   order. Each: the star of the Situations tab (none for the Default, whose name starts in its place), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
   random on, `(n)`, the length of `outfits`, in the small heading style, `ItemInnerSpacing.x`
