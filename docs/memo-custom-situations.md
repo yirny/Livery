@@ -5,8 +5,8 @@ Livery's situations are a fixed set (`Situations::Situation`, `kPriority`, `Cond
 docs/design.md §7). The plan item "user-defined conditions in the way of Skyrim Outfit
 Equipment System NG" (§8) extends them to situations the user defines: a key, a name, a list
 of conditions, a place in the priority order. Two condition kinds are decided: a place the
-actor is in ("Elysium Estate", whose interior, basement and exterior are one situation apart
-from the other player homes) and a magic effect on the actor ("a different outfit while
+actor is in (a multi-cell player home, whose interior, basement and exterior are one situation
+apart from the other player homes) and a magic effect on the actor ("a different outfit while
 Stoneflesh is on"). The place condition ships first.
 
 ## Decisions
@@ -27,8 +27,6 @@ Stoneflesh is on"). The place condition ships first.
   actor's place is where they stand.
 - Per poll it costs a FormID comparison against a short list and a walk up the parents; no
   allocation, no logging.
-- Not verified: whether Elysium Estate's cells carry locations (XLCN) of their own and what
-  its exterior cell's location is; the popup's name shows it.
 
 ### Implementation order
 
