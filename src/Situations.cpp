@@ -7,10 +7,13 @@
 //               rows of the user's situations (SituationRules), in water with its
 //               hysteresis, and the player's beast form
 //   Places    - what the Add place popup offers: the actor's location and its parents, their cell
+//   Spells    - what the Add spell popup offers: the spells the actor casts on themselves and
+//               those behind the visible effects on them, or every spell, potion, scroll and
+//               ingredient of the loaded plugins with a visible effect; a spell's visible effects
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
-//   API       - Evaluate / PlacesAround / Start / Stop
+//   API       - Evaluate / PlacesAround / SpellsAround / AllSpells / VisibleEffectsOf / Start / Stop
 //
 // The presets' rules follow Tailor 3.0's src/events/SituationHandler.cpp and its policy headers
 // (SwimmingPolicy, SleepStatePolicy, WarmPolicy, WarmWeather, LocationSituationPolicy).
@@ -29,8 +32,10 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <compare>
 #include <format>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -318,6 +323,77 @@ namespace
 		return false;
 	}
 
+	// Calls `a_visit` with each effect on the actor that is neither inactive nor dispelled, until
+	// it returns true. The engine's own walk (MagicTarget::VisitEffects, the one CommonLibSSE-NG
+	// says is right on every runtime), with no allocation.
+	// Contract: game thread; `a_visit` must not change the actor's effects.
+	template <class Visit>
+	void ForEachLiveEffect(RE::Actor& a_actor, Visit&& a_visit)
+	{
+		struct Visitor : RE::MagicTarget::ForEachActiveEffectVisitor
+		{
+			explicit Visitor(Visit& a_function) :
+				function(a_function) {}
+
+			RE::BSContainer::ForEachResult Accept(RE::ActiveEffect* a_effect) override
+			{
+				using Flag = RE::ActiveEffect::Flag;
+				if (!a_effect || a_effect->flags.any(Flag::kInactive, Flag::kDispelled)) {
+					return RE::BSContainer::ForEachResult::kContinue;
+				}
+				return function(*a_effect) ? RE::BSContainer::ForEachResult::kStop : RE::BSContainer::ForEachResult::kContinue;
+			}
+
+			Visit& function;
+		};
+		if (auto* target = a_actor.AsMagicTarget()) {
+			Visitor visitor{ a_visit };
+			target->VisitEffects(visitor);
+		}
+	}
+
+	// An effect the game's menus show: named, and not hidden (kHideInUI).
+	bool IsVisible(const RE::EffectSetting* a_effect)
+	{
+		if (!a_effect || a_effect->data.flags.any(RE::EffectSetting::EffectSettingData::Flag::kHideInUI)) {
+			return false;
+		}
+		const char* name = a_effect->GetFullName();
+		return name && *name;
+	}
+
+	// The FormIDs of `a_item`'s visible effects, in its order, repeats kept: a view, so the poll
+	// allocates nothing.
+	auto VisibleEffectIDs(const RE::MagicItem& a_item)
+	{
+		return a_item.effects | std::views::filter([](const RE::Effect* a_effect) { return a_effect && IsVisible(a_effect->baseEffect); }) |
+		       std::views::transform([](const RE::Effect* a_effect) { return a_effect->baseEffect->GetFormID(); });
+	}
+
+	// An effect on them comes from an item with the visible effects of one of `a_spells`
+	// (SituationRules::FormRef::effects, SameEffects), the effect itself visible: Stoneflesh's
+	// scroll counts for Stoneflesh. A spell without visible effects counts by its own FormID, and
+	// one not loaded (FormID 0) by nothing.
+	bool UnderSpells(const std::vector<SituationRules::Spell>& a_spells, RE::Actor& a_actor)
+	{
+		bool found = false;
+		ForEachLiveEffect(a_actor, [&a_spells, &found](const RE::ActiveEffect& a_effect) {
+			const auto* item = a_effect.spell;
+			if (!item) {
+				return false;
+			}
+			const bool visible = a_effect.effect && IsVisible(a_effect.effect->baseEffect);
+			found = std::ranges::any_of(a_spells, [item, visible](const SituationRules::Spell& a_spell) {
+				if (a_spell.effects.empty()) {
+					return a_spell.formID != 0 && a_spell.formID == item->GetFormID();
+				}
+				return visible && SituationRules::SameEffects(a_spell.effects, VisibleEffectIDs(*item));
+			});
+			return found;
+		});
+		return found;
+	}
+
 	// Whether one row of a user's situation holds: its kind's test, inverted by `not`. A row
 	// with nothing selected never holds.
 	bool RowHolds(const SituationRules::Row& a_row, Facts& a_facts)
@@ -362,6 +438,9 @@ namespace
 			break;
 		case Kind::kTimeOfDay:
 			holds = SituationRules::InTimeRange(a_row.from, a_row.to, MinuteOfDay());
+			break;
+		case Kind::kSpell:
+			holds = UnderSpells(a_row.spells, actor);
 			break;
 		}
 		return holds != a_row.negated;
@@ -442,6 +521,125 @@ namespace
 			}
 		}
 		return parents;
+	}
+
+	// --- Spells ---------------------------------------------------------------
+	//
+	// Contract: game thread, all; read as the window opens, never on the poll.
+
+	// `a_item`'s visible effects (IsVisible): their FormIDs, ascending, each once.
+	std::vector<std::uint32_t> VisibleEffectSet(const RE::MagicItem& a_item)
+	{
+		std::vector<std::uint32_t> effects;
+		for (const auto id : VisibleEffectIDs(a_item)) {
+			effects.push_back(id);
+		}
+		std::ranges::sort(effects);
+		const auto repeated = std::ranges::unique(effects);
+		effects.erase(repeated.begin(), repeated.end());
+		return effects;
+	}
+
+	// "- Armor - Stone (ArmorFFSelf25)", a line per visible effect in the item's order, each
+	// once; the editor ID only when the game keeps one (it does not by itself; a mod such as
+	// powerofthree's Tweaks loads them).
+	std::string EffectLines(const RE::MagicItem& a_item)
+	{
+		std::string                lines;
+		std::vector<std::uint32_t> listed;
+		for (const auto* effect : a_item.effects) {
+			const auto* base = effect ? effect->baseEffect : nullptr;
+			if (!IsVisible(base) || std::ranges::find(listed, base->GetFormID()) != listed.end()) {
+				continue;
+			}
+			listed.push_back(base->GetFormID());
+			const char* editorID = base->GetFormEditorID();
+			lines += std::format("{}- {}", lines.empty() ? "" : "\n", base->GetFullName());
+			if (editorID && *editorID) {
+				lines += std::format(" ({})", editorID);
+			}
+		}
+		return lines;
+	}
+
+	// A spell the Add spell popup offers, named for the reader with its visible effects. nullopt
+	// for one the player never sees as an effect (without a name or a visible effect), an
+	// enchantment (worn, not cast or used), or one made in game, which no plugin names.
+	std::optional<SituationRules::SpellChoice> ChoiceOf(const RE::MagicItem& a_item)
+	{
+		using Type = RE::MagicSystem::SpellType;
+		const char* name = a_item.GetName();
+		const auto* file = a_item.IsDynamicForm() ? nullptr : a_item.GetFile(0);
+		const auto  type = a_item.GetSpellType();
+		if (!file || !name || !*name || type == Type::kEnchantment || type == Type::kStaffEnchantment) {
+			return std::nullopt;
+		}
+		auto effects = VisibleEffectSet(a_item);
+		if (effects.empty()) {
+			return std::nullopt;
+		}
+		return SituationRules::SpellChoice{ .spell = { .ref = { std::string{ file->GetFilename() }, a_item.GetLocalFormID(), name },
+												.formID = a_item.GetFormID(),
+												.effects = std::move(effects) },
+			.effectLines = EffectLines(a_item) };
+	}
+
+	void AddChoice(const RE::MagicItem* a_item, std::vector<SituationRules::SpellChoice>& a_choices)
+	{
+		if (a_item) {
+			if (auto choice = ChoiceOf(*a_item)) {
+				a_choices.push_back(std::move(*choice));
+			}
+		}
+	}
+
+	// A spell, power or shout's word the actor can cast or use at will, with a visible effect
+	// delivered to themselves: one that only lands on others (Flames, a Conjure) never puts an
+	// effect on them. Abilities, diseases and the rest are offered only while one of their
+	// effects is on them.
+	bool IsCastOnSelf(const RE::MagicItem& a_item)
+	{
+		using Type = RE::MagicSystem::SpellType;
+		const auto type = a_item.GetSpellType();
+		if (type != Type::kSpell && type != Type::kPower && type != Type::kLesserPower && type != Type::kVoicePower) {
+			return false;
+		}
+		return std::ranges::any_of(a_item.effects, [](const RE::Effect* a_effect) {
+			const auto* base = a_effect ? a_effect->baseEffect : nullptr;
+			return IsVisible(base) && base->data.delivery == RE::MagicSystem::Delivery::kSelf;
+		});
+	}
+
+	// The spells of an NPC record's or a race's spell list that are cast on themselves
+	// (IsCastOnSelf), a shout by the spells of its words.
+	void AddCastSpells(const RE::TESSpellList* a_list, std::vector<SituationRules::SpellChoice>& a_choices)
+	{
+		const auto* data = a_list ? a_list->actorEffects : nullptr;
+		if (!data) {
+			return;
+		}
+		for (std::uint32_t i = 0; data->spells && i < data->numSpells; ++i) {
+			if (const auto* spell = data->spells[i]; spell && IsCastOnSelf(*spell)) {
+				AddChoice(spell, a_choices);
+			}
+		}
+		for (std::uint32_t i = 0; data->shouts && i < data->numShouts; ++i) {
+			if (const auto* shout = data->shouts[i]) {
+				for (const auto& word : shout->variations) {
+					if (word.spell && IsCastOnSelf(*word.spell)) {
+						AddChoice(word.spell, a_choices);
+					}
+				}
+			}
+		}
+	}
+
+	template <class T>
+	void AddEveryForm(RE::TESDataHandler& a_data, std::vector<SituationRules::SpellChoice>& a_choices)
+	{
+		for (const auto* item : a_data.GetFormArray<T>()) {
+			AddChoice(item, a_choices);
+		}
 	}
 
 	// --- Poll -----------------------------------------------------------------
@@ -572,6 +770,50 @@ namespace Situations
 			choices.cell = PlaceOf(*cell);
 		}
 		return choices;
+	}
+
+	std::vector<SituationRules::SpellChoice> SpellsAround(RE::Actor& a_actor)
+	{
+		std::vector<SituationRules::SpellChoice> choices;
+		for (const auto* spell : a_actor.GetActorRuntimeData().addedSpells) {
+			if (spell && IsCastOnSelf(*spell)) {
+				AddChoice(spell, choices);
+			}
+		}
+		AddCastSpells(a_actor.GetActorBase(), choices);
+		AddCastSpells(a_actor.GetRace(), choices);
+		ForEachLiveEffect(a_actor, [&choices](const RE::ActiveEffect& a_effect) {
+			if (a_effect.effect && IsVisible(a_effect.effect->baseEffect)) {
+				AddChoice(a_effect.spell, choices);
+			}
+			return false;
+		});
+		SituationRules::MergeSameSpells(choices);
+		return choices;
+	}
+
+	// Contract: built at the first call and never changed after, so the span stays valid until the
+	// game closes: the loaded plugins' forms do not change while it runs.
+	std::span<const SituationRules::SpellChoice> AllSpells()
+	{
+		static const std::vector<SituationRules::SpellChoice> all = [] {
+			std::vector<SituationRules::SpellChoice> choices;
+			if (auto* data = RE::TESDataHandler::GetSingleton()) {
+				AddEveryForm<RE::SpellItem>(*data, choices);
+				AddEveryForm<RE::AlchemyItem>(*data, choices);
+				AddEveryForm<RE::ScrollItem>(*data, choices);
+				AddEveryForm<RE::IngredientItem>(*data, choices);
+			}
+			SituationRules::MergeSameSpells(choices);
+			return choices;
+		}();
+		return all;
+	}
+
+	std::vector<std::uint32_t> VisibleEffectsOf(std::uint32_t a_formID)
+	{
+		const auto* item = a_formID != 0 ? RE::TESForm::LookupByID<RE::MagicItem>(a_formID) : nullptr;
+		return item ? VisibleEffectSet(*item) : std::vector<std::uint32_t>{};
 	}
 
 	void Start()

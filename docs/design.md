@@ -619,7 +619,7 @@ docs/situation-management-ui.md) and the chests (docs/chest-ui.md, behind the `E
 setting, off by default). Open:
 
 1. User-defined situations (docs/custom-situations.md) on `feature/custom-situations`: the
-   conditions without a form picker built, Place and Spell next; layer outfits
+   conditions without a form picker and Place built, Spell built on `feat/cs-spell`; layer outfits
    (docs/memo-layer-outfits.md).
 2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
    snowy region (§7); quickload with the window open, then New Game; the player's left-hand

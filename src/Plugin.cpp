@@ -1429,6 +1429,8 @@ namespace
 		const auto actorID = actor.GetFormID();
 		request.restoreChanges = SituationStore::RestoreChanges();
 		request.places = Situations::PlacesAround(actor);
+		request.spells = Situations::SpellsAround(actor);
+		request.allSpells = Situations::AllSpells();
 		// The rows are made at once, so the window shows them, and dressed for in one Refresh,
 		// at once, Live Preview on or off (RedressCaptured, the preview begun again on the
 		// outfit whose details show, else on what they wear). The row they wear, when random,

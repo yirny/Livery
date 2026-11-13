@@ -6,7 +6,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -22,7 +24,7 @@
 // holds for an actor.
 //
 // A situation applies while every row holds; a row with values holds while any of its values
-// does (a Place row while any of its places does), `negated` inverts it, and a row with
+// does (a Place or Spell row while any of its forms does), `negated` inverts it, and a row with
 // nothing selected never holds (NothingSelected).
 namespace SituationRules
 {
@@ -36,7 +38,8 @@ namespace SituationRules
 		kLocationType,
 		kPlace,
 		kWeather,
-		kTimeOfDay
+		kTimeOfDay,
+		kSpell
 	};
 
 	// Location type's values, bits of Row::values.
@@ -51,29 +54,96 @@ namespace SituationRules
 
 	inline constexpr std::uint16_t kMinutesPerDay = 24 * 60;
 
-	// A place of a Place row: a location or a cell, kept as a piece is (plugin and local FormID),
-	// so it survives load order changes; one whose plugin is not loaded stays and holds nowhere.
-	struct Place
+	// A form a Place or Spell row lists, kept as a piece is (plugin and local FormID), so it
+	// survives load order changes; one whose plugin is not loaded stays and holds nowhere.
+	struct FormRef
 	{
 		PieceFile::PieceRef ref;
 		// Its FormID in this game's load order, 0 when its plugin is not loaded: what the poll
 		// compares. SituationStore sets it as it reads or saves the rules (PieceFile::FormIDOf);
-		// not in the file, and not compared, being the same place.
+		// not in the file, and not compared, being the same form.
 		std::uint32_t formID = 0;
+		// A spell's visible effects (named, not hidden in the menus; SameEffects): their FormIDs
+		// in this game's load order, ascending, each once. Set with formID; empty for a place, a
+		// spell not loaded, or one without a visible effect, which then holds by its own FormID.
+		std::vector<std::uint32_t> effects;
 
-		friend bool operator==(const Place& a_left, const Place& a_right) { return a_left.ref == a_right.ref; }
+		friend bool operator==(const FormRef& a_left, const FormRef& a_right) { return a_left.ref == a_right.ref; }
 	};
 
-	// The same place: the same local FormID of the same plugin (ASCII case ignored).
-	inline bool SamePlace(const PieceFile::PieceRef& a_left, const PieceFile::PieceRef& a_right)
+	using Place = FormRef;  // a location or a cell
+	using Spell = FormRef;  // a MagicItem: a spell, power, shout's word, potion, scroll or ingredient
+
+	// The same form: the same local FormID of the same plugin (ASCII case ignored).
+	inline bool SameForm(const PieceFile::PieceRef& a_left, const PieceFile::PieceRef& a_right)
 	{
 		return a_left.localID == a_right.localID && ExampleMod::CaseInsensitiveEqual(a_left.plugin, a_right.plugin);
 	}
 
-	// The place's name as saved; its plugin and FormID when it has none.
-	inline std::string PlaceName(const Place& a_place)
+	// The form's name as saved; its plugin and FormID when it has none.
+	inline std::string FormName(const FormRef& a_form)
 	{
-		return a_place.ref.name.empty() ? std::format("{} {:06X}", a_place.ref.plugin, a_place.ref.localID) : a_place.ref.name;
+		return a_form.ref.name.empty() ? std::format("{} {:06X}", a_form.ref.plugin, a_form.ref.localID) : a_form.ref.name;
+	}
+
+	// Whether an item whose visible effects are `a_item` (FormIDs in any order, repeats allowed)
+	// has exactly the effects `a_set` (FormRef::effects): a Spell Effect row counts every spell,
+	// scroll or potion with the same effects as the one listed. An empty set matches an item
+	// without visible effects; the poll holds such a spell by its own FormID instead.
+	template <class Ids>
+	bool SameEffects(std::span<const std::uint32_t> a_set, Ids&& a_item)
+	{
+		for (const auto id : a_item) {
+			if (!std::ranges::binary_search(a_set, id)) {
+				return false;
+			}
+		}
+		for (const auto id : a_set) {
+			if (std::ranges::find(a_item, id) == std::ranges::end(a_item)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// A spell the Add spell popup offers: the spell, its visible effects resolved, and the lines
+	// its hover lists them in ("- Armor - Stone (ArmorFFSelf25)", the editor ID only when the
+	// game keeps one).
+	struct SpellChoice
+	{
+		Spell       spell;
+		std::string effectLines;
+	};
+
+	namespace Detail
+	{
+		inline std::weak_ordering CompareNames(std::string_view a_left, std::string_view a_right)
+		{
+			const auto compare = [](unsigned char a, unsigned char b) { return ExampleMod::AsciiToLower(a) <=> ExampleMod::AsciiToLower(b); };
+			return std::lexicographical_compare_three_way(a_left.begin(), a_left.end(), a_right.begin(), a_right.end(), compare);
+		}
+	}
+
+	// Sorts the choices by name (ASCII case ignored), and of those with the same name and the
+	// same visible effects keeps the lowest FormID alone: a Spell Effect row counts them all the
+	// same (Stoneflesh is in Skyrim.esm twice, once for the left hand).
+	inline void MergeSameSpells(std::vector<SpellChoice>& a_choices)
+	{
+		std::ranges::sort(a_choices, [](const SpellChoice& a_left, const SpellChoice& a_right) {
+			const auto& left = a_left.spell;
+			const auto& right = a_right.spell;
+			if (const auto order = Detail::CompareNames(left.ref.name, right.ref.name); order != 0) {
+				return order < 0;
+			}
+			if (left.effects != right.effects) {
+				return left.effects < right.effects;
+			}
+			return left.formID < right.formID;
+		});
+		const auto repeated = std::ranges::unique(a_choices, [](const SpellChoice& a_left, const SpellChoice& a_right) {
+			return Detail::CompareNames(a_left.spell.ref.name, a_right.spell.ref.name) == 0 && a_left.spell.effects == a_right.spell.effects;
+		});
+		a_choices.erase(repeated.begin(), repeated.end());
 	}
 
 	// What the Add place popup offers (docs/custom-situations.md §7), read as the window opens
@@ -133,6 +203,7 @@ namespace SituationRules
 		std::uint16_t      from = 20 * 60;   // Time of day: minutes after midnight, below kMinutesPerDay
 		std::uint16_t      to = 6 * 60;
 		std::vector<Place> places;  // Place: in the order added
+		std::vector<Spell> spells;  // Spell: in the order added
 
 		friend bool operator==(const Row&, const Row&) = default;
 	};
@@ -172,13 +243,13 @@ namespace SituationRules
 		Kind                   kind;
 		const char*            key;     // in situations.json
 		const char*            label;   // the editor's
-		const char*            tip;     // the label's tooltip
+		const char*            tip;     // the label's tooltip; the editor formats it, `{}` naming the actor
 		const char*            phrase;  // in the Applies line; unused for a kind with values or Time of day
 		std::span<const Value> values;  // empty for a kind without
 	};
 
 	// Every kind at the index of its Kind (InfoOf), in the order the editor offers them.
-	inline constexpr std::array<KindInfo, 9> kKinds{ {
+	inline constexpr std::array<KindInfo, 10> kKinds{ {
 		{ Kind::kInCombat, "inCombat", "In combat", "Fighting.\nWith this condition the situation applies in combat.", "in combat", {} },
 		{ Kind::kSleeping, "sleeping", "Sleeping", "Going to bed, in it or getting up.", "sleeping", {} },
 		{ Kind::kInWater, "inWater", "In water", "Swimming, or wading.\nOn a horse, swimming only.", "in water", {} },
@@ -191,6 +262,10 @@ namespace SituationRules
 		{ Kind::kWeather, "weather", "Weather",
 			"Rain and Snow follow the sky, indoors too.\nSnowy region: a region where it often snows, whatever the sky.", "", kWeathers },
 		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", {} },
+		{ Kind::kSpell, "spell", "Spell Effect",
+			"A spell, power, shout, potion or other effect currently affecting {}.\nListed by spell name, not effect name.\n"
+			"Any spell, scroll or potion with the same effects counts.",
+			"", {} },
 	} };
 
 	static_assert([] {
@@ -212,10 +287,28 @@ namespace SituationRules
 		return !InfoOf(a_kind).values.empty();
 	}
 
-	// A row of a kind with values with none ticked, or a Place row with no place: it never holds.
+	// A kind whose row lists forms: Place, Spell.
+	inline bool HasForms(Kind a_kind)
+	{
+		return a_kind == Kind::kPlace || a_kind == Kind::kSpell;
+	}
+
+	// The forms a Place or Spell row lists; a row of another kind lists none.
+	inline const std::vector<FormRef>& FormsOf(const Row& a_row)
+	{
+		return a_row.kind == Kind::kSpell ? a_row.spells : a_row.places;
+	}
+
+	inline std::vector<FormRef>& FormsOf(Row& a_row)
+	{
+		return a_row.kind == Kind::kSpell ? a_row.spells : a_row.places;
+	}
+
+	// A row of a kind with values with none ticked, or a Place or Spell row with no form: it never
+	// holds.
 	inline bool NothingSelected(const Row& a_row)
 	{
-		return HasValues(a_row.kind) ? a_row.values == 0 : a_row.kind == Kind::kPlace && a_row.places.empty();
+		return HasValues(a_row.kind) ? a_row.values == 0 : HasForms(a_row.kind) && FormsOf(a_row).empty();
 	}
 
 	// Whether the situation applies in combat: ticked, or a row that holds only in combat.
@@ -266,7 +359,7 @@ namespace SituationRules
 	}
 
 	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not indoors",
-	// "at Breezehome or Whiterun".
+	// "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on".
 	inline std::string RowText(const Row& a_row)
 	{
 		const auto& info = InfoOf(a_row.kind);
@@ -282,12 +375,12 @@ namespace SituationRules
 				}
 			}
 			phrase = "in " + JoinWithOr(ticked);
-		} else if (a_row.kind == Kind::kPlace) {
+		} else if (HasForms(a_row.kind)) {
 			std::vector<std::string> names;
-			for (const auto& place : a_row.places) {
-				names.push_back(PlaceName(place));
+			for (const auto& form : FormsOf(a_row)) {
+				names.push_back(FormName(form));
 			}
-			phrase = "at " + JoinWithOr(names);
+			phrase = a_row.kind == Kind::kPlace ? "at " + JoinWithOr(names) : "while " + JoinWithOr(names) + " is on";
 		} else if (a_row.kind == Kind::kTimeOfDay) {
 			phrase = a_row.from == a_row.to ? "at any hour" : std::format("from {} to {}", TimeText(a_row.from), TimeText(a_row.to));
 		} else {
@@ -316,7 +409,7 @@ namespace SituationRules
 	// --- situations.json ------------------------------------------------------
 	//
 	// A row: { "kind": "weather", "not": false, "values": ["rain", "snow"] }; Time of day has
-	// "from" and "to" ("20:00") instead of "values"; Place's values are pieces
+	// "from" and "to" ("20:00") instead of "values"; Place's and Spell's values are pieces
 	// (PieceFile::ToJson: plugin, formId, name). Other fields are ignored.
 
 	namespace Detail
@@ -401,17 +494,18 @@ namespace SituationRules
 					}
 					a_row.values |= found->bit;
 				}
-			} else if (*kind == Kind::kPlace) {
-				const auto values = a_json.find("values");
+			} else if (HasForms(*kind)) {
+				const auto* noun = *kind == Kind::kPlace ? "place" : "spell";
+				const auto  values = a_json.find("values");
 				if (values == a_json.end() || !values->is_array()) {
-					return "has no place list.";
+					return std::format("has no {} list.", noun);
 				}
 				for (const auto& value : *values) {
-					Place place;
-					if (PieceFile::ParsePiece(value, place.ref)) {
-						return "has a place without a plugin, or whose formId is not 0x and up to six hex digits.";
+					FormRef form;
+					if (PieceFile::ParsePiece(value, form.ref)) {
+						return std::format("has a {} without a plugin, or whose formId is not 0x and up to six hex digits.", noun);
 					}
-					a_row.places.push_back(std::move(place));
+					FormsOf(a_row).push_back(std::move(form));
 				}
 			} else if (*kind == Kind::kTimeOfDay) {
 				const auto from = a_json.find("from");
@@ -443,10 +537,10 @@ namespace SituationRules
 					}
 				}
 				json["values"] = std::move(values);
-			} else if (row.kind == Kind::kPlace) {
+			} else if (HasForms(row.kind)) {
 				auto values = nlohmann::ordered_json::array();
-				for (const auto& place : row.places) {
-					values.push_back(PieceFile::ToJson(place.ref));
+				for (const auto& form : FormsOf(row)) {
+					values.push_back(PieceFile::ToJson(form.ref));
 				}
 				json["values"] = std::move(values);
 			} else if (row.kind == Kind::kTimeOfDay) {

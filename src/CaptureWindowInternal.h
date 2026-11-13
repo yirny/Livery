@@ -229,10 +229,17 @@ namespace CaptureWindow::Internal
 		double                          dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
 		float                           outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
 		std::array<char, kNameCapacity> newName{};                 // the New situation popup's field
-		// The Add place popup: the Place row it adds to (index into the selected entry's
-		// rules.rows) and its choice, in the order it shows them (request.places.At).
-		int placeRow = -1;
+		// The Place or Spell row the Add place or Add spell popup adds to: index into the selected
+		// entry's rules.rows.
+		int formRow = -1;
+		// The Add place popup's choice, in the order it shows them (request.places.At).
 		int placePick = 0;
+		// The Add spell popup: its search, Show all spells, the spells it lists (indices into
+		// request.spells, or request.allSpells with Show all spells) and the one picked.
+		std::array<char, OutfitBrowser::kSearchCapacity> spellSearch{};
+		bool                                             spellShowAll = false;
+		std::vector<std::size_t>                         spellShown;
+		std::optional<SituationRules::Spell>             spellPick;
 	};
 
 	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), saved as they are

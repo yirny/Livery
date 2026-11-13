@@ -4,7 +4,7 @@
 //   Constants - file location, the refusal for a file that could not be read
 //   State     - the table as read, whether the file may be written
 //   File      - write through a temporary file
-//   Places    - the FormIDs of the Place rows' places in this game's load order
+//   Forms     - the FormIDs of the Place and Spell rows' forms in this game's load order
 //   API       - Load / Name / Suffix / IsRemoved / Offered / RulesOf / Apply / Create /
 //               Remove / RestorePresets / RestoreChanges
 //
@@ -70,19 +70,25 @@ namespace
 		return std::nullopt;
 	}
 
-	// --- Places ---------------------------------------------------------------
+	// --- Forms ----------------------------------------------------------------
 
-	// Gives every place of the user's situations its FormID in this game's load order
-	// (SituationRules::Place::formID), which the poll compares. Returns how many have none:
-	// their plugin is not loaded.
-	std::size_t ResolvePlaces(SituationTable::Table& a_table)
+	// Gives every place and spell of the user's situations its FormID in this game's load order
+	// (SituationRules::FormRef::formID), and every spell its visible effects (effects), which the
+	// poll compares. Returns how many have no FormID: their plugin is not loaded.
+	// Contract: game thread, after kDataLoaded.
+	std::size_t ResolveForms(SituationTable::Table& a_table)
 	{
 		std::size_t unloaded = 0;
 		for (auto& entry : a_table) {
 			for (auto& row : entry.rules.rows) {
-				for (auto& place : row.places) {
-					place.formID = PieceFile::FormIDOf(place.ref);
-					unloaded += place.formID == 0 ? 1 : 0;
+				for (auto* forms : { &row.places, &row.spells }) {
+					for (auto& form : *forms) {
+						form.formID = PieceFile::FormIDOf(form.ref);
+						unloaded += form.formID == 0 ? 1 : 0;
+					}
+				}
+				for (auto& spell : row.spells) {
+					spell.effects = Situations::VisibleEffectsOf(spell.formID);
 				}
 			}
 		}
@@ -134,8 +140,8 @@ namespace SituationStore
 			logger::error("situations.json was loaded twice; every situation stays as it was and the file is not written");
 			return;
 		}
-		if (const auto unloaded = ResolvePlaces(table); unloaded > 0) {
-			logger::warn("situations.json: {} place(s) from plugins not loaded hold nowhere", unloaded);
+		if (const auto unloaded = ResolveForms(table); unloaded > 0) {
+			logger::warn("situations.json: {} place(s) or spell(s) from plugins not loaded hold nowhere", unloaded);
 		}
 		g_table = std::move(table);
 		g_writable = true;
@@ -198,7 +204,7 @@ namespace SituationStore
 		if (auto problem = SituationTable::CheckNames(table)) {
 			return problem;
 		}
-		ResolvePlaces(table);
+		ResolveForms(table);
 		return Commit(std::move(table));
 	}
 

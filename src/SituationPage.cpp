@@ -16,15 +16,16 @@
 //                     over the outfits it shows; a click on an outfit row of either pane shows
 //                     its details and puts it on the preview
 //   Condition editor - a user's situation's conditions (docs/custom-situations.md §7): a line
-//                     per row with Not, its kind and Remove, its values, times or places under
-//                     it; Add Condition..., Apply in combat, the Applies line
+//                     per row with Not, its kind and Remove, its values, times, places or spells
+//                     under it; Add Condition..., Apply in combat, the Applies line
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
 //                     pieces ticked as the row it was clicked under wears them
 //   Buttons, popups - New Situation..., Exit, Restore Presets (?); the New situation, Remove's and
 //                     Restore Presets' popups, each handing its write to the Request's handler;
-//                     the Add place popup, an edit of the selected situation's Place row
+//                     the Add place and Add spell popups, edits of the selected situation's Place
+//                     or Spell row
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
@@ -44,7 +45,9 @@
 #include <cstring>
 #include <format>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -60,6 +63,7 @@ namespace CaptureWindow::Internal
 		constexpr const char* kRestorePresetsPopup = "Restore presets?";
 		constexpr const char* kNewSituationPopup = "New situation";
 		constexpr const char* kAddPlacePopup = "Add place";
+		constexpr const char* kAddSpellPopup = "Add spell";
 		constexpr const char* kNewSituation = "New Situation...";
 		// Reasons a button is greyed out, shown on hover.
 		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
@@ -585,28 +589,58 @@ namespace CaptureWindow::Internal
 			kNone,
 			kChanged,
 			kRemove,
-			kAddPlace  // Add Place... pressed
+			kAddForm  // a Place row's Add Place... or a Spell row's Add Spell... pressed
 		};
 
-		// A Place row's places, a line each with Remove at its right end, one whose plugin is not
-		// loaded greyed and saying so on hover; then Add Place.... Returns true when one was
-		// removed; sets `a_add` when Add Place... was pressed.
-		bool DrawPlaceList(SituationRules::Row& a_row, bool& a_add)
+		// A spell's hover: its plugin and FormID, then its visible effects a line each
+		// (SituationRules::SpellChoice::effectLines; none when `a_effectLines` is empty).
+		std::string SpellTip(const SituationRules::Spell& a_spell, const std::string& a_effectLines)
 		{
+			const auto head = std::format("{} {:06X}", a_spell.ref.plugin, a_spell.ref.localID);
+			return a_effectLines.empty() ? head : head + "\n" + a_effectLines;
+		}
+
+		// The effect lines the Add spell popup's lists have for a spell of a row: the same spell,
+		// or one it was merged with (the same name and effects); "" when neither list has it.
+		const std::string& EffectLinesOf(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		{
+			static const std::string none;
+			const auto               same = [&a_spell](const SituationRules::SpellChoice& a_choice) {
+				const auto& spell = a_choice.spell;
+				return SituationRules::SameForm(spell.ref, a_spell.ref) ||
+				       (!a_spell.effects.empty() && spell.effects == a_spell.effects && ExampleMod::CaseInsensitiveEqual(spell.ref.name, a_spell.ref.name));
+			};
+			for (const std::span<const SituationRules::SpellChoice> list : { std::span<const SituationRules::SpellChoice>(a_request.spells), a_request.allSpells }) {
+				if (const auto found = std::ranges::find_if(list, same); found != list.end()) {
+					return found->effectLines;
+				}
+			}
+			return none;
+		}
+
+		// A Place or Spell row's forms, a line each with Remove at its right end, one whose plugin
+		// is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
+		// Place... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
+		// link was pressed.
+		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, bool& a_add)
+		{
+			auto&                      forms = SituationRules::FormsOf(a_row);
 			std::optional<std::size_t> removed;
-			for (std::size_t i = 0; i < a_row.places.size(); ++i) {
-				const auto& place = a_row.places[i];
-				const bool  loaded = place.formID != 0;
+			for (std::size_t i = 0; i < forms.size(); ++i) {
+				const auto& form = forms[i];
+				const bool  loaded = form.formID != 0;
 				ImGui::PushID(static_cast<int>(i));
 				if (!loaded) {
 					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 				}
-				ImGui::TextUnformatted(SituationRules::PlaceName(place).c_str());
+				ImGui::TextUnformatted(SituationRules::FormName(form).c_str());
 				if (!loaded) {
 					ImGui::PopStyleColor();
 					if (ImGui::IsItemHovered()) {
-						Theme::Tooltip(std::format("{} is not loaded.", place.ref.plugin).c_str());
+						Theme::Tooltip(std::format("{} is not loaded.", form.ref.plugin).c_str());
 					}
+				} else if (a_row.kind == SituationRules::Kind::kSpell && ImGui::IsItemHovered()) {
+					Theme::Tooltip(SpellTip(form, EffectLinesOf(a_request, form)).c_str());
 				}
 				if (Theme::LineLink("Remove")) {
 					removed = i;
@@ -614,15 +648,16 @@ namespace CaptureWindow::Internal
 				ImGui::PopID();
 			}
 			if (removed) {
-				a_row.places.erase(a_row.places.begin() + static_cast<std::ptrdiff_t>(*removed));
+				forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(*removed));
 			}
-			a_add = Theme::LabelLink("Add Place...", Theme::LinkLine::kNext);
+			a_add = Theme::LabelLink(a_row.kind == SituationRules::Kind::kPlace ? "Add Place..." : "Add Spell...", Theme::LinkLine::kNext);
 			return removed.has_value();
 		}
 
-		// One condition row: Not, its kind (what it means on hover) and Remove at the line's
-		// right end, then indented under it its values, or From and to for Time of day.
-		ConditionEdit DrawConditionRow(SituationRules::Row& a_row)
+		// One condition row: Not, its kind (what it means on hover, the actor's name in it) and
+		// Remove at the line's right end, then indented under it its values, places or spells, or
+		// From and to for Time of day.
+		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row)
 		{
 			const auto& info = SituationRules::InfoOf(a_row.kind);
 			auto        edit = ConditionEdit::kNone;
@@ -635,7 +670,7 @@ namespace CaptureWindow::Internal
 			ImGui::SameLine();
 			ImGui::TextUnformatted(info.label);
 			if (ImGui::IsItemHovered()) {
-				Theme::Tooltip(info.tip);
+				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
 			if (Theme::LineLink("Remove")) {
 				edit = ConditionEdit::kRemove;
@@ -643,11 +678,11 @@ namespace CaptureWindow::Internal
 			const float indent = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x;  // under the kind's name
 			ImGui::Indent(indent);
 			bool changed = false;
-			bool addPlace = false;
+			bool addForm = false;
 			if (!info.values.empty()) {
 				changed = DrawRowValues(a_row);
-			} else if (a_row.kind == SituationRules::Kind::kPlace) {
-				changed = DrawPlaceList(a_row, addPlace);
+			} else if (SituationRules::HasForms(a_row.kind)) {
+				changed = DrawFormList(a_request, a_row, addForm);
 			} else if (a_row.kind == SituationRules::Kind::kTimeOfDay) {
 				ImGui::AlignTextToFramePadding();
 				ImGui::TextUnformatted("From");
@@ -659,8 +694,8 @@ namespace CaptureWindow::Internal
 				changed = DrawTimeDropdown("##to", a_row.to) || changed;
 			}
 			ImGui::Unindent(indent);
-			if (edit == ConditionEdit::kNone && addPlace) {
-				return ConditionEdit::kAddPlace;
+			if (edit == ConditionEdit::kNone && addForm) {
+				return ConditionEdit::kAddForm;
 			}
 			return edit == ConditionEdit::kNone && changed ? ConditionEdit::kChanged : edit;
 		}
@@ -709,9 +744,9 @@ namespace CaptureWindow::Internal
 
 		// A user's situation's conditions as edited: a line per row (DrawConditionRow), Add
 		// Condition..., Apply in combat, then the Applies line they make. Returns true on a change;
-		// sets `a_addPlace` when a Place row's Add Place... was pressed, that row in
-		// SituationForm::placeRow.
-		bool DrawConditionEditor(State& a_state, SituationRules::Rules& a_rules, bool& a_addPlace)
+		// sets `a_addForm` when a Place or Spell row's Add link was pressed, that row in
+		// SituationForm::formRow.
+		bool DrawConditionEditor(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
 		{
 			Theme::LabelText("Conditions");
 			if (Theme::LabelHelpMark()) {
@@ -721,11 +756,11 @@ namespace CaptureWindow::Internal
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
 				ImGui::PushID(static_cast<int>(i));
-				const auto edit = DrawConditionRow(a_rules.rows[i]);
+				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i]);
 				ImGui::PopID();
-				if (edit == ConditionEdit::kAddPlace) {
-					a_state.situationForm.placeRow = static_cast<int>(i);
-					a_addPlace = true;
+				if (edit == ConditionEdit::kAddForm) {
+					a_state.situationForm.formRow = static_cast<int>(i);
+					a_addForm = true;
 					continue;
 				}
 				changed = changed || edit != ConditionEdit::kNone;
@@ -739,10 +774,10 @@ namespace CaptureWindow::Internal
 			if (const auto kind = DrawAddCondition()) {
 				a_rules.rows.push_back({ .kind = *kind });
 				changed = true;
-				// A Place row starts empty, so its Add Place... is pressed for the user.
-				if (*kind == SituationRules::Kind::kPlace) {
-					a_state.situationForm.placeRow = static_cast<int>(a_rules.rows.size() - 1);
-					a_addPlace = true;
+				// A Place or Spell row starts empty, so its Add link is pressed for the user.
+				if (SituationRules::HasForms(*kind)) {
+					a_state.situationForm.formRow = static_cast<int>(a_rules.rows.size() - 1);
+					a_addForm = true;
 				}
 			}
 			changed = DrawApplyInCombat(a_state, a_rules) || changed;
@@ -840,8 +875,8 @@ namespace CaptureWindow::Internal
 
 		// The settings every actor shares: the name, its label with the situation star (none for
 		// the Default, which says what it is under it), and the conditions: a user's situation's
-		// in the condition editor, a preset's read only. Returns true when a Place row's Add
-		// Place... was pressed (SituationForm::placeRow).
+		// in the condition editor, a preset's read only. Returns true when a Place or Spell row's
+		// Add link was pressed (SituationForm::formRow).
 		bool DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			auto&      form = a_state.situationForm;
@@ -859,11 +894,11 @@ namespace CaptureWindow::Internal
 				DrawDefaultNote(a_state);
 			}
 			if (a_state.request.situations[a_entry].user) {
-				bool addPlace = false;
-				if (DrawConditionEditor(a_state, entry.rules, addPlace)) {
+				bool addForm = false;
+				if (DrawConditionEditor(a_state, entry.rules, addForm)) {
 					ScheduleAutosave(a_state);
 				}
-				return addPlace;
+				return addForm;
 			}
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -881,7 +916,7 @@ namespace CaptureWindow::Internal
 			kNone,
 			kShowList,
 			kRemove,
-			kAddPlace
+			kAddForm
 		};
 
 		// The selected situation's details as edited: its name and conditions,
@@ -896,7 +931,7 @@ namespace CaptureWindow::Internal
 			auto&       entry = form.entries[selected];
 			const auto& name = a_state.request.actorName;
 			ImGui::PushID(form.selected);
-			const bool addPlace = DrawGlobalSettings(a_state, selected);
+			const bool addForm = DrawGlobalSettings(a_state, selected);
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
@@ -925,7 +960,7 @@ namespace CaptureWindow::Internal
 				action = DetailsAction::kRemove;
 			}
 			ImGui::PopID();
-			return addPlace ? DetailsAction::kAddPlace : action;
+			return addForm ? DetailsAction::kAddForm : action;
 		}
 
 		enum class OutfitViewAction
@@ -1136,26 +1171,61 @@ namespace CaptureWindow::Internal
 			return create;
 		}
 
-		// The Place row the Add place popup adds to (SituationForm::placeRow) as edited; nullptr
-		// once it is gone.
-		SituationRules::Row* PlaceRow(State& a_state)
+		// The row of `a_kind` the Add place or Add spell popup adds to (SituationForm::formRow) as
+		// edited; nullptr once it is gone.
+		SituationRules::Row* FormRow(State& a_state, SituationRules::Kind a_kind)
 		{
 			auto& form = a_state.situationForm;
-			if (form.selected < 0 || static_cast<std::size_t>(form.selected) >= form.entries.size() || form.placeRow < 0) {
+			if (form.selected < 0 || static_cast<std::size_t>(form.selected) >= form.entries.size() || form.formRow < 0) {
 				return nullptr;
 			}
 			auto&      rows = form.entries[static_cast<std::size_t>(form.selected)].rules.rows;
-			const auto index = static_cast<std::size_t>(form.placeRow);
-			return index < rows.size() && rows[index].kind == SituationRules::Kind::kPlace ? &rows[index] : nullptr;
+			const auto index = static_cast<std::size_t>(form.formRow);
+			return index < rows.size() && rows[index].kind == a_kind ? &rows[index] : nullptr;
 		}
 
-		// Opens the Add place popup on its first choice: This Location, or This Cell when the
-		// actor is outside any location.
-		// Contract: in the page's ID scope, as the popups are drawn there.
-		void OpenAddPlacePopup(State& a_state)
+		// What the Add spell popup lists from: the actor's spells, or with Show all spells every one.
+		std::span<const SituationRules::SpellChoice> OfferedSpells(const State& a_state)
 		{
-			a_state.situationForm.placePick = 0;
-			ImGui::OpenPopup(kAddPlacePopup);
+			return a_state.situationForm.spellShowAll ? a_state.request.allSpells : std::span<const SituationRules::SpellChoice>(a_state.request.spells);
+		}
+
+		// The spells the Add spell popup lists (SituationForm::spellShown): those offered whose name
+		// holds the search, ASCII case ignored; with Show all spells and nothing typed, none.
+		void RefreshSpellList(State& a_state)
+		{
+			auto&                  form = a_state.situationForm;
+			const std::string_view search = form.spellSearch.data();
+			form.spellShown.clear();
+			if (form.spellShowAll && search.empty()) {
+				return;
+			}
+			const auto spells = OfferedSpells(a_state);
+			for (std::size_t i = 0; i < spells.size(); ++i) {
+				if (ExampleMod::ContainsIgnoringCase(spells[i].spell.ref.name, search)) {
+					form.spellShown.push_back(i);
+				}
+			}
+		}
+
+		// Opens the popup of the row SituationForm::formRow names: Add place on its first choice
+		// (This Location, or This Cell outside any location), or Add spell on the actor's spells
+		// with nothing typed or picked.
+		// Contract: in the page's ID scope, as the popups are drawn there.
+		void OpenAddFormPopup(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			if (FormRow(a_state, SituationRules::Kind::kPlace)) {
+				form.placePick = 0;
+				ImGui::OpenPopup(kAddPlacePopup);
+			} else if (FormRow(a_state, SituationRules::Kind::kSpell)) {
+				form.spellSearch.fill('\0');
+				form.spellShowAll = false;
+				form.spellPick.reset();
+				RefreshSpellList(a_state);
+				a_state.focusNameField = true;  // the search field
+				ImGui::OpenPopup(kAddSpellPopup);
+			}
 		}
 
 		// The Add place popup (docs/custom-situations.md §7): This Location, each Parent Location
@@ -1172,7 +1242,7 @@ namespace CaptureWindow::Internal
 			int         shown = 0;  // the choices drawn so far, in request.places.At's order
 			const auto  radio = [&form, &shown](const char* a_kind, const SituationRules::Place& a_place, const std::string& a_help) {
 				const int  pick = shown++;
-				const auto label = std::format("{} ({})", a_kind, SituationRules::PlaceName(a_place));
+				const auto label = std::format("{} ({})", a_kind, SituationRules::FormName(a_place));
 				ImGui::PushID(pick);
 				if (Theme::RadioButton(label.c_str(), form.placePick == pick)) {
 					form.placePick = pick;
@@ -1188,7 +1258,7 @@ namespace CaptureWindow::Internal
 			ImGui::TextUnformatted(std::format("Add the place {} is in.", name).c_str());
 			if (places.location) {
 				radio("This Location", *places.location, std::format("The named place {} is in.\nMay include multiple rooms or outdoor areas.", name));
-				const auto here = SituationRules::PlaceName(*places.location);
+				const auto here = SituationRules::FormName(*places.location);
 				for (const auto& parent : places.parents) {
 					radio("Parent Location", parent, std::format("Includes {} and every place in it.", here));
 				}
@@ -1198,9 +1268,9 @@ namespace CaptureWindow::Internal
 					std::format("The individual area {} is in.\nTypically an entire building interior or a section of the outdoors.", name));
 			}
 			const auto* picked = places.At(form.placePick);
-			const auto* row = PlaceRow(a_state);
+			const auto* row = FormRow(a_state, SituationRules::Kind::kPlace);
 			const bool  listed = picked && row && std::ranges::any_of(row->places, [&picked](const SituationRules::Place& a_place) {
-				return SituationRules::SamePlace(a_place.ref, picked->ref);
+				return SituationRules::SameForm(a_place.ref, picked->ref);
 			});
 			BeginButtonRow({ "Add", "Cancel" });
 			const char* reason = !picked ? "Nothing to add here." : (listed ? "Already in the list." : nullptr);
@@ -1214,6 +1284,143 @@ namespace CaptureWindow::Internal
 			}
 			ImGui::EndPopup();
 			return add && picked ? std::optional{ *picked } : std::nullopt;
+		}
+
+		// The Add spell popup's search field, underlined with a magnifying glass as the outfit
+		// search, `a_width` wide, a clear button on its right end while text is typed. Returns true
+		// when the search changed; sets `a_escapeTaken` when Escape cleared it, so it does not also
+		// cancel.
+		bool DrawSpellSearch(State& a_state, float a_width, bool& a_escapeTaken)
+		{
+			auto&      search = a_state.situationForm.spellSearch;
+			const bool searching = search[0] != '\0';
+			a_escapeTaken = searching && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			const Theme::FieldStyle style{ .look = searching ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal,
+				.shape = Theme::FieldShape::kUnderlined,
+				.icon = Theme::FieldIcon::kSearch };
+			if (a_state.focusNameField) {
+				ImGui::SetKeyboardFocusHere();
+				a_state.focusNameField = false;
+			}
+			ImGui::SetNextItemWidth(a_width);
+			ImGui::SetNextItemAllowOverlap();  // the clear button sits on its right end
+			bool changed = Theme::InputText("##search", search.data(), search.size(), ImGuiInputTextFlags_EscapeClearsAll, "Search by name", style);
+			bool clear = a_escapeTaken;
+			if (search[0] != '\0') {
+				const ImVec2 fieldMin = ImGui::GetItemRectMin();
+				const ImVec2 fieldMax = ImGui::GetItemRectMax();
+				const float  side = fieldMax.y - fieldMin.y;
+				ImGui::SetCursorScreenPos(ImVec2(fieldMax.x - side, fieldMin.y));
+				if (Theme::ClearButton("##clearSearch", side)) {
+					QueueMenuSound(kFocusSound);
+					clear = true;
+				}
+			}
+			if (clear) {
+				search.fill('\0');
+				changed = true;
+			}
+			return changed;
+		}
+
+		// The Add spell popup's list: the spells SituationForm::spellShown names, a click picking
+		// one, its plugin and FormID on hover to tell the same names apart; past the most it lists,
+		// a line saying how many more.
+		void DrawSpellList(State& a_state)
+		{
+			constexpr std::size_t kMaxListed = 100;   // rows listed; more need a longer search
+			constexpr float       kRowsTall = 10.0f;  // the list's height in rows, kept as the search narrows
+
+			auto&       form = a_state.situationForm;
+			const auto  spells = OfferedSpells(a_state);
+			const auto  listed = (std::min)(form.spellShown.size(), kMaxListed);
+			const char* hint = form.spellShowAll && form.spellSearch[0] == '\0' ? "Type to search." : "Nothing found.";
+			PushListRowSpacing();
+			const float rowHeight = Theme::SelectRowHeight() + ImGui::GetStyle().ItemSpacing.y;
+			if (Theme::BeginList("spells", FittedListHeight(rowHeight * kRowsTall, rowHeight))) {
+				if (listed == 0) {
+					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+					Theme::TextRow(hint);
+					ImGui::PopStyleColor();
+				}
+				for (std::size_t i = 0; i < listed; ++i) {
+					// Contract: an index past the list is skipped: a refresh of the window
+					// (SetOutfits) may read the actor's spells again while the popup is open.
+					if (form.spellShown[i] >= spells.size()) {
+						continue;
+					}
+					const auto& choice = spells[form.spellShown[i]];
+					const auto& spell = choice.spell;
+					const bool  picked = form.spellPick && SituationRules::SameForm(form.spellPick->ref, spell.ref);
+					ImGui::PushID(static_cast<int>(i));
+					if (Theme::SelectRow(spell.ref.name.c_str(), picked)) {
+						form.spellPick = spell;
+						QueueMenuSound(kFocusSound);
+					}
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(SpellTip(spell, choice.effectLines).c_str());
+					}
+					ImGui::PopID();
+				}
+			}
+			ImGui::PopStyleVar();
+			Theme::EndList();
+			if (form.spellShown.size() > kMaxListed) {
+				Theme::CountText(std::format("{} more. Type more to narrow.", form.spellShown.size() - kMaxListed).c_str(), false);
+			}
+		}
+
+		// The Add spell popup (docs/custom-situations.md §7): the search, Show all spells, the
+		// spells that match; Add, greyed with none picked or one the row has already, / Cancel
+		// (Escape, unless it clears the search). Returns the spell to add on Add.
+		std::optional<SituationRules::Spell> DrawAddSpellPopup(State& a_state)
+		{
+			constexpr float kWidthInFonts = 22.0f;  // the popup's content width, in font sizes
+
+			if (!BeginModal(kAddSpellPopup)) {
+				return std::nullopt;
+			}
+			auto&       form = a_state.situationForm;
+			const auto& name = a_state.request.actorName;
+			ImGui::TextUnformatted(std::format("Add a spell to look for on {}.", name).c_str());
+			// The field sets the popup's width, the list fills it; a long name above widens both.
+			const float width = (std::max)(ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * kWidthInFonts);
+			bool        escapeTaken = false;
+			bool        changed = DrawSpellSearch(a_state, width, escapeTaken);
+			if (Theme::Checkbox("Show all spells", &form.spellShowAll)) {
+				QueueMenuSound(kFocusSound);
+				changed = true;
+			}
+			if (ImGui::IsItemHovered()) {
+				Theme::Tooltip(std::format(
+					"All spells, powers, potions and scrolls, including those added by mods.\n\n"
+					"Off: Spells known by {} and those currently affecting them.",
+					name)
+						.c_str());
+			}
+			if (changed) {
+				form.spellPick.reset();
+				RefreshSpellList(a_state);
+			}
+			DrawSpellList(a_state);
+
+			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
+			const auto& pick = form.spellPick;
+			const bool  listed = pick && row && std::ranges::any_of(row->spells, [&pick](const SituationRules::Spell& a_spell) {
+				return SituationRules::SameForm(a_spell.ref, pick->ref);
+			});
+			BeginButtonRow({ "Add", "Cancel" });
+			const char* reason = !pick ? "Select a spell." : (listed ? "Already in the list." : nullptr);
+			const bool  add = ReasonButton("Add", reason);
+			ImGui::SameLine();
+			const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !escapeTaken);
+			EndButtonRow();
+			if (add || cancel) {
+				QueueMenuSound(add ? kOkSound : kCancelSound);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+			return add ? pick : std::nullopt;
 		}
 
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
@@ -1326,8 +1533,14 @@ namespace CaptureWindow::Internal
 			}
 			// An edit, saved as the others are (the autosave waits while a popup is open).
 			if (auto place = DrawAddPlacePopup(a_state)) {
-				if (auto* row = PlaceRow(a_state)) {
+				if (auto* row = FormRow(a_state, SituationRules::Kind::kPlace)) {
 					row->places.push_back(std::move(*place));
+					ScheduleAutosave(a_state);
+				}
+			}
+			if (auto spell = DrawAddSpellPopup(a_state)) {
+				if (auto* row = FormRow(a_state, SituationRules::Kind::kSpell)) {
+					row->spells.push_back(std::move(*spell));
 					ScheduleAutosave(a_state);
 				}
 			}
@@ -1519,9 +1732,9 @@ namespace CaptureWindow::Internal
 		} else if (details == DetailsAction::kRemove) {
 			QueueMenuSound(kOkSound);
 			OpenAfterSave(a_state, kRemoveSituationPopup);
-		} else if (details == DetailsAction::kAddPlace) {
+		} else if (details == DetailsAction::kAddForm) {
 			QueueMenuSound(kOkSound);
-			OpenAddPlacePopup(a_state);
+			OpenAddFormPopup(a_state);
 		}
 		switch (action) {
 		case SituationAction::kNew:
