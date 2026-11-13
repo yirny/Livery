@@ -1,13 +1,47 @@
-# Memo: user-defined situations and magic conditions
+# Memo: user-defined situations, place and magic conditions
 
-Decided 2026-11-11, not implemented; nothing below is current behaviour. Livery's situations
-are a fixed set (`Situations::Situation`, `kPriority`, `ConditionOf`; docs/design.md §7). The
-plan item "user-defined conditions in the way of Skyrim Outfit Equipment System NG" (§8)
-extends them to situations the user defines: a key, a name, a list of conditions, a place in
-the priority order. The first condition kind investigated is a magic effect on the actor
-("a different outfit while Stoneflesh is on").
+Decided 2026-11-11 and 2026-11-13, not implemented; nothing below is current behaviour.
+Livery's situations are a fixed set (`Situations::Situation`, `kPriority`, `ConditionOf`;
+docs/design.md §7). The plan item "user-defined conditions in the way of Skyrim Outfit
+Equipment System NG" (§8) extends them to situations the user defines: a key, a name, a list
+of conditions, a place in the priority order. Two condition kinds are decided: a place the
+actor is in ("Elysium Estate", whose interior, basement and exterior are one situation apart
+from the other player homes) and a magic effect on the actor ("a different outfit while
+Stoneflesh is on"). The place condition ships first.
 
 ## Decisions
+
+### Place conditions
+
+- A place condition is a list of places; it holds while the actor's current location
+  (`TESObjectREFR::GetCurrentLocation`), or any of its parents (`BGSLocation::parentLoc`),
+  is one of them, or while their cell is one of them. A place is a `BGSLocation` or a
+  `TESObjectCELL`, stored as plugin name + local FormID like a piece (`PieceFile::PieceRef`),
+  so the list survives load order changes; a place whose plugin is not loaded stays in it as
+  not holding. The user-defined situation is the group: no separate "custom location" record.
+- Registration: the Situations page adds the place the captured actor stands in to a new or an
+  existing user-defined situation. The popup names what would be registered. By default
+  that is the cell's location; `This room only` (wording provisional) registers the cell
+  instead, for a cell without a location of its own and for an exterior whose location is a
+  whole hold, which would match everywhere in it. The window freezes the game, so the
+  actor's place is where they stand.
+- Per poll it costs a FormID comparison against a short list and a walk up the parents; no
+  allocation, no logging.
+- Not verified: whether Elysium Estate's cells carry locations (XLCN) of their own and what
+  its exterior cell's location is; the popup's name shows it.
+
+### Implementation order
+
+1. The framework, with no change in behaviour: `Situations::Situation` becomes a dynamic
+   registry with the presets as built-in entries (the enum spans 11 source files and 3 test
+   files; `OutfitRows::Rows`, `SituationTable::Table` and `Situations::Applicable` are fixed
+   arrays today), and situations.json version 2. The co-save stores a situation by its key
+   string already, so ASGN needs no new version; situations.json version 1 needs a migration
+   read, since the parser refuses any other version.
+2. The place condition and the Situations page's part: a new situation, the list of its
+   places with Remove, the add-current-place popup.
+
+### Magic conditions
 
 - Magic conditions name a spell, not a magic effect: a `MagicItem` (spell, power, shout,
   potion, ability), stored as plugin name + local FormID. The condition holds while any active
@@ -50,6 +84,9 @@ the priority order. The first condition kind investigated is a magic effect on t
 - Which other condition kinds ship with the first version (location keyword, weather, actor
   keyword, faction, worn item), and how conditions in one situation combine (AND, as the
   presets' rules do).
+- Where user-defined situations stand among Sleep, Cold, Home, Castle and Town: a place
+  situation must come before Home, which applies in a player home too; the rest is decided
+  once the other condition kinds are.
 - How the Situations page edits the list: adding, removing, reordering a situation; whether
   the presets become editable in the same way or stay fixed.
 - Verify in game: whether `MagicTarget::HasMagicEffect` skips inactive or dispelled effects, or
