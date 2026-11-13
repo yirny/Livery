@@ -63,14 +63,7 @@ git commit -m "chore(deps): update CommonLibSSE-NG to v10.1.0"
 
 ## Nexus Mods page
 
-The `<!-- nexus:start/end -->` block in `README.md` is the source of truth for Requirements, Installation and Compatibility. `docs/nexus-page.md` holds the rest of the BBCode page; do not edit its `<!-- generated:start/end -->` block, which the script replaces with the README block.
-
-```bash
-python3 scripts/generate-nexus-page.py         # print the combined BBCode
-python3 scripts/generate-nexus-page.py --copy  # or copy it to the clipboard
-```
-
-Paste the output into the Nexus Mods page editor.
+`docs/nexus-bbcode.bbcode` is the Nexus Mods page as pasted into its editor, maintained by hand. When a change makes it stale, edit it and paste the whole file into the Nexus Mods page editor; keep its Requirements, Installation and Compatibility in step with the `<!-- nexus:start/end -->` block in `README.md`.
 
 ## CI
 
