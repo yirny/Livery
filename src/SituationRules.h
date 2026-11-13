@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "PieceFile.h"
+#include "Utils.h"
+
 #include <nlohmann/json.hpp>
 
 #include <array>
@@ -19,7 +22,8 @@
 // holds for an actor.
 //
 // A situation applies while every row holds; a row with values holds while any of its values
-// does, `negated` inverts it, and a row with values and none ticked never holds.
+// does (a Place row while any of its places does), `negated` inverts it, and a row with
+// nothing selected never holds (NothingSelected).
 namespace SituationRules
 {
 	enum class Kind : std::uint8_t
@@ -30,6 +34,7 @@ namespace SituationRules
 		kSwimming,
 		kIndoors,
 		kLocationType,
+		kPlace,
 		kWeather,
 		kTimeOfDay
 	};
@@ -46,13 +51,51 @@ namespace SituationRules
 
 	inline constexpr std::uint16_t kMinutesPerDay = 24 * 60;
 
+	// A place of a Place row: a location or a cell, kept as a piece is (plugin and local FormID),
+	// so it survives load order changes; one whose plugin is not loaded stays and holds nowhere.
+	struct Place
+	{
+		PieceFile::PieceRef ref;
+		// Its FormID in this game's load order, 0 when its plugin is not loaded: what the poll
+		// compares. SituationStore sets it as it reads or saves the rules (PieceFile::FormIDOf);
+		// not in the file, and not compared, being the same place.
+		std::uint32_t formID = 0;
+
+		friend bool operator==(const Place& a_left, const Place& a_right) { return a_left.ref == a_right.ref; }
+	};
+
+	// The same place: the same local FormID of the same plugin (ASCII case ignored).
+	inline bool SamePlace(const PieceFile::PieceRef& a_left, const PieceFile::PieceRef& a_right)
+	{
+		return a_left.localID == a_right.localID && ExampleMod::CaseInsensitiveEqual(a_left.plugin, a_right.plugin);
+	}
+
+	// The place's name as saved; its plugin and FormID when it has none.
+	inline std::string PlaceName(const Place& a_place)
+	{
+		return a_place.ref.name.empty() ? std::format("{} {:06X}", a_place.ref.plugin, a_place.ref.localID) : a_place.ref.name;
+	}
+
+	// What the Add place popup offers (docs/custom-situations.md §7), read as the window opens
+	// (Situations::PlacesAround).
+	struct PlaceChoices
+	{
+		std::optional<Place> location;                // the actor's current location; nullopt outside any
+		bool                 locationIsHold = false;  // it is a whole hold, which would hold everywhere in it
+		std::optional<Place> cell;                    // the cell they stand in
+		bool                 interior = false;        // it is a room, not a patch of land
+		std::vector<Place>   holds;                   // every hold, by name
+		int                  around = -1;             // the hold they are in: index into holds; -1 for none
+	};
+
 	struct Row
 	{
-		Kind          kind = Kind::kInCombat;
-		bool          negated = false;  // the row's `not`
-		std::uint32_t values = 0;       // a kind with values (KindInfo::values): the bits of those ticked
-		std::uint16_t from = 20 * 60;   // Time of day: minutes after midnight, below kMinutesPerDay
-		std::uint16_t to = 6 * 60;
+		Kind               kind = Kind::kInCombat;
+		bool               negated = false;  // the row's `not`
+		std::uint32_t      values = 0;       // a kind with values (KindInfo::values): the bits of those ticked
+		std::uint16_t      from = 20 * 60;   // Time of day: minutes after midnight, below kMinutesPerDay
+		std::uint16_t      to = 6 * 60;
+		std::vector<Place> places;  // Place: in the order added
 
 		friend bool operator==(const Row&, const Row&) = default;
 	};
@@ -98,7 +141,7 @@ namespace SituationRules
 	};
 
 	// Every kind at the index of its Kind (InfoOf), in the order the editor offers them.
-	inline constexpr std::array<KindInfo, 8> kKinds{ {
+	inline constexpr std::array<KindInfo, 9> kKinds{ {
 		{ Kind::kInCombat, "inCombat", "In combat", "Fighting.\nWith this condition the situation applies in combat.", "in combat", {} },
 		{ Kind::kSleeping, "sleeping", "Sleeping", "Going to bed, in it or getting up.", "sleeping", {} },
 		{ Kind::kInWater, "inWater", "In water", "Swimming, or wading.\nOn a horse, swimming only.", "in water", {} },
@@ -107,6 +150,7 @@ namespace SituationRules
 		{ Kind::kLocationType, "locationType", "Location type",
 			"Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.",
 			"", kLocationTypes },
+		{ Kind::kPlace, "place", "Place", "In one of the places listed.\nA place counts with every room and area in it.", "", {} },
 		{ Kind::kWeather, "weather", "Weather",
 			"Rain and Snow follow the sky, indoors too.\nSnowy region: a region where it often snows, whatever the sky.", "", kWeathers },
 		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", {} },
@@ -129,6 +173,12 @@ namespace SituationRules
 	inline bool HasValues(Kind a_kind)
 	{
 		return !InfoOf(a_kind).values.empty();
+	}
+
+	// A row of a kind with values with none ticked, or a Place row with no place: it never holds.
+	inline bool NothingSelected(const Row& a_row)
+	{
+		return HasValues(a_row.kind) ? a_row.values == 0 : a_row.kind == Kind::kPlace && a_row.places.empty();
 	}
 
 	// Whether the situation applies in combat: ticked, or a row that holds only in combat.
@@ -178,10 +228,14 @@ namespace SituationRules
 		return text;
 	}
 
-	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not indoors".
+	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not indoors",
+	// "at Breezehome or Whiterun".
 	inline std::string RowText(const Row& a_row)
 	{
 		const auto& info = InfoOf(a_row.kind);
+		if (NothingSelected(a_row)) {
+			return std::format("{} (nothing selected)", info.label);
+		}
 		std::string phrase;
 		if (!info.values.empty()) {
 			std::vector<std::string> ticked;
@@ -190,10 +244,13 @@ namespace SituationRules
 					ticked.emplace_back(value.phrase);
 				}
 			}
-			if (ticked.empty()) {
-				return std::format("{} (nothing selected)", info.label);
-			}
 			phrase = "in " + JoinWithOr(ticked);
+		} else if (a_row.kind == Kind::kPlace) {
+			std::vector<std::string> names;
+			for (const auto& place : a_row.places) {
+				names.push_back(PlaceName(place));
+			}
+			phrase = "at " + JoinWithOr(names);
 		} else if (a_row.kind == Kind::kTimeOfDay) {
 			phrase = a_row.from == a_row.to ? "at any hour" : std::format("from {} to {}", TimeText(a_row.from), TimeText(a_row.to));
 		} else {
@@ -222,7 +279,8 @@ namespace SituationRules
 	// --- situations.json ------------------------------------------------------
 	//
 	// A row: { "kind": "weather", "not": false, "values": ["rain", "snow"] }; Time of day has
-	// "from" and "to" ("20:00") instead of "values". Other fields are ignored.
+	// "from" and "to" ("20:00") instead of "values"; Place's values are pieces
+	// (PieceFile::ToJson: plugin, formId, name). Other fields are ignored.
 
 	namespace Detail
 	{
@@ -306,6 +364,18 @@ namespace SituationRules
 					}
 					a_row.values |= found->bit;
 				}
+			} else if (*kind == Kind::kPlace) {
+				const auto values = a_json.find("values");
+				if (values == a_json.end() || !values->is_array()) {
+					return "has no place list.";
+				}
+				for (const auto& value : *values) {
+					Place place;
+					if (PieceFile::ParsePiece(value, place.ref)) {
+						return "has a place without a plugin, or whose formId is not 0x and up to six hex digits.";
+					}
+					a_row.places.push_back(std::move(place));
+				}
 			} else if (*kind == Kind::kTimeOfDay) {
 				const auto from = a_json.find("from");
 				const auto to = a_json.find("to");
@@ -336,6 +406,12 @@ namespace SituationRules
 					}
 				}
 				json["values"] = std::move(values);
+			} else if (row.kind == Kind::kPlace) {
+				auto values = nlohmann::ordered_json::array();
+				for (const auto& place : row.places) {
+					values.push_back(PieceFile::ToJson(place.ref));
+				}
+				json["values"] = std::move(values);
 			} else if (row.kind == Kind::kTimeOfDay) {
 				json["from"] = Detail::TimeKey(row.from);
 				json["to"] = Detail::TimeKey(row.to);
@@ -359,7 +435,7 @@ namespace SituationRules
 				a_rows.clear();
 				return std::format("Its condition {} {}", i + 1, *problem);
 			}
-			a_rows.push_back(row);
+			a_rows.push_back(std::move(row));
 		}
 		return std::nullopt;
 	}

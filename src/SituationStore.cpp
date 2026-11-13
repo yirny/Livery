@@ -4,6 +4,7 @@
 //   Constants - file location, the refusal for a file that could not be read
 //   State     - the table as read, whether the file may be written
 //   File      - write through a temporary file
+//   Places    - the FormIDs of the Place rows' places in this game's load order
 //   API       - Load / Name / Suffix / IsRemoved / Offered / RulesOf / Apply / Create /
 //               Remove / RestorePresets / RestoreChanges
 //
@@ -69,6 +70,25 @@ namespace
 		return std::nullopt;
 	}
 
+	// --- Places ---------------------------------------------------------------
+
+	// Gives every place of the user's situations its FormID in this game's load order
+	// (SituationRules::Place::formID), which the poll compares. Returns how many have none:
+	// their plugin is not loaded.
+	std::size_t ResolvePlaces(SituationTable::Table& a_table)
+	{
+		std::size_t unloaded = 0;
+		for (auto& entry : a_table) {
+			for (auto& row : entry.rules.rows) {
+				for (auto& place : row.places) {
+					place.formID = PieceFile::FormIDOf(place.ref);
+					unloaded += place.formID == 0 ? 1 : 0;
+				}
+			}
+		}
+		return unloaded;
+	}
+
 	// Adds the table's user's situations to the registry, which holds the presets alone, so
 	// each takes the id of its entry. Returns false, having added none, when the registry
 	// holds more than the presets or the table more than it can hold.
@@ -113,6 +133,9 @@ namespace SituationStore
 		if (!RegisterUsers(table)) {
 			logger::error("situations.json was loaded twice; every situation stays as it was and the file is not written");
 			return;
+		}
+		if (const auto unloaded = ResolvePlaces(table); unloaded > 0) {
+			logger::warn("situations.json: {} place(s) from plugins not loaded hold nowhere", unloaded);
 		}
 		g_table = std::move(table);
 		g_writable = true;
@@ -175,6 +198,7 @@ namespace SituationStore
 		if (auto problem = SituationTable::CheckNames(table)) {
 			return problem;
 		}
+		ResolvePlaces(table);
 		return Commit(std::move(table));
 	}
 

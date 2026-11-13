@@ -40,6 +40,8 @@ namespace PieceFile
 		std::string   plugin;       // file name of the plugin that defines the armor
 		std::uint32_t localID = 0;  // its FormID within that plugin (12 bits for a light plugin)
 		std::string   name;         // its name when saved, for people reading the file only
+
+		friend bool operator==(const PieceRef&, const PieceRef&) = default;
 	};
 
 	// --- JSON ---------------------------------------------------------------
@@ -106,7 +108,12 @@ namespace PieceFile
 		return { { "plugin", a_piece.plugin }, { "formId", std::format("0x{:06X}", a_piece.localID) }, { "name", a_piece.name } };
 	}
 
-	// --- Armor (PieceFile.cpp) ----------------------------------------------
+	// --- Forms (PieceFile.cpp) ----------------------------------------------
+
+	// The FormID a piece names in this game's load order; 0 when its plugin is not loaded or,
+	// for a light plugin, its FormID is past what the plugin can own. Whether a form has that
+	// FormID is not looked up.
+	std::uint32_t FormIDOf(const PieceRef& a_piece);
 
 	// The armor's name, or its FormID in hex when it has none.
 	std::string DisplayName(const RE::TESObjectARMO& a_armor);

@@ -16,14 +16,15 @@
 //                     over the outfits it shows; a click on an outfit row of either pane shows
 //                     its details and puts it on the preview
 //   Condition editor - a user's situation's conditions (docs/custom-situations.md §7): a line
-//                     per row with Not, its kind and Remove, its values or times under it;
-//                     Add Condition..., Apply in combat, the Applies line
+//                     per row with Not, its kind and Remove, its values, times or places under
+//                     it; Add Condition..., Apply in combat, the Applies line
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
 //                     pieces ticked as the row it was clicked under wears them
 //   Buttons, popups - New Situation..., Exit, Restore Presets (?); the New situation, Remove's and
-//                     Restore Presets' popups, each handing its write to the Request's handler
+//                     Restore Presets' popups, each handing its write to the Request's handler;
+//                     the Add place popup, an edit of the selected situation's Place row
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
@@ -58,6 +59,7 @@ namespace CaptureWindow::Internal
 		constexpr const char* kRemoveSituationPopup = "Remove situation?";
 		constexpr const char* kRestorePresetsPopup = "Restore presets?";
 		constexpr const char* kNewSituationPopup = "New situation";
+		constexpr const char* kAddPlacePopup = "Add place";
 		constexpr const char* kNewSituation = "New Situation...";
 		// Reasons a button is greyed out, shown on hover.
 		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
@@ -582,8 +584,41 @@ namespace CaptureWindow::Internal
 		{
 			kNone,
 			kChanged,
-			kRemove
+			kRemove,
+			kAddPlace  // Add Place... pressed
 		};
+
+		// A Place row's places, a line each with Remove at its right end, one whose plugin is not
+		// loaded greyed and saying so on hover; then Add Place.... Returns true when one was
+		// removed; sets `a_add` when Add Place... was pressed.
+		bool DrawPlaceList(SituationRules::Row& a_row, bool& a_add)
+		{
+			std::optional<std::size_t> removed;
+			for (std::size_t i = 0; i < a_row.places.size(); ++i) {
+				const auto& place = a_row.places[i];
+				const bool  loaded = place.formID != 0;
+				ImGui::PushID(static_cast<int>(i));
+				if (!loaded) {
+					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+				}
+				ImGui::TextUnformatted(SituationRules::PlaceName(place).c_str());
+				if (!loaded) {
+					ImGui::PopStyleColor();
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(std::format("{} is not loaded.", place.ref.plugin).c_str());
+					}
+				}
+				if (Theme::LineLink("Remove")) {
+					removed = i;
+				}
+				ImGui::PopID();
+			}
+			if (removed) {
+				a_row.places.erase(a_row.places.begin() + static_cast<std::ptrdiff_t>(*removed));
+			}
+			a_add = Theme::LabelLink("Add Place...", Theme::LinkLine::kNext);
+			return removed.has_value();
+		}
 
 		// One condition row: Not, its kind (what it means on hover) and Remove at the line's
 		// right end, then indented under it its values, or From and to for Time of day.
@@ -608,8 +643,11 @@ namespace CaptureWindow::Internal
 			const float indent = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x;  // under the kind's name
 			ImGui::Indent(indent);
 			bool changed = false;
+			bool addPlace = false;
 			if (!info.values.empty()) {
 				changed = DrawRowValues(a_row);
+			} else if (a_row.kind == SituationRules::Kind::kPlace) {
+				changed = DrawPlaceList(a_row, addPlace);
 			} else if (a_row.kind == SituationRules::Kind::kTimeOfDay) {
 				ImGui::AlignTextToFramePadding();
 				ImGui::TextUnformatted("From");
@@ -621,6 +659,9 @@ namespace CaptureWindow::Internal
 				changed = DrawTimeDropdown("##to", a_row.to) || changed;
 			}
 			ImGui::Unindent(indent);
+			if (edit == ConditionEdit::kNone && addPlace) {
+				return ConditionEdit::kAddPlace;
+			}
 			return edit == ConditionEdit::kNone && changed ? ConditionEdit::kChanged : edit;
 		}
 
@@ -666,8 +707,10 @@ namespace CaptureWindow::Internal
 		}
 
 		// A user's situation's conditions as edited: a line per row (DrawConditionRow), Add
-		// Condition..., Apply in combat, then the Applies line they make. Returns true on a change.
-		bool DrawConditionEditor(const State& a_state, SituationRules::Rules& a_rules)
+		// Condition..., Apply in combat, then the Applies line they make. Returns true on a change;
+		// sets `a_addPlace` when a Place row's Add Place... was pressed, that row in
+		// SituationForm::placeRow.
+		bool DrawConditionEditor(State& a_state, SituationRules::Rules& a_rules, bool& a_addPlace)
 		{
 			Theme::LabelText("Conditions");
 			if (Theme::LabelHelpMark()) {
@@ -679,6 +722,11 @@ namespace CaptureWindow::Internal
 				ImGui::PushID(static_cast<int>(i));
 				const auto edit = DrawConditionRow(a_rules.rows[i]);
 				ImGui::PopID();
+				if (edit == ConditionEdit::kAddPlace) {
+					a_state.situationForm.placeRow = static_cast<int>(i);
+					a_addPlace = true;
+					continue;
+				}
 				changed = changed || edit != ConditionEdit::kNone;
 				if (edit == ConditionEdit::kRemove) {
 					removed = i;
@@ -786,8 +834,9 @@ namespace CaptureWindow::Internal
 
 		// The settings every actor shares: the name, its label with the situation star (none for
 		// the Default, which says what it is under it), and the conditions: a user's situation's
-		// in the condition editor, a preset's read only.
-		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
+		// in the condition editor, a preset's read only. Returns true when a Place row's Add
+		// Place... was pressed (SituationForm::placeRow).
+		bool DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
@@ -804,10 +853,11 @@ namespace CaptureWindow::Internal
 				DrawDefaultNote(a_state);
 			}
 			if (a_state.request.situations[a_entry].user) {
-				if (DrawConditionEditor(a_state, entry.rules)) {
+				bool addPlace = false;
+				if (DrawConditionEditor(a_state, entry.rules, addPlace)) {
 					ScheduleAutosave(a_state);
 				}
-				return;
+				return addPlace;
 			}
 			Theme::LabelText("Conditions");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -817,13 +867,15 @@ namespace CaptureWindow::Internal
 				DrawFieldText(a_state.request.situations[a_entry].conditions.c_str());
 			}
 			ImGui::PopStyleColor();
+			return false;
 		}
 
 		enum class DetailsAction
 		{
 			kNone,
 			kShowList,
-			kRemove
+			kRemove,
+			kAddPlace
 		};
 
 		// The selected situation's details as edited: its name and conditions,
@@ -838,7 +890,7 @@ namespace CaptureWindow::Internal
 			auto&       entry = form.entries[selected];
 			const auto& name = a_state.request.actorName;
 			ImGui::PushID(form.selected);
-			DrawGlobalSettings(a_state, selected);
+			const bool addPlace = DrawGlobalSettings(a_state, selected);
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
@@ -867,7 +919,7 @@ namespace CaptureWindow::Internal
 				action = DetailsAction::kRemove;
 			}
 			ImGui::PopID();
-			return action;
+			return addPlace ? DetailsAction::kAddPlace : action;
 		}
 
 		enum class OutfitViewAction
@@ -1078,6 +1130,142 @@ namespace CaptureWindow::Internal
 			return create;
 		}
 
+		// The Place row the Add place popup adds to (SituationForm::placeRow) as edited; nullptr
+		// once it is gone.
+		SituationRules::Row* PlaceRow(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			if (form.selected < 0 || static_cast<std::size_t>(form.selected) >= form.entries.size() || form.placeRow < 0) {
+				return nullptr;
+			}
+			auto&      rows = form.entries[static_cast<std::size_t>(form.selected)].rules.rows;
+			const auto index = static_cast<std::size_t>(form.placeRow);
+			return index < rows.size() && rows[index].kind == SituationRules::Kind::kPlace ? &rows[index] : nullptr;
+		}
+
+		// What the Add place popup's choice adds; nullopt for a hold not chosen yet.
+		std::optional<SituationRules::Place> PickedPlace(const State& a_state)
+		{
+			const auto& form = a_state.situationForm;
+			const auto& places = a_state.request.places;
+			switch (form.placePick) {
+			case PlacePick::kLocation:
+				return places.location;
+			case PlacePick::kCell:
+				return places.cell;
+			case PlacePick::kHold:
+				if (form.placeHold >= 0 && static_cast<std::size_t>(form.placeHold) < places.holds.size()) {
+					return places.holds[static_cast<std::size_t>(form.placeHold)];
+				}
+				break;
+			}
+			return std::nullopt;
+		}
+
+		// Opens the Add place popup on where the actor stands: their location, or this room only
+		// when they are outside any or it is a whole hold, which would hold everywhere in it; its
+		// hold dropdown on the hold they are in.
+		// Contract: in the page's ID scope, as the popups are drawn there.
+		void OpenAddPlacePopup(State& a_state)
+		{
+			auto&       form = a_state.situationForm;
+			const auto& places = a_state.request.places;
+			if (places.location && !places.locationIsHold) {
+				form.placePick = PlacePick::kLocation;
+			} else {
+				form.placePick = places.cell ? PlacePick::kCell : PlacePick::kHold;
+			}
+			form.placeHold = places.around;
+			ImGui::OpenPopup(kAddPlacePopup);
+		}
+
+		// A dropdown of the holds, `a_hold` (index into `a_holds`, -1 for none) its choice.
+		// Returns true when one was chosen; `a_open` tells whether its list is open.
+		bool DrawHoldDropdown(int& a_hold, const std::vector<SituationRules::Place>& a_holds, bool& a_open)
+		{
+			constexpr const char* kChooseHold = "Choose a hold";
+
+			const bool              none = a_hold < 0 || static_cast<std::size_t>(a_hold) >= a_holds.size();
+			const Theme::FieldStyle style{ .previewIsHint = none };
+			float                   width = Theme::DropdownWidth(kChooseHold, style);
+			for (const auto& hold : a_holds) {
+				width = (std::max)(width, Theme::DropdownWidth(hold.ref.name.c_str(), style));
+			}
+			ImGui::SetNextItemWidth(width);
+			a_open = Theme::BeginCombo("##hold", ImGuiComboFlags_HeightLarge, style);
+			bool changed = false;
+			if (a_open) {
+				for (std::size_t i = 0; i < a_holds.size(); ++i) {
+					bool chosen = static_cast<int>(i) == a_hold;
+					ImGui::PushID(static_cast<int>(i));
+					if (Theme::DropdownRow(a_holds[i].ref.name.c_str(), &chosen, false)) {
+						a_hold = static_cast<int>(i);
+						changed = true;
+					}
+					ImGui::PopID();
+				}
+			}
+			Theme::EndCombo(a_open, none ? kChooseHold : a_holds[static_cast<std::size_t>(a_hold)].ref.name.c_str(), style);
+			return changed;
+		}
+
+		// The Add place popup (docs/custom-situations.md §7): the actor's location, this room (or
+		// patch of land) only, or a hold from a dropdown; Add, greyed for a place the row has
+		// already, / Cancel (Escape). Returns the place to add on Add.
+		std::optional<SituationRules::Place> DrawAddPlacePopup(State& a_state)
+		{
+			if (!BeginModal(kAddPlacePopup)) {
+				return std::nullopt;
+			}
+			auto&       form = a_state.situationForm;
+			const auto& places = a_state.request.places;
+			const auto& name = a_state.request.actorName;
+			const auto  radio = [&form](const char* a_label, PlacePick a_pick, const std::string& a_tip) {
+				if (Theme::RadioButton(a_label, form.placePick == a_pick)) {
+					form.placePick = a_pick;
+					QueueMenuSound(kFocusSound);
+				}
+				if (ImGui::IsItemHovered()) {
+					Theme::Tooltip(a_tip.c_str());
+				}
+			};
+			ImGui::TextUnformatted(std::format("Add the place {} is in, or a hold.", name).c_str());
+			if (places.location) {
+				radio(SituationRules::PlaceName(*places.location).c_str(), PlacePick::kLocation,
+					places.locationIsHold ? "The whole hold." : "Here, with every room and area of this place.");
+			}
+			if (places.cell) {
+				const auto label = std::format("{} ({})", places.interior ? "This room only" : "This area only", SituationRules::PlaceName(*places.cell));
+				radio(label.c_str(), PlacePick::kCell,
+					places.interior ? "Only this room, not the rest of the place." : std::format("Only the land around {}, not the rest of the place.", name));
+			}
+			bool listOpen = false;
+			if (!places.holds.empty()) {
+				radio("Hold", PlacePick::kHold, "A whole hold, wherever in it.");
+				ImGui::SameLine();
+				if (DrawHoldDropdown(form.placeHold, places.holds, listOpen)) {
+					form.placePick = PlacePick::kHold;
+				}
+			}
+			const auto  picked = PickedPlace(a_state);
+			const auto* row = PlaceRow(a_state);
+			const bool  listed = picked && row && std::ranges::any_of(row->places, [&picked](const SituationRules::Place& a_place) {
+				return SituationRules::SamePlace(a_place.ref, picked->ref);
+			});
+			BeginButtonRow({ "Add", "Cancel" });
+			const char* reason = !picked ? "Choose a hold." : (listed ? "Already in the list." : nullptr);
+			const bool  add = ReasonButton("Add", reason);
+			ImGui::SameLine();
+			const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !listOpen);
+			EndButtonRow();
+			if (add || cancel) {
+				QueueMenuSound(add ? kOkSound : kCancelSound);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+			return add ? picked : std::nullopt;
+		}
+
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
 		// when any changed, and the outfit whose details show, which stays on
 		// the preview; with `a_reroll`, a die's click (SituationSave::reroll). Until the handler
@@ -1185,6 +1373,13 @@ namespace CaptureWindow::Internal
 			}
 			if (DrawNewSituationPopup(a_state)) {
 				RequestSituationCreate(a_state);
+			}
+			// An edit, saved as the others are (the autosave waits while a popup is open).
+			if (auto place = DrawAddPlacePopup(a_state)) {
+				if (auto* row = PlaceRow(a_state)) {
+					row->places.push_back(std::move(*place));
+					ScheduleAutosave(a_state);
+				}
 			}
 		}
 	}
@@ -1374,6 +1569,9 @@ namespace CaptureWindow::Internal
 		} else if (details == DetailsAction::kRemove) {
 			QueueMenuSound(kOkSound);
 			OpenAfterSave(a_state, kRemoveSituationPopup);
+		} else if (details == DetailsAction::kAddPlace) {
+			QueueMenuSound(kOkSound);
+			OpenAddPlacePopup(a_state);
 		}
 		switch (action) {
 		case SituationAction::kNew:
