@@ -22,9 +22,9 @@ Stoneflesh is on"). The place condition ships first.
 - Registration: the Situations page adds the place the captured actor stands in to a new or an
   existing user-defined situation. The popup names what would be registered. By default
   that is the cell's location; `This room only` (wording provisional) registers the cell
-  instead, for a cell without a location of its own and for an exterior whose location is a
-  whole hold, which would match everywhere in it. The window freezes the game, so the
-  actor's place is where they stand.
+  instead, for a cell without a location of its own. A hold is not offered (2026-11-13): the
+  open country has no location in the data, so a hold would hold in its named places only.
+  The window freezes the game, so the actor's place is where they stand.
 - Per poll it costs a FormID comparison against a short list and a walk up the parents; no
   allocation, no logging.
 

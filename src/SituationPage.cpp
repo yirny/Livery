@@ -1149,75 +1149,25 @@ namespace CaptureWindow::Internal
 			return index < rows.size() && rows[index].kind == SituationRules::Kind::kPlace ? &rows[index] : nullptr;
 		}
 
-		// What the Add place popup's choice adds; nullopt for a hold not chosen yet.
+		// What the Add place popup's choice adds; nullopt where the actor has neither (not loaded).
 		std::optional<SituationRules::Place> PickedPlace(const State& a_state)
 		{
-			const auto& form = a_state.situationForm;
 			const auto& places = a_state.request.places;
-			switch (form.placePick) {
-			case PlacePick::kLocation:
-				return places.location;
-			case PlacePick::kCell:
-				return places.cell;
-			case PlacePick::kHold:
-				if (form.placeHold >= 0 && static_cast<std::size_t>(form.placeHold) < places.holds.size()) {
-					return places.holds[static_cast<std::size_t>(form.placeHold)];
-				}
-				break;
-			}
-			return std::nullopt;
+			return a_state.situationForm.placePick == PlacePick::kLocation ? places.location : places.cell;
 		}
 
 		// Opens the Add place popup on where the actor stands: their location, or this room only
-		// when they are outside any or it is a whole hold, which would hold everywhere in it; its
-		// hold dropdown on the hold they are in.
+		// when they are outside any.
 		// Contract: in the page's ID scope, as the popups are drawn there.
 		void OpenAddPlacePopup(State& a_state)
 		{
-			auto&       form = a_state.situationForm;
-			const auto& places = a_state.request.places;
-			if (places.location && !places.locationIsHold) {
-				form.placePick = PlacePick::kLocation;
-			} else {
-				form.placePick = places.cell ? PlacePick::kCell : PlacePick::kHold;
-			}
-			form.placeHold = places.around;
+			a_state.situationForm.placePick = a_state.request.places.location ? PlacePick::kLocation : PlacePick::kCell;
 			ImGui::OpenPopup(kAddPlacePopup);
 		}
 
-		// A dropdown of the holds, `a_hold` (index into `a_holds`, -1 for none) its choice.
-		// Returns true when one was chosen; `a_open` tells whether its list is open.
-		bool DrawHoldDropdown(int& a_hold, const std::vector<SituationRules::Place>& a_holds, bool& a_open)
-		{
-			constexpr const char* kChooseHold = "Choose a hold";
-
-			const bool              none = a_hold < 0 || static_cast<std::size_t>(a_hold) >= a_holds.size();
-			const Theme::FieldStyle style{ .previewIsHint = none };
-			float                   width = Theme::DropdownWidth(kChooseHold, style);
-			for (const auto& hold : a_holds) {
-				width = (std::max)(width, Theme::DropdownWidth(hold.ref.name.c_str(), style));
-			}
-			ImGui::SetNextItemWidth(width);
-			a_open = Theme::BeginCombo("##hold", ImGuiComboFlags_HeightLarge, style);
-			bool changed = false;
-			if (a_open) {
-				for (std::size_t i = 0; i < a_holds.size(); ++i) {
-					bool chosen = static_cast<int>(i) == a_hold;
-					ImGui::PushID(static_cast<int>(i));
-					if (Theme::DropdownRow(a_holds[i].ref.name.c_str(), &chosen, false)) {
-						a_hold = static_cast<int>(i);
-						changed = true;
-					}
-					ImGui::PopID();
-				}
-			}
-			Theme::EndCombo(a_open, none ? kChooseHold : a_holds[static_cast<std::size_t>(a_hold)].ref.name.c_str(), style);
-			return changed;
-		}
-
-		// The Add place popup (docs/custom-situations.md §7): the actor's location, this room (or
-		// patch of land) only, or a hold from a dropdown; Add, greyed for a place the row has
-		// already, / Cancel (Escape). Returns the place to add on Add.
+		// The Add place popup (docs/custom-situations.md §7): the actor's location, or this room
+		// (or patch of land) only; Add, greyed for a place the row has already, / Cancel (Escape).
+		// Returns the place to add on Add.
 		std::optional<SituationRules::Place> DrawAddPlacePopup(State& a_state)
 		{
 			if (!BeginModal(kAddPlacePopup)) {
@@ -1235,23 +1185,14 @@ namespace CaptureWindow::Internal
 					Theme::Tooltip(a_tip.c_str());
 				}
 			};
-			ImGui::TextUnformatted(std::format("Add the place {} is in, or a hold.", name).c_str());
+			ImGui::TextUnformatted(std::format("Add the place {} is in.", name).c_str());
 			if (places.location) {
-				radio(SituationRules::PlaceName(*places.location).c_str(), PlacePick::kLocation,
-					places.locationIsHold ? "The hold's towns, farms, camps and dungeons." : "Here, with every room and area of this place.");
+				radio(SituationRules::PlaceName(*places.location).c_str(), PlacePick::kLocation, "Here, with every room and area of this place.");
 			}
 			if (places.cell) {
 				const auto label = std::format("{} ({})", places.interior ? "This room only" : "This area only", SituationRules::PlaceName(*places.cell));
 				radio(label.c_str(), PlacePick::kCell,
 					places.interior ? "Only this room, not the rest of the place." : std::format("Only the land around {}, not the rest of the place.", name));
-			}
-			bool listOpen = false;
-			if (!places.holds.empty()) {
-				radio("Hold", PlacePick::kHold, "The hold's towns, farms, camps and dungeons.\nNot the open country, which belongs to no hold.");
-				ImGui::SameLine();
-				if (DrawHoldDropdown(form.placeHold, places.holds, listOpen)) {
-					form.placePick = PlacePick::kHold;
-				}
 			}
 			const auto  picked = PickedPlace(a_state);
 			const auto* row = PlaceRow(a_state);
@@ -1259,10 +1200,10 @@ namespace CaptureWindow::Internal
 				return SituationRules::SamePlace(a_place.ref, picked->ref);
 			});
 			BeginButtonRow({ "Add", "Cancel" });
-			const char* reason = !picked ? "Choose a hold." : (listed ? "Already in the list." : nullptr);
+			const char* reason = !picked ? "Nothing to add here." : (listed ? "Already in the list." : nullptr);
 			const bool  add = ReasonButton("Add", reason);
 			ImGui::SameLine();
-			const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !listOpen);
+			const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 			EndButtonRow();
 			if (add || cancel) {
 				QueueMenuSound(add ? kOkSound : kCancelSound);

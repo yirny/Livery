@@ -6,7 +6,7 @@
 //   Detection - the presets' conditions (sleep, cold outdoors, home, castle, town), the
 //               rows of the user's situations (SituationRules), in water with its
 //               hysteresis, and the player's beast form
-//   Places    - what the Add place popup offers: where the actor stands, every hold
+//   Places    - what the Add place popup offers: where the actor stands
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
@@ -389,11 +389,6 @@ namespace
 	//
 	// Contract: game thread, all; read as the window opens, never on the poll.
 
-	bool IsHold(const RE::BGSLocation& a_location)
-	{
-		return a_location.HasKeywordString("LocTypeHold"sv);
-	}
-
 	// A location or cell as a Place, named for the reader: its name, else its editor ID (cells
 	// keep theirs), else its FormID. nullopt for a form made in game, which no plugin names.
 	std::optional<SituationRules::Place> PlaceOf(const RE::TESForm& a_form)
@@ -408,32 +403,6 @@ namespace
 			name = editorID && *editorID ? editorID : std::format("{:08X}", a_form.GetFormID());
 		}
 		return SituationRules::Place{ .ref = { std::string{ file->GetFilename() }, a_form.GetLocalFormID(), std::move(name) }, .formID = a_form.GetFormID() };
-	}
-
-	// Every hold in the game, by name, and among them the one `a_location` is in or is.
-	void ListHolds(const RE::BGSLocation* a_location, SituationRules::PlaceChoices& a_choices)
-	{
-		auto* dataHandler = RE::TESDataHandler::GetSingleton();
-		if (!dataHandler) {
-			return;
-		}
-		for (const auto* location : dataHandler->GetFormArray<RE::BGSLocation>()) {
-			if (location && IsHold(*location)) {
-				if (auto place = PlaceOf(*location)) {
-					a_choices.holds.push_back(std::move(*place));
-				}
-			}
-		}
-		std::ranges::sort(a_choices.holds, {}, [](const SituationRules::Place& a_place) { return a_place.ref.name; });
-		for (int depth = 0; a_location && depth < kMaxLocationDepth; ++depth, a_location = a_location->parentLoc) {
-			if (IsHold(*a_location)) {
-				const auto found = std::ranges::find(a_choices.holds, a_location->GetFormID(), &SituationRules::Place::formID);
-				if (found != a_choices.holds.end()) {
-					a_choices.around = static_cast<int>(found - a_choices.holds.begin());
-				}
-				return;
-			}
-		}
 	}
 
 	// --- Poll -----------------------------------------------------------------
@@ -557,13 +526,11 @@ namespace Situations
 		const auto*                  location = a_actor.GetCurrentLocation();
 		if (location) {
 			choices.location = PlaceOf(*location);
-			choices.locationIsHold = IsHold(*location);
 		}
 		if (const auto* cell = a_actor.GetParentCell()) {
 			choices.cell = PlaceOf(*cell);
 			choices.interior = cell->IsInteriorCell();
 		}
-		ListHolds(location, choices);
 		return choices;
 	}
 

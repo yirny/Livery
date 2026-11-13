@@ -80,12 +80,9 @@ namespace SituationRules
 	// (Situations::PlacesAround).
 	struct PlaceChoices
 	{
-		std::optional<Place> location;                // the actor's current location; nullopt outside any
-		bool                 locationIsHold = false;  // it is a whole hold, which would hold everywhere in it
-		std::optional<Place> cell;                    // the cell they stand in
-		bool                 interior = false;        // it is a room, not a patch of land
-		std::vector<Place>   holds;                   // every hold, by name
-		int                  around = -1;             // the hold they are in: index into holds; -1 for none
+		std::optional<Place> location;          // the actor's current location; nullopt outside any
+		std::optional<Place> cell;              // the cell they stand in
+		bool                 interior = false;  // it is a room, not a patch of land
 	};
 
 	struct Row

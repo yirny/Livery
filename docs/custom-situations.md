@@ -52,7 +52,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Swimming | none | the actor state's swimming flag | `ActorState::IsSwimming` | not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no (`IsExteriorCell` is used by Cold) |
 | Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = the Town preset's keywords (`LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse`, `LocTypePlayerHouse`; `LocTypeHouse` for the player too, unlike the preset), Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
-| Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. A hold holds in its towns, farms, camps and dungeons only: most open-country cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
+| Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell | a list of `MagicItem`s | any active effect on the actor comes from one of them (memo: Magic conditions) | `MagicTarget::GetActiveEffectList`, `ActiveEffect::spell` | no |
@@ -65,8 +65,10 @@ Notes:
 - Indoors is the cell's kind. Worldspaces that are underground or elsewhere (Blackreach,
   Sovngarde, the Soul Cairn) count as outdoors; a known quirk, documented, not worked around.
 - Location type reads the location's own keywords only, as the presets do (a room of a city is
-  not in it by its parent); Place walks the parents. A hold is chosen as a Place: the holds are
-  the locations with `LocTypeHold` (§7).
+  not in it by its parent); Place walks the parents. A hold is not offered as a Place (decided
+  2026-11-13): it would hold in the hold's towns, farms, camps and dungeons only, never on the
+  roads between them, which is not what its name promises; a region condition (§10) would
+  cover the open country.
 - Weather does not test the cell: the user adds `not Indoors` for outdoors only. The Cold preset
   reads as `Weather {Rain, Snow, Snowy region}` and `not Indoors`.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
@@ -179,9 +181,8 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
   (`Situations::PlacesAround`): the actor's current location; `This room only (<cell>)` for an
   interior cell, `This area only (<cell>)` for an exterior one (a cell without a name shows its
-  editor ID, else its FormID); `Hold` with a dropdown of every hold (`LocTypeHold`) by name, on
-  the hold they are in. It opens on the location, or on the cell when they are outside any
-  location or the location is a whole hold. Add is greyed for a place the row has already.
+  editor ID, else its FormID). It opens on the location, or on the cell when they are outside
+  any. Add is greyed for a place the row has already.
   Spell's add opens the memo's picker (known spells first, all spells by search).
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
   negated) it is on and disabled.
