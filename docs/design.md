@@ -250,8 +250,9 @@ controller button with two dropdowns (the button to hold, the button), shown onl
 A wait for the next press cannot work for the controller: SKSE Menu Framework moves through
 its menu with A, B, Y, LT and the D-pad, and closes on LB, whatever its input callback
 returns (checked in game). A key wait the menu closed on (`GetMainWindow()->IsOpen`) ends at
-the next input event, taking nothing. Checked in game: LB, RB and LT as modifiers, the
-controller hotkey opening the window.
+the next input event, taking nothing. Checked in game: the dropdowns set with the controller,
+LB, RB and LT as modifiers, the controller hotkey opening the window, a key wait ending as
+the menu closes.
 
 With nothing under the crosshair, or anything but a person (`TESObjectREFR::IsHumanoid`, the
 `ActorTypeNPC` keyword: not a horse or a creature), the hotkey opens the window on the player,
