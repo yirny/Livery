@@ -5,7 +5,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string_view>
+#include <vector>
 
 namespace RE
 {
@@ -21,8 +23,9 @@ namespace RE
 // SKSE tasks.
 namespace Situations
 {
-	// Never stored: the co-save and situations.json keep a situation by its key (Name), so
-	// situations can be added, removed or reordered here.
+	// A situation's id: its index in the registry (Count), the Default first. The presets
+	// are named here. Never stored: the co-save and situations.json keep a situation by its
+	// key (Name), so situations can be added, removed or reordered.
 	enum class Situation : std::uint8_t
 	{
 		kDefault,  // worn where no chosen situation applies; never chosen itself
@@ -33,9 +36,9 @@ namespace Situations
 		kCold
 	};
 
-	// The situations an outfit can be chosen for, in the window's order, which is the enum's
-	// (OutfitRows::RowOf).
-	constexpr std::array kChoosable{ Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kSleep, Situation::kCold };
+	// The most situations the registry holds, the Default included, so Applicable holds every
+	// situation an actor is in without an allocation on the poll.
+	inline constexpr std::size_t kMaxSituations = 64;
 
 	// What Evaluate tells of an actor; a situation applies while its condition holds
 	// (ConditionOf). No situation Livery installs applies in water: kInWater is kept for
@@ -50,54 +53,92 @@ namespace Situations
 		kTown
 	};
 
-	// Contract: not kDefault, which applies where no other situation does.
-	constexpr Condition ConditionOf(Situation a_situation) noexcept
+	namespace Detail
 	{
-		switch (a_situation) {
-		case Situation::kCastle:
-			return Condition::kCastle;
-		case Situation::kHome:
-			return Condition::kHome;
-		case Situation::kSleep:
-			return Condition::kSleeping;
-		case Situation::kCold:
-			return Condition::kCold;
-		default:
-			return Condition::kTown;
+		struct Definition
+		{
+			const char* key;             // Name
+			Condition   condition;       // ConditionOf; unused for the Default
+			const char* conditionsText;  // ConditionsText
+		};
+
+		struct Registry
+		{
+			std::vector<Definition> definitions;  // at the index of their id
+			std::vector<Situation>  choosable;    // Choosable
+			std::vector<Situation>  priority;     // Priority
+		};
+
+		// Contract: built at the first call and never changed after, so any thread may read it
+		// and the spans and keys it hands out stay valid.
+		inline const Registry& Get()
+		{
+			static const Registry registry{
+				.definitions = {
+					{ "Default", Condition::kTown, "Worn where no situation applies,\nand in combat." },
+					{ "Town", Condition::kTown, "A city, town, settlement, inn or other inhabited interior." },
+					{ "Castle", Condition::kCastle, "A jarl's palace or keep." },
+					{ "Home", Condition::kHome, "A house." },
+					{ "Sleep", Condition::kSleeping, "Going to bed, in it or getting up." },
+					{ "Cold", Condition::kCold, "Outdoors in rain or snow, or anywhere outdoors in a snowy region." },
+				},
+				.choosable = { Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kSleep, Situation::kCold },
+				// A home and a castle are in a town too, so one without an outfit of its own falls
+				// back to the Town one.
+				.priority = { Situation::kSleep, Situation::kCold, Situation::kHome, Situation::kCastle, Situation::kTown },
+			};
+			return registry;
+		}
+
+		// An id the registry does not hold reads as the Default.
+		inline const Definition& DefinitionOf(Situation a_situation)
+		{
+			const auto& definitions = Get().definitions;
+			const auto  index = static_cast<std::size_t>(a_situation);
+			return definitions[index < definitions.size() ? index : 0];
 		}
 	}
 
-	// The order Evaluate tells the situations in, the most specific first. A home and a castle
-	// are in a town too, so one without an outfit of its own falls back to the Town one.
-	constexpr std::array kPriority{ Situation::kSleep, Situation::kCold, Situation::kHome, Situation::kCastle, Situation::kTown };
+	// How many situations there are, the Default included: ids run from 0 up to it.
+	inline std::size_t Count()
+	{
+		return Detail::Get().definitions.size();
+	}
+
+	// The situations an outfit can be chosen for, in the window's order, which is their ids'
+	// (OutfitRows::RowOf).
+	inline std::span<const Situation> Choosable()
+	{
+		return Detail::Get().choosable;
+	}
+
+	// The order Evaluate tells the situations in, the most specific first.
+	inline std::span<const Situation> Priority()
+	{
+		return Detail::Get().priority;
+	}
+
+	// Contract: not kDefault, which applies where no other situation does.
+	inline Condition ConditionOf(Situation a_situation)
+	{
+		return Detail::DefinitionOf(a_situation).condition;
+	}
 
 	// The situation's key: "Town", "Castle", ...; "Default". situations.json and the co-save
 	// store a situation under it and the logs name it by it; the window and the HUD show the
 	// name SituationStore keeps.
-	constexpr const char* Name(Situation a_situation) noexcept
+	inline const char* Name(Situation a_situation)
 	{
-		switch (a_situation) {
-		case Situation::kTown:
-			return "Town";
-		case Situation::kCastle:
-			return "Castle";
-		case Situation::kHome:
-			return "Home";
-		case Situation::kSleep:
-			return "Sleep";
-		case Situation::kCold:
-			return "Cold";
-		default:
-			return "Default";
-		}
+		return Detail::DefinitionOf(a_situation).key;
 	}
 
 	// The situation stored under `a_key` (Name). nullopt for a key this version does not know.
-	constexpr std::optional<Situation> FromKey(std::string_view a_key) noexcept
+	inline std::optional<Situation> FromKey(std::string_view a_key)
 	{
-		for (std::size_t i = 0; i <= kChoosable.size(); ++i) {
-			if (const auto situation = static_cast<Situation>(i); a_key == Name(situation)) {
-				return situation;
+		const auto& definitions = Detail::Get().definitions;
+		for (std::size_t i = 0; i < definitions.size(); ++i) {
+			if (a_key == definitions[i].key) {
+				return static_cast<Situation>(i);
 			}
 		}
 		return std::nullopt;
@@ -106,22 +147,9 @@ namespace Situations
 	// When the situation applies, in the README's words; the Default's says where it is worn.
 	// the Situations page shows it read only, until conditions can be edited (docs/design.md §8);
 	// the Default's it draws itself with the situations' star (DrawDefaultConditions), worded so.
-	constexpr const char* ConditionsText(Situation a_situation) noexcept
+	inline const char* ConditionsText(Situation a_situation)
 	{
-		switch (a_situation) {
-		case Situation::kTown:
-			return "A city, town, settlement, inn or other inhabited interior.";
-		case Situation::kCastle:
-			return "A jarl's palace or keep.";
-		case Situation::kHome:
-			return "A house.";
-		case Situation::kSleep:
-			return "Going to bed, in it or getting up.";
-		case Situation::kCold:
-			return "Outdoors in rain or snow, or anywhere outdoors in a snowy region.";
-		default:
-			return "Worn where no situation applies,\nand in combat.";
-		}
+		return Detail::DefinitionOf(a_situation).conditionsText;
 	}
 
 	// The situations an actor is in now, the most specific first: the first one they have
@@ -129,9 +157,10 @@ namespace Situations
 	// applies.
 	struct Applicable
 	{
-		std::array<Situation, kChoosable.size()> items{};
-		std::size_t                              count = 0;
+		std::array<Situation, kMaxSituations> items{};
+		std::size_t                           count = 0;
 
+		// Contract: each situation once, so no more than Count() of them.
 		void Add(Situation a_situation)
 		{
 			items[count++] = a_situation;

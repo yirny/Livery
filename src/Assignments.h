@@ -101,7 +101,7 @@ namespace Assignments
 
 	// Who has library outfit `a_outfit`, for the capture window's Remove: each actor with
 	// the rows that hold it (OutfitRows::Holds), Default first, then the situations in
-	// Situations::kChoosable order. Contract: game thread.
+	// Situations::Choosable() order. Contract: game thread.
 	struct Use
 	{
 		RE::FormID                         actor = 0;

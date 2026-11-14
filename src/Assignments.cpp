@@ -117,7 +117,7 @@ namespace
 
 	bool HasSituations(const Assignment& a_assignment)
 	{
-		return std::ranges::any_of(Situations::kChoosable, [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
+		return std::ranges::any_of(Situations::Choosable(), [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
 	}
 
 	// An assignment with nothing on the actor, no row holding an outfit and no row random is
@@ -711,8 +711,10 @@ namespace
 		for (const auto armor : a_assignment.defaultPieces) {
 			written = written && Write(a_intfc, armor);
 		}
-		written = written && WriteSituation(a_intfc, a_assignment.worn) && Write(a_intfc, static_cast<std::uint8_t>(a_assignment.rows.size()));
-		for (std::size_t i = 0; i < a_assignment.rows.size(); ++i) {
+		// Every situation's row, an empty one for a row never stored (OutfitRows::Rows).
+		const auto rows = Situations::Count();
+		written = written && WriteSituation(a_intfc, a_assignment.worn) && Write(a_intfc, static_cast<std::uint8_t>(rows));
+		for (std::size_t i = 0; i < rows; ++i) {
 			written = written && WriteRow(a_intfc, static_cast<Situation>(i), a_assignment.rows[i]);
 		}
 		return written;
@@ -922,7 +924,7 @@ namespace
 	// Contract: SituationStore is loaded (kDataLoaded, before any co-save load).
 	void DropRemovedRows(Assignment& a_assignment)
 	{
-		for (const auto situation : Situations::kChoosable) {
+		for (const auto situation : Situations::Choosable()) {
 			auto& row = a_assignment.rows[RowOf(situation)];
 			if (SituationStore::IsRemoved(situation) && row != OutfitRows::Row{}) {
 				logger::info("Dropped the {} row of {:08X}: the situation is removed in situations.json", Situations::Name(situation), a_assignment.actor);
@@ -1287,7 +1289,7 @@ namespace Assignments
 		auto&      assignment = FindOrAddAssignment(id);
 		const auto pick = GainedPick(assignment, a_rows);
 		assignment.rows = a_rows;
-		for (const auto situation : Situations::kChoosable) {
+		for (const auto situation : Situations::Choosable()) {
 			if (SituationStore::IsRemoved(situation)) {
 				assignment.rows[RowOf(situation)] = {};
 			}

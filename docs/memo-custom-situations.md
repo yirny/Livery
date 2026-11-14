@@ -5,8 +5,8 @@ Livery's situations are a fixed set (`Situations::Situation`, `kPriority`, `Cond
 docs/design.md §7). The plan item "user-defined conditions in the way of Skyrim Outfit
 Equipment System NG" (§8) extends them to situations the user defines: a key, a name, a list
 of conditions, a place in the priority order. Two condition kinds are decided: a place the
-actor is in ("Elysium Estate", whose interior, basement and exterior are one situation apart
-from the other player homes) and a magic effect on the actor ("a different outfit while
+actor is in (a multi-cell player home, whose interior, basement and exterior are one situation
+apart from the other player homes) and a magic effect on the actor ("a different outfit while
 Stoneflesh is on"). The place condition ships first.
 
 ## Decisions
@@ -27,19 +27,19 @@ Stoneflesh is on"). The place condition ships first.
   actor's place is where they stand.
 - Per poll it costs a FormID comparison against a short list and a walk up the parents; no
   allocation, no logging.
-- Not verified: whether Elysium Estate's cells carry locations (XLCN) of their own and what
-  its exterior cell's location is; the popup's name shows it.
 
 ### Implementation order
 
-1. The framework, with no change in behaviour: `Situations::Situation` becomes a dynamic
-   registry with the presets as built-in entries (the enum spans 11 source files and 3 test
-   files; `OutfitRows::Rows`, `SituationTable::Table` and `Situations::Applicable` are fixed
-   arrays today), and situations.json version 2. The co-save stores a situation by its key
-   string already, so ASGN needs no new version; situations.json version 1 needs a migration
-   read, since the parser refuses any other version.
+1. Done: the registry (`Situations::Count`, `Choosable`, `Priority`, `kMaxSituations`) holds
+   the presets; `Situation` ids past `kCold` are free for user-defined situations;
+   `OutfitRows::Rows` and `SituationTable::Table` are sized by the registry. situations.json
+   stays version 1 and the co-save format is unchanged.
 2. The place condition and the Situations page's part: a new situation, the list of its
-   places with Remove, the add-current-place popup.
+   places with Remove, the add-current-place popup. situations.json becomes version 2 when
+   it first holds a user-defined situation; version 1 then needs a migration read, since the
+   parser refuses any other version. The registry is built once today: adding a situation
+   at runtime needs it mutable (game thread only), and every assignment's `Rows` and the
+   store's table grow with it.
 
 ### Magic conditions
 

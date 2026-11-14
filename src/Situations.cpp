@@ -305,7 +305,7 @@ namespace Situations
 		}
 		const auto* location = a_actor.GetCurrentLocation();
 		const bool  wasInWater = WasSeenInWater(a_actor.GetFormID());
-		for (const auto situation : kPriority) {
+		for (const auto situation : Priority()) {
 			if (Holds(ConditionOf(situation), a_actor, location, wasInWater)) {
 				applicable.Add(situation);
 			}
