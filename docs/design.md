@@ -244,13 +244,14 @@ on the player as on an NPC, unlocked like the default, and not in beast form.
 The hotkey is a keyboard key with Shift, Ctrl or Alt held or none (`[Hotkey] Key`, `Modifier`).
 A controller button with LB, RB, LT or RT held or none (`[Hotkey] Gamepad`, `GamepadModifier`,
 the ButtonEvent ID code: an XInput button mask, 9 / 10 for a trigger; none by default) opens it
-the same way. The settings page shows the controller row only while
+the same way. The settings page sets the key by waiting for the next key press, and the
+controller button with two dropdowns (the button to hold, the button), shown only while
 `BSInputDeviceManager::IsGamepadEnabled`, so a player without a controller sees no change.
-While the page waits for a key or a button, SKSE Menu Framework's toggle key (F1, LB) is off
-(`SetHotkeyEnabled`, put back as it was when the wait ends), so it can be picked; a wait the
-menu closed on (`GetMainWindow()->IsOpen`) ends at the next input event, taking nothing.
-Checked in game: LT and RB as modifiers, the controller hotkey opening the window. Not yet
-checked: the controller row's visibility, the toggle key off while waiting.
+A wait for the next press cannot work for the controller: SKSE Menu Framework moves through
+its menu with A, B, Y, LT and the D-pad, and closes on LB, whatever its input callback
+returns (checked in game). A key wait the menu closed on (`GetMainWindow()->IsOpen`) ends at
+the next input event, taking nothing. Checked in game: LB, RB and LT as modifiers, the
+controller hotkey opening the window.
 
 With nothing under the crosshair, or anything but a person (`TESObjectREFR::IsHumanoid`, the
 `ActorTypeNPC` keyword: not a horse or a creature), the hotkey opens the window on the player,

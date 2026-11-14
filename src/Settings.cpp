@@ -288,8 +288,6 @@ namespace
 	std::atomic<bool>          g_pickingHotkey{ false };               // the settings page waits for the next key
 	std::atomic<std::uint32_t> g_gamepadButton{ kNoGamepadButton };    // a kGamepadButtons code, or kNoGamepadButton
 	std::atomic<std::uint32_t> g_gamepadModifier{ kNoGamepadButton };  // a kGamepadModifiers code, or kNoGamepadButton
-	std::atomic<bool>          g_pickingGamepad{ false };              // the settings page waits for the next button
-	std::atomic<bool>          g_menuHotkeyWasEnabled{ true };         // SKSE Menu Framework's toggle key before the wait
 	std::atomic<float>         g_speedPercent{ kDefaultSpeedPercent };
 	std::atomic<bool>          g_playerAddsMissing{ false };
 	std::atomic<bool>          g_showPlayerInventory{ true };
@@ -755,42 +753,29 @@ namespace
 
 	// --- SKSE Menu Framework page ---------------------------------------------
 
-	// Waits for a key (g_pickingHotkey) or a controller button (g_pickingGamepad). SKSE Menu
-	// Framework's own toggle key (F1, LB by default) is off while the page waits, so pressing
-	// it is taken as the key instead of closing the menu.
-	// Contract: every wait ends through StopPicking, which turns the toggle key back on as it
-	// was; a toggle key left off would keep SKSE Menu Framework closed until the game restarts.
-	void StartPicking(std::atomic<bool>& a_flag)
+	// Contract: SKSE Menu Framework calls this on the game's input path for every event,
+	// its menu open or not; returning true keeps the event from the game. Idle unless the
+	// settings page is waiting for a key. A modifier pressed alone keeps waiting, so the
+	// player can hold it and then press the key it modifies; Esc cancels. A wait the menu
+	// closed on ends at the next event, so no later key press in game is taken.
+	bool __stdcall OnInput(RE::InputEvent* a_event)
 	{
-		if (!g_pickingHotkey.load() && !g_pickingGamepad.load()) {
-			g_menuHotkeyWasEnabled = SKSEMenuFramework::IsHotkeyEnabled();
-			SKSEMenuFramework::SetHotkeyEnabled(false);
-		}
-		g_pickingHotkey = false;
-		g_pickingGamepad = false;
-		a_flag = true;
-	}
-
-	void StopPicking()
-	{
-		if (!g_pickingHotkey.load() && !g_pickingGamepad.load()) {
-			return;
-		}
-		g_pickingHotkey = false;
-		g_pickingGamepad = false;
-		SKSEMenuFramework::SetHotkeyEnabled(g_menuHotkeyWasEnabled.load());
-	}
-
-	// A modifier pressed alone keeps waiting, so the player can hold it and then press the
-	// key it modifies; Esc cancels. Returns whether the event is kept from the game.
-	bool PickKey(const RE::ButtonEvent& a_button)
-	{
-		if (a_button.GetDevice() != RE::INPUT_DEVICE::kKeyboard) {
+		if (!g_pickingHotkey.load()) {
 			return false;
 		}
-		const auto code = a_button.GetIDCode();
+		// No main window: an SKSE Menu Framework too old to say whether it is open.
+		if (const auto* window = SKSEMenuFramework::GetMainWindow(); window && !window->IsOpen.load()) {
+			g_pickingHotkey = false;
+			return false;
+		}
+		auto* button = a_event ? a_event->AsButtonEvent() : nullptr;
+		if (!button || button->GetDevice() != RE::INPUT_DEVICE::kKeyboard || !button->IsDown()) {
+			return false;
+		}
+
+		const auto code = button->GetIDCode();
 		if (code == Key::kEscape) {
-			StopPicking();
+			g_pickingHotkey = false;
 			return true;
 		}
 		if (FindModifier(code)) {
@@ -806,68 +791,10 @@ namespace
 		}
 		g_hotkey = code;
 		g_modifier = modifier;
-		StopPicking();
+		g_pickingHotkey = false;
 		SaveHotkey(code, modifier);
 		logger::info("Hotkey = {} ({}, modifier {}) (SKSE Menu Framework)", HotkeyName(), code, modifier);
 		return true;
-	}
-
-	// LB, RB, LT or RT pressed alone keeps waiting; pressed while another of them is held, it
-	// is the button and the held one its modifier, so LB + RB can be set. B alone sets none;
-	// Esc on the keyboard cancels. Returns whether the event is kept from the game.
-	bool PickGamepadButton(const RE::ButtonEvent& a_button)
-	{
-		const auto code = a_button.GetIDCode();
-		if (a_button.GetDevice() == RE::INPUT_DEVICE::kKeyboard) {
-			if (code != Key::kEscape) {
-				return false;
-			}
-			StopPicking();
-			return true;
-		}
-		if (a_button.GetDevice() != RE::INPUT_DEVICE::kGamepad || !GamepadButtonName(code)) {
-			return false;
-		}
-
-		auto modifier = kNoGamepadButton;
-		for (const auto candidate : kGamepadModifiers) {
-			if (candidate != code && IsGamepadModifierHeld(candidate)) {
-				modifier = candidate;
-				break;
-			}
-		}
-		if (modifier == kNoGamepadButton && IsGamepadModifier(code)) {
-			return true;
-		}
-		const auto button = modifier == kNoGamepadButton && code == Pad::kB ? kNoGamepadButton : code;
-		g_gamepadButton = button;
-		g_gamepadModifier = modifier;
-		StopPicking();
-		SaveGamepadHotkey(button, modifier);
-		logger::info("Controller hotkey = {} ({}, modifier {}) (SKSE Menu Framework)", GamepadHotkeyName(), button, modifier);
-		return true;
-	}
-
-	// Contract: SKSE Menu Framework calls this on the game's input path for every event,
-	// its menu open or not; returning true keeps the event from the game. Idle unless the
-	// settings page is waiting for a key or a controller button. A wait the menu closed on
-	// (B, its close button) ends at the next event, so no later press in game is taken.
-	bool __stdcall OnInput(RE::InputEvent* a_event)
-	{
-		const bool pickingKey = g_pickingHotkey.load();
-		if (!pickingKey && !g_pickingGamepad.load()) {
-			return false;
-		}
-		// No main window: an SKSE Menu Framework too old to say whether it is open.
-		if (const auto* window = SKSEMenuFramework::GetMainWindow(); window && !window->IsOpen.load()) {
-			StopPicking();
-			return false;
-		}
-		auto* button = a_event ? a_event->AsButtonEvent() : nullptr;
-		if (!button || !button->IsDown()) {
-			return false;
-		}
-		return pickingKey ? PickKey(*button) : PickGamepadButton(*button);
 	}
 
 	// Puts every setting on the page but the palette (the player's choice of look, and the
@@ -876,7 +803,7 @@ namespace
 	// with Load and kIniKeys.
 	void RestoreDefaultSettings()
 	{
-		StopPicking();
+		g_pickingHotkey = false;
 		g_hotkey = kDefaultHotkey;
 		g_modifier = kDefaultModifier;
 		SaveHotkey(kDefaultHotkey, kDefaultModifier);
@@ -1119,34 +1046,70 @@ namespace
 			"Default: Except headgear");
 	}
 
-	// The controller hotkey's row, shown only while the game has a controller enabled, so the
-	// page of a player without one looks as it always has. The next button press is taken by
-	// OnInput; "###" keeps the button's ID while its text changes.
+	// One dropdown of the controller hotkey: None, then each button of kGamepadButtons, or only
+	// LB, RB, LT and RT for a_holdList. Returns whether the player chose one, put in a_code.
+	// Contract: render thread (RenderGamepadHotkey).
+	bool GamepadButtonCombo(const char* a_id, bool a_holdList, std::uint32_t& a_code)
+	{
+		constexpr float kHoldWidthEms = 5.0f;    // the dropdowns' widths, of the font size
+		constexpr float kButtonWidthEms = 8.0f;  // fits "D-pad Right"
+
+		const auto* current = GamepadButtonName(a_code);
+		bool        chosen = false;
+		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * (a_holdList ? kHoldWidthEms : kButtonWidthEms));
+		if (ImGuiMCP::BeginCombo(a_id, current ? current : "None")) {
+			if (ImGuiMCP::Selectable("None", !current)) {
+				a_code = kNoGamepadButton;
+				chosen = true;
+			}
+			for (const auto& button : kGamepadButtons) {
+				if (a_holdList && !IsGamepadModifier(button.code)) {
+					continue;
+				}
+				if (ImGuiMCP::Selectable(button.name, button.code == a_code)) {
+					a_code = button.code;
+					chosen = true;
+				}
+			}
+			ImGuiMCP::EndCombo();
+		}
+		return chosen;
+	}
+
+	// The controller hotkey's row: a button to hold, then the button. Shown only while the game
+	// has a controller enabled, so the page of a player without one looks as it always has.
+	// Dropdowns rather than a wait for the next press: SKSE Menu Framework moves through its
+	// menu with the controller's buttons whatever OnInput returns. Applies at once.
 	// Contract: render thread (RenderSettings).
 	void RenderGamepadHotkey()
 	{
+		constexpr auto kHelp =
+			"Opens Livery from your controller, as the hotkey does.\n"
+			"The first list is a button to hold with it.\n\n"
+			"Default: None";
+
 		auto* manager = RE::BSInputDeviceManager::GetSingleton();
 		if (!manager || !manager->IsGamepadEnabled()) {
 			return;
 		}
+		auto modifier = g_gamepadModifier.load();
+		auto button = g_gamepadButton.load();
 		SettingGap();
-		ImGuiMCP::AlignTextToFramePadding();
-		ImGuiMCP::Text("Controller hotkey");
+		LabelBefore("Controller hotkey");
+		bool changed = GamepadButtonCombo("##GamepadModifier", true, modifier);
+		ImGuiMCP::SetItemTooltip(kHelp);
 		ImGuiMCP::SameLine();
-		const bool picking = g_pickingGamepad.load();
-		const auto label = picking ? std::string{ "Press a button (Esc cancels)###GamepadHotkey" } : GamepadHotkeyName() + "###GamepadHotkey";
-		if (ImGuiMCP::Button(label.c_str())) {
-			if (picking) {
-				StopPicking();
-			} else {
-				StartPicking(g_pickingGamepad);
-			}
+		ImGuiMCP::Text("+");
+		ImGuiMCP::SameLine();
+		changed = GamepadButtonCombo("##GamepadButton", false, button) || changed;
+		ImGuiMCP::SetItemTooltip(kHelp);
+		if (!changed) {
+			return;
 		}
-		ImGuiMCP::SetItemTooltip(
-			"Opens Livery from your controller, as the hotkey does.\n"
-			"To combine buttons, hold LB, RB, LT or RT, then press another.\n"
-			"Press B on its own to clear it.\n\n"
-			"Default: None");
+		g_gamepadModifier = modifier;
+		g_gamepadButton = button;
+		SaveGamepadHotkey(button, modifier);
+		logger::info("Controller hotkey = {} ({}, modifier {}) ({})", GamepadHotkeyName(), button, modifier, kMenuSource);
 	}
 
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
@@ -1163,11 +1126,7 @@ namespace
 		const bool picking = g_pickingHotkey.load();
 		const auto label = picking ? std::string{ "Press a key (Esc cancels)###Hotkey" } : HotkeyName() + "###Hotkey";
 		if (ImGuiMCP::Button(label.c_str())) {
-			if (picking) {
-				StopPicking();
-			} else {
-				StartPicking(g_pickingHotkey);
-			}
+			g_pickingHotkey = !picking;
 		}
 		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n\nDefault: Shift + V");
 
