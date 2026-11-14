@@ -336,10 +336,7 @@ namespace CaptureWindow::Internal
 		float                       viewDragY = 0.0f;
 		bool                        padNav = false;     // the D-pad moved the focus since the right stick or the mouse last moved the cursor: A presses the focused item
 		bool                        padClicks = false;  // the held A clicks under the cursor, not on the focused item (RecordPadButton)
-		// ImGui's nav window, nav cursor and open popups before this frame's NewFrame (HoldNavEscape).
-		ImGuiID navWindowBefore = 0;
-		bool    navCursorBefore = false;
-		int     popupsBefore = 0;
+		int                         popupsBefore = 0;   // ImGui's open popups before this frame's NewFrame (HoldNavEscape)
 		// The Save page's tabs' names, each kept while the window is open; a Create starts the
 		// Create tab's again (SetOutfits).
 		std::array<char, kNameCapacity> createName{};

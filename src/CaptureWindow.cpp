@@ -297,22 +297,15 @@ namespace CaptureWindow::Internal
 		ImGui::SetNavCursorVisible(false);  // no focus frame left from the last open
 	}
 
-	// With keyboard navigation on (FeedInput), ImGui spends Escape in NewFrame on closing a combo,
-	// or on leaving a list (a child window) the focus was in; the page must not take that same
-	// Escape as Back, Exit or Cancel. A list is left this way only while the focus frame showed:
-	// a click in a list also puts the focus in it, and a mouse user's Escape still leaves the page.
-	// A text field being edited keeps its Escape from ImGui's navigation (its own shortcut).
+	// With keyboard navigation on (FeedInput), ImGui spends Escape in NewFrame on closing a combo;
+	// the page must not take that same Escape as Back, Exit or Cancel. A list is no child window
+	// to leave (Theme::BeginList flattens it), and a text field being edited keeps its Escape
+	// from ImGui's navigation (its own shortcut).
 	// Contract: render thread, after ImGui::NewFrame and before any page reads Escape; FeedInput
-	// noted ImGui's state before NewFrame.
+	// counted the open popups before NewFrame.
 	void HoldNavEscape(const State& a_state)
 	{
-		if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
-			return;
-		}
-		const auto& g = *ImGui::GetCurrentContext();
-		const bool  closedPopup = g.OpenPopupStack.Size < a_state.popupsBefore;
-		const bool  leftList = a_state.navCursorBefore && (g.NavWindow ? g.NavWindow->ID : 0) != a_state.navWindowBefore;
-		if (closedPopup || leftList) {
+		if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && ImGui::GetCurrentContext()->OpenPopupStack.Size < a_state.popupsBefore) {
 			ImGui::SetKeyOwner(ImGuiKey_Escape, ImGuiKeyOwner_Any, ImGuiInputFlags_LockThisFrame);
 		}
 	}
@@ -2624,10 +2617,14 @@ namespace CaptureWindow
 					RecordButton(state.pending, *button);
 				}
 			} else if (auto* stick = event->AsThumbstickEvent()) {
-				if (!stick->IsRight() || (stick->xValue == 0.0f && stick->yValue == 0.0f)) {
+				if (!stick->IsRight()) {
 					continue;
 				}
-				state.padNav = false;
+				// The stick's return to the centre (zero) is handed over too: without it the
+				// Cursor Menu keeps moving the cursor at the last tilt.
+				if (stick->xValue != 0.0f || stick->yValue != 0.0f) {
+					state.padNav = false;
+				}
 				if (auto* handler = handToCursor()) {
 					handler->ProcessThumbstick(stick);
 				}
@@ -2668,10 +2665,7 @@ namespace CaptureWindow
 		// the focused item. Navigation must not claim the keyboard: W/A/S/D still move the camera.
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigNavCaptureKeyboard = false;
-		const auto& g = *ImGui::GetCurrentContext();
-		state.navWindowBefore = g.NavWindow ? g.NavWindow->ID : 0;
-		state.navCursorBefore = g.NavCursorVisible;
-		state.popupsBefore = g.OpenPopupStack.Size;
+		state.popupsBefore = ImGui::GetCurrentContext()->OpenPopupStack.Size;
 
 		if (auto* cursor = RE::MenuCursor::GetSingleton()) {
 			const auto& position = cursor->GetRuntimeData();

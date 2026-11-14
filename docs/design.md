@@ -317,10 +317,12 @@ passing through them.
 ### Keyboard and controller in the window
 
 The arrow keys move the focus between the window's items (ImGui keyboard navigation), Space or
-Enter presses the focused item; a list is one item until Space enters it and Escape leaves it.
+Enter presses the focused item. Every sarrai-common widget takes part (`ImGuiButtonFlags_EnableNav`
+on its `InvisibleButton`) and a list's rows are reached directly (`ImGuiChildFlags_NavFlattened`).
 Navigation never claims the keyboard (`ConfigNavCaptureKeyboard` off), so W/A/S/D still move
-the camera. An Escape that ImGui spent closing a combo, or leaving a list while the focus frame
-showed, is not also the page's Back, Exit or Cancel (`HoldNavEscape`). The controller works as
+the camera. An Escape that ImGui spent closing a combo is not also the page's Back, Exit or
+Cancel (`HoldNavEscape`). The right stick's return to the centre is handed over too, or the
+Cursor Menu keeps moving the cursor at the last tilt. The controller works as
 the keyboard does: the D-pad is the arrow keys, B is Escape, and A presses the focused item
 after a D-pad press, or clicks under the cursor after the right stick moved it (the right stick
 is handed to the Cursor Menu, as the mouse moves are), so drag and drop works with A held.
