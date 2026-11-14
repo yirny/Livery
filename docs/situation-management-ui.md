@@ -9,8 +9,8 @@ made on it; current spec only:
 - The Situations page (§3-§6).
 
 Terms: a *row* is the Default or one situation, per actor. The *preset situations* are
-the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::Choosable()`
-plus Default).
+the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::Order()`
+plus the Default).
 
 ## 1. Rows
 
@@ -146,13 +146,14 @@ outfit for Town any more`.
 ## 4. Situation List (left pane)
 
 - Label `Situation List (?)` above the list (`Theme::LabelText` + `LabelHelpMark`):
-  `Each situation lists the outfits #{Name} can wear there. When several
-  apply, the most specific one with an outfit is worn; otherwise, and in combat, the default outfit.
-  Drag an outfit onto a situation to add it, between its outfits to place it, onto another
-  situation to move it, or back to the outfit list to take it off.` (The most specific:
-  `Situations::Evaluate`'s order.)
-- One heading per situation not removed, the Default first, then `Situations::Choosable()`
-  order. Each: the star of the Situations tab (none for the Default, whose name starts in its place), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
+  `Each situation lists the outfits #{Name} can wear there. The lowest situation that applies
+  is worn; otherwise, and in combat, the default outfit. Drag a situation by its grip to change
+  the order, an outfit onto a situation to add it, between its outfits to place it, onto another
+  situation to move it, or back to the outfit list to take it off.` (The order:
+  docs/custom-situations.md §8.)
+- The Default's heading first, pinned, under it the rule and caption of
+  docs/custom-situations.md §7, then one heading per situation not removed in
+  `Situations::Order()`, each with a grip that drags it (§7 there). Each: the star of the Situations tab (none for the Default, whose name starts in its place), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
   random on, `(n)`, the length of `outfits`, in the small heading style, `ItemInnerSpacing.x`
   after the name; with random on and anything showing under it, a chevron, pointing
@@ -241,9 +242,8 @@ The situation's details, its fields evenly spaced with no headings:
   empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
   is saved as any edit is; no save starts while it is being typed. Under the Default's, after
   `SectionGap`, `This is #{Name}'s default outfit.` (`Theme::RunText`).
-- `Conditions`, read only until conditions can be edited (design.md §8): the preset's rule in
-  grey, as the README words it (Town: `A city, town, settlement, inn or other inhabited
-  interior.`); the Default's two lines `Worn where no ★situation applies,` and `and in
+- `Conditions`: every situation's but the Default's is the condition editor and the Applies
+  line of docs/custom-situations.md §7; the Default's, read only, is two lines `Worn where no ★situation applies,` and `and in
   combat.`, the star the Situations tab's in the text's grey (`Theme::RunText`'s
   `plainNames`), the lines as close as a wrapped text's. The text sits a field's
   frame padding below the label, where a field's text would (`DrawFieldText`).
@@ -297,8 +297,9 @@ shows the situation's.
   (`Theme::LineHelpLink`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
   Its help: `Brings the preset situations back as installed: a removed one returns, empty,
-  and a renamed one gets its name back. Nobody's outfits change.` It always asks: the
-  changes (`Town: restored`, `Home: name reset`); `Restore` / `Cancel`. The page's edits are
+  and a renamed or edited one gets its name and conditions back. Their order and nobody's
+  outfits change.` It always asks: the changes (`Town: restored`, `Home: name reset`,
+  `Cold: conditions reset`); `Restore` / `Cancel`. The page's edits are
   saved first, and a refused save opens no popup. Restore writes `situations.json` (a refused
   or failed write changes nothing and shows the error) and keeps the selection.
 - Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a name entered)
@@ -373,8 +374,3 @@ shows the situation's.
   the other dice unlit with their reasons;
   rename refused when empty or taken; Remove and its popup, the rows gone; Restore Presets brings it back empty; the
   Exit, Escape and a tab right after an edit, saving before they go; the three skins.
-
-## 9. Later
-
-- Editing conditions; user-defined situations (design.md §8). The Default's
-  conditions stay read only then, saying so on hover as its name does (§5).

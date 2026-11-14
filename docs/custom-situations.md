@@ -1,11 +1,11 @@
 # User-defined situations
 
-Design, decided 2026-11-13. Built and checked in game: 2a and 2b
-(§9); 2c is built, not yet checked in game. It extends the situations of docs/design.md §7 (five presets with fixed rules,
-`Situations::Priority()`) with situations the user defines: a key, a name, a list of
-conditions, a place in the priority order. The registry (`Situations::Count`, `Choosable`,
-`Priority`, `AddUser`, `kMaxSituations = 64`) is its base; the model is `src/SituationRules.h`,
-the file `src/SituationTable.h`. docs/memo-custom-situations.md keeps the place and spell
+Design, decided 2026-11-13. Built and checked in game: 2a to 2c (§9); 2d (§8, the presets'
+rules and the order) is decided 2026-11-14, not built. It turns the situations of
+docs/design.md §7 into one model: the five presets and the situations the user defines, each
+a key, a name, a list of conditions and a place in one order. The registry
+(`Situations::Count`, `Order`, `AddUser`, `kMaxSituations = 64`) is its base; the model is
+`src/SituationRules.h`, the file `src/SituationTable.h`. docs/memo-custom-situations.md keeps the place and spell
 decisions in detail and the Skyrim.esm facts behind them; this file is the specification.
 Items marked *provisional* are tried in a prototype first and may change.
 
@@ -13,13 +13,14 @@ Items marked *provisional* are tried in a prototype first and may change.
 
 - A user-defined situation has a key (`user:<n>`, §6), a name (the same rules as the presets':
   text, unique among situations not removed, ASCII case ignored), a list of condition rows
-  (§2), an `Apply in combat` flag and a place in `Priority()` (§8, open).
+  (§2), an `Apply in combat` flag and a place in the order (§8).
 - It is chosen for outfits like a preset: a row per assigned actor (`OutfitRows`), the Situations
   page, the HUD and the logs treat it the same; the co-save stores it by key, so no co-save
   version changes.
-- The presets keep their fixed rules in the first version: their conditions are not edited
-  through the window. Every preset rule can be written in the condition model (§3), so they may
-  become editable later without a second model.
+- The presets are situations like the user's: the same model, their installed rules held
+  in `SituationTable::kPresetRules` (§3), edited, reordered and removed through the window as
+  the user's are. The one difference: Restore Presets brings a preset back as installed; a
+  removed user's situation is gone. The Default is neither: no rules, no place in the order.
 - The first version ships the kinds of §3; §4 lists the kinds held back.
 
 ## 2. Condition model
@@ -27,17 +28,16 @@ Items marked *provisional* are tried in a prototype first and may change.
 A situation holds a list of condition rows. The situation applies while every row holds
 (AND). A row is a kind, a `not` flag and, for a kind with values, a set of values; a row with
 values holds while any of its values holds (OR), and `not` inverts the row. Rows do not nest:
-there are no OR groups (*provisional*: revisited after the prototype; so far every wanted rule
+there are no OR groups (*provisional*: revisited after use; so far every wanted rule
 fits, "night or rain" being two situations). The same kind may appear in several rows
 ("Rain" and "not Snowy region"). A row with values and none selected never holds, so its
 situation never applies; the Situations page says so (§7). A situation with no rows never
 applies either.
 
-Combat: `Situations::Evaluate` returns nothing in combat today, so a fight is fought in the
-Default. Per user-defined situation, the flag `Apply in combat` (wording provisional) lifts that
-for it alone: off, the situation does not apply in combat; on, its rows decide. A situation with
-an `In Combat` row has the flag on and not editable, since the row would never hold otherwise.
-The presets keep the rule as it is.
+Combat: every situation but the Default has the flag `Apply in combat` (wording provisional):
+off, the situation does not apply in combat, so a fight is fought in the Default unless another
+one applies; on, its rows decide. A situation with an `In Combat` row has the flag on and not
+editable, since the row would never hold otherwise. Every preset has it off as installed.
 
 ## 3. Condition kinds
 
@@ -47,11 +47,11 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Kind | Values | Holds while | Source | Verified |
 |---|---|---|---|---|
 | In Combat | none | the actor is in combat | `Actor::IsInCombat` | yes (as today's rule) |
-| Sleeping | none | the Sleep preset's rule | `GetSitSleepState`, CanSleep furniture | not yet |
+| Sleeping | none | the sleeping rule of docs/design.md §7 | `GetSitSleepState`, CanSleep furniture | not yet |
 | In Water | none | the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only | `IsSwimming`, `GetWaterHeight` | wading yes |
 | Swimming | none | the actor state's swimming flag | `ActorState::IsSwimming` | not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no (`IsExteriorCell` is used by Cold) |
-| Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = the Town preset's keywords (`LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse`, `LocTypePlayerHouse`; `LocTypeHouse` for the player too, unlike the preset), Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
+| Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
 | Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
@@ -59,6 +59,13 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 
 Notes:
 
+- The presets as installed (`SituationTable::kPresetRules`), each with `Apply in combat` off:
+  Town = Location type {Town}; Castle = Location type {Castle}; Home = Location type
+  {Player home}; Cold = Weather {Rain, Snow, Snowy region} and not Indoors; Sleep = Sleeping.
+  Two changes from the first release's fixed rules, decided 2026-11-14 since a rule cannot
+  depend on who the actor is: Home no longer holds in any house for an NPC (`LocTypeHouse`),
+  and Town holds in any house for the player too. Town and Cold by rain, verified through the
+  fixed rules, are checked again through the model (§10).
 - In Water keeps its hysteresis in a per-actor list of those last told in water
   (`g_inWater`, changed only as someone goes in or out). Swimming needs none: the flag is the
   engine's.
@@ -69,8 +76,8 @@ Notes:
   Tamriel above the holds (decided 2026-11-13): it would hold in the hold's towns, farms,
   camps and dungeons only, never on the roads between them, which is not what its name
   promises; a region condition (§10) would cover the open country.
-- Weather does not test the cell: the user adds `not Indoors` for outdoors only. The Cold preset
-  reads as `Weather {Rain, Snow, Snowy region}` and `not Indoors`.
+- Weather does not test the cell: the user adds `not Indoors` for outdoors only, as the Cold
+  preset does.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
   its next run. From equal to To is the whole day.
 - Spell Effect: the row lists spells, powers, shouts (by their words' spells), potions,
@@ -107,12 +114,13 @@ Not offered in the first version; added on request. The rule each would use:
 
 ## 5. Evaluation
 
-`Situations::Evaluate(actor, rows)` keeps its shape: for each situation in `Priority()`, add it
-when it applies. It reads only the situations whose row in the actor's rows holds an outfit
-(`Assignments::SituationsNow` passes them): one they have no outfit for cannot be worn, so
-`OutfitRows::Resolve` gives the same row, and with none it returns before any engine read.
-For a preset that is its fixed rule, and never in combat. For a user-defined situation: in
-combat, only with `Apply in combat` on; then every row must hold (`SituationStore::RulesOf`).
+`Situations::Evaluate(actor, rows)` walks `Situations::Order()` from its end, so the lowest
+situation in the window's list is told first (§8), and adds each that applies. It reads only
+the situations whose row in the actor's rows holds an outfit (`Assignments::SituationsNow`
+passes them): one they have no outfit for cannot be worn, so `OutfitRows::Resolve` gives the
+same row, and with none it returns before any engine read. Every situation, preset or the
+user's, is its rules (`SituationStore::RulesOf`, null for the Default alone): in combat, only
+with `Apply in combat` on; then every row must hold.
 What a row reads of the actor (the location, in water) is read once per evaluation. A row with a
 list of forms compares FormIDs resolved as the store reads or saves the rules
 (`PieceFile::FormIDOf`) and kept with them (`SituationRules::FormRef::formID`), so the poll
@@ -120,8 +128,8 @@ compares integers and walks parents (at most 32, against a loop in a mod's data)
 no logging. The poll, its one-redress-per-run rule and the 3 s hold are unchanged.
 
 The registry is mutable: `SituationStore::Load` adds the file's user situations at
-`kDataLoaded`, before any co-save load, and `SituationStore::Create` adds one after its write
-took, both on the game thread; the window is open then, so the poll does not run. Each list is
+`kDataLoaded`, before any co-save load, `SituationStore::Create` adds one after its write
+took and `SituationStore::Apply` reorders them (`Situations::Reorder`), all on the game thread; the window is open then, so the poll does not run. Each list is
 reserved for `kMaxSituations` (64, the Default and the presets included), so adding moves
 nothing. A removed situation stays in the registry and the store's table until the game is
 closed, so no id moves or is reused; it counts toward the 64 until then, and Create refuses
@@ -130,18 +138,37 @@ row change.
 
 ## 6. Data
 
-situations.json becomes version 2 when the first user-defined situation is made (`nextKey`
-above 1), and stays so after every one is removed; until then it is written as version 1, so
-a Livery without user situations still reads it. The parser reads version 1 (presets' names
-and removed flags only) as version 2 without user situations. The presets' entries are as in
-version 1; the user's follow them in the order they were made. Shape:
+situations.json becomes version 2 at the first change version 1 cannot hold: a user-defined
+situation made (`nextKey` above 1), a preset's rules or `Apply in combat` edited, or the order
+changed; it then stays so. Until then it is written as version 1, so a Livery without user
+situations still reads it. The parser reads version 1 (presets' names and removed flags only)
+as version 2 with the presets as installed, in the installed order. The array is the window's
+list, top to bottom, the Default never in it: every preset, removed or not, and every user's
+situation not removed, each with every field. A version 2 file missing a preset gets it
+appended as installed, in the installed order, so a hand-edited file still loads. Shape:
 
 ```json
 {
   "version": 2,
   "nextKey": 3,
   "situations": [
-    { "key": "Town", "name": "City", "removed": false },
+    {
+      "key": "Town",
+      "name": "City",
+      "removed": false,
+      "applyInCombat": false,
+      "conditions": [{ "kind": "locationType", "not": false, "values": ["town"] }]
+    },
+    { "key": "Castle", "name": "Castle", "removed": false, "applyInCombat": false, "conditions": [{ "kind": "locationType", "not": false, "values": ["castle"] }] },
+    { "key": "Home", "name": "Home", "removed": false, "applyInCombat": false, "conditions": [{ "kind": "locationType", "not": false, "values": ["playerHome"] }] },
+    {
+      "key": "Cold",
+      "name": "Cold",
+      "removed": true,
+      "applyInCombat": false,
+      "conditions": [{ "kind": "weather", "not": false, "values": ["rain", "snow", "snowyRegion"] }, { "kind": "indoors", "not": true }]
+    },
+    { "key": "Sleep", "name": "Sleep", "removed": false, "applyInCombat": false, "conditions": [{ "kind": "sleeping", "not": false }] },
     {
       "key": "user:2",
       "name": "Rainy town",
@@ -172,16 +199,23 @@ version 1; the user's follow them in the order they were made. Shape:
 - The same write rules as every shared file (CLAUDE.md §2.1): the write comes first, through a
   temporary file; a refused or failed write changes no row.
 
-## 7. Situations page (provisional)
+## 7. Situations page
 
-The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Condition editor).
+Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order (§8).
 
+- The Situation List: the Default's heading first, pinned, then a rule with the caption
+  `The lowest that applies is worn.` in the small heading style, then one heading per
+  situation not removed in `Situations::Order()`, each dragged by its grip
+  (`kSituationPayload`, apart from the outfits') to another place among them; the drop shows
+  as a line between two headings, as an outfit's does between outfits. The label's help says
+  so (docs/situation-management-ui.md §4).
 - The page's button row gains `New Situation...` (before Exit): the `New situation` popup asks
   for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
-  situation, with no conditions, is then selected with its details shown. A user-defined
-  situation has Remove (the same popup and row clearing as a preset's Remove, without the
-  Restore Presets line) and the condition editor below the name.
-- The editor: one line per row with a `Not` checkbox, the kind (its tooltip says what it
+  situation, with no conditions, is appended last, where it wins over every other, and
+  selected with its details shown. Every situation but the Default has Remove (a preset's
+  popup with the Restore Presets line, a user's without it) and the condition editor below
+  the name.
+- The editor, for every situation but the Default: one line per row with a `Not` checkbox, the kind (its tooltip says what it
   means) and Remove at the line's right end; under it, indented, the values of a kind with a
   small fixed set (Location type, Weather) as checkboxes, side by side while the pane has
   room, or for Time of day `From [time] to [time]`, two dropdowns in 30-minute steps (a time
@@ -224,23 +258,52 @@ The prototype decides the final form; 2a built this (`src/SituationPage.cpp`, Co
   hover. The first 100 matches are listed, then `<n> more. Type more to narrow.`. Add is greyed with none picked or
   one the row has already; Escape clears the search, or with none typed is Cancel.
 - `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
-  negated) it is on and disabled.
-- The `Applies` line, under its own label, replaces `ConditionsText` for a user-defined
-  situation and is built from the rows in order, one phrase per row, `not` first: `In a town
+  negated) it is on and disabled; a preset's is off as installed.
+- The `Applies` line, under its own label, is every situation's but the Default's
+  (`ConditionsText` stays for the Default alone) and is built from the rows in order, one phrase per row, `not` first: `In a town
   or a castle, in rain or snow, not indoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh
   is on.` A row with nothing selected reads `Weather (nothing selected)`; a situation without
   rows `Never applies.`
 - Edits save as the page's other edits do: 0.5 s after the last one or as the page is left,
   the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
+- A heading, and the name's label in the details, carries the warning mark after the name
+  while the situation is never worn (§8a), its tooltip `Never worn: <name>, lower in the
+  list, applies whenever this does.`
 
 ## 8. Priority
 
-Open. Where user-defined situations stand among Sleep, Cold, Home, Castle and Town, and whether
-they and the presets are ordered as one list, is decided after the prototype. Constraint from
-the memo: a Place situation for a player home must come before Home. Provisional, as built:
-every user-defined situation before the presets, in the order they were made
-(`Situations::AddUser`).
+Decided 2026-11-14. One order for every situation but the Default, presets and the user's
+alike: the window's list, where the lowest situation that applies is worn
+(`Situations::Order()`, which replaces `Choosable` and `Priority`). The Default sits above them
+as the base every situation overrides, pinned, and a new situation is appended last, so it wins
+over the presets as made. The reading is a load order's: lower wins. Installed order, top to
+bottom: Town, Castle, Home, Cold, Sleep (the first release's Sleep, Cold, Home, Castle, Town
+reversed). Restore Presets does not touch the order. The order is saved as the page's other
+edits are (§7, the file first); nobody is redressed for it then, the poll follows it once the
+window closes.
+
+### 8a. Never worn
+
+A situation is marked never worn when one lower in the list applies whenever it does, as far as
+the rules tell (`SituationRules::CoveredBy`, computed as the page opens and after each edit,
+never on the poll; at most 64 × 64 situations). Situation B, lower than A, covers A when B has
+rows, B's `Apply in combat` is on or A's off, and every row of B is implied by a row of A:
+
+- the same kind and `not`, and A's values within B's (B's within A's with `not`): the value
+  set, the time range, the list of places or spells;
+- the same kind and `not`, Place, neither negated: each of A's places is one of B's or within
+  one (its parents, as the rule walks them);
+- Location type in B by Place in A, neither negated: each of A's places is a location, or a
+  cell with one, whose own keywords give one of B's values, and so does every location within
+  it.
+
+A place's keywords, parents and the locations within it are read as the window opens
+(`Situations::PlaceFacts`, one pass over the loaded locations); a place whose plugin is not
+loaded gives none. A situation that never applies (no rows, or a row with nothing selected) is
+not marked, as its Applies line says so, and covers nothing. Nothing else is told, so a missing
+mark proves nothing; the tooltip names what was found. The mark does not read the actor's rows
+(whether they have an outfit for B): the file is every save's; revisited after use.
 
 ## 9. Implementation order
 
@@ -251,7 +314,9 @@ every user-defined situation before the presets, in the order they were made
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).
    Built on `feat/cs-place`, checked in game.
 3. 2c: Spell, reusing 2b's list line, with the search picker and the active-effect walk.
-   Built on `feat/cs-spell`; in-game check pending.
+   Built on `feat/cs-spell`, checked in game.
+4. 2d: the order and the presets' rules (§8): one list, the presets' rules in the model, the
+   grip drag, Restore Presets with rules, the never-worn mark. On `feat/cs-priority`.
 
 ## 10. Open and in-game checks
 
@@ -266,4 +331,5 @@ every user-defined situation before the presets, in the order they were made
 - The open country belongs to no hold in the data (§3): a region condition (the cell's
   regions, `TESObjectCELL::GetRegionList`; the Cold preset reads the sky's weather region,
   `Sky::region`) would cover it, if wanted; regions have editor IDs only (`WeatherTundra`).
-- OR groups, and the priority of user-defined situations, after the prototype (§2, §8).
+- OR groups (§2), after use.
+- Town and Cold by rain through the model's rules, now that the presets' fixed code is gone.

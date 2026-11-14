@@ -515,8 +515,9 @@ can come later if sharing across characters is wanted.
 
 ## 7. Situations
 
-An assigned actor has a row per situation, Town, Castle, Home, Sleep, Cold and those the
-user defines (docs/custom-situations.md) (`Situations::Choosable()`), and the Default, what the window's Apply gives, worn where
+An assigned actor has a row per situation, the presets Town, Castle, Home, Cold, Sleep and
+those the user defines, in the window's order (docs/custom-situations.md §8,
+`Situations::Order()`), and the Default, what the window's Apply gives, worn where
 none of them applies. A row is a list of library outfit ids, a random flag and the one
 chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
@@ -552,18 +553,17 @@ player has the same rows.
 
 ### Detection (`Situations::Evaluate`)
 
-The situations an actor is in, the most specific first (`Situations::Applicable`); the
-first one whose row holds an outfit is worn, else the Default (`OutfitRows::Resolve`).
-A preset applies while its condition holds (`Situations::Condition`,
-`Situations::ConditionOf`), a user's situation while its conditions do
-(docs/custom-situations.md §2-§5); Evaluate checks the situations in `Situations::Priority()`
-order, the user's first, then Sleep, Cold, Home, Castle, Town, and only those whose row holds
-an outfit for the actor. The rules are Tailor 3.0's
+The situations an actor is in, the lowest in the window's list first
+(`Situations::Applicable`); the first one whose row holds an outfit is worn, else the
+Default (`OutfitRows::Resolve`). Every situation is its rules (docs/custom-situations.md
+§2-§5, §8): the presets' as installed are below, edited like the user's. Evaluate reads only
+the situations whose row holds an outfit for the actor. In combat a situation applies only
+with `Apply in combat` on, off for every preset as installed, so a fight is fought in the
+default outfit unless one does. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
-(§6): Town, Cold by weather (while cloudy weather counted), combat, in water by wading.
-Not yet: Castle, Home, Sleep, Cold by a snowy region. In combat no preset applies, so
-a fight is fought in the default outfit unless a user's situation applies in combat. The
-conditions:
+(§6) through the first release's fixed rules: Town, Cold by weather (while cloudy weather
+counted), combat, in water by wading; through the model: pending. Not yet: Castle, Home,
+Sleep, Cold by a snowy region. The presets as installed, and what each condition reads:
 
 - In water (no preset uses it; a user's situation's In water condition): the actor state's
   swimming flag, or the engine reports a water height
@@ -571,20 +571,21 @@ conditions:
   told in water, they stay in it until that water is 60 units under
   their feet, so a shore does not flip it on and off. On a mount only the swimming flag
   counts: a rider's feet are above the water the horse wades.
-- Sleeping (Sleep): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
+- Sleeping (Sleep = Sleeping): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
   and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
   bed (Tailor's note in `SituationHandler.cpp`), so the player's Sleep needs a mod that does.
-- Cold: in an exterior cell and the weather is rainy or snowy, not cloudy alone (while the sky
+- Cold (Weather {Rain, Snow, Snowy region} and not Indoors): in an exterior cell and the weather is rainy or snowy, not cloudy alone (while the sky
   blends weathers, the last one decides until the new one is halfway in), or the sky's
   weather region, the one around the player, has snow weathers for at least a quarter
   of its weather chance (its clear days are its own).
-- Home: the current location has `LocTypePlayerHouse`, or `LocTypeHouse` for an NPC.
-  Town follows it, so a home without a Home outfit wears the Town one.
-- Castle: the current location has `LocTypeCastle`. In Skyrim.esm these are the jarls'
+- Home (Location type {Player home}): the current location has `LocTypePlayerHouse`, for
+  every actor. Town is under it as installed, so a home without a Home outfit wears the Town
+  one.
+- Castle (Location type {Castle}): the current location has `LocTypeCastle`. In Skyrim.esm these are the jarls'
   seats but Winterhold's longhouse (a house), and Solitude's Castle Dour with its Emperor's
-  Tower; the DLCs add none. Each is a dwelling too, so Town follows it.
-- Town: `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling` or
-  `LocTypeInn`, or Home's. Keywords keep their editor IDs at runtime and are found by
+  Tower; the DLCs add none. Each is a dwelling too, so Town is under it.
+- Town (Location type {Town}): `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`,
+  `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor. Keywords keep their editor IDs at runtime and are found by
   them; a location's own keywords only.
 
 The conditions of the user's situations are in docs/custom-situations.md §3.
@@ -619,7 +620,8 @@ docs/situation-management-ui.md) and the chests (docs/chest-ui.md, behind the `E
 setting, off by default). Open:
 
 1. User-defined situations (docs/custom-situations.md) on `feature/custom-situations`: the
-   conditions without a form picker and Place built, Spell built on `feat/cs-spell`; layer outfits
+   conditions without a form picker, Place and Spell built and checked in game; next, one order
+   for the presets and the user's, the presets' rules editable (§8 there); layer outfits
    (docs/memo-layer-outfits.md).
 2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
    snowy region (§7); quickload with the window open, then New Game; the player's left-hand
