@@ -1,6 +1,6 @@
 # Livery - Outfit Manager
 
-An SKSE plugin for Skyrim Special Edition / Anniversary Edition that manages what you and your NPCs wear. Save what a character wears as an outfit, dress anyone in a saved outfit, and let Livery switch outfits to suit the situation. No ESP and no Papyrus scripts; see [Uninstall](#uninstall) before you remove it.
+An SKSE plugin for Skyrim Special Edition / Anniversary Edition that manages what you and your NPCs wear. Save what a character wears as an outfit, dress anyone in a saved outfit, and let Livery switch outfits to suit the situation. Dress as many followers as you like; each keeps their own outfits. No ESP and no Papyrus scripts; see [Uninstall](#uninstall) before you remove it.
 
 Building from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
