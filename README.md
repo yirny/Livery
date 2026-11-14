@@ -1,6 +1,6 @@
 # Livery - Outfit Manager
 
-An SKSE plugin for Skyrim Special Edition / Anniversary Edition that manages what you and your NPCs wear. Save what a character wears as an outfit, dress anyone in a saved outfit, and let Livery switch outfits to suit the situation. No ESP and no Papyrus scripts; see [Uninstall](#uninstall) before you remove it.
+An SKSE plugin for Skyrim Special Edition / Anniversary Edition that manages what you and your NPCs wear. Save what a character wears as an outfit, dress anyone in a saved outfit, and let Livery switch outfits to suit the situation. Dress as many followers as you like; each keeps their own outfits. No ESP and no Papyrus scripts; see [Uninstall](#uninstall) before you remove it.
 
 Building from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
@@ -26,6 +26,7 @@ Building from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 - No ESP/ESL and no scripts, so it sits beside any other mod without setting your PC on fire; its co-save record is simply skipped once Livery is gone. A second outfit manager on the same character gets confusing, and a second mod switching outfits by situation more so. TL;DR: unless you have a reason to, don't run it beside another outfit management mod.
 - **Nether's Follower Framework**: fine, as long as you don't use its outfit features on the followers Livery dresses.
 - **Tailor**: fine for wigs; leave the outfits to one of the two.
+- **Helmet Toggle 2** / **Dynamic Lowered Hoods**: fine in a quick test. A hidden helmet can show for a split second right after an outfit change.
 - Skyrim VR is not supported.
 
 <!-- nexus:end -->
@@ -48,7 +49,7 @@ By default you can dress your followers and spouse, and save what your friends w
 
 **Add from Wardrobe...** puts a saved outfit's items on the list. Items selected under your own inventory move to the NPC at Apply, enchantments and tempering included.
 
-Items Livery put on stay on: the NPC no longer swaps them for better armor you give them. Give them an enchanted or more tempered copy of an item they wear, and they put it on as the trade menu closes. **Restore Outfit** gives them back their own clothes.
+Items Livery put on stay on: the NPC no longer swaps them for better armor you give them. Give them an enchanted or more tempered copy of an item they wear, and they put it on as the trade menu closes. An NPC Livery dresses wears only the items in the outfit you applied and gear you can see in their inventory, so apply the whole look at once: a wig on its own leaves them in nothing but the wig. **Restore Outfit** gives them back their own clothes.
 
 ### Save an outfit
 
