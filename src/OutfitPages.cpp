@@ -329,9 +329,14 @@ namespace CaptureWindow::Internal
 					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
 				}
 				Theme::TextRow(piece.name.c_str(), &icon);
+				const bool hovered = ImGui::IsItemHovered();
+				// Read only: the keyboard still reaches the row, so the list scrolls.
+				ImGui::PushID(static_cast<int>(index));
+				const bool focused = FocusStandIn("##row");
+				ImGui::PopID();
 				if (faded) {
 					ImGui::PopStyleVar();
-					if (ImGui::IsItemHovered()) {
+					if (hovered || focused) {
 						Theme::Tooltip(kNotCarriedHint);
 					}
 				}
@@ -426,6 +431,10 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::EndDisabled();
 				ImGui::PopStyleVar();
+				// Read only: the keyboard still reaches the row, so the list scrolls.
+				if (locked && FocusStandIn("##row") && faded) {
+					Theme::Tooltip(kNotCarriedHint);
+				}
 				if (toggled && !locked && (on || ticked > 1)) {
 					QueueMenuSound(kFocusSound);
 					const auto at = std::ranges::lower_bound(*a_excluded, pieces[i].armor);
@@ -953,8 +962,11 @@ namespace CaptureWindow::Internal
 		const bool noOutfit = a_state.manage.outfit < 0;
 		ImGui::BeginDisabled(noOutfit || !a_state.request.onManageRemove);
 		const bool remove = Theme::LineLink("Remove");
-		const bool removeHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		bool       removeHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
+		if (noOutfit && FocusStandIn("Remove")) {
+			removeHovered = true;
+		}
 		// After EndDisabled, so the tooltip is not drawn faded.
 		if (noOutfit && removeHovered) {
 			Theme::Tooltip(kNeedOutfit);

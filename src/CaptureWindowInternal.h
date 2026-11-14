@@ -334,9 +334,10 @@ namespace CaptureWindow::Internal
 		int                         viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
 		float                       viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
 		float                       viewDragY = 0.0f;
-		bool                        padNav = false;     // the D-pad moved the focus since the right stick or the mouse last moved the cursor: A presses the focused item
-		bool                        padClicks = false;  // the held A clicks under the cursor, not on the focused item (RecordPadButton)
-		int                         popupsBefore = 0;   // ImGui's open popups before this frame's NewFrame (HoldNavEscape)
+		bool                        padNav = false;       // the D-pad moved the focus since the right stick or the mouse last moved the cursor: A presses the focused item
+		bool                        padClicks = false;    // the held A clicks under the cursor, not on the focused item (RecordPadButton)
+		int                         popupsBefore = 0;     // ImGui's open popups before this frame's NewFrame (HoldNavEscape)
+		bool                        navMoveWide = false;  // a Left or Right move that found nothing goes again this frame, widened (WidenNavMove)
 		// The Save page's tabs' names, each kept while the window is open; a Create starts the
 		// Create tab's again (SetOutfits).
 		std::array<char, kNameCapacity> createName{};
@@ -399,6 +400,7 @@ namespace CaptureWindow::Internal
 	float                                FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved = 0.0f);
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
 	void                                 PushListRowSpacing();
+	bool                                 FocusStandIn(const char* a_id);  // a keyboard focus stop over the last item, for a greyed one or text
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone);
 	float                                ButtonRowWidth(std::initializer_list<RowButton> a_buttons);
 	void                                 CentreButtonRow(std::initializer_list<RowButton> a_buttons);

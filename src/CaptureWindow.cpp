@@ -283,13 +283,15 @@ namespace CaptureWindow::Internal
 
 	// No ImGui frame runs while the window is closed, so ImGui still holds what
 	// it had at closing time: queued events, held keys and buttons, open popups
-	// (the confirm popup included).
+	// (the confirm popup included), a keyboard move going on into this frame
+	// (RetryNavMoveWide).
 	// Contract: render thread, inside the frame (after ImGui::NewFrame).
 	void ResetImGuiState(ImGuiIO& a_io)
 	{
 		a_io.ClearEventsQueue();
 		a_io.ClearInputKeys();
 		a_io.ClearInputMouse();
+		ImGui::NavMoveRequestCancel();
 		// ClosePopupToLevel needs at least one open popup.
 		if (ImGui::GetCurrentContext()->OpenPopupStack.Size > 0) {
 			ImGui::ClosePopupToLevel(0, false);
@@ -308,6 +310,45 @@ namespace CaptureWindow::Internal
 		if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && ImGui::GetCurrentContext()->OpenPopupStack.Size < a_state.popupsBefore) {
 			ImGui::SetKeyOwner(ImGuiKey_Escape, ImGuiKeyOwner_Any, ImGuiInputFlags_LockThisFrame);
 		}
+	}
+
+	// ImGui reaches with Left or Right only an item level with the focus: one above or below
+	// counts as Up or Down. So a Left or Right move in this window that found nothing goes again
+	// in the next frame (NavMoveRequestForward), scored from just past the focus's edge with the
+	// screen's whole height in reach (WidenNavMove): the nearest part that way wins, its item
+	// nearest in height first. Not a move in a popup or combo, which ImGui wraps itself, nor
+	// one already widened.
+	// Contract: render thread, in the window after every item of the frame.
+	void RetryNavMoveWide(State& a_state)
+	{
+		const auto& g = *ImGui::GetCurrentContext();
+		const bool  horizontal = g.NavMoveScoringItems && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right);
+		const bool  focusHere = g.NavWindow && g.NavWindow->RootWindowForNav == g.CurrentWindow->RootWindowForNav;
+		// With no focus yet ImGui focuses the first item instead (NavInitRequestFromMove).
+		if (!horizontal || !focusHere || g.NavId == 0 || (g.NavMoveFlags & ImGuiNavMoveFlags_Forwarded) || g.NavMoveForwardToNextFrame ||
+			g.NavMoveResultLocal.ID != 0 || g.NavMoveResultOther.ID != 0) {
+			return;
+		}
+		ImGui::NavMoveRequestForward(g.NavMoveDir, g.NavMoveClipDir, g.NavMoveFlags, g.NavMoveScrollFlags);
+		a_state.navMoveWide = true;
+	}
+
+	// Contract: render thread, after ImGui::NewFrame and before any item (RetryNavMoveWide).
+	void WidenNavMove(State& a_state)
+	{
+		constexpr float kReachScreens = 2.0f;  // screen heights above and below the focus: ImGui scores from the middle 60 % of that, which then spans the screen
+		constexpr float kPastEdge = 1.0f;      // pixels past the focus's edge, so an item overlapping the focus sideways is not beside it
+
+		auto& g = *ImGui::GetCurrentContext();
+		if (!std::exchange(a_state.navMoveWide, false) || !g.NavMoveScoringItems || !(g.NavMoveFlags & ImGuiNavMoveFlags_Forwarded)) {
+			return;
+		}
+		// For Left or Right, ImGui's scoring rect is the focus's width at one height.
+		auto&       rect = g.NavScoringRect;
+		const float x = g.NavMoveDir == ImGuiDir_Left ? rect.Min.x - kPastEdge : rect.Max.x + kPastEdge;
+		const float y = rect.GetCenter().y;
+		const float reach = g.IO.DisplaySize.y * kReachScreens;
+		rect = ImRect(x, y - reach, x, y + reach);
 	}
 
 	// --- Draw -----------------------------------------------------------------
@@ -484,15 +525,39 @@ namespace CaptureWindow::Internal
 		ImGui::PopStyleColor();
 	}
 
-	// A button greyed out while `a_reason` is set, which shows on hover; a plain
-	// Theme::Button otherwise, with `a_tooltip` (if any) on hover and `a_icon` (if any) before
-	// its label. Returns true when clicked while enabled.
+	// A stop for keyboard navigation over the last item, which ImGui gives none: a greyed one
+	// (BeginDisabled) or text such as a "(?)" or a read-only row. The arrow keys reach it, the
+	// list scrolls to it, and the caller shows the item's tooltip while it has the focus.
+	// Pressing it does nothing, and the mouse is not affected. `a_id` names it in the current ID
+	// scope. Returns whether it has the keyboard focus.
+	// Contract: render thread, right after the item and outside its BeginDisabled (the page's
+	// own, while a write runs, keeps the stop out too).
+	bool FocusStandIn(const char* a_id)
+	{
+		const auto&  g = *ImGui::GetCurrentContext();
+		const ImRect rect = g.LastItemData.Rect;
+		ImGui::PushID("##standIn");
+		const ImGuiID id = ImGui::GetID(a_id);
+		ImGui::PopID();
+		if (!ImGui::ItemAdd(rect, id, nullptr, ImGuiItemFlags_NoNavDefaultFocus)) {
+			return false;
+		}
+		ImGui::RenderNavCursor(rect, id);
+		return ImGui::IsItemFocused() && g.NavCursorVisible && g.NavHighlightItemUnderNav;
+	}
+
+	// A button greyed out while `a_reason` is set, which shows on hover or keyboard focus
+	// (FocusStandIn); a plain Theme::Button otherwise, with `a_tooltip` (if any) on hover and
+	// `a_icon` (if any) before its label. Returns true when clicked while enabled.
 	bool ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip, Theme::HeadingIcon a_icon)
 	{
 		ImGui::BeginDisabled(a_reason != nullptr);
 		const bool clicked = Theme::Button(a_icon, a_label);
-		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
+		if (a_reason && FocusStandIn(a_label)) {
+			hovered = true;
+		}
 		// After EndDisabled, so the tooltip is not drawn faded.
 		const char* tooltip = a_reason ? a_reason : a_tooltip;
 		if (tooltip && hovered) {
@@ -1207,8 +1272,8 @@ namespace CaptureWindow::Internal
 	}
 
 	// A group's heading inside the list: greyed, in the label font, left of the names, its icon
-	// first (GroupIcon). The player's group explains on hover what Apply does with its pieces
-	// and what it leaves out.
+	// first (GroupIcon). The player's group explains, on hover of its "(?)" or with the heading
+	// in the keyboard focus, what Apply does with its pieces and what it leaves out.
 	void DrawGroupHeading(const State& a_state, const PieceList& a_list, CaptureWindow::PieceGroup a_group)
 	{
 		const bool  notCarried = a_group == CaptureWindow::PieceGroup::kNotCarried;
@@ -1218,7 +1283,8 @@ namespace CaptureWindow::Internal
 			Theme::ListHeading(heading.c_str(), icon);
 			return;
 		}
-		if (!Theme::ListHeadingHelp(heading.c_str(), icon)) {
+		const bool hovered = Theme::ListHeadingHelp(heading.c_str(), icon);
+		if (!FocusStandIn("##playerHelp") && !hovered) {
 			return;
 		}
 		const auto& name = a_state.request.actorName;
@@ -1294,6 +1360,10 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::EndDisabled();
 				ImGui::PopStyleVar();
+				// Save only: the keyboard still reaches the row, so the list scrolls.
+				if (locked && FocusStandIn("##row") && faded) {
+					Theme::Tooltip(kNotCarriedHint);
+				}
 				if (toggled) {
 					QueueMenuSound(kFocusSound);
 					if (a_list.ticked[i]) {
@@ -1310,13 +1380,17 @@ namespace CaptureWindow::Internal
 		Theme::EndList();
 	}
 
-	// A link of the count line, greyed with `a_reason` (shown on hover). Returns true when clicked.
+	// A link of the count line, greyed with `a_reason` (shown on hover or keyboard focus).
+	// Returns true when clicked.
 	bool DrawCountLink(const State& a_state, const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line)
 	{
 		BeginItemDisabled(a_state, a_reason != nullptr);
 		const bool clicked = Theme::LabelLink(kAddFrom, a_line, a_icon, a_name);
-		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		EndItemDisabled();
+		if (a_reason && FocusStandIn(a_name)) {
+			hovered = true;
+		}
 		// After EndDisabled, so the tooltip is not drawn faded.
 		if (a_reason && hovered) {
 			Theme::Tooltip(a_reason);
@@ -1435,8 +1509,11 @@ namespace CaptureWindow::Internal
 		ImGui::BeginDisabled(!available || a_state.previewBusy);
 		Theme::SectionGap();  // a field of its own, with no label
 		const bool clicked = Theme::Checkbox("Live Preview", &on);
-		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
+		if (!note.empty() && FocusStandIn("Live Preview")) {
+			hovered = true;
+		}
 		// After EndDisabled, so the tooltip is not drawn faded.
 		if (hovered && !note.empty()) {
 			Theme::Tooltip(note.c_str());
@@ -1444,7 +1521,8 @@ namespace CaptureWindow::Internal
 		// Outside BeginDisabled, so the help stays readable while the tick is greyed.
 		ImGui::SameLine();
 		ImGui::TextDisabled("(?)");
-		if (ImGui::IsItemHovered()) {
+		const bool helpHovered = ImGui::IsItemHovered();
+		if (FocusStandIn("##previewHelp") || helpHovered) {
 			DrawPreviewHelpTooltip();
 		}
 		if (clicked && available && !a_state.previewBusy) {
@@ -1891,8 +1969,11 @@ namespace CaptureWindow::Internal
 		if (Theme::TextTab(kSaveTabs[1], a_state.updateTab) && !noOutfits) {
 			clicked = 1;
 		}
-		const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+		bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
+		if (noOutfits && FocusStandIn(kSaveTabs[1])) {
+			hovered = true;
+		}
 		Theme::EndHeadingTabs();
 		// After EndDisabled and EndHeadingTabs, so the tooltip is neither faded nor in the
 		// heading font.
@@ -2454,6 +2535,7 @@ namespace CaptureWindow
 			state.viewDragY = 0.0f;
 			state.padNav = false;
 			state.padClicks = false;
+			state.navMoveWide = false;
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.previewOn;
@@ -2733,6 +2815,7 @@ namespace CaptureWindow
 			state.resetImGui = false;
 		}
 		HoldNavEscape(state);
+		WidenNavMove(state);
 		FinishLeave(state);  // before the page's width, which a switch changes
 
 		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
@@ -2819,6 +2902,7 @@ namespace CaptureWindow
 			const float padding = ImGui::GetStyle().WindowPadding.y;
 			Theme::TabRule(contentTop.x, contentTop.y - padding, ImGui::GetItemRectMax().y + padding);
 		}
+		RetryNavMoveWide(state);
 		ImGui::End();
 		ForwardViewInput(state);
 	}

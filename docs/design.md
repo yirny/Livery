@@ -321,7 +321,14 @@ Enter presses the focused item. Every sarrai-common widget takes part (`ImGuiBut
 on its `InvisibleButton`) and a list's rows are reached directly (`ImGuiChildFlags_NavFlattened`).
 Up and Down stay in the part the focus is in: the tab column or the page, and on a page of
 `BeginColumns` the column (`PushNavPart`, `NextColumn`); ImGui alone scores an item beside the
-focus as one pixel further and would jump across. Left and Right cross the parts.
+focus as one pixel further and would jump across. Left and Right cross the parts. ImGui reaches
+with them only an item level with the focus, so a Left or Right that found nothing goes again in
+the next frame, scored from just past the focus's edge with the screen's height in reach
+(`RetryNavMoveWide`, `WidenNavMove`): the nearest part that way, its item nearest in height.
+ImGui gives no focus to a greyed item, to text or to a read-only row; a greyed item with a
+tooltip, a "(?)" drawn as text, and the rows of the read-only item lists get a stand-in that
+takes it (`FocusStandIn`), so the tooltip shows and the list scrolls to the row; pressing it
+does nothing. A greyed item with no tooltip, and the page while a write runs, stay out.
 Navigation never claims the keyboard (`ConfigNavCaptureKeyboard` off), so W/A/S/D still move
 the camera. An Escape that ImGui spent closing a combo is not also the page's Back, Exit or
 Cancel (`HoldNavEscape`). The right stick's return to the centre is handed over too, or the
