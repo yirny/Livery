@@ -241,28 +241,29 @@ namespace SituationRules
 	struct KindInfo
 	{
 		Kind                   kind;
-		const char*            key;     // in situations.json
-		const char*            label;   // the editor's
-		const char*            tip;     // the label's tooltip; the editor formats it, `{}` naming the actor
-		const char*            phrase;  // in the Applies line; unused for a kind with values or Time of day
-		std::span<const Value> values;  // empty for a kind without
+		const char*            key;       // in situations.json
+		const char*            label;     // the editor's; a two-state kind's row reads so while not negated
+		const char*            negLabel;  // a two-state kind's row negated ("Not in combat", "Outdoors"); "" for the others
+		const char*            tip;       // the label's tooltip; the editor formats it, `{}` naming the actor
+		const char*            phrase;    // in the Applies line; unused for a kind with values or Time of day
+		std::span<const Value> values;    // empty for a kind without
 	};
 
 	// Every kind at the index of its Kind (InfoOf), in the order the editor offers them.
 	inline constexpr std::array<KindInfo, 10> kKinds{ {
-		{ Kind::kInCombat, "inCombat", "In combat", "Fighting.\nWith this condition the situation applies in combat.", "in combat", {} },
-		{ Kind::kSleeping, "sleeping", "Sleeping", "Going to bed, in it or getting up.", "sleeping", {} },
-		{ Kind::kInWater, "inWater", "In water", "Swimming, or wading.\nOn a horse, swimming only.", "in water", {} },
-		{ Kind::kSwimming, "swimming", "Swimming", "Swimming only, not wading.", "swimming", {} },
-		{ Kind::kIndoors, "indoors", "Indoors", "Inside a building, cave or other interior.", "indoors", {} },
-		{ Kind::kLocationType, "locationType", "Location type",
+		{ Kind::kInCombat, "inCombat", "In combat", "Not in combat", "Fighting.\nWith this condition the situation applies in combat.", "in combat", {} },
+		{ Kind::kSleeping, "sleeping", "Sleeping", "Not sleeping", "Going to bed, in it or getting up.", "sleeping", {} },
+		{ Kind::kInWater, "inWater", "In water", "Not in water", "Swimming, or wading.\nOn a horse, swimming only.", "in water", {} },
+		{ Kind::kSwimming, "swimming", "Swimming", "Not swimming", "Swimming only, not wading.", "swimming", {} },
+		{ Kind::kIndoors, "indoors", "Indoors", "Outdoors", "Inside a building, cave or other interior.", "indoors", {} },
+		{ Kind::kLocationType, "locationType", "Location type", "",
 			"Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.",
 			"", kLocationTypes },
-		{ Kind::kPlace, "place", "Place", "In one of the places listed.\nA place counts with every room and area in it.", "", {} },
-		{ Kind::kWeather, "weather", "Weather",
+		{ Kind::kPlace, "place", "Place", "", "In one of the places listed.\nA place counts with every room and area in it.", "", {} },
+		{ Kind::kWeather, "weather", "Weather", "",
 			"Rain and Snow follow the sky, indoors too.\nSnowy region: a region where it often snows, whatever the sky.", "", kWeathers },
-		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", {} },
-		{ Kind::kSpell, "spell", "Spell Effect",
+		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", {} },
+		{ Kind::kSpell, "spell", "Spell Effect", "",
 			"A spell, power, shout, potion or other effect currently affecting {}.\nListed by spell name, not effect name.\n"
 			"Any spell, scroll or potion with the same effects counts.",
 			"", {} },
@@ -291,6 +292,13 @@ namespace SituationRules
 	inline bool HasForms(Kind a_kind)
 	{
 		return a_kind == Kind::kPlace || a_kind == Kind::kSpell;
+	}
+
+	// A kind that is so or not, with nothing to choose: its row is one of two states
+	// (KindInfo::label, negLabel).
+	inline bool TwoState(Kind a_kind)
+	{
+		return !HasValues(a_kind) && !HasForms(a_kind) && a_kind != Kind::kTimeOfDay;
 	}
 
 	// The forms a Place or Spell row lists; a row of another kind lists none.
@@ -358,13 +366,19 @@ namespace SituationRules
 		return text;
 	}
 
-	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not indoors",
-	// "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on".
+	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not in rain",
+	// "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on"; a two-state row negated
+	// reads as its negLabel, "not in combat", "outdoors".
 	inline std::string RowText(const Row& a_row)
 	{
 		const auto& info = InfoOf(a_row.kind);
 		if (NothingSelected(a_row)) {
 			return std::format("{} (nothing selected)", info.label);
+		}
+		if (TwoState(a_row.kind) && a_row.negated) {
+			std::string phrase = info.negLabel;
+			phrase[0] = static_cast<char>(ExampleMod::AsciiToLower(static_cast<unsigned char>(phrase[0])));
+			return phrase;
 		}
 		std::string phrase;
 		if (!info.values.empty()) {

@@ -558,7 +558,7 @@ The situations an actor is in, the lowest in the window's list first
 Default (`OutfitRows::Resolve`). Every situation is its rules (docs/custom-situations.md
 §2-§5, §8): the presets' as installed are below, edited like the user's. Evaluate reads only
 the situations whose row holds an outfit for the actor. In combat a situation applies only
-with `Apply in combat` on, off for every preset as installed, so a fight is fought in the
+with `Allow during combat` on, off for every preset as installed, so a fight is fought in the
 default outfit unless one does. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
 (§6) through the first release's fixed rules: Town, Cold by weather (while cloudy weather

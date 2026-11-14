@@ -16,8 +16,9 @@
 //                     over the outfits it shows; a click on an outfit row of either pane shows
 //                     its details and puts it on the preview
 //   Condition editor - a user's situation's conditions (docs/custom-situations.md §7): a line
-//                     per row with Not, its kind and Remove, its values, times, places or spells
-//                     under it; Add Condition..., Apply in combat, the Applies line
+//                     per row that reads as a sentence (a two-state dropdown, or the kind, an
+//                     operator dropdown and its values), places or spells under it, a × at each
+//                     line's end; Add Condition..., Allow during combat, the Applies line
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
@@ -42,6 +43,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstring>
 #include <format>
 #include <optional>
@@ -71,6 +73,8 @@ namespace CaptureWindow::Internal
 		constexpr const char* kUnnamed = "Unnamed Situation";
 		// A line in an outfit row's place under a heading.
 		constexpr const char* kPiecesLine = "Items not in the Wardrobe";
+		// The widest time a Time of day dropdown shows, for its width.
+		constexpr const char* kWidestTime = "12:30 AM";
 
 		// --- Edits ------------------------------------------------------------
 
@@ -534,30 +538,97 @@ namespace CaptureWindow::Internal
 		}
 
 		// --- Condition editor -------------------------------------------------
+		//
+		// A condition reads as a sentence (docs/custom-situations.md §7): a two-state kind is one
+		// dropdown of its two states ("In combat" / "Not in combat"); the others are the kind's name,
+		// an operator dropdown ("is" / "is not", "is any of" / "is none of" with several selected,
+		// "between" / "not between") and their values: a multi-choice dropdown, the two times, or
+		// the places or spells listed under the line. Each condition, place and spell has a × at
+		// the line's right end.
 
-		// The values of `a_row`'s kind as checkboxes, side by side while the pane has room.
-		// Returns true when one was ticked or unticked.
-		bool DrawRowValues(SituationRules::Row& a_row)
+		// The operator a row with values or forms reads with: "is" / "is not" up to one
+		// selected, "is any of" / "is none of" with more.
+		const char* OperatorLabel(const SituationRules::Row& a_row, bool a_negated)
 		{
-			const auto& style = ImGui::GetStyle();
-			const float right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
-			const auto  values = SituationRules::InfoOf(a_row.kind).values;
-			bool        changed = false;
-			for (std::size_t i = 0; i < values.size(); ++i) {
-				const auto& value = values[i];
-				if (i > 0) {
-					const float width = ImGui::GetFrameHeight() + style.ItemInnerSpacing.x + ImGui::CalcTextSize(value.label).x;
-					if (ImGui::GetItemRectMax().x + style.ItemSpacing.x + width <= right) {
-						ImGui::SameLine();
+			const auto count = SituationRules::HasValues(a_row.kind) ? static_cast<std::size_t>(std::popcount(a_row.values)) : SituationRules::FormsOf(a_row).size();
+			if (count > 1) {
+				return a_negated ? "is none of" : "is any of";
+			}
+			return a_negated ? "is not" : "is";
+		}
+
+		// A dropdown of two choices, `a_positive` while `a_negated` is off and `a_negative` on: a
+		// row's operator, or a two-state condition itself. Returns true when switched; `a_hovered`
+		// tells the caller to show the kind's help (never while open).
+		bool DrawNegationDropdown(const char* a_id, const char* a_positive, const char* a_negative, bool& a_negated, bool& a_hovered)
+		{
+			const Theme::FieldStyle style{};
+			ImGui::SetNextItemWidth((std::max)(Theme::DropdownWidth(a_positive, style), Theme::DropdownWidth(a_negative, style)));
+			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_None, style);
+			a_hovered = !open && ImGui::IsItemHovered();
+			bool changed = false;
+			if (open) {
+				for (const bool negative : { false, true }) {
+					bool chosen = negative == a_negated;
+					if (Theme::DropdownRow(negative ? a_negative : a_positive, &chosen, false) && negative != a_negated) {
+						a_negated = negative;
+						changed = true;
 					}
 				}
-				bool ticked = (a_row.values & value.bit) != 0;
-				if (Theme::Checkbox(value.label, &ticked)) {
-					a_row.values ^= value.bit;
-					changed = true;
+			}
+			Theme::EndCombo(open, a_negated ? a_negative : a_positive, style);
+			return changed;
+		}
+
+		// The values of `a_row`'s kind as a multi-choice dropdown, the ticked ones its preview
+		// ("Rain, Snow"), a greyed Select... with none; `a_width` is the room it takes. Returns
+		// true when one was ticked or unticked.
+		bool DrawValuesDropdown(SituationRules::Row& a_row, float a_width)
+		{
+			constexpr const char* kSelect = "Select...";
+
+			const auto  values = SituationRules::InfoOf(a_row.kind).values;
+			std::string preview;
+			for (const auto& value : values) {
+				if (a_row.values & value.bit) {
+					preview += (preview.empty() ? "" : ", ") + std::string(value.label);
 				}
 			}
+			const Theme::FieldStyle style{ .previewIsHint = preview.empty() };
+			ImGui::SetNextItemWidth(a_width);
+			const bool open = Theme::BeginCombo("##values", ImGuiComboFlags_HeightLargest, style);
+			bool       changed = false;
+			if (open) {
+				for (const auto& value : values) {
+					bool ticked = (a_row.values & value.bit) != 0;
+					if (Theme::DropdownRow(value.label, &ticked, true)) {  // stays open for several ticks
+						a_row.values ^= value.bit;
+						changed = true;
+					}
+				}
+			}
+			Theme::EndCombo(open, preview.empty() ? kSelect : preview.c_str(), style);
 			return changed;
+		}
+
+		// The widths a values dropdown asks for: the least that shows its widest value, and the
+		// most it needs, every value ticked.
+		struct ValuesWidth
+		{
+			float least;
+			float most;
+		};
+
+		ValuesWidth ValuesDropdownWidth(SituationRules::Kind a_kind)
+		{
+			const Theme::FieldStyle style{};
+			std::string             all;
+			float                   least = 0.0f;
+			for (const auto& value : SituationRules::InfoOf(a_kind).values) {
+				least = (std::max)(least, Theme::DropdownWidth(value.label, style));
+				all += (all.empty() ? "" : ", ") + std::string(value.label);
+			}
+			return { least, Theme::ComboWidth(all.c_str(), style) };
 		}
 
 		// A dropdown of the times of day, `a_minutes` (after midnight) its choice. Returns true
@@ -568,7 +639,7 @@ namespace CaptureWindow::Internal
 
 			const Theme::FieldStyle style{};
 			const auto              current = SituationRules::TimeText(a_minutes);
-			ImGui::SetNextItemWidth(Theme::DropdownWidth("12:30 AM", style));
+			ImGui::SetNextItemWidth(Theme::DropdownWidth(kWidestTime, style));
 			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_HeightLarge, style);
 			bool       changed = false;
 			if (open) {
@@ -582,6 +653,43 @@ namespace CaptureWindow::Internal
 			}
 			Theme::EndCombo(open, current.c_str(), style);
 			return changed;
+		}
+
+		// `[8 PM] and [6 AM]`, a Time of day row's range. Returns true when a time was changed.
+		bool DrawTimeRange(SituationRules::Row& a_row)
+		{
+			bool changed = DrawTimeDropdown("##from", a_row.from);
+			ImGui::SameLine();
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted("and");
+			ImGui::SameLine();
+			return DrawTimeDropdown("##to", a_row.to) || changed;
+		}
+
+		float TimeRangeWidth()
+		{
+			const float spacing = ImGui::GetStyle().ItemSpacing.x;
+			return Theme::DropdownWidth(kWidestTime, Theme::FieldStyle{}) * 2.0f + ImGui::CalcTextSize("and").x + spacing * 2.0f;
+		}
+
+		// Whether `a_width` more fits on the line just laid out, before `a_right`.
+		bool FitsOnLine(float a_width, float a_right)
+		{
+			return ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x + a_width <= a_right;
+		}
+
+		// A × (Theme::ClearButton) `a_side` square on the line just laid out, its centre on
+		// `a_centreX` and its top at `a_top`; `a_tip` on hover. Returns true when clicked. The
+		// next item starts under the line, so lay it out before anything that wraps under it.
+		bool DrawRemoveCross(const char* a_id, float a_centreX, float a_top, float a_side, const char* a_tip)
+		{
+			ImGui::SameLine();
+			ImGui::SetCursorScreenPos(ImVec2(a_centreX - a_side * 0.5f, a_top));
+			const bool clicked = Theme::ClearButton(a_id, a_side);
+			if (ImGui::IsItemHovered()) {
+				Theme::Tooltip(a_tip);
+			}
+			return clicked;
 		}
 
 		enum class ConditionEdit
@@ -618,12 +726,13 @@ namespace CaptureWindow::Internal
 			return none;
 		}
 
-		// A Place or Spell row's forms, a line each with Remove at its right end, one whose plugin
-		// is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
+		// A Place or Spell row's forms, a line each with a × centred on `a_crossX`, one whose
+		// plugin is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
 		// Place... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
 		// link was pressed.
-		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, bool& a_add)
+		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_crossX, bool& a_add)
 		{
+			const bool                 place = a_row.kind == SituationRules::Kind::kPlace;
 			auto&                      forms = SituationRules::FormsOf(a_row);
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < forms.size(); ++i) {
@@ -639,10 +748,10 @@ namespace CaptureWindow::Internal
 					if (ImGui::IsItemHovered()) {
 						Theme::Tooltip(std::format("{} is not loaded.", form.ref.plugin).c_str());
 					}
-				} else if (a_row.kind == SituationRules::Kind::kSpell && ImGui::IsItemHovered()) {
+				} else if (!place && ImGui::IsItemHovered()) {
 					Theme::Tooltip(SpellTip(form, EffectLinesOf(a_request, form)).c_str());
 				}
-				if (Theme::LineLink("Remove")) {
+				if (DrawRemoveCross("##remove", a_crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y, place ? "Remove this place." : "Remove this spell.")) {
 					removed = i;
 				}
 				ImGui::PopID();
@@ -650,58 +759,86 @@ namespace CaptureWindow::Internal
 			if (removed) {
 				forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(*removed));
 			}
-			a_add = Theme::LabelLink(a_row.kind == SituationRules::Kind::kPlace ? "Add Place..." : "Add Spell...", Theme::LinkLine::kNext);
+			a_add = Theme::LabelLink(place ? "Add Place..." : "Add Spell...", Theme::LinkLine::kNext);
 			return removed.has_value();
 		}
 
-		// One condition row: Not, its kind (what it means on hover, the actor's name in it) and
-		// Remove at the line's right end, then indented under it its values, places or spells, or
-		// From and to for Time of day.
-		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row)
+		// One condition, its × at the line's right end (`a_lineRight`): a two-state kind as its
+		// dropdown; else its name (what it means on hover, the actor's name in it), the operator
+		// dropdown and its values dropdown or times, on the same line while they fit and under it
+		// otherwise; a Place or Spell row lists its forms under the line.
+		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_lineRight)
 		{
+			constexpr float kListIndent = 16.0f;  // pixels at 1080p, what sits under the line in from the kind's name
+
 			const auto& info = SituationRules::InfoOf(a_row.kind);
-			auto        edit = ConditionEdit::kNone;
-			if (Theme::Checkbox("Not", &a_row.negated)) {
-				edit = ConditionEdit::kChanged;
+			const auto& style = ImGui::GetStyle();
+			const float side = ImGui::GetFrameHeight();
+			const float crossX = a_lineRight - side * 0.5f;
+			const float contentRight = a_lineRight - side - style.ItemSpacing.x;
+			const float top = ImGui::GetCursorScreenPos().y;
+			const bool  twoState = SituationRules::TwoState(a_row.kind);
+			const bool  time = a_row.kind == SituationRules::Kind::kTimeOfDay;
+			bool        changed = false;
+			bool        hovered = false;
+			if (twoState) {
+				changed = DrawNegationDropdown("##state", info.label, info.negLabel, a_row.negated, hovered);
+			} else {
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted(info.label);
+				hovered = ImGui::IsItemHovered();
+				ImGui::SameLine();
+				bool operatorHovered = false;
+				changed = DrawNegationDropdown("##operator", time ? "between" : OperatorLabel(a_row, false), time ? "not between" : OperatorLabel(a_row, true),
+					a_row.negated, operatorHovered);
 			}
-			if (ImGui::IsItemHovered()) {
-				Theme::Tooltip("Holds while this is not so.");
-			}
-			ImGui::SameLine();
-			ImGui::TextUnformatted(info.label);
-			if (ImGui::IsItemHovered()) {
+			if (hovered) {
 				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
-			if (Theme::LineLink("Remove")) {
-				edit = ConditionEdit::kRemove;
-			}
-			const float indent = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x;  // under the kind's name
-			ImGui::Indent(indent);
-			bool changed = false;
-			bool addForm = false;
+			// The values on the line while they fit; else under it, after the ×, which ends the line.
+			bool under = false;
 			if (!info.values.empty()) {
-				changed = DrawRowValues(a_row);
-			} else if (SituationRules::HasForms(a_row.kind)) {
-				changed = DrawFormList(a_request, a_row, addForm);
-			} else if (a_row.kind == SituationRules::Kind::kTimeOfDay) {
-				ImGui::AlignTextToFramePadding();
-				ImGui::TextUnformatted("From");
-				ImGui::SameLine();
-				changed = DrawTimeDropdown("##from", a_row.from);
-				ImGui::SameLine();
-				ImGui::TextUnformatted("to");
-				ImGui::SameLine();
-				changed = DrawTimeDropdown("##to", a_row.to) || changed;
+				const auto width = ValuesDropdownWidth(a_row.kind);
+				if (FitsOnLine(width.least, contentRight)) {
+					ImGui::SameLine();
+					changed = DrawValuesDropdown(a_row, (std::min)(width.most, contentRight - ImGui::GetCursorScreenPos().x)) || changed;
+				} else {
+					under = true;
+				}
+			} else if (time) {
+				if (FitsOnLine(TimeRangeWidth(), contentRight)) {
+					ImGui::SameLine();
+					changed = DrawTimeRange(a_row) || changed;
+				} else {
+					under = true;
+				}
 			}
-			ImGui::Unindent(indent);
-			if (edit == ConditionEdit::kNone && addForm) {
+			const bool removed = DrawRemoveCross("##removeRow", crossX, top, side, "Remove this condition.");
+			bool       addForm = false;
+			if (under || SituationRules::HasForms(a_row.kind)) {
+				const float indent = kListIndent * Theme::Scale();
+				ImGui::Indent(indent);
+				if (!info.values.empty()) {
+					changed = DrawValuesDropdown(a_row, (std::min)(ValuesDropdownWidth(a_row.kind).most, contentRight - ImGui::GetCursorScreenPos().x)) || changed;
+				} else if (time) {
+					changed = DrawTimeRange(a_row) || changed;
+				} else {
+					changed = DrawFormList(a_request, a_row, crossX, addForm) || changed;
+				}
+				ImGui::Unindent(indent);
+			}
+			if (removed) {
+				return ConditionEdit::kRemove;
+			}
+			if (addForm) {
 				return ConditionEdit::kAddForm;
 			}
-			return edit == ConditionEdit::kNone && changed ? ConditionEdit::kChanged : edit;
+			return changed ? ConditionEdit::kChanged : ConditionEdit::kNone;
 		}
 
-		// Add Condition...: a dropdown of the kinds, closed by a choice; returns the one chosen.
-		std::optional<SituationRules::Kind> DrawAddCondition()
+		// Add Condition...: a dropdown of the kinds, closed by a choice; returns the one chosen. A
+		// two-state kind the situation has already is greyed: a second row of it adds nothing.
+		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
 		{
 			constexpr const char* kAddCondition = "Add Condition...";
 
@@ -711,30 +848,34 @@ namespace CaptureWindow::Internal
 			std::optional<SituationRules::Kind> added;
 			if (open) {
 				for (const auto& info : SituationRules::kKinds) {
-					bool chosen = false;
+					const bool present = SituationRules::TwoState(info.kind) &&
+					                     std::ranges::any_of(a_rules.rows, [&info](const SituationRules::Row& a_row) { return a_row.kind == info.kind; });
+					bool       chosen = false;
+					ImGui::BeginDisabled(present);
 					if (Theme::DropdownRow(info.label, &chosen, false)) {
 						added = info.kind;
 						ImGui::CloseCurrentPopup();
 					}
+					ImGui::EndDisabled();
 				}
 			}
 			Theme::EndCombo(open, kAddCondition, style);
 			return added;
 		}
 
-		// Apply in combat, ticked and greyed while an In combat condition needs it.
-		bool DrawApplyInCombat(const State& a_state, SituationRules::Rules& a_rules)
+		// Allow during combat, ticked and greyed while an In combat condition needs it.
+		bool DrawAllowDuringCombat(const State& a_state, SituationRules::Rules& a_rules)
 		{
 			const bool forced = !a_rules.applyInCombat && SituationRules::AppliesInCombat(a_rules);
 			bool       ticked = forced || a_rules.applyInCombat;
 			BeginItemDisabled(a_state, forced);
-			const bool changed = Theme::Checkbox("Apply in combat", &ticked);
+			const bool changed = Theme::Checkbox("Allow during combat", &ticked);
 			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			EndItemDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (hovered) {
 				Theme::Tooltip(forced ? "On while the situation has an In combat condition." :
-										"The situation can apply during a fight.\n\nOff: In combat, the default outfit is worn.");
+										"In combat, the default outfit is normally worn.\nOn, this situation can apply in combat too.");
 			}
 			if (changed) {
 				a_rules.applyInCombat = ticked;
@@ -743,20 +884,24 @@ namespace CaptureWindow::Internal
 		}
 
 		// A user's situation's conditions as edited: a line per row (DrawConditionRow), Add
-		// Condition..., Apply in combat, then the Applies line they make. Returns true on a change;
-		// sets `a_addForm` when a Place or Spell row's Add link was pressed, that row in
+		// Condition..., Allow during combat, then the Applies line they make. Returns true on a
+		// change; sets `a_addForm` when a Place or Spell row's Add link was pressed, that row in
 		// SituationForm::formRow.
 		bool DrawConditionEditor(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
 		{
 			Theme::LabelText("Conditions");
 			if (Theme::LabelHelpMark()) {
-				DrawHelpTooltip("The situation applies while all its conditions hold.\nTick several values of one condition for any of them.");
+				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
 			}
+			const float                lineRight = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
 			bool                       changed = false;
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
+				if (i > 0) {
+					Theme::SectionGap();  // each condition a field of its own
+				}
 				ImGui::PushID(static_cast<int>(i));
-				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i]);
+				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], lineRight);
 				ImGui::PopID();
 				if (edit == ConditionEdit::kAddForm) {
 					a_state.situationForm.formRow = static_cast<int>(i);
@@ -771,7 +916,10 @@ namespace CaptureWindow::Internal
 			if (removed) {
 				a_rules.rows.erase(a_rules.rows.begin() + static_cast<std::ptrdiff_t>(*removed));
 			}
-			if (const auto kind = DrawAddCondition()) {
+			if (!a_rules.rows.empty()) {
+				Theme::SectionGap();
+			}
+			if (const auto kind = DrawAddCondition(a_rules)) {
 				a_rules.rows.push_back({ .kind = *kind });
 				changed = true;
 				// A Place or Spell row starts empty, so its Add link is pressed for the user.
@@ -780,7 +928,8 @@ namespace CaptureWindow::Internal
 					a_addForm = true;
 				}
 			}
-			changed = DrawApplyInCombat(a_state, a_rules) || changed;
+			Theme::SectionGap();  // not a condition: apart from the list
+			changed = DrawAllowDuringCombat(a_state, a_rules) || changed;
 			Theme::LabelText("Applies");
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			DrawFieldText(SituationRules::Text(a_rules).c_str());
