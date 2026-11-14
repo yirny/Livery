@@ -4,8 +4,10 @@
 //   State        - the one State (CaptureWindowInternal.h, with the constants), the game freeze,
 //                  menu sounds, text trimming
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game while Live Preview is off)
-//   Input        - QueueInput translates engine events and moves the game's cursor;
-//                  FeedInput hands them and the cursor position to ImGui
+//   Input        - QueueInput translates engine events and moves the game's cursor (the
+//                  mouse or the right stick); the controller works the window as the keyboard
+//                  does (RecordPadButton); FeedInput hands them and the cursor position to
+//                  ImGui, with keyboard navigation on
 //   Draw         - page switching, shared list and button-row helpers; the tab column
 //                  (the Dress page, the Wardrobe page, the Situations page, the Chests page while
 //                  Request::offersChests, Appearance) and its rule beside those pages; leaving a
@@ -207,6 +209,54 @@ namespace CaptureWindow::Internal
 		}
 	}
 
+	// The controller works the window as the keyboard does: the D-pad is the arrow keys, which
+	// move the focus, and B is Escape. A presses the focused item (Space) after a D-pad press,
+	// and clicks under the cursor after the right stick moved it (QueueInput); its release lets
+	// go of what its press held, so a drag started under the cursor drops as a mouse drag does.
+	void RecordPadButton(State& a_state, const RE::ButtonEvent& a_button)
+	{
+		using Pad = RE::BSWin32GamepadDevice::Key;
+		const bool down = a_button.IsDown();
+		if (!down && a_button.IsPressed()) {
+			return;  // still held: ImGui repeats a held key itself
+		}
+
+		ImGuiKey key = ImGuiKey_None;
+		switch (a_button.GetIDCode()) {
+		case Pad::kUp:
+			key = ImGuiKey_UpArrow;
+			break;
+		case Pad::kDown:
+			key = ImGuiKey_DownArrow;
+			break;
+		case Pad::kLeft:
+			key = ImGuiKey_LeftArrow;
+			break;
+		case Pad::kRight:
+			key = ImGuiKey_RightArrow;
+			break;
+		case Pad::kB:
+			key = ImGuiKey_Escape;
+			break;
+		case Pad::kA:
+			if (down) {
+				a_state.padClicks = !a_state.padNav;
+			}
+			if (a_state.padClicks) {
+				a_state.pending.push_back({ InputRecord::Kind::kMouseButton, ImGuiMouseButton_Left, down, 0.0f });
+				return;
+			}
+			key = ImGuiKey_Space;
+			break;
+		default:
+			return;
+		}
+		if (key != ImGuiKey_Escape && key != ImGuiKey_Space) {
+			a_state.padNav = true;
+		}
+		a_state.pending.push_back({ InputRecord::Kind::kKey, key, down, 0.0f });
+	}
+
 	// Contract: the cursor position is queued just before these (FeedInput):
 	// ImGui stops moving the cursor after a button change in a frame, so a
 	// position queued after a click would put the click elsewhere.
@@ -243,6 +293,27 @@ namespace CaptureWindow::Internal
 		// ClosePopupToLevel needs at least one open popup.
 		if (ImGui::GetCurrentContext()->OpenPopupStack.Size > 0) {
 			ImGui::ClosePopupToLevel(0, false);
+		}
+		ImGui::SetNavCursorVisible(false);  // no focus frame left from the last open
+	}
+
+	// With keyboard navigation on (FeedInput), ImGui spends Escape in NewFrame on closing a combo,
+	// or on leaving a list (a child window) the focus was in; the page must not take that same
+	// Escape as Back, Exit or Cancel. A list is left this way only while the focus frame showed:
+	// a click in a list also puts the focus in it, and a mouse user's Escape still leaves the page.
+	// A text field being edited keeps its Escape from ImGui's navigation (its own shortcut).
+	// Contract: render thread, after ImGui::NewFrame and before any page reads Escape; FeedInput
+	// noted ImGui's state before NewFrame.
+	void HoldNavEscape(const State& a_state)
+	{
+		if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+			return;
+		}
+		const auto& g = *ImGui::GetCurrentContext();
+		const bool  closedPopup = g.OpenPopupStack.Size < a_state.popupsBefore;
+		const bool  leftList = a_state.navCursorBefore && (g.NavWindow ? g.NavWindow->ID : 0) != a_state.navWindowBefore;
+		if (closedPopup || leftList) {
+			ImGui::SetKeyOwner(ImGuiKey_Escape, ImGuiKeyOwner_Any, ImGuiInputFlags_LockThisFrame);
 		}
 	}
 
@@ -2343,6 +2414,8 @@ namespace CaptureWindow
 			state.viewDragButton = -1;
 			state.viewDragX = 0.0f;
 			state.viewDragY = 0.0f;
+			state.padNav = false;
+			state.padClicks = false;
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.previewOn;
@@ -2527,34 +2600,51 @@ namespace CaptureWindow
 	// --- Input (game thread) --------------------------------------------------
 
 	// Contract: the game sees none of these events (Hooks.cpp), so the Cursor
-	// Menu is handed the mouse moves here, as Photo Mode does; during a drag over
-	// the game they turn the camera instead and the cursor stays put.
+	// Menu is handed the mouse moves and the right stick here, as Photo Mode does
+	// the mouse moves; during a drag over the game the mouse moves turn the camera
+	// instead and the cursor stays put.
 	void QueueInput(RE::InputEvent* const* a_events)
 	{
 		auto&                    state = GetState();
 		const std::scoped_lock   lock(state.mutex);
 		RE::GPtr<RE::CursorMenu> cursorMenu;
+		const auto               handToCursor = [&cursorMenu]() -> RE::MenuEventHandler* {
+			if (!cursorMenu) {
+				if (auto* ui = RE::UI::GetSingleton()) {
+					cursorMenu = ui->GetMenu<RE::CursorMenu>();
+				}
+			}
+			return cursorMenu ? cursorMenu->AsMenuEventHandler() : nullptr;  // via the accessor: the SE/AE/VR build has no static base
+		};
 		for (auto* event = *a_events; event; event = event->next) {
 			if (const auto* button = event->AsButtonEvent()) {
-				RecordButton(state.pending, *button);
+				if (button->GetDevice() == RE::INPUT_DEVICE::kGamepad) {
+					RecordPadButton(state, *button);
+				} else {
+					RecordButton(state.pending, *button);
+				}
+			} else if (auto* stick = event->AsThumbstickEvent()) {
+				if (!stick->IsRight() || (stick->xValue == 0.0f && stick->yValue == 0.0f)) {
+					continue;
+				}
+				state.padNav = false;
+				if (auto* handler = handToCursor()) {
+					handler->ProcessThumbstick(stick);
+				}
 			} else if (const auto* chr = event->AsCharEvent()) {
 				// ASCII only: the game's char events carry the ANSI code page.
 				if (chr->keyCode >= 0x20 && chr->keyCode < 0x7F) {
 					state.pending.push_back({ InputRecord::Kind::kChar, static_cast<int>(chr->keyCode), true, 0.0f });
 				}
 			} else if (auto* move = event->AsMouseMoveEvent()) {
+				state.padNav = false;
 				if (state.viewDragButton >= 0) {
 					state.viewDragX += static_cast<float>(move->mouseInputX);
 					state.viewDragY += static_cast<float>(move->mouseInputY);
 					continue;
 				}
-				if (!cursorMenu) {
-					if (auto* ui = RE::UI::GetSingleton()) {
-						cursorMenu = ui->GetMenu<RE::CursorMenu>();
-					}
-				}
-				if (cursorMenu) {
-					cursorMenu->AsMenuEventHandler()->ProcessMouseMove(move);  // via the accessor: the SE/AE/VR build has no static base
+				if (auto* handler = handToCursor()) {
+					handler->ProcessMouseMove(move);
 				}
 			}
 		}
@@ -2574,6 +2664,15 @@ namespace CaptureWindow
 		}
 
 		auto& io = ImGui::GetIO();
+		// The arrow keys (and the D-pad, RecordPadButton) move the focus, Space or Enter presses
+		// the focused item. Navigation must not claim the keyboard: W/A/S/D still move the camera.
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+		io.ConfigNavCaptureKeyboard = false;
+		const auto& g = *ImGui::GetCurrentContext();
+		state.navWindowBefore = g.NavWindow ? g.NavWindow->ID : 0;
+		state.navCursorBefore = g.NavCursorVisible;
+		state.popupsBefore = g.OpenPopupStack.Size;
+
 		if (auto* cursor = RE::MenuCursor::GetSingleton()) {
 			const auto& position = cursor->GetRuntimeData();
 			io.AddMousePosEvent(position.cursorPosX, position.cursorPosY);
@@ -2594,6 +2693,7 @@ namespace CaptureWindow
 			ResetImGuiState(io);
 			state.resetImGui = false;
 		}
+		HoldNavEscape(state);
 		FinishLeave(state);  // before the page's width, which a switch changes
 
 		// The width follows the screen height, as the font does, so an ultrawide screen does not stretch the window.
