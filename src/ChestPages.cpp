@@ -529,7 +529,7 @@ namespace CaptureWindow::Internal
 		CountLinks                 links;
 		if (BeginColumns("chest")) {
 			const float height = EditorListHeight(a_state);
-			ImGui::TableNextColumn();
+			NextColumn();
 			ResetCellBaseline();
 			Theme::LabelText("Items", Theme::HeadingIcon::kBackpack);
 			Theme::AfterFieldGap();
@@ -538,7 +538,7 @@ namespace CaptureWindow::Internal
 			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
 			links.chest = DrawCountLink(a_state, "Chest...", a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
-			ImGui::TableNextColumn();
+			NextColumn();
 			ResetCellBaseline();
 			Theme::LabelText("In Chest", Theme::HeadingIcon::kChest);
 			Theme::AfterFieldGap();

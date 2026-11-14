@@ -409,6 +409,7 @@ namespace CaptureWindow::Internal
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
 	bool                                 BeginColumns(const char* a_id, int a_count = 2);
+	void                                 NextColumn();  // in place of ImGui::TableNextColumn in BeginColumns
 	void                                 EndColumns(int a_count = 2);
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
 	Theme::HeadingIcon                   GroupIcon(CaptureWindow::PieceGroup a_group);  // the icon of a group's heading

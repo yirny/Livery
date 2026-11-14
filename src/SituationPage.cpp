@@ -1053,9 +1053,9 @@ namespace CaptureWindow::Internal
 		auto details = DetailsAction::kNone;
 		auto outfitView = OutfitViewAction::kNone;
 		if (BeginColumns("situations")) {
-			ImGui::TableNextColumn();
+			NextColumn();
 			reroll = DrawSituationList(a_state);
-			ImGui::TableNextColumn();
+			NextColumn();
 			ResetCellBaseline();
 			const int viewed = IndexOfOutfit(a_state, form.viewedOutfit);  // after the Situation List, whose clicks change it
 			switch (ShownPane(a_state, viewed)) {

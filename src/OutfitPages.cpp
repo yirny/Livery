@@ -633,7 +633,7 @@ namespace CaptureWindow::Internal
 		BrowserControls controls;
 		int             clicked = -1;
 		if (BeginColumns("outfits")) {
-			ImGui::TableNextColumn();
+			NextColumn();
 			if (chests) {
 				// The chest being edited is left out of its own Add from Chest... list.
 				const int except = a_state.loadTarget == LoadTarget::kChest ? a_state.chest.chest : -1;
@@ -642,7 +642,7 @@ namespace CaptureWindow::Internal
 				controls = DrawBrowserControls(a_state, a_state.loadBrowser);
 				clicked = DrawOutfitList(a_state, a_state.loadBrowser, a_state.previewedOutfit, controls.height);
 			}
-			ImGui::TableNextColumn();
+			NextColumn();
 			ResetCellBaseline();
 			if (chests) {
 				DrawChestDetails(a_state, a_state.previewedChest, "Select a chest");
@@ -1615,10 +1615,10 @@ namespace CaptureWindow::Internal
 		int             clicked = -1;
 		auto            formClick = ManageFormClick::kNone;
 		if (BeginColumns("manage")) {
-			ImGui::TableNextColumn();
+			NextColumn();
 			controls = DrawBrowserControls(a_state, a_state.manageBrowser);
 			clicked = DrawOutfitList(a_state, a_state.manageBrowser, a_state.manage.outfit, controls.height);
-			ImGui::TableNextColumn();
+			NextColumn();
 			ResetCellBaseline();
 			formClick = DrawManageForm(a_state);
 			EndColumns();

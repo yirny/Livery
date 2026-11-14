@@ -319,10 +319,16 @@ passing through them.
 The arrow keys move the focus between the window's items (ImGui keyboard navigation), Space or
 Enter presses the focused item. Every sarrai-common widget takes part (`ImGuiButtonFlags_EnableNav`
 on its `InvisibleButton`) and a list's rows are reached directly (`ImGuiChildFlags_NavFlattened`).
+Up and Down stay in the part the focus is in: the tab column or the page, and on a page of
+`BeginColumns` the column (`PushNavPart`, `NextColumn`); ImGui alone scores an item beside the
+focus as one pixel further and would jump across. Left and Right cross the parts.
 Navigation never claims the keyboard (`ConfigNavCaptureKeyboard` off), so W/A/S/D still move
 the camera. An Escape that ImGui spent closing a combo is not also the page's Back, Exit or
 Cancel (`HoldNavEscape`). The right stick's return to the centre is handed over too, or the
-Cursor Menu keeps moving the cursor at the last tilt. The controller works as
+Cursor Menu keeps moving the cursor at the last tilt. sarrai-common's overlay drops the
+controller keys ImGui's Win32 backend reads from XInput itself: a button change there made
+ImGui hold back the game's cursor for a frame, the OS cursor standing in its place (the focus
+highlight went out; a window being dragged jumped). The controller works as
 the keyboard does: the D-pad is the arrow keys, B is Escape, and A presses the focused item
 after a D-pad press, or clicks under the cursor after the right stick moved it (the right stick
 is handed to the Cursor Menu, as the mouse moves are), so drag and drop works with A held.

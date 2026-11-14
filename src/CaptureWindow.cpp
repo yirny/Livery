@@ -558,9 +558,25 @@ namespace CaptureWindow::Internal
 		ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0.0f;
 	}
 
+	// ImGui scores an Up or Down move by vertical distance nearly alone (an item beside the focus
+	// counts as a pixel further), so a move could jump from a tab to the page, or from one of
+	// BeginColumns' columns into the next. During such a move in this window, a part the focus is
+	// not in (`a_holdsFocus` false) takes no part: NoNav for that frame. Left and Right still cross.
+	// A focus in a popup or combo is left alone.
+	// Contract: render thread, inside the window; pop it with ImGui::PopItemFlag.
+	void PushNavPart(bool a_holdsFocus)
+	{
+		const auto& g = *ImGui::GetCurrentContext();
+		const bool  vertical = g.NavMoveScoringItems && (g.NavMoveDir == ImGuiDir_Up || g.NavMoveDir == ImGuiDir_Down);
+		const bool  focusHere = g.NavWindow && g.NavWindow->RootWindowForNav == g.CurrentWindow->RootWindowForNav;
+		const bool  noNav = (g.CurrentItemFlags & ImGuiItemFlags_NoNav) != 0;  // an outer part's
+		ImGui::PushItemFlag(ImGuiItemFlags_NoNav, noNav || (vertical && focusHere && !a_holdsFocus));
+	}
+
 	// The outfit pages' `a_count` equal columns; every table of them on a page lines up, each
-	// with its own `a_id`. When it returns true, fill the cells and call EndColumns with the
-	// same count, which draws the rules between them (Theme::ColumnRule).
+	// with its own `a_id`. When it returns true, fill the cells, each begun with NextColumn,
+	// and call EndColumns with the same count, which draws the rules between them
+	// (Theme::ColumnRule).
 	bool BeginColumns(const char* a_id, int a_count)
 	{
 		constexpr float kColumnGap = 36.0f;  // pixels at 1080p, between the columns
@@ -577,8 +593,29 @@ namespace CaptureWindow::Internal
 		return true;
 	}
 
+	// The next cell of BeginColumns, in place of ImGui::TableNextColumn: an Up or Down move
+	// enters it only from inside it (PushNavPart). A column holds the focus when the x the move
+	// keeps (ImGui's scoring rect) falls in it; the outer columns reach out to either side, as a
+	// list in the first one reaches the window's edge.
+	void NextColumn()
+	{
+		auto* table = ImGui::GetCurrentTable();
+		if (table->CurrentColumn >= 0) {
+			ImGui::PopItemFlag();  // the previous cell's PushNavPart
+		}
+		ImGui::TableNextColumn();
+		const auto& column = table->Columns[table->CurrentColumn];
+		const float focusX = ImGui::GetCurrentContext()->NavScoringRect.GetCenter().x;
+		const bool  first = table->CurrentColumn == 0;
+		const bool  last = table->CurrentColumn == table->ColumnsCount - 1;
+		PushNavPart((first || focusX >= column.MinX) && (last || focusX < column.MaxX));
+	}
+
 	void EndColumns(int a_count)
 	{
+		if (ImGui::GetCurrentTable()->CurrentColumn >= 0) {
+			ImGui::PopItemFlag();  // the last cell's PushNavPart (NextColumn)
+		}
 		ImGui::EndTable();
 		ImGui::PopStyleVar();
 		// The table is the last item: its rect spans every column, which are equally wide.
@@ -603,8 +640,9 @@ namespace CaptureWindow::Internal
 
 	// The Dress page, the Wardrobe page, the Situations page, the Chests page (Request::offersChests),
 	// then Appearance, each centred between the window's left edge and the rule. A click on
-	// another tab leaves the page for it (RequestLeave).
-	void DrawTabColumn(State& a_state)
+	// another tab leaves the page for it (RequestLeave). Returns whether the keyboard focus is
+	// on a tab, which keeps an Up or Down move in the column (PushNavPart).
+	bool DrawTabColumn(State& a_state)
 	{
 		struct TabOption
 		{
@@ -620,9 +658,14 @@ namespace CaptureWindow::Internal
 			{ Theme::TabIcon::kAppearance, "Appearance", Page::kAppearance },
 		} };
 
+		// A tab's ID is its name's (Theme::Tab), in this scope.
+		const ImGuiID focus = ImGui::GetCurrentContext()->NavId;
+		const bool    focusOnTab = std::ranges::any_of(kTabs, [focus](const TabOption& a_tab) { return ImGui::GetID(a_tab.name) == focus; });
+
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
 		const float  left = origin.x + Theme::TabOffsetX();
 		BeginPageDisabled(a_state);
+		PushNavPart(focusOnTab);
 		ImGui::SetCursorScreenPos(ImVec2(left, origin.y + Theme::TabTopGap()));
 		for (const auto& tab : kTabs) {
 			if (a_state.request.saveOnly && (tab.page == Page::kManage || tab.page == Page::kSituations)) {
@@ -638,7 +681,9 @@ namespace CaptureWindow::Internal
 			}
 			ImGui::SetCursorScreenPos(ImVec2(left, ImGui::GetCursorScreenPos().y));  // a new line starts at the content's left edge
 		}
+		ImGui::PopItemFlag();
 		EndPageDisabled();
+		return focusOnTab;
 	}
 
 	void RequestLeave(State& a_state, PendingLeave a_leave)
@@ -1974,7 +2019,7 @@ namespace CaptureWindow::Internal
 	// the pieces under their count line, as the Load page's details lay them out.
 	void DrawPieceColumn(const State& a_state, const char* a_label, const std::vector<std::size_t>& a_pieces, std::size_t a_unloaded)
 	{
-		ImGui::TableNextColumn();
+		NextColumn();
 		ResetCellBaseline();
 		ImGui::PushID(a_label);
 		Theme::LabelText(a_label);
@@ -2002,7 +2047,7 @@ namespace CaptureWindow::Internal
 		ImGui::EndDisabled();
 		Theme::AfterFieldGap();
 		if (BeginColumns("columns", 3)) {
-			ImGui::TableNextColumn();
+			NextColumn();
 			const auto controls = DrawBrowserControls(a_state, a_state.updateBrowser);
 			input.escapeTaken = controls.escapeTaken;
 			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit, controls.height);
@@ -2010,7 +2055,7 @@ namespace CaptureWindow::Internal
 				const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
 				DrawPieceColumn(a_state, "Current Items", outfit.pieces, outfit.unloadedPieces);
 			} else {
-				ImGui::TableNextColumn();
+				NextColumn();
 				ResetCellBaseline();
 				Theme::LabelText("Select an outfit to update");
 			}
@@ -2733,9 +2778,10 @@ namespace CaptureWindow
 		// centring start after the column; the rule runs the window's height between them.
 		const ImVec2 contentTop = ImGui::GetCursorScreenPos();
 		if (tabs) {
-			DrawTabColumn(state);
+			const bool focusOnTab = DrawTabColumn(state);
 			ImGui::SetCursorScreenPos(ImVec2(contentTop.x + Theme::TabColumnWidth(), contentTop.y));
 			ImGui::BeginGroup();
+			PushNavPart(!focusOnTab);
 		}
 		DrawTitle(state);
 		switch (state.page) {
@@ -2768,6 +2814,7 @@ namespace CaptureWindow
 			break;
 		}
 		if (tabs) {
+			ImGui::PopItemFlag();  // the page's PushNavPart
 			ImGui::EndGroup();
 			const float padding = ImGui::GetStyle().WindowPadding.y;
 			Theme::TabRule(contentTop.x, contentTop.y - padding, ImGui::GetItemRectMax().y + padding);
