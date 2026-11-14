@@ -246,7 +246,11 @@ A controller button with LB, RB, LT or RT held or none (`[Hotkey] Gamepad`, `Gam
 the ButtonEvent ID code: an XInput button mask, 9 / 10 for a trigger; none by default) opens it
 the same way. The settings page shows the controller row only while
 `BSInputDeviceManager::IsGamepadEnabled`, so a player without a controller sees no change.
-Triggers as ButtonEvents and the controller row's visibility are not yet checked in game.
+While the page waits for a key or a button, SKSE Menu Framework's toggle key (F1, LB) is off
+(`SetHotkeyEnabled`, put back as it was when the wait ends), so it can be picked; a wait the
+menu closed on (`GetMainWindow()->IsOpen`) ends at the next input event, taking nothing.
+Checked in game: LT and RB as modifiers, the controller hotkey opening the window. Not yet
+checked: the controller row's visibility, the toggle key off while waiting.
 
 With nothing under the crosshair, or anything but a person (`TESObjectREFR::IsHumanoid`, the
 `ActorTypeNPC` keyword: not a horse or a creature), the hotkey opens the window on the player,
