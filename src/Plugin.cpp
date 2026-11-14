@@ -1776,10 +1776,13 @@ namespace
 
 			for (auto* event = *events; event; event = event->next) {
 				auto* button = event->AsButtonEvent();
-				if (!button || button->GetDevice() != RE::INPUT_DEVICE::kKeyboard || !button->IsDown()) {
+				if (!button || !button->IsDown()) {
 					continue;
 				}
-				if (Settings::IsHotkey(button->GetIDCode())) {
+				const auto device = button->GetDevice();
+				const auto code = button->GetIDCode();
+				if ((device == RE::INPUT_DEVICE::kKeyboard && Settings::IsHotkey(code)) ||
+					(device == RE::INPUT_DEVICE::kGamepad && Settings::IsGamepadHotkey(code))) {
 					const auto handle = g_target;
 					SKSE::GetTaskInterface()->AddTask([handle] { Capture(handle); });
 					break;

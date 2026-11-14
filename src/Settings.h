@@ -151,4 +151,10 @@ namespace Settings
 	// Contract: call from the input path while handling that key's event, since the
 	// modifier is read from the keyboard's current state.
 	bool IsHotkey(std::uint32_t a_scanCode);
+
+	// Whether a controller button going down (its ButtonEvent ID code) is the controller
+	// hotkey ([Hotkey] Gamepad, none by default), with its modifier held when one is set.
+	// Contract: call from the input path while handling that button's event, since the
+	// modifier is read from the controller's current state. Returns at once while unset.
+	bool IsGamepadHotkey(std::uint32_t a_code);
 }

@@ -4,7 +4,7 @@
 //   Constants  - the INI's sections, keys and defaults (kIniKeys, with the comments a new
 //                file gets), the setting options, the NPC groups
 //   State      - each setting as last read or chosen, in atomics the game and render threads share
-//   Keys       - the hotkey's modifiers and key names
+//   Keys       - the hotkey's modifiers and key names; the controller hotkey's buttons
 //   INI        - Livery.ini's own writer (WriteIniValues: one read and one write, in the file's
 //                encoding, through a temporary file), the template, the keys a newer version
 //                adds, and each setting's save and load
@@ -60,6 +60,8 @@ namespace
 	constexpr auto kHotkeySection = L"Hotkey";
 	constexpr auto kHotkeyKeyKey = L"Key";
 	constexpr auto kHotkeyModifierKey = L"Modifier";
+	constexpr auto kHotkeyGamepadKey = L"Gamepad";
+	constexpr auto kHotkeyGamepadModifierKey = L"GamepadModifier";
 	constexpr auto kCameraSection = L"Camera";
 	constexpr auto kSpeedPercentKey = L"SpeedPercent";
 	constexpr auto kPlayerSection = L"Player";
@@ -95,6 +97,10 @@ namespace
 	constexpr std::uint32_t kDefaultModifier = Key::kLeftShift;  // keep in step with kIniKeys
 	constexpr std::uint32_t kNoModifier = 0;
 
+	// A controller button is its ButtonEvent ID code: an XInput button mask, or 9 / 10 for a trigger.
+	using Pad = RE::BSWin32GamepadDevice::Keys::Key;
+	constexpr std::uint32_t kNoGamepadButton = 0;  // the controller hotkey's default and its "none"; keep in step with kIniKeys
+
 	// The sort columns as the INI names them, in the lists' column order (Settings::SortOrder).
 	constexpr std::array<const wchar_t*, 2> kOutfitSortColumns{ L"Icon", L"Name" };
 	constexpr std::array<const wchar_t*, 3> kItemSortColumns{ L"Name", L"Type", L"Slot" };
@@ -116,7 +122,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 24> kIniKeys{ {
+	constexpr std::array<IniKey, 26> kIniKeys{ {
 		{ kIniSection, kFollowersAndSpouseKey, L"Full",
 			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
 			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
@@ -143,6 +149,11 @@ namespace
 			L"A DirectInput scan code (47 = V)." },
 		{ kHotkeySection, kHotkeyModifierKey, L"42",
 			L"Key to hold with the hotkey: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt. Left and right count the same." },
+		{ kHotkeySection, kHotkeyGamepadKey, L"0",
+			L"Opens Livery from a controller, as the hotkey does. 0 = none.\n"
+			L"An XInput button code (4096 = A, 8192 = B, 16384 = X, 32768 = Y). In game, set it on Livery's settings page." },
+		{ kHotkeySection, kHotkeyGamepadModifierKey, L"0",
+			L"Button to hold with it: 0 = none, 256 = LB, 512 = RB, 9 = LT, 10 = RT." },
 		{ kCameraSection, kSpeedPercentKey, L"100",
 			L"Preview camera speed in percent (10 to 200, 100 = normal): W / A / S / D, mouse drag and wheel zoom.\n"
 			L"Hold Shift to move at half speed." },
@@ -192,6 +203,34 @@ namespace
 		{ Key::kLeftControl, Key::kRightControl },
 		{ Key::kLeftAlt, Key::kRightAlt },
 	} };
+
+	// Every controller button the controller hotkey accepts, with the name the settings page shows.
+	struct GamepadButton
+	{
+		std::uint32_t code;
+		const char*   name;
+	};
+	constexpr std::array<GamepadButton, 16> kGamepadButtons{ {
+		{ Pad::kA, "A" },
+		{ Pad::kB, "B" },
+		{ Pad::kX, "X" },
+		{ Pad::kY, "Y" },
+		{ Pad::kLeftShoulder, "LB" },
+		{ Pad::kRightShoulder, "RB" },
+		{ Pad::kLeftTrigger, "LT" },
+		{ Pad::kRightTrigger, "RT" },
+		{ Pad::kStart, "Start" },
+		{ Pad::kBack, "Back" },
+		{ Pad::kLeftThumb, "LS" },
+		{ Pad::kRightThumb, "RS" },
+		{ Pad::kUp, "D-pad Up" },
+		{ Pad::kDown, "D-pad Down" },
+		{ Pad::kLeft, "D-pad Left" },
+		{ Pad::kRight, "D-pad Right" },
+	} };
+	// The buttons that can be held with the controller hotkey, as Shift, Ctrl and Alt are with the hotkey.
+	constexpr std::array<std::uint32_t, 4> kGamepadModifiers{ Pad::kLeftShoulder, Pad::kRightShoulder, Pad::kLeftTrigger,
+		Pad::kRightTrigger };
 
 	using Settings::NpcAccess;
 
@@ -245,8 +284,11 @@ namespace
 	std::atomic<bool>          g_npcReaction{ true };
 	std::atomic<bool>          g_menuSounds{ true };
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
-	std::atomic<std::uint32_t> g_modifier{ kDefaultModifier };  // left-hand code of a kModifiers entry, or kNoModifier
-	std::atomic<bool>          g_pickingHotkey{ false };        // the settings page waits for the next key
+	std::atomic<std::uint32_t> g_modifier{ kDefaultModifier };         // left-hand code of a kModifiers entry, or kNoModifier
+	std::atomic<bool>          g_pickingHotkey{ false };               // the settings page waits for the next key
+	std::atomic<std::uint32_t> g_gamepadButton{ kNoGamepadButton };    // a kGamepadButtons code, or kNoGamepadButton
+	std::atomic<std::uint32_t> g_gamepadModifier{ kNoGamepadButton };  // a kGamepadModifiers code, or kNoGamepadButton
+	std::atomic<bool>          g_pickingGamepad{ false };              // the settings page waits for the next button
 	std::atomic<float>         g_speedPercent{ kDefaultSpeedPercent };
 	std::atomic<bool>          g_playerAddsMissing{ false };
 	std::atomic<bool>          g_showPlayerInventory{ true };
@@ -312,6 +354,53 @@ namespace
 		const auto modifier = g_modifier.load();
 		const auto key = KeyName(g_hotkey.load());
 		return modifier == kNoModifier ? key : KeyName(modifier) + " + " + key;
+	}
+
+	// nullptr for a code that is no controller button Livery knows.
+	const char* GamepadButtonName(std::uint32_t a_code)
+	{
+		for (const auto& button : kGamepadButtons) {
+			if (button.code == a_code) {
+				return button.name;
+			}
+		}
+		return nullptr;
+	}
+
+	bool IsGamepadModifier(std::uint32_t a_code)
+	{
+		return std::ranges::find(kGamepadModifiers, a_code) != kGamepadModifiers.end();
+	}
+
+	// Contract: reads the controller's current XInput state, so it is only meaningful while a
+	// button event is being handled on the input path. No controller, or one that is not the
+	// game's XInput device (Skyrim VR), holds nothing.
+	bool IsGamepadModifierHeld(std::uint32_t a_code)
+	{
+		auto* manager = RE::BSInputDeviceManager::GetSingleton();
+		auto* gamepad = manager ? skyrim_cast<RE::BSWin32GamepadDevice*>(manager->GetGamepad()) : nullptr;
+		if (!gamepad) {
+			return false;
+		}
+		const auto& state = gamepad->GetRuntimeData().currentState.gamepad;
+		switch (a_code) {
+		case Pad::kLeftTrigger:
+			return state.leftTrigger > REX::W32::XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+		case Pad::kRightTrigger:
+			return state.rightTrigger > REX::W32::XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+		default:
+			return (state.buttons & a_code) != 0;
+		}
+	}
+
+	std::string GamepadHotkeyName()
+	{
+		const auto* button = GamepadButtonName(g_gamepadButton.load());
+		if (!button) {
+			return "None";
+		}
+		const auto* modifier = GamepadButtonName(g_gamepadModifier.load());
+		return modifier ? std::format("{} + {}", modifier, button) : std::string{ button };
 	}
 
 	// --- INI ------------------------------------------------------------------
@@ -630,6 +719,15 @@ namespace
 		WriteIniValues(values);
 	}
 
+	void SaveGamepadHotkey(std::uint32_t a_button, std::uint32_t a_modifier)
+	{
+		const auto       button = std::to_wstring(a_button);
+		const auto       modifier = std::to_wstring(a_modifier);
+		const std::array values{ IniValue{ kHotkeySection, kHotkeyGamepadKey, button },
+			IniValue{ kHotkeySection, kHotkeyGamepadModifierKey, modifier } };
+		WriteIniValues(values);
+	}
+
 	// A missing column or one Livery does not know keeps the default's; a missing direction is ascending.
 	Settings::SortOrder LoadSort(const wchar_t* a_columnKey, const wchar_t* a_descendingKey, std::span<const wchar_t* const> a_columns,
 		Settings::SortOrder a_default)
@@ -656,21 +754,14 @@ namespace
 
 	// --- SKSE Menu Framework page ---------------------------------------------
 
-	// Contract: SKSE Menu Framework calls this on the game's input path for every event,
-	// its menu open or not; returning true keeps the event from the game. Idle unless the
-	// settings page is waiting for a key. A modifier pressed alone keeps waiting, so the
-	// player can hold it and then press the key it modifies; Esc cancels.
-	bool __stdcall OnInput(RE::InputEvent* a_event)
+	// A modifier pressed alone keeps waiting, so the player can hold it and then press the
+	// key it modifies; Esc cancels. Returns whether the event is kept from the game.
+	bool PickKey(const RE::ButtonEvent& a_button)
 	{
-		if (!g_pickingHotkey.load()) {
+		if (a_button.GetDevice() != RE::INPUT_DEVICE::kKeyboard) {
 			return false;
 		}
-		auto* button = a_event ? a_event->AsButtonEvent() : nullptr;
-		if (!button || button->GetDevice() != RE::INPUT_DEVICE::kKeyboard || !button->IsDown()) {
-			return false;
-		}
-
-		const auto code = button->GetIDCode();
+		const auto code = a_button.GetIDCode();
 		if (code == Key::kEscape) {
 			g_pickingHotkey = false;
 			return true;
@@ -694,6 +785,58 @@ namespace
 		return true;
 	}
 
+	// LB, RB, LT or RT pressed alone keeps waiting; pressed while another of them is held, it
+	// is the button and the held one its modifier, so LB + RB can be set. B alone sets none;
+	// Esc on the keyboard cancels. Returns whether the event is kept from the game.
+	bool PickGamepadButton(const RE::ButtonEvent& a_button)
+	{
+		const auto code = a_button.GetIDCode();
+		if (a_button.GetDevice() == RE::INPUT_DEVICE::kKeyboard) {
+			if (code != Key::kEscape) {
+				return false;
+			}
+			g_pickingGamepad = false;
+			return true;
+		}
+		if (a_button.GetDevice() != RE::INPUT_DEVICE::kGamepad || !GamepadButtonName(code)) {
+			return false;
+		}
+
+		auto modifier = kNoGamepadButton;
+		for (const auto candidate : kGamepadModifiers) {
+			if (candidate != code && IsGamepadModifierHeld(candidate)) {
+				modifier = candidate;
+				break;
+			}
+		}
+		if (modifier == kNoGamepadButton && IsGamepadModifier(code)) {
+			return true;
+		}
+		const auto button = modifier == kNoGamepadButton && code == Pad::kB ? kNoGamepadButton : code;
+		g_gamepadButton = button;
+		g_gamepadModifier = modifier;
+		g_pickingGamepad = false;
+		SaveGamepadHotkey(button, modifier);
+		logger::info("Controller hotkey = {} ({}, modifier {}) (SKSE Menu Framework)", GamepadHotkeyName(), button, modifier);
+		return true;
+	}
+
+	// Contract: SKSE Menu Framework calls this on the game's input path for every event,
+	// its menu open or not; returning true keeps the event from the game. Idle unless the
+	// settings page is waiting for a key or a controller button.
+	bool __stdcall OnInput(RE::InputEvent* a_event)
+	{
+		const bool pickingKey = g_pickingHotkey.load();
+		if (!pickingKey && !g_pickingGamepad.load()) {
+			return false;
+		}
+		auto* button = a_event ? a_event->AsButtonEvent() : nullptr;
+		if (!button || !button->IsDown()) {
+			return false;
+		}
+		return pickingKey ? PickKey(*button) : PickGamepadButton(*button);
+	}
+
 	// Puts every setting on the page but the palette (the player's choice of look, and the
 	// camera speed is reset with the rest) back to its default, in memory and in the INI.
 	// Contract: render thread (RenderSettings), after the player confirmed. Keep in step
@@ -704,6 +847,10 @@ namespace
 		g_hotkey = kDefaultHotkey;
 		g_modifier = kDefaultModifier;
 		SaveHotkey(kDefaultHotkey, kDefaultModifier);
+		g_pickingGamepad = false;
+		g_gamepadButton = kNoGamepadButton;
+		g_gamepadModifier = kNoGamepadButton;
+		SaveGamepadHotkey(kNoGamepadButton, kNoGamepadButton);
 		g_notifySituationChanges = false;
 		SaveFlag(kSituationsSection, kNotifyChangesKey, false);
 		g_unusedSlots = kDefaultUnusedSlots;
@@ -940,6 +1087,33 @@ namespace
 			"Default: Except headgear");
 	}
 
+	// The controller hotkey's row, shown only while the game has a controller enabled, so the
+	// page of a player without one looks as it always has. The next button press is taken by
+	// OnInput; "###" keeps the button's ID while its text changes.
+	// Contract: render thread (RenderSettings).
+	void RenderGamepadHotkey()
+	{
+		auto* manager = RE::BSInputDeviceManager::GetSingleton();
+		if (!manager || !manager->IsGamepadEnabled()) {
+			return;
+		}
+		SettingGap();
+		ImGuiMCP::AlignTextToFramePadding();
+		ImGuiMCP::Text("Controller hotkey");
+		ImGuiMCP::SameLine();
+		const bool picking = g_pickingGamepad.load();
+		const auto label = picking ? std::string{ "Press a button (Esc cancels)###GamepadHotkey" } : GamepadHotkeyName() + "###GamepadHotkey";
+		if (ImGuiMCP::Button(label.c_str())) {
+			g_pickingGamepad = !picking;
+			g_pickingHotkey = false;
+		}
+		ImGuiMCP::SetItemTooltip(
+			"Opens Livery from your controller, as the hotkey does.\n"
+			"To combine buttons, hold LB, RB, LT or RT, then press another.\n"
+			"Press B on its own to clear it.\n\n"
+			"Default: None");
+	}
+
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
 	// the page is shown. The INI is written only when the player clicks.
 	// Labels are short; each setting explains itself in a tooltip (CLAUDE.md, player-facing English).
@@ -955,8 +1129,11 @@ namespace
 		const auto label = picking ? std::string{ "Press a key (Esc cancels)###Hotkey" } : HotkeyName() + "###Hotkey";
 		if (ImGuiMCP::Button(label.c_str())) {
 			g_pickingHotkey = !picking;
+			g_pickingGamepad = false;
 		}
 		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n\nDefault: Shift + V");
+
+		RenderGamepadHotkey();
 
 		SettingGap();
 
@@ -1179,6 +1356,14 @@ namespace Settings
 		}
 		logger::info("Hotkey = {} ({}, modifier {})", HotkeyName(), g_hotkey.load(), g_modifier.load());
 
+		// A button Livery does not know is none, as is a modifier other than LB, RB, LT or RT.
+		const auto gamepadButton = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyGamepadKey, kNoGamepadButton, g_iniPath.c_str());
+		g_gamepadButton = GamepadButtonName(gamepadButton) ? gamepadButton : kNoGamepadButton;
+		const auto gamepadModifier =
+			::GetPrivateProfileIntW(kHotkeySection, kHotkeyGamepadModifierKey, kNoGamepadButton, g_iniPath.c_str());
+		g_gamepadModifier = IsGamepadModifier(gamepadModifier) ? gamepadModifier : kNoGamepadButton;
+		logger::info("Controller hotkey = {} ({}, modifier {})", GamepadHotkeyName(), g_gamepadButton.load(), g_gamepadModifier.load());
+
 		// A missing or unreadable value keeps the default; one out of range is brought into it.
 		wchar_t percent[16]{};
 		::GetPrivateProfileStringW(kCameraSection, kSpeedPercentKey, L"", percent, static_cast<DWORD>(std::size(percent)),
@@ -1261,6 +1446,16 @@ namespace Settings
 		}
 		const auto* known = FindModifier(modifier);
 		return known && IsModifierHeld(*known);
+	}
+
+	bool IsGamepadHotkey(std::uint32_t a_code)
+	{
+		const auto button = g_gamepadButton.load();
+		if (button == kNoGamepadButton || a_code != button) {
+			return false;
+		}
+		const auto modifier = g_gamepadModifier.load();
+		return modifier == kNoGamepadButton || IsGamepadModifierHeld(modifier);
 	}
 
 	NpcAccess AccessOf(NpcGroup a_group)

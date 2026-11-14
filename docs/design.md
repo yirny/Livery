@@ -241,6 +241,13 @@ on the player as on an NPC, unlocked like the default, and not in beast form.
 
 ### Who the hotkey opens on
 
+The hotkey is a keyboard key with Shift, Ctrl or Alt held or none (`[Hotkey] Key`, `Modifier`).
+A controller button with LB, RB, LT or RT held or none (`[Hotkey] Gamepad`, `GamepadModifier`,
+the ButtonEvent ID code: an XInput button mask, 9 / 10 for a trigger; none by default) opens it
+the same way. The settings page shows the controller row only while
+`BSInputDeviceManager::IsGamepadEnabled`, so a player without a controller sees no change.
+Triggers as ButtonEvents and the controller row's visibility are not yet checked in game.
+
 With nothing under the crosshair, or anything but a person (`TESObjectREFR::IsHumanoid`, the
 `ActorTypeNPC` keyword: not a horse or a creature), the hotkey opens the window on the player,
 always Full management. An NPC falls in the first group that fits, read at the
