@@ -155,7 +155,9 @@
 	X(kAdd, "Add")                                       \
 	X(kSelectChest, "Select a chest")                    \
 	X(kSelectOutfitToLoad, "Select an outfit to load")   \
-	X(kUseSelectedItems, "Use Selected Items")
+	X(kUseSelectedItems, "Use Selected Items")           \
+	X(kCurrentOutfit, "Current Outfit")                  \
+	X(kDefaultOutfit, "Default Outfit")
 
 // The Wardrobe page, its popups and the Apply popup it shares with Create and Apply. An Apply
 // question's values: {0} the outfit, {1} the situation (Offer) or the character (ApplyAs,
