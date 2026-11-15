@@ -1353,8 +1353,8 @@ namespace
 		}
 		SettingTooltip(Text::kPlayMenuSoundsTooltip, Text::kSetOn);
 
-		// Features for those who want more than outfits: each adds to the window.
-		Heading(PageText(Text::kSetAdvanced));
+		// Features that add to the window, each off by default.
+		Heading(PageText(Text::kSetOptionalFeatures));
 
 		// Takes effect the next time the window opens.
 		bool itemChests = g_itemChests.load();
