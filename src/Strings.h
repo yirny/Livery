@@ -35,46 +35,52 @@
 // text in the file without its "k".
 
 // Words the window uses on several pages: page names, buttons, reasons a button is greyed.
-#define LIVERY_STRINGS_COMMON(X)                                                                  \
-	X(kPageDress, "Dress")                                                                        \
-	X(kPageWardrobe, "Wardrobe")                                                                  \
-	X(kPageSituations, "Situations")                                                              \
-	X(kPageChests, "Chests")                                                                      \
-	X(kPageAppearance, "Appearance")                                                              \
-	X(kApply, "Apply")                                                                            \
-	X(kBack, "Back")                                                                              \
-	X(kCancel, "Cancel")                                                                          \
-	X(kConfirm, "Confirm")                                                                        \
-	X(kCreate, "Create")                                                                          \
-	X(kExit, "Exit")                                                                              \
-	X(kRestore, "Restore")                                                                        \
-	X(kUpdate, "Update")                                                                          \
-	X(kSaveChanges, "Save Changes")                                                               \
-	X(kDiscardChanges, "Discard Changes")                                                         \
-	X(kApplying, "Applying...")                                                                   \
-	X(kSaving, "Saving...")                                                                       \
-	X(kEditHeading, "Edit {0}")                                                                   \
-	X(kQuotedName, "\"{0}\"")                                                                     \
-	X(kNewName, "New name: {0}")                                                                  \
-	X(kOutfitIcon, "Outfit Icon")                                                                 \
-	X(kOutfitName, "Outfit Name")                                                                 \
-	X(kColumnName, "Name")                                                                        \
-	X(kColumnType, "Type")                                                                        \
-	X(kColumnSlot, "Slot")                                                                        \
-	X(kNeedName, "Enter a name.")                                                                 \
-	X(kNeedPiece, "Select at least one item.")                                                    \
-	X(kNeedOutfit, "Select an outfit.")                                                           \
-	X(kNeedChest, "Select a chest.")                                                              \
-	X(kNoOutfits, "No outfits in the Wardrobe.")                                                  \
-	X(kNoLoadedPiece, "None of its items is loaded.")                                             \
-	X(kNoChests, "No chests yet.")                                                                \
-	X(kNoChanges, "No changes to save.")                                                          \
-	X(kWornAlready, "Already worn as is.")                                                        \
-	X(kNotCarriedHint, "You don't carry this item.\nDressing from inventory only leaves it off.") \
-	X(kOutfitGone, "an outfit no longer in the Wardrobe")                                         \
-	X(kItemsNotSaved, "items that are not a saved outfit")                                        \
-	X(kChestsSubtitle, "Items in a chest can be loaded on the {0} page.")                         \
-	X(kAppearanceSubtitle, "Other settings are in Livery.ini or on the SKSE Menu Framework page.")
+#define LIVERY_STRINGS_COMMON(X)                                                                   \
+	X(kPageDress, "Dress")                                                                         \
+	X(kPageWardrobe, "Wardrobe")                                                                   \
+	X(kPageSituations, "Situations")                                                               \
+	X(kPageChests, "Chests")                                                                       \
+	X(kPageAppearance, "Appearance")                                                               \
+	X(kApply, "Apply")                                                                             \
+	X(kBack, "Back")                                                                               \
+	X(kCancel, "Cancel")                                                                           \
+	X(kConfirm, "Confirm")                                                                         \
+	X(kCreate, "Create")                                                                           \
+	X(kExit, "Exit")                                                                               \
+	X(kRestore, "Restore")                                                                         \
+	X(kUpdate, "Update")                                                                           \
+	X(kSaveChanges, "Save Changes")                                                                \
+	X(kDiscardChanges, "Discard Changes")                                                          \
+	X(kApplying, "Applying...")                                                                    \
+	X(kSaving, "Saving...")                                                                        \
+	X(kEditHeading, "Edit {0}")                                                                    \
+	X(kQuotedName, "\"{0}\"")                                                                      \
+	X(kNewName, "New name: {0}")                                                                   \
+	X(kOutfitIcon, "Outfit Icon")                                                                  \
+	X(kOutfitName, "Outfit Name")                                                                  \
+	X(kColumnName, "Name")                                                                         \
+	X(kColumnType, "Type")                                                                         \
+	X(kColumnSlot, "Slot")                                                                         \
+	X(kNeedName, "Enter a name.")                                                                  \
+	X(kNeedPiece, "Select at least one item.")                                                     \
+	X(kNeedOutfit, "Select an outfit.")                                                            \
+	X(kNeedChest, "Select a chest.")                                                               \
+	X(kNoOutfits, "No outfits in the Wardrobe.")                                                   \
+	X(kNoLoadedPiece, "None of its items is loaded.")                                              \
+	X(kNoChests, "No chests yet.")                                                                 \
+	X(kNoChanges, "No changes to save.")                                                           \
+	X(kWornAlready, "Already worn as is.")                                                         \
+	X(kNotCarriedHint, "You don't carry this item.\nDressing from inventory only leaves it off.")  \
+	X(kOutfitGone, "an outfit no longer in the Wardrobe")                                          \
+	X(kItemsNotSaved, "items that are not a saved outfit")                                         \
+	X(kChestsSubtitle, "Items in a chest can be loaded on the {0} page.")                          \
+	X(kAppearanceSubtitle, "Other settings are in Livery.ini or on the SKSE Menu Framework page.") \
+	X(kOk, "OK")                                                                                   \
+	X(kYes, "Yes")                                                                                 \
+	X(kRemove, "Remove")                                                                           \
+	X(kSave, "Save")                                                                               \
+	X(kEdit, "Edit")                                                                               \
+	X(kListSeparator, ", ")
 
 // The Dress page: its item list, Live Preview and its buttons and popups.
 #define LIVERY_STRINGS_DRESS(X)                                                                                                                    \
@@ -136,11 +142,77 @@
 	X(kPlayMenuSounds, "Play menu sounds")                                                          \
 	X(kPlayMenuSoundsTooltip, "Plays the game's menu sounds for clicks in Livery.")
 
-#define LIVERY_STRINGS(X)    \
-	LIVERY_STRINGS_COMMON(X) \
-	LIVERY_STRINGS_DRESS(X)  \
-	LIVERY_STRINGS_SAVE(X)   \
-	LIVERY_STRINGS_APPEARANCE(X)
+// The outfit lists (their search, header and counts), an outfit's details and the Load page.
+#define LIVERY_STRINGS_OUTFITS(X)                        \
+	X(kSearchOutfits, "Search by outfit name")           \
+	X(kSortByIcon, "Sort by icon")                       \
+	X(kNoOutfitMatches, "No outfit matches.")            \
+	X(kOutfitsInWardrobe, "{0} outfits in the Wardrobe") \
+	X(kOutfitsShown, "{0} of {1} outfits")               \
+	X(kItemsCount, "{0} items")                          \
+	X(kItemsCountUnloaded, "{0} items, {1} not loaded")  \
+	X(kLoad, "Load")                                     \
+	X(kAdd, "Add")                                       \
+	X(kSelectChest, "Select a chest")                    \
+	X(kSelectOutfitToLoad, "Select an outfit to load")   \
+	X(kUseSelectedItems, "Use Selected Items")
+
+// The Wardrobe page, its popups and the Apply popup it shares with Create and Apply. An Apply
+// question's values: {0} the outfit, {1} the situation (Offer) or the character (ApplyAs,
+// ApplyFor), {2} the situation; "Create" and "Edits" forms save the outfit or the changes first.
+#define LIVERY_STRINGS_WARDROBE(X)                                                                                                       \
+	X(kSelectOutfitToEdit, "Select an outfit to edit")                                                                                   \
+	X(kItemsSelectedUnloaded, "{0} of {1} items selected, {2} not loaded")                                                               \
+	X(kUnsavedChangesTo, "Unsaved changes to {0}.")                                                                                      \
+	X(kWardrobeApplyOffer, "Dress {0} in this outfit as their {1} outfit, or make it their default outfit.")                             \
+	X(kWardrobeApplyDefault, "Dress {0} in this outfit as their default outfit.")                                                        \
+	X(kWardrobeApplyFor, "Dress {0} in this outfit for {1}.")                                                                            \
+	X(kChangesLost, "Changes to {0} will be lost.")                                                                                      \
+	X(kDiscardEdits, "Discard changes")                                                                                                  \
+	X(kKeepEditing, "Keep editing")                                                                                                      \
+	X(kItemsChange, "Items: {0} to {1}")                                                                                                 \
+	X(kIconChanged, "Icon: changed")                                                                                                     \
+	X(kRemoveItemsTitle, "Remove items from the outfit?")                                                                                \
+	X(kUnselectedRemoved, "These unselected items will be removed from {0}:")                                                            \
+	X(kKeepItemsHint, "To keep these items in the outfit, choose {0} instead.")                                                          \
+	X(kSaveChangesTo, "Save your changes to {0}?")                                                                                       \
+	X(kSaveAndApply, "Save and Apply")                                                                                                   \
+	X(kSavedFirstHelp, "Your changes are saved first.")                                                                                  \
+	X(kOfferMake, "Make {0} their new {1} outfit?")                                                                                      \
+	X(kOfferMakeCreate, "Create {0}, then make it their new {1} outfit?")                                                                \
+	X(kOfferMakeEdits, "Save changes and make {0} their new {1} outfit?")                                                                \
+	X(kOfferSwitch, "Switch to {0} for {1}?")                                                                                            \
+	X(kOfferSwitchCreate, "Create {0}, then switch to it for {1}?")                                                                      \
+	X(kOfferSwitchEdits, "Save changes and switch to {0} for {1}?")                                                                      \
+	X(kOfferAdd, "Add {0} to their {1} outfits and dress them in it?")                                                                   \
+	X(kOfferAddCreate, "Create {0}, add it to their {1} outfits, and dress them in it?")                                                 \
+	X(kOfferAddEdits, "Save changes, add {0} to their {1} outfits, and dress them in it?")                                               \
+	X(kApplyAs, "Apply {0} as {1}'s {2}?")                                                                                               \
+	X(kApplyAsCreate, "Create {0}, then apply it as {1}'s {2}?")                                                                         \
+	X(kApplyAsEdits, "Save changes and apply {0} as {1}'s {2}?")                                                                         \
+	X(kApplyFor, "Apply {0} to {1} for {2}?")                                                                                            \
+	X(kApplyForCreate, "Create {0}, then apply it to {1} for {2}?")                                                                      \
+	X(kApplyForEdits, "Save changes and apply {0} to {1} for {2}?")                                                                      \
+	X(kWearingFor, "{0} is wearing {1} for {2}.")                                                                                        \
+	X(kWearingOneOf, "{0} is wearing {1}, one of their {2} outfits.")                                                                    \
+	X(kApplyAsDefault, "Apply as Default")                                                                                               \
+	X(kAsDefaultHelp, "Sets \"{0}\" as {1}'s default outfit.\nTheir current situational outfit stays equipped.")                         \
+	X(kAsDefaultHelpReplacing, "Sets \"{0}\" as {1}'s default outfit, replacing {2}.\nTheir current situational outfit stays equipped.") \
+	X(kThisReplaces, "This replaces {0}.")                                                                                               \
+	X(kRemoveFromWardrobe, "Remove {0} from the Wardrobe?")                                                                              \
+	X(kUsedBy, "Used by:")                                                                                                               \
+	X(kRemoveFallback, "Situations using it fall back to the default outfit. Default outfits made from it keep their items.")            \
+	X(kNotCarriedFrom, "You don't carry these items from {0}:")                                                                          \
+	X(kOnlyCarriedEquipped, "Only carried items will be equipped.")                                                                      \
+	X(kCarryNone, "You carry none of these items.")
+
+#define LIVERY_STRINGS(X)        \
+	LIVERY_STRINGS_COMMON(X)     \
+	LIVERY_STRINGS_DRESS(X)      \
+	LIVERY_STRINGS_SAVE(X)       \
+	LIVERY_STRINGS_APPEARANCE(X) \
+	LIVERY_STRINGS_OUTFITS(X)    \
+	LIVERY_STRINGS_WARDROBE(X)
 
 namespace Strings
 {

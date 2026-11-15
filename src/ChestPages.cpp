@@ -154,7 +154,7 @@ namespace CaptureWindow::Internal
 		const bool enter = DrawNameField(a_state, a_state.chest.newName, nullptr, nullptr, "Chest Name");
 		BeginButtonRow({ "Create", "Cancel" });
 		const bool typed = !Trimmed(a_state.chest.newName.data()).empty();
-		const bool create = ReasonButton("Create", typed ? nullptr : kNeedName) || enter;
+		const bool create = ReasonButton("Create", ReasonIf(!typed, kNeedName)) || enter;
 		ImGui::SameLine();
 		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
@@ -535,7 +535,7 @@ namespace CaptureWindow::Internal
 			Theme::AfterFieldGap();
 			Theme::CountText(std::format("{} items", CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
-			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
+			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", ReasonIf(a_state.request.existingOutfits.empty(), kNoOutfits), Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
 			links.chest = DrawCountLink(a_state, "Chest...", a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
 			NextColumn();
