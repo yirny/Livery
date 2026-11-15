@@ -120,7 +120,7 @@ namespace
 		if (auto error = Library::Create(name, armors, icon)) {
 			return error;
 		}
-		Notify(std::format("Livery: saved {} ({} items).", name, armors.size()));
+		Notify(Strings::Format(Strings::Text::kHudSaved, name, armors.size()));
 		return std::nullopt;
 	}
 
@@ -152,12 +152,10 @@ namespace
 		if (auto error = Library::Update(id, name, armors, icon.value_or(outfit->icon))) {
 			return error;
 		}
-		auto text = name == oldName ? std::format("Livery: updated {} ({} items)", name, armors.size()) :
-		                              std::format("Livery: updated {}, renamed from {} ({} items)", name, oldName, armors.size());
-		if (unloaded) {
-			text += std::format("; {} items from plugins that are not loaded stay in it", unloaded);
-		}
-		Notify(text + ".");
+		using Strings::Text;
+		const auto message = name == oldName ? (unloaded ? Text::kHudUpdatedUnloaded : Text::kHudUpdated) :
+		                                       (unloaded ? Text::kHudUpdatedRenamedUnloaded : Text::kHudUpdatedRenamed);
+		Notify(Strings::Format(message, name, armors.size(), unloaded, oldName));
 		return std::nullopt;
 	}
 
@@ -948,11 +946,13 @@ namespace
 		}
 		auto        notMoved = Dressing::MoveFromPlayer(*player, npc, moving, Settings::ShowPlayerWornPieces());
 		const auto* name = npc.GetDisplayFullName();
-		auto        text = std::format("Livery: moved {} of {} items from you to {}", moving.size() - notMoved.size(), moving.size(), name && *name ? name : "them");
-		for (std::size_t i = 0; i < notMoved.size(); ++i) {
-			text += (i == 0 ? "; not moved: " : ", ") + DisplayName(*notMoved[i]);
+		const char* who = name && *name ? name : Strings::Get(Strings::Text::kHudThem);
+		std::string left;
+		for (const auto* armor : notMoved) {
+			left += (left.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + DisplayName(*armor);
 		}
-		Notify(text + ".");
+		const auto message = notMoved.empty() ? Strings::Text::kHudMoved : Strings::Text::kHudMovedNotAll;
+		Notify(Strings::Format(message, moving.size() - notMoved.size(), moving.size(), who, left));
 		return notMoved;
 	}
 
@@ -1361,7 +1361,7 @@ namespace
 				return;
 			}
 			const auto wearing = Assignments::ForgetOutfit(outfit, pieces);
-			Notify(users > 0 ? std::format("Livery: removed \"{}\"; cleared from {} characters.", name, users) : std::format("Livery: removed \"{}\".", name));
+			Notify(Strings::Format(users > 0 ? Strings::Text::kHudRemovedOutfitFrom : Strings::Text::kHudRemovedOutfit, name, users));
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			for (const auto id : wearing) {
@@ -1510,7 +1510,7 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify(std::format("Livery: created the chest \"{}\".", name));
+			Notify(Strings::Format(Strings::Text::kHudCreatedChest, name));
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
 		request.onChestUpdate = [actorID, armors](const CaptureWindow::ChestEdit& edit) {
@@ -1542,7 +1542,7 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify(std::format("Livery: removed the chest \"{}\".", name));
+			Notify(Strings::Format(Strings::Text::kHudRemovedChest, name));
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
 	}
@@ -1672,7 +1672,7 @@ namespace
 	void Capture(RE::ObjectRefHandle handle)
 	{
 		if (!g_ready) {
-			Notify("Livery is not ready.");
+			Notify(Strings::Get(Strings::Text::kHudNotReady));
 			return;
 		}
 		if (CaptureWindow::IsOpen()) {
@@ -1680,7 +1680,7 @@ namespace
 		}
 		// No overlay (Skyrim VR, or ImGui failed to initialise): the hotkey only opens the window.
 		if (!Overlay::IsRenderReady()) {
-			Notify("Livery: the window is not available.");
+			Notify(Strings::Get(Strings::Text::kHudWindowUnavailable));
 			return;
 		}
 
@@ -1698,7 +1698,7 @@ namespace
 		const bool isPlayer = actor == player;
 		// Livery never dresses children (Assignments refuses them too).
 		if (actor->IsChild()) {
-			Notify("Livery: children are not supported.");
+			Notify(Strings::Get(Strings::Text::kHudNoChildren));
 			return;
 		}
 		// The NPC's group says what the hotkey may do, at this press only: outfits they already
@@ -1708,7 +1708,7 @@ namespace
 			const auto group = GroupOf(*actor);
 			access = Settings::AccessOf(group);
 			if (access == Settings::NpcAccess::kDisabled) {
-				Notify(std::format("Livery: {} keeps their own wardrobe (see Settings).", actor->GetName() ? actor->GetName() : "NPC"));
+				Notify(Strings::Format(Strings::Text::kHudOwnWardrobe, actor->GetName() ? actor->GetName() : Strings::Get(Strings::Text::kNpc)));
 				return;
 			}
 		}
@@ -1732,7 +1732,7 @@ namespace
 	{
 		SKSE::GetTaskInterface()->AddTask([] {
 			if (!g_ready || CaptureWindow::IsOpen()) {
-				Notify("Livery: load a save and close the window first.");
+				Notify(Strings::Get(Strings::Text::kHudLoadSaveFirst));
 				return;
 			}
 			Assignments::ReleaseEveryone();
@@ -1746,7 +1746,7 @@ namespace
 	void QueueUninstallRelease()
 	{
 		SKSE::GetTaskInterface()->AddTask([] {
-			Notify("Livery: uninstall mode is on (Livery.ini: [Uninstall] ReleaseEveryone=1).");
+			Notify(Strings::Get(Strings::Text::kHudUninstallMode));
 			Assignments::ReleaseEveryone();
 		});
 	}

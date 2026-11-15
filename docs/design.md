@@ -736,8 +736,10 @@ setting, off by default). Open:
 - Every text Livery shows the player is to come from `LIVERY_STRINGS` (`src/Strings.h`): an id
   and its English. So far the window does, but for the Situations page, the situations'
   names and conditions and the `For Town, Cold` line under an outfit, which move there after
-  the custom situations (docs/custom-situations.md on its branch) reach `main`; the HUD
-  messages and the settings page follow. sarrai-common's widgets get their own words through
+  the custom situations (docs/custom-situations.md on its branch) reach `main`. Of the HUD
+  messages, those of saving, removing, chests, moving items and the hotkey's refusals do; those
+  of dressing and situations (`src/Assignments.cpp`) follow with the custom situations, and
+  the settings page after them. sarrai-common's widgets get their own words through
   `Theme::SetTexts`, right after `Strings::Load`.
 - A sentence with a name drawn in a look of its own (an outfit after its icon) is one text
   with values; `Strings::Pieces` gives it cut at them (at `Strings::Load`, so drawing

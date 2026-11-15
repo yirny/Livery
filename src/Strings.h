@@ -306,6 +306,29 @@
 	X(kPreviewCharacterGone, "Preview off: the character is gone.")                                    \
 	X(kNoLongerHere, "{0} is no longer here.")
 
+// HUD messages, each a whole sentence with "Livery" in it. An outfit update's values: {0} its
+// name, {1} its items, {2} those from plugins not loaded, {3} its old name; a move's: {0} the
+// items moved, {1} those ticked, {2} the character, {3} the items not moved.
+#define LIVERY_STRINGS_HUD(X)                                                                                                                  \
+	X(kHudSaved, "Livery: saved {0} ({1} items).")                                                                                             \
+	X(kHudUpdated, "Livery: updated {0} ({1} items).")                                                                                         \
+	X(kHudUpdatedUnloaded, "Livery: updated {0} ({1} items); {2} items from plugins that are not loaded stay in it.")                          \
+	X(kHudUpdatedRenamed, "Livery: updated {0}, renamed from {3} ({1} items).")                                                                \
+	X(kHudUpdatedRenamedUnloaded, "Livery: updated {0}, renamed from {3} ({1} items); {2} items from plugins that are not loaded stay in it.") \
+	X(kHudMoved, "Livery: moved {0} of {1} items from you to {2}.")                                                                            \
+	X(kHudMovedNotAll, "Livery: moved {0} of {1} items from you to {2}; not moved: {3}.")                                                      \
+	X(kHudThem, "them")                                                                                                                        \
+	X(kHudRemovedOutfit, "Livery: removed \"{0}\".")                                                                                           \
+	X(kHudRemovedOutfitFrom, "Livery: removed \"{0}\"; cleared from {1} characters.")                                                          \
+	X(kHudCreatedChest, "Livery: created the chest \"{0}\".")                                                                                  \
+	X(kHudRemovedChest, "Livery: removed the chest \"{0}\".")                                                                                  \
+	X(kHudNotReady, "Livery is not ready.")                                                                                                    \
+	X(kHudWindowUnavailable, "Livery: the window is not available.")                                                                           \
+	X(kHudNoChildren, "Livery: children are not supported.")                                                                                   \
+	X(kHudOwnWardrobe, "Livery: {0} keeps their own wardrobe (see Settings).")                                                                 \
+	X(kHudLoadSaveFirst, "Livery: load a save and close the window first.")                                                                    \
+	X(kHudUninstallMode, "Livery: uninstall mode is on (Livery.ini: [Uninstall] ReleaseEveryone=1).")
+
 #define LIVERY_STRINGS(X)        \
 	LIVERY_STRINGS_COMMON(X)     \
 	LIVERY_STRINGS_DRESS(X)      \
@@ -316,7 +339,8 @@
 	LIVERY_STRINGS_CHESTS(X)     \
 	LIVERY_STRINGS_FILES(X)      \
 	LIVERY_STRINGS_ITEMS(X)      \
-	LIVERY_STRINGS_CHARACTER(X)
+	LIVERY_STRINGS_CHARACTER(X)  \
+	LIVERY_STRINGS_HUD(X)
 
 namespace Strings
 {
