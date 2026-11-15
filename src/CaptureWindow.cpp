@@ -48,6 +48,7 @@
 #include "CaptureWindowInternal.h"
 #include "OutfitBrowser.h"
 #include "Settings.h"
+#include "Strings.h"
 #include "sarrai/Overlay.h"
 #include "sarrai/Theme.h"
 
@@ -752,20 +753,20 @@ namespace CaptureWindow::Internal
 		struct TabOption
 		{
 			Theme::TabIcon icon;
-			const char*    name;
+			Strings::Text  name;
 			Page           page;
 		};
 		constexpr std::array<TabOption, 5> kTabs{ {
-			{ Theme::TabIcon::kDress, "Dress", Page::kCapture },
-			{ Theme::TabIcon::kWardrobe, "Wardrobe", Page::kManage },
-			{ Theme::TabIcon::kSituations, "Situations", Page::kSituations },
-			{ Theme::TabIcon::kChests, "Chests", Page::kChests },
-			{ Theme::TabIcon::kAppearance, "Appearance", Page::kAppearance },
+			{ Theme::TabIcon::kDress, Strings::Text::kPageDress, Page::kCapture },
+			{ Theme::TabIcon::kWardrobe, Strings::Text::kPageWardrobe, Page::kManage },
+			{ Theme::TabIcon::kSituations, Strings::Text::kPageSituations, Page::kSituations },
+			{ Theme::TabIcon::kChests, Strings::Text::kPageChests, Page::kChests },
+			{ Theme::TabIcon::kAppearance, Strings::Text::kPageAppearance, Page::kAppearance },
 		} };
 
-		// A tab's ID is its name's (Theme::Tab), in this scope.
+		// A tab's ID is its name's (Theme::Tab), in this scope; the language stays for the game.
 		const ImGuiID focus = ImGui::GetCurrentContext()->NavId;
-		const bool    focusOnTab = std::ranges::any_of(kTabs, [focus](const TabOption& a_tab) { return ImGui::GetID(a_tab.name) == focus; });
+		const bool    focusOnTab = std::ranges::any_of(kTabs, [focus](const TabOption& a_tab) { return ImGui::GetID(Strings::Get(a_tab.name)) == focus; });
 
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
 		const float  left = origin.x + Theme::TabOffsetX();
@@ -780,7 +781,7 @@ namespace CaptureWindow::Internal
 				continue;
 			}
 			const bool selected = a_state.page == tab.page;
-			if (Theme::Tab(tab.icon, tab.name, selected) && !selected) {
+			if (Theme::Tab(tab.icon, Strings::Get(tab.name), selected) && !selected) {
 				QueueMenuSound(kFocusSound);
 				RequestLeave(a_state, { .page = tab.page });
 			}
@@ -947,7 +948,7 @@ namespace CaptureWindow::Internal
 			DrawSummaryHeading(a_state.request.actorName.c_str(), a_state.request.actorSummary);
 			break;
 		case Page::kManage:
-			Theme::HeadingText(Theme::HeadingIcon::kWardrobe, "Wardrobe");
+			Theme::HeadingText(Theme::HeadingIcon::kWardrobe, Strings::Get(Strings::Text::kPageWardrobe));
 			break;
 		case Page::kSituations:
 			Theme::HeadingText(Theme::HeadingIcon::kStar, a_state.situationsTitle.c_str());
@@ -965,10 +966,10 @@ namespace CaptureWindow::Internal
 			{
 				const std::array<Theme::SubtitleRun, 3> subtitle{ {
 					{ .text = "Items in a chest can be loaded on the " },
-					{ .text = "Dress", .icon = Theme::HeadingIcon::kBareForm },
+					{ .text = Strings::Get(Strings::Text::kPageDress), .icon = Theme::HeadingIcon::kBareForm },
 					{ .text = " page." },
 				} };
-				Theme::HeadingText(Theme::HeadingIcon::kChest, "Chests", subtitle);
+				Theme::HeadingText(Theme::HeadingIcon::kChest, Strings::Get(Strings::Text::kPageChests), subtitle);
 				break;
 			}
 		case Page::kChestEdit:
@@ -984,7 +985,7 @@ namespace CaptureWindow::Internal
 			DrawSummaryHeading(a_state.request.actorName.c_str(), a_state.request.actorSummary);
 			break;
 		case Page::kAppearance:
-			Theme::HeadingText(Theme::HeadingIcon::kPalette, "Appearance", "Other settings are in Livery.ini or on the SKSE Menu Framework page.");
+			Theme::HeadingText(Theme::HeadingIcon::kPalette, Strings::Get(Strings::Text::kPageAppearance), "Other settings are in Livery.ini or on the SKSE Menu Framework page.");
 			break;
 		case Page::kSave:
 			break;

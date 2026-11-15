@@ -57,6 +57,7 @@ namespace
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kPaletteKey = L"Palette";
 	constexpr auto kMenuSoundsKey = L"MenuSounds";
+	constexpr auto kLanguageKey = L"Language";
 	constexpr auto kHotkeySection = L"Hotkey";
 	constexpr auto kHotkeyKeyKey = L"Key";
 	constexpr auto kHotkeyModifierKey = L"Modifier";
@@ -85,6 +86,7 @@ namespace
 
 	constexpr auto kPaletteDir = L"Data/SKSE/Plugins/Livery/palettes";
 	constexpr auto kDefaultPalette = L"Modern";  // only when Livery.ini lacks [UI] Palette and could not be written (see NewKeyValue)
+	constexpr auto kAutoLanguage = L"Auto";      // [UI] Language for the game's own; keep in step with kIniKeys
 
 	constexpr auto kMenuSource = "SKSE Menu Framework";  // the settings page, as the log names it
 
@@ -122,7 +124,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 26> kIniKeys{ {
+	constexpr std::array<IniKey, 27> kIniKeys{ {
 		{ kIniSection, kFollowersAndSpouseKey, L"Full",
 			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
 			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
@@ -144,6 +146,9 @@ namespace
 			L"The first time, Livery picks the one that suits your UI mod." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = Livery plays the game's menu sounds as it opens and as you click in it." },
+		{ kUiSection, kLanguageKey, kAutoLanguage,
+			L"Language of Livery's window and messages. Auto = the game's language.\n"
+			L"Or a language name, such as JAPANESE for Interface/Translations/Livery_JAPANESE.txt." },
 		{ kHotkeySection, kHotkeyKeyKey, L"47",
 			L"Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n"
 			L"A DirectInput scan code (47 = V)." },
@@ -300,6 +305,8 @@ namespace
 	std::atomic<bool>          g_releaseEveryoneOnLoad{ false };
 	std::filesystem::path      g_iniPath;   // set once by Load, read-only afterwards
 	void (*g_releaseEveryone)() = nullptr;  // set once by RegisterMenu, before the page can render
+
+	std::string g_language;  // [UI] Language, empty for Auto; written once in Load, read-only after
 
 	// The sorts the window's lists open with (Settings::OutfitSort, ItemSort).
 	std::atomic<Settings::SortOrder> g_outfitSort{ kDefaultOutfitSort };
@@ -1340,6 +1347,11 @@ namespace Settings
 		g_menuSounds = std::wstring_view{ value } != L"0";
 		logger::info("MenuSounds = {}", g_menuSounds.load());
 
+		// Auto, or a missing key, is the game's language: Strings::Load reads it, at kDataLoaded.
+		wchar_t language[64]{};
+		::GetPrivateProfileStringW(kUiSection, kLanguageKey, kAutoLanguage, language, static_cast<DWORD>(std::size(language)), g_iniPath.c_str());
+		g_language = ::_wcsicmp(language, kAutoLanguage) == 0 ? std::string{} : ToUtf8(language);
+
 		// An out-of-range key or an unknown modifier keeps the default (Shift + V); 0 is no modifier.
 		const auto key = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyKeyKey, kDefaultHotkey, g_iniPath.c_str());
 		if (key > Key::kNone && key <= 0xFF) {
@@ -1505,6 +1517,11 @@ namespace Settings
 	bool MenuSounds()
 	{
 		return g_menuSounds.load();
+	}
+
+	const std::string& Language()
+	{
+		return g_language;
 	}
 
 	void SetMenuSounds(bool a_on, const char* a_source)

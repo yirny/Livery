@@ -56,6 +56,7 @@
 #include "Settings.h"
 #include "SituationStore.h"
 #include "Situations.h"
+#include "Strings.h"
 #include "TradeFilter.h"
 #include "sarrai/FreeCamera.h"
 #include "sarrai/Overlay.h"
@@ -1812,6 +1813,8 @@ namespace
 			break;
 
 		case SKSE::MessagingInterface::kDataLoaded:
+			// First: the game's sLanguage is read by now, and nothing shows text yet.
+			Strings::Load(Settings::Language());
 			SituationStore::Load();  // before any co-save load, which drops the rows of removed situations
 			Library::Load();         // pieces resolve against the loaded plugins, so not before this
 			Chests::Load();          // the same; read whether or not the Item chests setting is on

@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 #include "sarrai/Palettes.h"
 #include "sarrai/Theme.h"
@@ -74,6 +75,10 @@ namespace Settings
 	// Turns the window's menu sounds on or off and writes [UI] MenuSounds; `a_source` names the
 	// page in the log. Safe from any thread.
 	void SetMenuSounds(bool a_on, const char* a_source);
+
+	// [UI] Language as written, for Strings::Load: a language name such as JAPANESE, or empty for
+	// Auto (the game's own). Read once at Load, never written back by Livery. Safe from any thread.
+	const std::string& Language();
 
 	// Multiplier on the preview camera's movement, mouse drags and wheel zoom; 1 is normal. Safe from any thread.
 	float CameraSpeedScale();

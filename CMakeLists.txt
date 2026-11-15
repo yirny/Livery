@@ -23,7 +23,8 @@ if(PLUGIN_TESTS_ONLY)
     find_package(nlohmann_json CONFIG REQUIRED)
 
     add_executable(${PROJECT_NAME}Tests test/ExampleTests.cpp test/OutfitBrowserTests.cpp test/OutfitRowsTests.cpp
-                                        test/PieceFileTests.cpp test/SituationStoreTests.cpp src/OutfitBrowser.cpp)
+                                        test/PieceFileTests.cpp test/SituationStoreTests.cpp test/StringsTests.cpp
+                                        src/OutfitBrowser.cpp)
 
     # CaptureWindow.h takes FreeCamera::ViewInput from sarrai-common (header only, no build of it here).
     target_include_directories(${PROJECT_NAME}Tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -121,6 +122,7 @@ else()
         src/SituationPage.cpp
         src/SituationStore.cpp
         src/Situations.cpp
+        src/Strings.cpp
         src/TradeFilter.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc"
         USE_ADDRESS_LIBRARY)
