@@ -352,6 +352,12 @@ namespace CaptureWindow::Internal
 		bool                        navMoveWide = false;  // a Left or Right move that found nothing goes again this frame, widened (WidenNavMove)
 		std::array<char, 4>         charBytes{};          // the ANSI bytes of a character not yet whole (RecordChar)
 		std::int32_t                charByteCount = 0;    // how many of charBytes are held
+		// Cursor diagnostics, logged as the window closes (LogCursorState): whether the mouse
+		// moves reached the Cursor Menu, which moves the game's cursor the window reads.
+		std::uint32_t cursorMoves = 0;      // mouse moves meant for the Cursor Menu since Open
+		std::uint32_t cursorMovesLost = 0;  // of them, dropped because the Cursor Menu was not open
+		float         cursorOpenX = 0.0f;   // MenuCursor's position as the window opened
+		float         cursorOpenY = 0.0f;
 		// The Save page's tabs' names, each kept while the window is open; a Create starts the
 		// Create tab's again (SetOutfits).
 		std::array<char, kNameCapacity> createName{};

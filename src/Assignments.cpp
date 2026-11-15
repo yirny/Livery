@@ -16,7 +16,8 @@
 //                 or unknown to this version dropped),
 //                 the items the rows' outfits leave off in a record of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
-//                 inventory), MenuOpenCloseEvent
+//                 inventory), MenuOpenCloseEvent (also logs menus opening or closing while
+//                 the window is open)
 //   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc /
@@ -25,6 +26,7 @@
 
 #include "Assignments.h"
 
+#include "CaptureWindow.h"
 #include "Dressing.h"
 #include "Library.h"
 #include "Settings.h"
@@ -1121,6 +1123,11 @@ namespace
 	public:
 		RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
 		{
+			// Diagnostics: what opens and closes while the window is open tells what took the
+			// Cursor Menu away (CaptureWindow's "Cursor at close" line).
+			if (a_event && CaptureWindow::IsOpen()) {
+				logger::info("While the window is open: {} {}", a_event->menuName.c_str(), a_event->opening ? "opened" : "closed");
+			}
 			if (!a_event || (a_event->menuName != RE::ContainerMenu::MENU_NAME && a_event->menuName != RE::BarterMenu::MENU_NAME)) {
 				return RE::BSEventNotifyControl::kContinue;
 			}

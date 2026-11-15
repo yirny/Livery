@@ -2,7 +2,7 @@
 //
 // FILE MAP
 //   State        - the one State (CaptureWindowInternal.h, with the constants), the game freeze,
-//                  menu sounds, text trimming
+//                  the cursor diagnostics logged at Close, menu sounds, text trimming
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game while Live Preview is off)
 //   Input        - QueueInput translates engine events (typed bytes in the ANSI code page into
 //                  UTF-16, RecordChar) and moves the game's cursor (the
@@ -92,6 +92,37 @@ namespace CaptureWindow::Internal
 		if (auto* main = RE::Main::GetSingleton()) {
 			main->GetRuntimeData().freezeTime = a_frozen;
 		}
+	}
+
+	// Diagnostics for a cursor that does not show or move while the window is open (it went
+	// within a second on a first open after launch; reported on Wine): the game's Cursor Menu, the
+	// mouse moves meant for it, where MenuCursor stands, and the menus open. The window's menu is
+	// among them unless the game closed it first.
+	// Contract: game thread, as the window closes, before its menu is hidden.
+	void LogCursorState(std::uint32_t a_moves, std::uint32_t a_lost, float a_openX, float a_openY)
+	{
+		auto* ui = RE::UI::GetSingleton();
+		auto* cursor = RE::MenuCursor::GetSingleton();
+		if (!ui || !cursor) {
+			return;
+		}
+		const auto  cursorMenu = ui->GetMenu(RE::CursorMenu::MENU_NAME);
+		const char* movie = "no menu";
+		if (cursorMenu && !cursorMenu->uiMovie) {
+			movie = "no movie";
+		} else if (cursorMenu) {
+			movie = cursorMenu->uiMovie->GetVisible() ? "movie visible" : "movie hidden";
+		}
+		std::string menus;
+		for (const auto& [name, entry] : ui->menuMap) {
+			if (entry.menu && entry.menu->OnStack()) {
+				menus += std::format("{}{} (depth {}, flags {:#x})", menus.empty() ? "" : ", ", name.c_str(), entry.menu->depthPriority, entry.menu->menuFlags.underlying());
+			}
+		}
+		const auto& position = cursor->GetRuntimeData();
+		logger::info("Cursor at close: Cursor Menu {}, {}; {} mouse move(s), {} with no Cursor Menu; MenuCursor ({:.0f}, {:.0f}) -> ({:.0f}, {:.0f}) of {:.0f}x{:.0f}, showCursorCount {}; open menus: {}",
+			cursorMenu && cursorMenu->OnStack() ? "open" : "not open", movie, a_moves, a_lost, a_openX, a_openY,
+			position.cursorPosX, position.cursorPosY, position.screenWidthX, position.screenWidthY, position.showCursorCount, menus);
 	}
 
 	// Contract: safe from any thread; the sound plays in an SKSE task on the game thread.
@@ -2556,6 +2587,12 @@ namespace CaptureWindow
 			state.padNav = false;
 			state.padClicks = false;
 			state.navMoveWide = false;
+			state.cursorMoves = 0;
+			state.cursorMovesLost = 0;
+			if (auto* cursor = RE::MenuCursor::GetSingleton()) {
+				state.cursorOpenX = cursor->GetRuntimeData().cursorPosX;
+				state.cursorOpenY = cursor->GetRuntimeData().cursorPosY;
+			}
 			// A live preview needs the game running: the engine applies an NPC's
 			// queued equips in the actor update, which a frozen game skips.
 			state.frozeGame = !state.previewOn;
@@ -2573,11 +2610,19 @@ namespace CaptureWindow
 		auto&                 state = GetState();
 		std::function<void()> onClose;
 		bool                  frozeGame = false;
+		std::uint32_t         cursorMoves = 0;
+		std::uint32_t         cursorMovesLost = 0;
+		float                 cursorOpenX = 0.0f;
+		float                 cursorOpenY = 0.0f;
 		{
 			const std::scoped_lock lock(state.mutex);
 			if (state.status == Status::kClosed) {
 				return;
 			}
+			cursorMoves = state.cursorMoves;
+			cursorMovesLost = state.cursorMovesLost;
+			cursorOpenX = state.cursorOpenX;
+			cursorOpenY = state.cursorOpenY;
 			onClose = std::move(state.request.onClose);
 			frozeGame = std::exchange(state.frozeGame, false);
 			state.status = Status::kClosed;
@@ -2591,6 +2636,7 @@ namespace CaptureWindow
 			state.charByteCount = 0;
 		}
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
+		LogCursorState(cursorMoves, cursorMovesLost, cursorOpenX, cursorOpenY);
 		if (frozeGame) {
 			SetGameFrozen(false);
 		}
@@ -2785,8 +2831,11 @@ namespace CaptureWindow
 					state.viewDragY += static_cast<float>(move->mouseInputY);
 					continue;
 				}
+				++state.cursorMoves;
 				if (auto* handler = handToCursor()) {
 					handler->ProcessMouseMove(move);
+				} else {
+					++state.cursorMovesLost;
 				}
 			}
 		}
