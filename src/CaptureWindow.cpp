@@ -931,14 +931,9 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, a_summary.lead.c_str());
 			return;
 		}
-		const std::array<Theme::SubtitleRun, 5> runs{ {
-			{ .text = a_summary.lead.c_str() },
-			{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey },
-			{ .text = a_summary.link.c_str() },
-			{ .text = a_summary.situation.c_str(), .icon = a_summary.situationIsDefault ? Theme::HeadingIcon::kBareForm : Theme::HeadingIcon::kStar },
-			{ .text = a_summary.tail.c_str() },
-		} };
-		Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, runs);
+		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey };
+		const auto               runs = RunsOf(a_summary.text, { outfit, SituationRun(a_summary.situation.c_str(), a_summary.situationIsDefault), TextRun(a_summary.gaps.c_str()) });
+		Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, runs.Parts());
 	}
 
 	// The page's heading: the Dress page's own title over the summary line; Manage

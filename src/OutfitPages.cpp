@@ -1528,7 +1528,7 @@ namespace CaptureWindow::Internal
 			}
 			if (ImGui::IsItemHovered()) {
 				hovered = color.rgb;
-				Theme::Tooltip(color.name.data());  // a literal, so it ends in a null
+				Theme::Tooltip(Strings::Get(color.name));
 			}
 			ImGui::PopID();
 		}

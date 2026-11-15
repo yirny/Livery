@@ -3,6 +3,7 @@
 
 #include "OutfitIcons.h"
 #include "OutfitRows.h"
+#include "Strings.h"
 #include "sarrai/FreeCamera.h"
 
 #include <cstdint>
@@ -186,15 +187,17 @@ namespace CaptureWindow
 	// The line under the title. With no outfit, `lead` alone is the whole sentence ("" for no
 	// line). With one: `lead`, the outfit's icon and name, `link`, the situation's mark and name,
 	// `tail`; the names and marks stand out of the grey.
+	// The line under the actor's name: `lead` alone with no `outfit`, else sentence `text` with
+	// {0} the outfit after its icon, {1} the situation after its mark and {2} `gaps`.
 	struct ActorSummary
 	{
-		std::string lead;
-		std::string outfit;
-		std::string iconKey;  // OutfitIcons::Icon::key
-		std::string link;
-		std::string situation;
-		bool        situationIsDefault = false;  // marked with the Default's form, not the situations' star
-		std::string tail;
+		std::string   lead;
+		Strings::Text text{};
+		std::string   outfit;
+		std::string   iconKey;  // OutfitIcons::Icon::key
+		std::string   situation;
+		bool          situationIsDefault = false;  // marked with the Default's form, not the situations' star
+		std::string   gaps;                        // `, 1 item not worn`, `, 2 extra items worn`, both, or ""
 	};
 
 	struct Request

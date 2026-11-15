@@ -234,6 +234,76 @@
 	X(kFileNotWritten, "Livery could not write {0} (see Livery.log).")                       \
 	X(kCreatedInGame, "{0} was created in game and cannot be saved.")
 
+// What the window lists: SkyUI's armor types (the Type column), the enchanted mark's fallback
+// and the outfit icon colours.
+#define LIVERY_STRINGS_ITEMS(X)                               \
+	X(kTypeBody, "Body")                                      \
+	X(kTypeHead, "Head")                                      \
+	X(kTypeHands, "Hands")                                    \
+	X(kTypeForearms, "Forearms")                              \
+	X(kTypeFeet, "Feet")                                      \
+	X(kTypeCalves, "Calves")                                  \
+	X(kTypeShield, "Shield")                                  \
+	X(kTypeAmulet, "Amulet")                                  \
+	X(kTypeRing, "Ring")                                      \
+	X(kTypeEars, "Ears")                                      \
+	X(kTypeCirclet, "Circlet")                                \
+	X(kTypeTail, "Tail")                                      \
+	X(kTypeCloak, "Cloak")                                    \
+	X(kTypeBack, "Back")                                      \
+	X(kEnchanted, "Enchanted")                                \
+	X(kColorBoneWhite, "Bone white")                          \
+	X(kColorSnowberryRed, "Snowberry red")                    \
+	X(kColorSheogorathPink, "Sheogorath pink")                \
+	X(kColorDeathbellPurple, "Deathbell purple")              \
+	X(kColorJazbayBlue, "Jazbay blue")                        \
+	X(kColorColdharbourCyan, "Coldharbour cyan")              \
+	X(kColorGlassTeal, "Glass teal")                          \
+	X(kColorSprigganGreen, "Spriggan green")                  \
+	X(kColorLunaYellow, "Luna yellow")                        \
+	X(kColorDwarvenGold, "Dwarven gold")                      \
+	X(kColorNordicSilver, "Nordic silver")                    \
+	X(kColorSnowberryRedLight, "Snowberry red - Light")       \
+	X(kColorSheogorathPinkLight, "Sheogorath pink - Light")   \
+	X(kColorDeathbellPurpleLight, "Deathbell purple - Light") \
+	X(kColorJazbayBlueLight, "Jazbay blue - Light")           \
+	X(kColorColdharbourCyanLight, "Coldharbour cyan - Light") \
+	X(kColorGlassTealLight, "Glass teal - Light")             \
+	X(kColorSprigganGreenLight, "Spriggan green - Light")     \
+	X(kColorLunaYellowLight, "Luna yellow - Light")           \
+	X(kColorDwarvenGoldLight, "Dwarven gold - Light")         \
+	X(kColorAshGrey, "Ash grey")                              \
+	X(kColorSnowberryRedMuted, "Snowberry red - Muted")       \
+	X(kColorSheogorathPinkMuted, "Sheogorath pink - Muted")   \
+	X(kColorDeathbellPurpleMuted, "Deathbell purple - Muted") \
+	X(kColorJazbayBlueMuted, "Jazbay blue - Muted")           \
+	X(kColorColdharbourCyanMuted, "Coldharbour cyan - Muted") \
+	X(kColorGlassTealMuted, "Glass teal - Muted")             \
+	X(kColorSprigganGreenMuted, "Spriggan green - Muted")     \
+	X(kColorLunaYellowMuted, "Luna yellow - Muted")           \
+	X(kColorDwarvenGoldMuted, "Dwarven gold - Muted")
+
+// What the window is told about the character (the line under their name, who uses an outfit)
+// and why an action it asked for did not happen. A summary sentence's values: {0} the outfit,
+// {1} the situation, {2} the Gap texts after it.
+#define LIVERY_STRINGS_CHARACTER(X)                                                                    \
+	X(kNpc, "NPC")                                                                                     \
+	X(kSummaryNotDressed, "Not dressed by Livery right now.")                                          \
+	X(kSummaryDressed, "Dressed by Livery{0}.")                                                        \
+	X(kSummaryWearingAs, "Wearing {0} as {1}{2}.")                                                     \
+	X(kSummaryWearingFor, "Wearing {0} for {1}{2}.")                                                   \
+	X(kSummaryAssignedAs, "Assigned {0} as {1}{2}.")                                                   \
+	X(kSummaryAssignedFor, "Assigned {0} for {1}{2}.")                                                 \
+	X(kGapNotWornOne, ", {0} item not worn")                                                           \
+	X(kGapNotWornMany, ", {0} items not worn")                                                         \
+	X(kGapExtraOne, ", {0} extra item worn")                                                           \
+	X(kGapExtraMany, ", {0} extra items worn")                                                         \
+	X(kSummarySaveOnly, "{0} dresses as they please. You can save what they wear, but not change it.") \
+	X(kUsedByLine, "{0}: {1}")                                                                         \
+	X(kNewOutfitName, "New Outfit {0}")                                                                \
+	X(kPreviewCharacterGone, "Preview off: the character is gone.")                                    \
+	X(kNoLongerHere, "{0} is no longer here.")
+
 #define LIVERY_STRINGS(X)        \
 	LIVERY_STRINGS_COMMON(X)     \
 	LIVERY_STRINGS_DRESS(X)      \
@@ -242,7 +312,9 @@
 	LIVERY_STRINGS_OUTFITS(X)    \
 	LIVERY_STRINGS_WARDROBE(X)   \
 	LIVERY_STRINGS_CHESTS(X)     \
-	LIVERY_STRINGS_FILES(X)
+	LIVERY_STRINGS_FILES(X)      \
+	LIVERY_STRINGS_ITEMS(X)      \
+	LIVERY_STRINGS_CHARACTER(X)
 
 namespace Strings
 {

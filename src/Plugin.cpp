@@ -91,7 +91,7 @@ namespace
 	std::string NextAutomaticName()
 	{
 		for (int index = 1; index <= 99999; ++index) {
-			auto name = std::format("New Outfit {:03}", index);
+			auto name = Strings::Format(Strings::Text::kNewOutfitName, std::format("{:03}", index));
 			if (!Library::FindByName(name)) {
 				return name;
 			}
@@ -143,7 +143,7 @@ namespace
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
-			return "The outfit no longer exists.";
+			return Strings::Get(Strings::Text::kOutfitNoLongerExists);
 		}
 		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
@@ -167,7 +167,7 @@ namespace
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
-			return "The outfit no longer exists.";
+			return Strings::Get(Strings::Text::kOutfitNoLongerExists);
 		}
 		// Copied: the update leaves `outfit` stale.
 		const std::string name = outfit->name;
@@ -253,7 +253,7 @@ namespace
 		request.onPreviewOn = [handle = actor.GetHandle(), armors](const std::vector<std::size_t>& pieces) -> std::string {
 			const auto target = handle.get();
 			if (!target) {
-				return "Preview off: the character is gone.";
+				return Strings::Get(Strings::Text::kPreviewCharacterGone);
 			}
 			return OutfitPreview::Begin(*target, PickPieces(armors, pieces));
 		};
@@ -445,7 +445,7 @@ namespace
 			return description.c_str();
 		}
 		const auto* name = enchantment->GetName();
-		return name && *name ? name : "Enchanted";
+		return name && *name ? name : Strings::Get(Strings::Text::kEnchanted);
 	}
 
 	// The hover text of a tempered piece's mark: its quality as the game names the item, "Fine"
@@ -641,7 +641,7 @@ namespace
 			.selected = selected,
 			.slots = slots,
 			.group = group,
-			.type = icon.typeName.empty() ? std::string(type.name) : std::move(icon.typeName),
+			.type = !icon.typeName.empty() ? std::move(icon.typeName) : (type.name ? std::string(Strings::Get(*type.name)) : std::string()),
 			.typeOrder = type.order,
 			.slotText = SlotText(slots),
 			.slotOrder = std::countr_zero(slots),
@@ -696,11 +696,11 @@ namespace
 	{
 		std::vector<std::string> lines;
 		for (const auto& use : Assignments::UsesOf(id)) {
-			std::string line = ActorLabel(use.actor);
-			for (std::size_t i = 0; i < use.rows.size(); ++i) {
-				line += std::format("{}{}", i == 0 ? ": " : ", ", SituationStore::Name(use.rows[i]));
+			std::string rows;
+			for (const auto row : use.rows) {
+				rows += (rows.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + SituationStore::Name(row);
 			}
-			lines.push_back(std::move(line));
+			lines.push_back(Strings::Format(Strings::Text::kUsedByLine, ActorLabel(use.actor), rows));
 		}
 		return lines;
 	}
@@ -881,10 +881,11 @@ namespace
 	// `, 1 item not worn`, `, 2 extra items worn`, both, or "".
 	std::string GapsText(const WornGaps& gaps)
 	{
-		const auto count = [](std::size_t n, const char* what, const char* after) {
-			return n == 0 ? std::string{} : std::format(", {} {}{} {}", n, what, n == 1 ? "" : "s", after);
+		using Strings::Text;
+		const auto count = [](std::size_t n, Text one, Text many) {
+			return n == 0 ? std::string{} : Strings::Format(n == 1 ? one : many, n);
 		};
-		return count(gaps.notWorn, "item", "not worn") + count(gaps.extra, "extra item", "worn");
+		return count(gaps.notWorn, Text::kGapNotWornOne, Text::kGapNotWornMany) + count(gaps.extra, Text::kGapExtraOne, Text::kGapExtraMany);
 	}
 
 	// The line under the actor's name: what Livery has on them now and what for, `Wearing X
@@ -895,21 +896,22 @@ namespace
 	// extra items worn.`
 	CaptureWindow::ActorSummary DescribeAssignment(const Assignments::Choices& choices, const WornGaps& gaps)
 	{
+		using Strings::Text;
 		if (!choices.dressed) {
-			return { .lead = "Not dressed by Livery right now." };
+			return { .lead = Strings::Get(Text::kSummaryNotDressed) };
 		}
 		const auto* stored = choices.wornOutfit ? Library::Find(choices.wornOutfit) : nullptr;
 		if (!stored) {
-			return { .lead = std::format("Dressed by Livery{}.", GapsText(gaps)) };
+			return { .lead = Strings::Format(Text::kSummaryDressed, GapsText(gaps)) };
 		}
 		const bool isDefault = choices.worn == Situations::Situation::kDefault;
-		return { .lead = gaps.notWorn == 0 ? "Wearing " : "Assigned ",
+		const bool wearing = gaps.notWorn == 0;
+		return { .text = isDefault ? (wearing ? Text::kSummaryWearingAs : Text::kSummaryAssignedAs) : (wearing ? Text::kSummaryWearingFor : Text::kSummaryAssignedFor),
 			.outfit = stored->name,
 			.iconKey = stored->icon.key,
-			.link = isDefault ? " as " : " for ",
 			.situation = SituationStore::Name(choices.worn),
 			.situationIsDefault = isDefault,
-			.tail = GapsText(gaps) + "." };
+			.gaps = GapsText(gaps) };
 	}
 
 	// The library outfit Livery has on them now, for the first heading of the piece list;
@@ -1197,7 +1199,7 @@ namespace
 			const auto target = handle.get();
 			if (save.applyRow && !target) {
 				// Before the write, so nothing is saved for a Create and Apply that cannot dress them.
-				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				CaptureWindow::SetError(Strings::Format(Strings::Text::kNoLongerHere, name));
 				return;
 			}
 			const auto picked = PickPieces(armors, save.pieces);
@@ -1260,7 +1262,7 @@ namespace
 							  const std::vector<std::uint32_t>& excluded) {
 			const auto target = handle.get();
 			if (!target) {
-				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				CaptureWindow::SetError(Strings::Format(Strings::Text::kNoLongerHere, name));
 				return;
 			}
 			// The row they wear as the window shows it, which follows a redress made while it is
@@ -1379,17 +1381,17 @@ namespace
 									const std::vector<std::uint32_t>& excluded) {
 			const auto target = handle.get();
 			if (!target) {
-				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				CaptureWindow::SetError(Strings::Format(Strings::Text::kNoLongerHere, name));
 				return;
 			}
 			const auto* stored = Library::Find(outfit);
 			if (!stored) {
-				CaptureWindow::SetError("The outfit no longer exists.");
+				CaptureWindow::SetError(Strings::Get(Strings::Text::kOutfitNoLongerExists));
 				return;
 			}
 			const auto pieces = Library::LoadedPieces(*stored);
 			if (pieces.empty()) {
-				CaptureWindow::SetError("None of its items is loaded.");
+				CaptureWindow::SetError(Strings::Get(Strings::Text::kNoLoadedPiece));
 				return;
 			}
 			auto dressed = ApplyOutfit(*target, outfit, row, excluded, armors, offered, pieces);
@@ -1513,7 +1515,7 @@ namespace
 		request.onChestUpdate = [actorID, armors](const CaptureWindow::ChestEdit& edit) {
 			const auto* chest = Chests::Find(edit.chest);
 			if (!chest) {
-				CaptureWindow::SetError("The chest no longer exists.");
+				CaptureWindow::SetError(Strings::Get(Strings::Text::kChestNoLongerExists));
 				return;
 			}
 			const auto  oldName = chest->name;  // the update leaves `chest` stale
@@ -1576,7 +1578,7 @@ namespace
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory, bool saveOnly)
 	{
 		CaptureWindow::Request request;
-		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
+		request.actorName = actor.GetName() ? actor.GetName() : Strings::Get(Strings::Text::kNpc);
 		if (const auto* player = RE::PlayerCharacter::GetSingleton(); player && player->GetName()) {
 			request.playerName = player->GetName();
 		}
@@ -1612,7 +1614,7 @@ namespace
 		if (saveOnly) {
 			request.saveOnly = true;
 			request.offersWardrobe = false;
-			request.actorSummary.lead = std::format("{} dresses as they please. You can save what they wear, but not change it.", request.actorName);
+			request.actorSummary.lead = Strings::Format(Strings::Text::kSummarySaveOnly, request.actorName);
 			AttachSaveOnlyPreview(request);
 		} else {
 			AttachAssignment(request, actor, armors, offered, choices);

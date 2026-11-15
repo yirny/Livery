@@ -747,7 +747,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// A text's parts as a line draws them: its words, with `a_values[n]` where it names {n}
-	// (Strings::Pieces); a value the list lacks is left out.
+	// (Strings::Pieces); a value the list lacks, or one with no text and no icon, is left out.
 	struct TextRuns
 	{
 		static constexpr std::size_t kMaxParts = 9;  // four values among their words
@@ -768,7 +768,10 @@ namespace CaptureWindow::Internal
 			if (piece.value < 0) {
 				runs.parts[runs.count++] = TextRun(piece.words);
 			} else if (static_cast<std::size_t>(piece.value) < a_values.size()) {
-				runs.parts[runs.count++] = a_values.begin()[piece.value];
+				const auto& value = a_values.begin()[piece.value];
+				if ((value.text && *value.text) || value.icon != Theme::HeadingIcon::kNone || !value.rowIconKey.empty()) {
+					runs.parts[runs.count++] = value;
+				}
 			}
 		}
 		return runs;

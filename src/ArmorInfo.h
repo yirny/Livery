@@ -5,13 +5,17 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string_view>
+
+#include "Strings.h"
 
 // An armor's Type and Class as SkyUI's inventory shows them: the piece list's Type column and
 // its icon's tint (PieceIcons.cpp). The rules are SkyUI 5's (schlangster/skyui on GitHub,
 // src/ItemMenus/InventoryDataSetter.as: processArmorClass, processArmorPartMask,
 // processArmorOther, processArmorBaseId; src/Common/skyui/defines/Armor.as), with SkyUI's
-// strings, and SkyUI 6's cloak and backpack slots (read from SkyUI 6.9's inventorymenu.swf).
+// strings as Livery's texts (Strings.h), and SkyUI 6's cloak and backpack slots (read from
+// SkyUI 6.9's inventorymenu.swf).
 // Header only: the functions run when the capture window opens, never per frame.
 //
 // Contract: game thread (reads forms and the data handler).
@@ -30,8 +34,8 @@ namespace ArmorInfo
 
 	struct PieceType
 	{
-		const char* name;   // SkyUI's subTypeDisplay; "" for an armor on unnamed slots only
-		int         order;  // SkyUI's subType, which its Type column sorts by
+		std::optional<Strings::Text> name;   // SkyUI's subTypeDisplay, in Livery's texts; nullopt for an armor on unnamed slots only
+		int                          order;  // SkyUI's subType, which its Type column sorts by
 	};
 
 	namespace detail
@@ -50,27 +54,27 @@ namespace ArmorInfo
 		// PARTMASK_PRECEDENCE's named slots before its unnamed ones, in its order: the first one an
 		// armor covers is its main slot.
 		constexpr std::array<NamedSlot, 14> kPrecedence{ {
-			{ Slot::kBody, { "Body", 3 }, ArmorClass::kClothing },
-			{ Slot::kHair, { "Head", 1 }, ArmorClass::kClothing },
-			{ Slot::kHands, { "Hands", 5 }, ArmorClass::kClothing },
-			{ Slot::kForearms, { "Forearms", 4 }, ArmorClass::kClothing },
-			{ Slot::kFeet, { "Feet", 8 }, ArmorClass::kClothing },
-			{ Slot::kCalves, { "Calves", 7 }, ArmorClass::kClothing },
-			{ Slot::kShield, { "Shield", 6 }, ArmorClass::kClothing },
-			{ Slot::kAmulet, { "Amulet", 10 }, ArmorClass::kJewelry },
-			{ Slot::kRing, { "Ring", 12 }, ArmorClass::kJewelry },
-			{ Slot::kLongHair, { "Head", 2 }, ArmorClass::kClothing },
-			{ Slot::kEars, { "Ears", 11 }, ArmorClass::kJewelry },
-			{ Slot::kHead, { "Head", 0 }, ArmorClass::kClothing },
-			{ Slot::kCirclet, { "Circlet", 9 }, ArmorClass::kJewelry },
-			{ Slot::kTail, { "Tail", 13 }, ArmorClass::kClothing },
+			{ Slot::kBody, { Strings::Text::kTypeBody, 3 }, ArmorClass::kClothing },
+			{ Slot::kHair, { Strings::Text::kTypeHead, 1 }, ArmorClass::kClothing },
+			{ Slot::kHands, { Strings::Text::kTypeHands, 5 }, ArmorClass::kClothing },
+			{ Slot::kForearms, { Strings::Text::kTypeForearms, 4 }, ArmorClass::kClothing },
+			{ Slot::kFeet, { Strings::Text::kTypeFeet, 8 }, ArmorClass::kClothing },
+			{ Slot::kCalves, { Strings::Text::kTypeCalves, 7 }, ArmorClass::kClothing },
+			{ Slot::kShield, { Strings::Text::kTypeShield, 6 }, ArmorClass::kClothing },
+			{ Slot::kAmulet, { Strings::Text::kTypeAmulet, 10 }, ArmorClass::kJewelry },
+			{ Slot::kRing, { Strings::Text::kTypeRing, 12 }, ArmorClass::kJewelry },
+			{ Slot::kLongHair, { Strings::Text::kTypeHead, 2 }, ArmorClass::kClothing },
+			{ Slot::kEars, { Strings::Text::kTypeEars, 11 }, ArmorClass::kJewelry },
+			{ Slot::kHead, { Strings::Text::kTypeHead, 0 }, ArmorClass::kClothing },
+			{ Slot::kCirclet, { Strings::Text::kTypeCirclet, 9 }, ArmorClass::kJewelry },
+			{ Slot::kTail, { Strings::Text::kTypeTail, 13 }, ArmorClass::kClothing },
 		} };
 
 		// SkyUI 6's named slots among the unnamed ones, which PARTMASK_PRECEDENCE ranks by bit
 		// after kPrecedence's: one is an armor's main slot when it is the lowest slot it covers.
 		constexpr std::array<NamedSlot, 2> kLateNamed{ {
-			{ Slot::kModChestPrimary, { "Cloak", 15 }, ArmorClass::kClothing },  // slot 46
-			{ Slot::kModBack, { "Back", 14 }, ArmorClass::kClothing },           // slot 47
+			{ Slot::kModChestPrimary, { Strings::Text::kTypeCloak, 15 }, ArmorClass::kClothing },  // slot 46
+			{ Slot::kModBack, { Strings::Text::kTypeBack, 14 }, ArmorClass::kClothing },           // slot 47
 		} };
 
 		// SkyUI's base-id exceptions, which it matches by the form id's low 24 bits.
@@ -105,14 +109,14 @@ namespace ArmorInfo
 	inline PieceType TypeOf(const RE::TESObjectARMO& a_armor)
 	{
 		if (detail::IsForm(a_armor, detail::kVampireLordArmor, "Dawnguard.esm")) {
-			return { "Body", 3 };
+			return { Strings::Text::kTypeBody, 3 };
 		}
 		if (const auto* main = detail::MainSlot(a_armor)) {
 			return main->type;
 		}
 		// Unnamed slots follow PARTMASK_PRECEDENCE's order, which is theirs by bit.
 		const auto mask = a_armor.GetSlotMask().underlying();
-		return { "", detail::kUnnamedOrder + std::countr_zero(static_cast<std::uint32_t>(mask)) };
+		return { std::nullopt, detail::kUnnamedOrder + std::countr_zero(static_cast<std::uint32_t>(mask)) };
 	}
 
 	inline ArmorClass ClassOf(const RE::TESObjectARMO& a_armor)
