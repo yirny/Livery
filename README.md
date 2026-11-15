@@ -159,7 +159,7 @@ Livery never sets `ReleaseEveryone` back to `0`: set it yourself to keep playing
 
 ## Limits
 
-- Names take the characters your keyboard types in Skyrim.
+- Japanese, Chinese or Korean names go in by paste (Ctrl + V); an IME does not open in the window.
 - Items from plugins that are not loaded have no row in the window and stay in the outfit. Edit `outfits.json` to remove them.
 - Gear another mod puts on an NPC can stay on in a slot their outfit leaves empty, even when **Gear in unused slots** keeps it out. It comes off the next time you trade with them or they load in.
 - Your Sleep outfit goes on only with a mod that puts you into bed: the game's own beds just pass the time.
