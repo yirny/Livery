@@ -10,17 +10,19 @@
 //   Drag and drop   - an outfit dragged from either pane, dropped on a situation (at its front,
 //                     or between two of its outfits; moved with the items it leaves off) or on
 //                     the outfit list (taken off its row); a folded heading opens once a drag
-//                     has hovered it a while
-//   Situation List  - the left pane: a heading per situation (a click or Edit selects, its
-//                     chevron folds, the die of the row worn puts on another of its outfits)
-//                     over the outfits it shows; a click on an outfit row of either pane shows
-//                     its details and puts it on the preview
-//   Condition editor - a user's situation's conditions (docs/custom-situations.md §7): a line
+//                     has hovered it a while; a situation dropped between two others (the order)
+//   Never worn      - which situations one lower in the list covers (SituationRules::CoveredBy)
+//   Situation List  - the left pane: the Default's heading, the order's caption, then a heading
+//                     per situation in the order (a click or Edit selects, its chevron folds, the
+//                     die of the row worn puts on another of its outfits) over the outfits it
+//                     shows; a click on an outfit row of either pane shows its details and puts
+//                     it on the preview
+//   Condition editor - a situation's conditions (docs/custom-situations.md §7): a line
 //                     per row that reads as a sentence (a two-state dropdown, or the kind, an
 //                     operator dropdown and its values), places or spells under it, a × at each
 //                     line's end; Add Condition..., Allow during combat, the Applies line
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
-//                     details: name, conditions, Random Outfit (for #{Name}), Show
+//                     details: name, never worn, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
 //                     pieces ticked as the row it was clicked under wears them
 //   Buttons, popups - New Situation..., Exit, Restore Presets (?); the New situation, Remove's and
@@ -75,6 +77,10 @@ namespace CaptureWindow::Internal
 		constexpr const char* kPiecesLine = "Items not in the Wardrobe";
 		// The widest time a Time of day dropdown shows, for its width.
 		constexpr const char* kWidestTime = "12:30 AM";
+		// A situation dragged by its heading's grip to another place in the order.
+		constexpr const char* kSituationPayload = "LiverySituation";
+		// Under the Default's heading, over the order.
+		constexpr const char* kOrderCaption = "The lowest that applies is worn.";
 
 		// --- Edits ------------------------------------------------------------
 
@@ -96,11 +102,21 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 
-		// Entry `a_index` is a user's situation whose conditions differ from situations.json.
+		// Entry `a_index`'s conditions differ from situations.json; the Default has none.
 		bool RulesChanged(const State& a_state, std::size_t a_index)
 		{
-			const auto& saved = a_state.request.situations[a_index];
-			return saved.user && a_state.situationForm.entries[a_index].rules != saved.rules;
+			return a_index > 0 && a_state.situationForm.entries[a_index].rules != a_state.request.situations[a_index].rules;
+		}
+
+		// The Situation List's order differs from situations.json's, request.situations' own.
+		bool OrderChanged(const SituationForm& a_form)
+		{
+			for (std::size_t i = 0; i < a_form.order.size(); ++i) {
+				if (a_form.order[i] != i + 1) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		// A row differs from the actor's, or the Default's pieces were dropped.
@@ -247,6 +263,58 @@ namespace CaptureWindow::Internal
 			ScheduleAutosave(a_state);
 		}
 
+		// A situation dragged by its grip: the entry it is.
+		struct SituationPayload
+		{
+			std::size_t entry = 0;
+		};
+
+		// The situation the drag on now carries; nullptr for none.
+		const SituationPayload* DraggedSituation()
+		{
+			const auto* payload = ImGui::GetDragDropPayload();
+			return payload && payload->IsDataType(kSituationPayload) ? static_cast<const SituationPayload*>(payload->Data) : nullptr;
+		}
+
+		// Accepts a situation dragged over the drop target just begun, with the line at `a_lineY`
+		// while it hovers, and ends the target. Returns the dragged entry once dropped.
+		// Contract: right after a BeginDragDropTarget that returned true.
+		std::optional<std::size_t> AcceptSituation(float a_lineY)
+		{
+			std::optional<std::size_t> dropped;
+			if (DraggedSituation()) {
+				if (const auto* payload = ImGui::AcceptDragDropPayload(kSituationPayload, ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
+					DrawInsertLine(a_lineY);
+					if (payload->IsDelivery()) {
+						dropped = static_cast<const SituationPayload*>(payload->Data)->entry;
+					}
+				}
+			}
+			ImGui::EndDragDropTarget();
+			return dropped;
+		}
+
+		// Situation `a_entry` dropped before the one at `a_place` in the order (its end with
+		// order.size()). Nobody is redressed for it: the poll follows the order once the window
+		// closes.
+		void DropSituation(State& a_state, std::size_t a_entry, std::size_t a_place)
+		{
+			auto&      order = a_state.situationForm.order;
+			const auto from = std::ranges::find(order, a_entry);
+			if (from == order.end()) {
+				return;
+			}
+			const auto index = static_cast<std::size_t>(from - order.begin());
+			const auto place = a_place > index ? a_place - 1 : a_place;  // the place once it is out
+			if (place == index) {
+				return;
+			}
+			order.erase(from);
+			order.insert(order.begin() + static_cast<std::ptrdiff_t>(place), a_entry);
+			a_state.situationForm.neverWornStale = true;
+			ScheduleAutosave(a_state);
+		}
+
 		// A drag from the Situation List dropped on the outfit list: the outfit leaves its row
 		// (its `chosen` 0 if it was that), or the Default's pieces go.
 		void DropOnOutfitList(State& a_state, const OutfitPayload& a_payload)
@@ -263,6 +331,38 @@ namespace CaptureWindow::Internal
 			const auto before = ViewedOutfitPieces(a_state);
 			OutfitRows::Take(form.entries[static_cast<std::size_t>(a_payload.from)].row, a_payload.outfit);
 			FollowViewedPieces(a_state, before);
+		}
+
+		// --- Never worn -------------------------------------------------------
+
+		// For each situation, one lower in the list that applies whenever it does
+		// (SituationRules::CoveredBy, from the rules and the order as edited): the nearest found.
+		// At most kMaxSituations squared pairs, each a few rows.
+		void TellNeverWorn(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			form.neverWornBy.assign(form.entries.size(), -1);
+			for (std::size_t p = 0; p < form.order.size(); ++p) {
+				const auto& rules = form.entries[form.order[p]].rules;
+				for (std::size_t q = p + 1; q < form.order.size(); ++q) {
+					if (SituationRules::CoveredBy(rules, form.entries[form.order[q]].rules, a_state.request.placeFacts)) {
+						form.neverWornBy[form.order[p]] = static_cast<int>(form.order[q]);
+						break;
+					}
+				}
+			}
+			form.neverWornStale = false;
+		}
+
+		// "Never worn: Rainy town, lower in the list, applies whenever this does." for entry
+		// `a_entry`; "" while it may be worn.
+		std::string NeverWornText(const SituationForm& a_form, std::size_t a_entry)
+		{
+			const int by = a_entry < a_form.neverWornBy.size() ? a_form.neverWornBy[a_entry] : -1;
+			if (by < 0) {
+				return {};
+			}
+			return std::format("Never worn: {}, lower in the list, applies whenever this does.", Trimmed(a_form.entries[static_cast<std::size_t>(by)].name.data()));
 		}
 
 		// --- Situation List ---------------------------------------------------
@@ -342,7 +442,7 @@ namespace CaptureWindow::Internal
 		float SituationListHeight(const State& a_state, float a_top)
 		{
 			const auto& form = a_state.situationForm;
-			float       rows = 0.0f;
+			float       rows = form.entries.size() > 1 ? Theme::ListHeadingHeight() : 0.0f;  // the order's caption
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				rows += Theme::SituationHeadingHeight();
 				if (ShowsPieces(form, i)) {
@@ -501,20 +601,54 @@ namespace CaptureWindow::Internal
 			return click == Theme::HeadingClick::kDice;
 		}
 
-		// The left pane: the Situation List (?) label over a heading per situation, the Default
-		// first. Returns whether a heading's die was clicked.
+		// The help of the Situation List's label: what the list is, which situation is worn, what
+		// a drag does; the order's drag only while the page offers it.
+		std::string SituationListHelp(const State& a_state)
+		{
+			const auto& request = a_state.request;
+			return std::format(
+				"Each situation lists the outfits {} can wear there.\nThe lowest situation that applies is worn; otherwise, and in "
+				"combat, the default outfit.\n{}Drag an outfit onto a situation to add it, between its outfits to place it, onto another "
+				"situation to move it, or back to the outfit list to take it off.",
+				request.actorName, request.customSituations ? "Drag a situation by its grip to change the order.\n" : "");
+		}
+
+		// The situation at place `a_place` of the order, its heading and what it shows: a drop of
+		// a situation over its heading's upper half goes before it, anywhere lower in its block
+		// after it. Returns whether its die was clicked.
+		bool DrawOrderedEntry(State& a_state, std::size_t a_place, int& a_dragHovered)
+		{
+			const auto  entry = a_state.situationForm.order[a_place];
+			const float top = ImGui::GetCursorScreenPos().y;
+			ImGui::PushID(static_cast<int>(entry));
+			const bool   dice = DrawSituationEntry(a_state, entry, a_dragHovered);
+			const float  bottom = ImGui::GetCursorScreenPos().y;
+			const float  left = ImGui::GetWindowPos().x;
+			const ImRect block(ImVec2(left, top), ImVec2(left + ImGui::GetWindowWidth(), bottom));
+			if (DraggedSituation() && ImGui::BeginDragDropTargetCustom(block, ImGui::GetID("situationDrop"))) {
+				const bool before = ImGui::GetMousePos().y < top + Theme::SituationHeadingHeight() * 0.5f;
+				if (const auto dropped = AcceptSituation(before ? top : bottom)) {
+					DropSituation(a_state, *dropped, before ? a_place : a_place + 1);
+				}
+			}
+			ImGui::PopID();
+			return dice;
+		}
+
+		// The left pane: the Situation List (?) label over the Default's heading, the order's
+		// caption, then a heading per situation in the order. Returns whether a heading's die
+		// was clicked.
 		bool DrawSituationList(State& a_state)
 		{
-			auto&       form = a_state.situationForm;
+			auto& form = a_state.situationForm;
+			if (form.neverWornStale) {
+				TellNeverWorn(a_state);
+			}
 			const float paneTop = ImGui::GetCursorPosY();
 			Theme::LabelText("Situation List");
 			const bool helpHovered = Theme::LabelHelpMark();
 			if (FocusStandIn("##listHelp") || helpHovered) {
-				DrawHelpTooltip(std::format(
-					"Each situation lists the outfits {} can wear there.\nWhen several apply, the most specific one with an "
-					"outfit is worn; otherwise, and in combat, the default outfit.\nDrag an outfit onto a situation to add it, between "
-					"its outfits to place it, onto another situation to move it, or back to the outfit list to take it off.",
-					a_state.request.actorName));
+				DrawHelpTooltip(SituationListHelp(a_state));
 			}
 			const float top = ImGui::GetCursorPosY() - paneTop;
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
@@ -522,11 +656,25 @@ namespace CaptureWindow::Internal
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 			int  dragHovered = -1;
 			bool diceClicked = false;
-			if (Theme::BeginList("situations", SituationListHeight(a_state, top))) {
-				for (std::size_t i = 0; i < form.entries.size(); ++i) {
-					ImGui::PushID(static_cast<int>(i));
-					diceClicked = DrawSituationEntry(a_state, i, dragHovered) || diceClicked;
-					ImGui::PopID();
+			if (Theme::BeginList("situations", SituationListHeight(a_state, top)) && !form.entries.empty()) {
+				ImGui::PushID(0);
+				diceClicked = DrawSituationEntry(a_state, 0, dragHovered);
+				ImGui::PopID();
+				if (!form.order.empty()) {
+					// The caption takes a situation dropped on it first in the order.
+					const float captionTop = ImGui::GetCursorScreenPos().y;
+					Theme::ListHeading(kOrderCaption);
+					const float  captionBottom = ImGui::GetCursorScreenPos().y;
+					const float  left = ImGui::GetWindowPos().x;
+					const ImRect caption(ImVec2(left, captionTop), ImVec2(left + ImGui::GetWindowWidth(), captionBottom));
+					if (DraggedSituation() && ImGui::BeginDragDropTargetCustom(caption, ImGui::GetID("captionDrop"))) {
+						if (const auto dropped = AcceptSituation(captionBottom)) {
+							DropSituation(a_state, *dropped, 0);
+						}
+					}
+				}
+				for (std::size_t p = 0; p < form.order.size(); ++p) {
+					diceClicked = DrawOrderedEntry(a_state, p, dragHovered) || diceClicked;
 				}
 			}
 			ImGui::PopStyleVar();
@@ -1023,10 +1171,24 @@ namespace CaptureWindow::Internal
 			Theme::RunText(second, true);
 		}
 
+		// Why a situation is never worn (NeverWornText), in the error colour, wrapped to the pane.
+		void DrawNeverWorn(const SituationForm& a_form, std::size_t a_entry)
+		{
+			const auto text = NeverWornText(a_form, a_entry);
+			if (text.empty()) {
+				return;
+			}
+			Theme::SectionGap();
+			ImGui::PushStyleColor(ImGuiCol_Text, Theme::ErrorColor());
+			ImGui::TextWrapped("%s", text.c_str());
+			ImGui::PopStyleColor();
+		}
+
 		// The settings every actor shares: the name, its label with the situation star (none for
-		// the Default, which says what it is under it), and the conditions: a user's situation's
-		// in the condition editor, a preset's read only. Returns true when a Place or Spell row's
-		// Add link was pressed (SituationForm::formRow).
+		// the Default, which says what it is under it), why it is never worn, and the conditions:
+		// in the condition editor while the page offers it (Request::customSituations), else read
+		// only. Returns true when a Place or Spell row's Add link was pressed
+		// (SituationForm::formRow).
 		bool DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			auto&      form = a_state.situationForm;
@@ -1043,9 +1205,11 @@ namespace CaptureWindow::Internal
 			if (isDefault) {
 				DrawDefaultNote(a_state);
 			}
-			if (a_state.request.situations[a_entry].user) {
+			DrawNeverWorn(form, a_entry);
+			if (!isDefault && a_state.request.customSituations) {
 				bool addForm = false;
 				if (DrawConditionEditor(a_state, entry.rules, addForm)) {
+					form.neverWornStale = true;
 					ScheduleAutosave(a_state);
 				}
 				return addForm;
@@ -1055,7 +1219,7 @@ namespace CaptureWindow::Internal
 			if (isDefault) {
 				DrawDefaultConditions();
 			} else {
-				DrawFieldText(a_state.request.situations[a_entry].conditions.c_str());
+				DrawFieldText(SituationRules::Text(entry.rules).c_str());
 			}
 			ImGui::PopStyleColor();
 			return false;
@@ -1195,22 +1359,27 @@ namespace CaptureWindow::Internal
 			kExit
 		};
 
-		// New Situation... and Exit, centred as the other pages' buttons, then Restore Presets (?)
-		// at the row's right end, a link as the details' Remove and Restore are, greyed while
-		// every preset is as installed. a_escapeTaken: the
-		// browser used this frame's Escape, which is otherwise Exit.
+		// New Situation... (while the page offers it, Request::customSituations) and Exit, centred
+		// as the other pages' buttons, then Restore Presets (?) at the row's right end, a link as
+		// the details' Remove and Restore are, greyed while every preset is as installed.
+		// a_escapeTaken: the browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
 			constexpr const char* kRestoreHelp =
-				"Brings the preset situations back as installed: a removed one returns, empty, and a renamed one "
-				"gets its name back.\nNobody's outfits change.";
+				"Brings the preset situations back as installed: a removed one returns, empty, and a renamed or edited one "
+				"gets its name and conditions back.\nTheir order and nobody's outfits change.";
 
 			const auto& request = a_state.request;
-			BeginButtonRow({ { kNewSituation, Theme::HeadingIcon::kStar }, "Exit" });
-			BeginItemDisabled(a_state, !request.onSituationCreate);
-			const bool create = Theme::Button(Theme::HeadingIcon::kStar, kNewSituation);
-			EndItemDisabled();
-			ImGui::SameLine();
+			bool        create = false;
+			if (request.customSituations) {
+				BeginButtonRow({ { kNewSituation, Theme::HeadingIcon::kStar }, "Exit" });
+				BeginItemDisabled(a_state, !request.onSituationCreate);
+				create = Theme::Button(Theme::HeadingIcon::kStar, kNewSituation);
+				EndItemDisabled();
+				ImGui::SameLine();
+			} else {
+				BeginButtonRow({ "Exit" });
+			}
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 			const bool exit = Theme::Button("Exit") || escape;
 
@@ -1598,6 +1767,11 @@ namespace CaptureWindow::Internal
 						.rules = rules ? std::optional{ form.entries[i].rules } : std::nullopt });
 				}
 			}
+			if (OrderChanged(form)) {
+				for (const auto entry : form.order) {
+					save.order.push_back(request.situations[entry].situation);
+				}
+			}
 			if (RowsChanged(a_state)) {
 				for (std::size_t i = 0; i < form.entries.size(); ++i) {
 					save.rows.push_back({ .situation = request.situations[i].situation, .row = form.entries[i].row });
@@ -1736,6 +1910,11 @@ namespace CaptureWindow::Internal
 			}
 		}
 		form.entries = std::move(entries);
+		form.order.clear();
+		for (std::size_t i = 1; i < form.entries.size(); ++i) {
+			form.order.push_back(i);  // as saved: request.situations' order
+		}
+		form.neverWornStale = true;
 		form.defaultPieces = !request.assigned.empty() && request.assigned[0].pieces;
 		form.details = form.details && form.selected >= 0;
 		form.nameEditing = -1;
@@ -1766,7 +1945,7 @@ namespace CaptureWindow::Internal
 				return true;
 			}
 		}
-		return NamesChanged(a_state) || RowsChanged(a_state);
+		return NamesChanged(a_state) || RowsChanged(a_state) || OrderChanged(a_state.situationForm);
 	}
 
 	bool SaveSituationEdits(State& a_state)
@@ -1781,11 +1960,11 @@ namespace CaptureWindow::Internal
 
 	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit)
 	{
-		const auto& entries = a_state.situationForm.entries;
+		const auto& form = a_state.situationForm;
 		std::string text;
-		for (std::size_t i = 1; i < entries.size(); ++i) {
-			if (OutfitRows::Holds(entries[i].row, a_outfit)) {
-				text += std::format("{}{}", text.empty() ? "For " : ", ", Trimmed(entries[i].name.data()));
+		for (const auto i : form.order) {
+			if (OutfitRows::Holds(form.entries[i].row, a_outfit)) {
+				text += std::format("{}{}", text.empty() ? "For " : ", ", Trimmed(form.entries[i].name.data()));
 			}
 		}
 		return text;

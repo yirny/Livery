@@ -1,7 +1,8 @@
 # User-defined situations
 
 Design, decided 2026-11-13. Built and checked in game: 2a to 2c (§9); 2d (§8, the presets'
-rules and the order) is decided 2026-11-14, not built. It turns the situations of
+rules and the order) is built but for the heading's drag grip and never-worn mark (§7), not
+checked in game. It turns the situations of
 docs/design.md §7 into one model: the five presets and the situations the user defines, each
 a key, a name, a list of conditions and a place in one order. The registry
 (`Situations::Count`, `Order`, `AddUser`, `kMaxSituations = 64`) is its base; the model is
@@ -18,9 +19,15 @@ Items marked *provisional* are tried in a prototype first and may change.
   page, the HUD and the logs treat it the same; the co-save stores it by key, so no co-save
   version changes.
 - The presets are situations like the user's: the same model, their installed rules held
-  in `SituationTable::kPresetRules` (§3), edited, reordered and removed through the window as
+  in `SituationTable::PresetRules` (§3), edited, reordered and removed through the window as
   the user's are. The one difference: Restore Presets brings a preset back as installed; a
   removed user's situation is gone. The Default is neither: no rules, no place in the order.
+- The settings page's `Enable custom situations` (`[Window] CustomSituations`, default off,
+  under the `Advanced` heading with `Enable chests`; `Settings::CustomSituations`, read as the
+  window opens, `Request::customSituations`) offers the editing: New Situation..., the order's
+  drag and the condition editor. Off, every situation made stays in use, and the Situations page
+  still lists them with their outfits, their Applies line read only, the never-worn mark, Remove
+  and Restore Presets; renaming stays too. The poll does not read the setting.
 - The first version ships the kinds of §3; §4 lists the kinds held back.
 
 ## 2. Condition model
@@ -59,7 +66,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 
 Notes:
 
-- The presets as installed (`SituationTable::kPresetRules`), each with `Allow during combat` off:
+- The presets as installed (`SituationTable::PresetRules`), each with `Allow during combat` off:
   Town = Location type {Town}; Castle = Location type {Castle}; Home = Location type
   {Player home}; Cold = Weather {Rain, Snow, Snowy region} and not Indoors; Sleep = Sleeping.
   Two changes from the first release's fixed rules, decided 2026-11-14 since a rule cannot
@@ -138,14 +145,19 @@ row change.
 
 ## 6. Data
 
-situations.json becomes version 2 at the first change version 1 cannot hold: a user-defined
-situation made (`nextKey` above 1), a preset's rules or `Allow during combat` edited, or the order
-changed; it then stays so. Until then it is written as version 1, so a Livery without user
-situations still reads it. The parser reads version 1 (presets' names and removed flags only)
-as version 2 with the presets as installed, in the installed order. The array is the window's
-list, top to bottom, the Default never in it: every preset, removed or not, and every user's
-situation not removed, each with every field. A version 2 file missing a preset gets it
-appended as installed, in the installed order, so a hand-edited file still loads. Shape:
+situations.json is written as version 1 while version 1 holds it all
+(`SituationTable::FitsVersion1`): no user-defined situation ever made (`nextKey` 1), every
+preset's rules and `Allow during combat` as installed, the installed order; so a Livery without
+user situations still reads it. Anything else writes version 2; once a user's situation was
+made, `nextKey` keeps it there. The parser reads version 1 (presets' names and removed flags
+only) as version 2 with the presets as installed, in the installed order. The array is the
+window's list, top to bottom: every preset, removed or not, and every user's situation not
+removed, each with every field; the Default only when renamed, and never in the order. A
+version 2 file missing a preset gets it first in the order, as installed, in the installed
+order (`Detail::AddMissingPresets`): a hand-edited file still loads, and a file written before
+the presets had rules (2a to 2c wrote only the presets renamed or removed) keeps its own
+situations winning over the presets, as they did then. A preset entry without `conditions`
+keeps its installed rules. Shape:
 
 ```json
 {
@@ -203,19 +215,24 @@ appended as installed, in the installed order, so a hand-edited file still loads
 
 Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order (§8).
 
-- The Situation List: the Default's heading first, pinned, then a rule with the caption
-  `The lowest that applies is worn.` in the small heading style, then one heading per
-  situation not removed in `Situations::Order()`, each dragged by its grip
-  (`kSituationPayload`, apart from the outfits') to another place among them; the drop shows
-  as a line between two headings, as an outfit's does between outfits. The label's help says
-  so (docs/situation-management-ui.md §4).
-- The page's button row gains `New Situation...` (before Exit): the `New situation` popup asks
+- The Situation List: the Default's heading first, pinned, then the caption `The lowest that
+  applies is worn.` as a list heading (`Theme::ListHeading`, its rule after it), then one
+  heading per situation not removed in the order (`SituationForm::order`, request.situations'
+  until a drag), each dragged by its grip (`kSituationPayload`, apart from the outfits') to
+  another place among them, with `Request::customSituations`: over a heading's upper half
+  before it, anywhere lower in its block after it, on the caption first; the drop shows as a
+  line, as an outfit's does between outfits. The label's help says so
+  (docs/situation-management-ui.md §4). *Not built yet*: the grip on the heading needs
+  `Theme::SituationHeading` in sarrai-common; the drop side and the save are built.
+- With `Request::customSituations`, the page's button row gains `New Situation...` (before
+  Exit): the `New situation` popup asks
   for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
   situation, with no conditions, is appended last, where it wins over every other, and
   selected with its details shown. Every situation but the Default has Remove (a preset's
   popup with the Restore Presets line, a user's without it) and the condition editor below
   the name.
-- The editor, for every situation but the Default: each row reads as a sentence, with a ×
+- The editor, for every situation but the Default with `Request::customSituations` (off, the
+  `Conditions` label over the Applies line, read only): each row reads as a sentence, with a ×
   (`Theme::ClearButton`, `Remove this condition.` on hover) at its line's right end, and the
   rows a field's gap apart (`Theme::SectionGap`). No `Not` checkbox: the row's `not` is a
   dropdown of two choices. A kind that is so or not (`SituationRules::TwoState`: In combat,
@@ -283,9 +300,10 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - Edits save as the page's other edits do: 0.5 s after the last one or as the page is left,
   the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
-- A heading, and the name's label in the details, carries the warning mark after the name
-  while the situation is never worn (§8a), its tooltip `Never worn: <name>, lower in the
-  list, applies whenever this does.`
+- While a situation is never worn (§8a), its details say so under the name, after a field's
+  gap, in the error colour, wrapped: `Never worn: <name>, lower in the list, applies whenever
+  this does.` *Not built yet*: the warning mark after the name on its heading, the same
+  sentence its tooltip, which needs `Theme::SituationHeading` in sarrai-common.
 
 ## 8. Priority
 
@@ -315,8 +333,11 @@ rows, B's `Allow during combat` is on or A's off, and every row of B is implied 
   it.
 
 A place's keywords, parents and the locations within it are read as the window opens
-(`Situations::PlaceFacts`, one pass over the loaded locations); a place whose plugin is not
-loaded gives none. A situation that never applies (no rows, or a row with nothing selected) is
+(`Situations::PlaceFacts`, `Request::placeFacts`: the places of every situation's rules and those
+the Add place popup offers; one pass over the loaded locations, only when one of them is a
+location); a place whose plugin is not loaded gives none. The page works the mark out
+(`SituationForm::neverWornBy`, the nearest covering situation below) before it draws after the
+form was filled, a condition edited or the order changed. A situation that never applies (no rows, or a row with nothing selected) is
 not marked, as its Applies line says so, and covers nothing. Nothing else is told, so a missing
 mark proves nothing; the tooltip names what was found. The mark does not read the actor's rows
 (whether they have an outfit for B): the file is every save's; revisited after use.
@@ -332,7 +353,8 @@ mark proves nothing; the tooltip names what was found. The mark does not read th
 3. 2c: Spell, reusing 2b's list line, with the search picker and the active-effect walk.
    Built on `feat/cs-spell`, checked in game.
 4. 2d: the order and the presets' rules (§8): one list, the presets' rules in the model, the
-   grip drag, Restore Presets with rules, the never-worn mark. On `feat/cs-priority`.
+   grip drag, Restore Presets with rules, the never-worn mark, `Enable custom situations` (§1).
+   On `feat/cs-priority`; built but for the heading's grip and mark (§7).
 
 ## 10. Open and in-game checks
 

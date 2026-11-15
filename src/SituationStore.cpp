@@ -144,6 +144,9 @@ namespace SituationStore
 			logger::warn("situations.json: {} place(s) or spell(s) from plugins not loaded hold nowhere", unloaded);
 		}
 		g_table = std::move(table);
+		if (!Situations::Reorder(g_table.order)) {  // never: Parse orders every situation it read, and RegisterUsers added them
+			logger::error("situations.json: its order does not match the situations; they keep the installed order");
+		}
 		g_writable = true;
 		logger::info("Loaded situations.json: {} preset(s) changed, {} situation(s) of your own", SituationTable::RestoreChanges(g_table).size(),
 			g_table.size() - Situations::kPresetCount);
@@ -167,7 +170,7 @@ namespace SituationStore
 	std::vector<Situations::Situation> Offered()
 	{
 		std::vector<Situations::Situation> offered;
-		for (const auto situation : Situations::Choosable()) {
+		for (const auto situation : Situations::Order()) {
 			if (!IsRemoved(situation)) {
 				offered.push_back(situation);
 			}
@@ -178,11 +181,12 @@ namespace SituationStore
 	const SituationRules::Rules* RulesOf(Situations::Situation a_situation)
 	{
 		const auto index = SituationTable::IndexOf(a_situation);
-		return index < g_table.size() && SituationTable::IsUser(g_table[index]) ? &g_table[index].rules : nullptr;
+		return index > 0 && index < g_table.size() ? &g_table[index].rules : nullptr;
 	}
 
-	// Contract: every refusal is checked before the write, so a refused edit changes nothing.
-	std::optional<std::string> Apply(const std::vector<Edit>& a_edits)
+	// Contract: every refusal is checked before the write, so a refused edit changes nothing;
+	// the registry takes the order only after the write took.
+	std::optional<std::string> Apply(const std::vector<Edit>& a_edits, std::span<const Situations::Situation> a_order)
 	{
 		if (!g_writable) {
 			return kUnreadable;
@@ -193,8 +197,8 @@ namespace SituationStore
 			if (entry.removed) {
 				return std::format("\"{}\" has been removed.", entry.name);
 			}
-			if (rules && !SituationTable::IsUser(entry)) {
-				return std::format("The conditions of \"{}\" cannot be changed.", entry.name);
+			if (rules && situation == Situations::Situation::kDefault) {
+				return "The default outfit has no conditions.";
 			}
 			entry.name = name;
 			if (rules) {
@@ -204,8 +208,22 @@ namespace SituationStore
 		if (auto problem = SituationTable::CheckNames(table)) {
 			return problem;
 		}
+		if (!a_order.empty()) {
+			const auto removed = [&table](Situations::Situation a_situation) { return table[SituationTable::IndexOf(a_situation)].removed; };
+			auto       order = SituationTable::Reordered(table.order, a_order, removed);
+			if (!order) {
+				return "The situations' order does not match the list. Open the window again.";
+			}
+			table.order = std::move(*order);
+		}
 		ResolveForms(table);
-		return Commit(std::move(table));
+		if (auto problem = Commit(std::move(table))) {
+			return problem;
+		}
+		if (!Situations::Reorder(g_table.order)) {  // never: the table and the registry hold the same situations
+			logger::error("The situations' order was written but not taken; it takes effect when the game is restarted");
+		}
+		return std::nullopt;
 	}
 
 	// Contract: the registry adds the situation only after the write took, and every refusal
@@ -221,6 +239,7 @@ namespace SituationStore
 		}
 		auto       table = g_table;
 		const auto key = SituationTable::UserKey(table.nextKey++);
+		table.order.push_back(static_cast<Situations::Situation>(table.size()));  // last, as AddUser puts it
 		table.entries.push_back({ .name = std::string(ExampleMod::TrimWhitespace(a_name)), .key = key });
 		if (auto problem = SituationTable::CheckNames(table)) {
 			return problem;

@@ -416,10 +416,10 @@ would have to be kept in step).
   pieces. Other saves' rows naming it keep the id, which counts as not on the row and never
   shows (docs/situation-management-ui.md §1); restoring outfits.json brings it back.
 - Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
-  presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
-  situation key its name and removed flag, only for the presets that
-  differ from as installed, and the situations the user defines with their conditions
-  (version 2, docs/custom-situations.md §6); a missing or empty file is every preset as
+  presets, the file's parse and write and the name rules in `src/SituationTable.h`): every
+  situation's name, removed flag and conditions, the presets' and those the user defines, in
+  the window's order (version 2, docs/custom-situations.md §6; version 1, the presets' names and
+  removed flags alone, while nothing else differs from as installed); a missing or empty file is every preset as
   installed and is not written at load. The same load and write rules as the library (docs/situation-management-ui.md
   §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
 - Chests (docs/chest-ui.md): `chests.json` beside the library (`src/Chests.cpp`), named sets of
@@ -662,9 +662,9 @@ docs/situation-management-ui.md) and the chests (docs/chest-ui.md, behind the `E
 setting, off by default). Open:
 
 1. User-defined situations (docs/custom-situations.md) on `feature/custom-situations`: the
-   conditions without a form picker, Place and Spell built and checked in game; next, one order
-   for the presets and the user's, the presets' rules editable (§8 there); layer outfits
-   (docs/memo-layer-outfits.md).
+   conditions without a form picker, Place and Spell built and checked in game; one order for
+   the presets and the user's, the presets' rules editable, behind `Enable custom situations`
+   (§1, §8 there), built, not checked in game; layer outfits (docs/memo-layer-outfits.md).
 2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
    snowy region (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given

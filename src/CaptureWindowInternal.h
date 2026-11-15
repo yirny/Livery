@@ -221,14 +221,22 @@ namespace CaptureWindow::Internal
 		std::string                     nameBefore;      // its name as its field's edit began, put back for an empty or taken one
 		OutfitRows::Row                 row;             // the actor's row for it
 		bool                            folded = false;  // its heading in the Situation List is folded
-		SituationRules::Rules           rules;           // a user's situation's conditions as edited (SituationInfo::user)
+		SituationRules::Rules           rules;           // its conditions as edited; none for the Default
 	};
 
 	// the Situations page's edits, kept while the window is open; a change a handler made
 	// (SetOutfits) and Discard Changes start them again from the request.
 	struct SituationForm
 	{
-		std::vector<SituationEntry>     entries;
+		std::vector<SituationEntry> entries;
+		// The entries after the Default as the Situation List shows them, top to bottom: indices
+		// into entries, in request.situations' order until the user drags one.
+		std::vector<std::size_t> order;
+		// Per entry, the entry lower in the list that applies whenever it does, so it is never
+		// worn (SituationRules::CoveredBy); -1 for none. Worked out again before the page draws
+		// after `neverWornStale` was set: the form refilled, a condition or the order edited.
+		std::vector<int>                neverWornBy;
+		bool                            neverWornStale = true;
 		bool                            defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
 		int                             selected = -1;             // index into entries; -1 for none
 		bool                            details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)

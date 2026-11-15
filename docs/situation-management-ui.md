@@ -149,7 +149,8 @@ outfit for Town any more`.
   `Each situation lists the outfits #{Name} can wear there. The lowest situation that applies
   is worn; otherwise, and in combat, the default outfit. Drag a situation by its grip to change
   the order, an outfit onto a situation to add it, between its outfits to place it, onto another
-  situation to move it, or back to the outfit list to take it off.` (The order:
+  situation to move it, or back to the outfit list to take it off.`, each sentence a line, the
+  order's only with `Enable custom situations` (docs/custom-situations.md §1). (The order:
   docs/custom-situations.md §8.)
 - The Default's heading first, pinned, under it the rule and caption of
   docs/custom-situations.md §7, then one heading per situation not removed in
