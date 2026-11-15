@@ -13,7 +13,7 @@ Items marked *provisional* are tried in a prototype first and may change.
 
 - A user-defined situation has a key (`user:<n>`, §6), a name (the same rules as the presets':
   text, unique among situations not removed, ASCII case ignored), a list of condition rows
-  (§2), an `Apply in combat` flag and a place in the order (§8).
+  (§2), an `Allow during combat` flag and a place in the order (§8).
 - It is chosen for outfits like a preset: a row per assigned actor (`OutfitRows`), the Situations
   page, the HUD and the logs treat it the same; the co-save stores it by key, so no co-save
   version changes.
@@ -34,7 +34,7 @@ fits, "night or rain" being two situations). The same kind may appear in several
 situation never applies; the Situations page says so (§7). A situation with no rows never
 applies either.
 
-Combat: every situation but the Default has the flag `Apply in combat` (wording provisional):
+Combat: every situation but the Default has the flag `Allow during combat`:
 off, the situation does not apply in combat, so a fight is fought in the Default unless another
 one applies; on, its rows decide. A situation with an `In Combat` row has the flag on and not
 editable, since the row would never hold otherwise. Every preset has it off as installed.
@@ -59,7 +59,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 
 Notes:
 
-- The presets as installed (`SituationTable::kPresetRules`), each with `Apply in combat` off:
+- The presets as installed (`SituationTable::kPresetRules`), each with `Allow during combat` off:
   Town = Location type {Town}; Castle = Location type {Castle}; Home = Location type
   {Player home}; Cold = Weather {Rain, Snow, Snowy region} and not Indoors; Sleep = Sleeping.
   Two changes from the first release's fixed rules, decided 2026-11-14 since a rule cannot
@@ -120,7 +120,7 @@ the situations whose row in the actor's rows holds an outfit (`Assignments::Situ
 passes them): one they have no outfit for cannot be worn, so `OutfitRows::Resolve` gives the
 same row, and with none it returns before any engine read. Every situation, preset or the
 user's, is its rules (`SituationStore::RulesOf`, null for the Default alone): in combat, only
-with `Apply in combat` on; then every row must hold.
+with `Allow during combat` on; then every row must hold.
 What a row reads of the actor (the location, in water) is read once per evaluation. A row with a
 list of forms compares FormIDs resolved as the store reads or saves the rules
 (`PieceFile::FormIDOf`) and kept with them (`SituationRules::FormRef::formID`), so the poll
@@ -139,7 +139,7 @@ row change.
 ## 6. Data
 
 situations.json becomes version 2 at the first change version 1 cannot hold: a user-defined
-situation made (`nextKey` above 1), a preset's rules or `Apply in combat` edited, or the order
+situation made (`nextKey` above 1), a preset's rules or `Allow during combat` edited, or the order
 changed; it then stays so. Until then it is written as version 1, so a Livery without user
 situations still reads it. The parser reads version 1 (presets' names and removed flags only)
 as version 2 with the presets as installed, in the installed order. The array is the window's
@@ -215,15 +215,27 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   selected with its details shown. Every situation but the Default has Remove (a preset's
   popup with the Restore Presets line, a user's without it) and the condition editor below
   the name.
-- The editor, for every situation but the Default: one line per row with a `Not` checkbox, the kind (its tooltip says what it
-  means) and Remove at the line's right end; under it, indented, the values of a kind with a
-  small fixed set (Location type, Weather) as checkboxes, side by side while the pane has
-  room, or for Time of day `From [time] to [time]`, two dropdowns in 30-minute steps (a time
-  read from the file off those steps shows as it is). Then `Add Condition...`, a dropdown of
-  the kinds, closed by the choice, which adds a row with nothing ticked (a Place or Spell row
-  opens its Add popup at once). Place and Spell list their forms, one a line with
-  Remove at its right end (one whose plugin is not loaded greyed, saying so on hover), then
-  `Add Place...` or `Add Spell...`.
+- The editor, for every situation but the Default: each row reads as a sentence, with a ×
+  (`Theme::ClearButton`, `Remove this condition.` on hover) at its line's right end, and the
+  rows a field's gap apart (`Theme::SectionGap`). No `Not` checkbox: the row's `not` is a
+  dropdown of two choices. A kind that is so or not (`SituationRules::TwoState`: In combat,
+  Sleeping, In water, Swimming, Indoors) is one dropdown of its two states, `In combat` /
+  `Not in combat`, `Indoors` / `Outdoors` (`KindInfo::label`, `negLabel`), the kind's tooltip
+  on it. The others start with the kind's name (its tooltip says what it means), then the
+  operator dropdown: `is` / `is not` with up to one value or form selected, `is any of` /
+  `is none of` with more (as Linear and Airtable word it), `between` / `not between` for
+  Time of day; then the values. Location type's and Weather's are a multi-choice dropdown
+  (the Filter field's rows, staying open for several ticks) whose preview lists the ticked
+  values, `Rain, Snow`, or a greyed `Select...` with none; Time of day's are `[time] and
+  [time]`, two dropdowns in 30-minute steps (a time read from the file off those steps shows
+  as it is). Both sit on the kind's line while they fit before the ×, else under it, 16px in.
+  Place and Spell list their forms under the line, 16px in, one a line with a × at its right
+  end (`Remove this place.` / `Remove this spell.`; one whose plugin is not loaded greyed,
+  saying so on hover), then `Add Place...` or `Add Spell...`. Then `Add Condition...`, a
+  dropdown of the kinds, closed by the choice, which adds a row with nothing selected (a Place
+  or Spell row opens its Add popup at once); a two-state kind the situation has already is
+  greyed there, a second row of it adding nothing. The label's help: `Applies while every
+  condition holds.` and `A condition with several values holds for any of them.`
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
   `Parent Location (<name>)` for each location it is in, nearest first, up to the first hold
@@ -257,13 +269,17 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   reading the plugins' editor IDs into Livery was judged not worth its load cost for this
   hover. The first 100 matches are listed, then `<n> more. Type more to narrow.`. Add is greyed with none picked or
   one the row has already; Escape clears the search, or with none typed is Cancel.
-- `Apply in combat` is a checkbox under `Add Condition...`; with an In Combat row (not
-  negated) it is on and disabled; a preset's is off as installed.
+- `Allow during combat` is a checkbox a field's gap under `Add Condition...`, apart from the
+  conditions since it is not one; its tooltip `In combat, the default outfit is normally
+  worn.` and `On, this situation can apply in combat too.` With an In Combat row (not
+  negated) it is on and disabled, `On while the situation has an In combat condition.`; a
+  preset's is off as installed.
 - The `Applies` line, under its own label, is every situation's but the Default's
   (`ConditionsText` stays for the Default alone) and is built from the rows in order, one phrase per row, `not` first: `In a town
-  or a castle, in rain or snow, not indoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh
-  is on.` A row with nothing selected reads `Weather (nothing selected)`; a situation without
-  rows `Never applies.`
+  or a castle, in rain or snow, outdoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh
+  is on.` A two-state row negated reads as its state, `not in combat`, `outdoors`. A row with
+  nothing selected reads `Weather (nothing selected)`; a situation without rows `Never
+  applies.`
 - Edits save as the page's other edits do: 0.5 s after the last one or as the page is left,
   the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
@@ -288,7 +304,7 @@ window closes.
 A situation is marked never worn when one lower in the list applies whenever it does, as far as
 the rules tell (`SituationRules::CoveredBy`, computed as the page opens and after each edit,
 never on the poll; at most 64 × 64 situations). Situation B, lower than A, covers A when B has
-rows, B's `Apply in combat` is on or A's off, and every row of B is implied by a row of A:
+rows, B's `Allow during combat` is on or A's off, and every row of B is implied by a row of A:
 
 - the same kind and `not`, and A's values within B's (B's within A's with `not`): the value
   set, the time range, the list of places or spells;
