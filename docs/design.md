@@ -750,8 +750,11 @@ setting, off by default). Open:
   with values; `Strings::Pieces` gives it cut at them (at `Strings::Load`, so drawing
   allocates nothing) and the window's `RunsOf` puts each value's part in its place. A
   sentence is never built from fragments, so a translation can order it freely.
-- `Data/Interface/Translations/Livery_JAPANESE.txt` ships with Livery and is deployed with
-  it.
+- `Data/Interface/Translations/Livery_JAPANESE.txt` ships with Livery, deployed and packaged
+  with it, and so does `Livery_ENGLISH.txt`, the translators' template: the table's texts in
+  its order, written by the hidden test `[.write-template]`. The unit tests fail while the
+  English file differs from the table or the Japanese file lacks a text, so a new text is
+  never shipped untranslated by mistake (docs/DEVELOPMENT.md, Translations).
 - `[UI] Language` in `Livery.ini` picks the file: `Auto` (the default) is the game's
   `sLanguage`, another value a language name (letters, digits and `_`). `Strings::Load` reads
   `Data/Interface/Translations/Livery_<language>.txt` once, first at `kDataLoaded`; until then,

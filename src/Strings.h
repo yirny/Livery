@@ -572,6 +572,24 @@ namespace Strings
 			return true;
 		}
 
+		// A text as the file writes it: a line break as "\n", a backslash as "\\" (Unescape reads
+		// them back).
+		inline std::string Escape(std::string_view a_text)
+		{
+			std::string text;
+			text.reserve(a_text.size());
+			for (const char c : a_text) {
+				if (c == '\n') {
+					text += "\\n";
+				} else if (c == '\\') {
+					text += "\\\\";
+				} else {
+					text += c;
+				}
+			}
+			return text;
+		}
+
 		// A text as the file writes it, with "\n" and "\\" read.
 		inline std::string Unescape(std::string_view a_text)
 		{

@@ -216,6 +216,11 @@ Items are stored by plugin name and FormID, so outfits survive a load order chan
 [b][color=#a7c17b]Can I type a non-English name?[/color][/b]
 Accented letters type as usual. Japanese, Chinese or Korean go in by paste (Ctrl + V): an IME does not open in the window yet.
 
+[b][color=#a7c17b]Is Livery available in other languages?[/color][/b]
+English and Japanese so far. Livery follows your game's language; to pick one yourself, set [font=Courier New]Language=JAPANESE[/font] under [font=Courier New][UI][/font] in Livery.ini.
+For the settings page, also turn on [b]Japanese[/b] under [b]Fonts[/b] in SKSE Menu Framework's own settings, or that page stays English and says so. The Situations page and the dressing messages are still English for now.
+To translate Livery, copy [font=Courier New]Data\Interface\Translations\Livery_ENGLISH.txt[/font] as [font=Courier New]Livery_<LANGUAGE>.txt[/font] and translate the text after each tab; keep {0}, {1}... and \n. Translations are welcome: upload yours as a translation file here.
+
 [b][color=#a7c17b]The hotkey only shows "Livery: the window is not available."[/color][/b]
 Livery couldn't set up its window in this game. 
 The usual cause is a game version it doesn't handle yet; Livery.log says what it found. Please send it with your game version.

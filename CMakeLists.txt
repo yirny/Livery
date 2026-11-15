@@ -32,6 +32,9 @@ if(PLUGIN_TESTS_ONLY)
 
     target_link_libraries(${PROJECT_NAME}Tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
 
+    # The translation tests read Data/Interface/Translations and rewrite Livery_ENGLISH.txt there.
+    target_compile_definitions(${PROJECT_NAME}Tests PRIVATE LIVERY_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
     catch_discover_tests(${PROJECT_NAME}Tests)
 
 else()

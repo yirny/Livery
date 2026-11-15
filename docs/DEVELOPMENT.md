@@ -47,6 +47,15 @@ cmake --build --preset test-windows
 ctest --preset test-windows
 ```
 
+## Translations
+
+Every player-facing text is an entry of `LIVERY_STRINGS` in `src/Strings.h` (an id and its English, whole sentences with `{0}`, `{1}`... for the values); the code reads it through `Strings::Get` / `Format` and the window's `RunLine`. `Data/Interface/Translations/Livery_<LANGUAGE>.txt` translates it (docs/design.md §10). When a text is added or changed:
+
+1. Add or change its line in `Livery_JAPANESE.txt`, at the same place in the table's order. The file is UTF-16 LE with a byte order mark; edit a UTF-8 copy and convert it back, or open it in an editor that keeps the encoding.
+2. Rewrite `Livery_ENGLISH.txt`, the translators' template: `liveryTests "[.write-template]"` (the test binary, after `cmake --build --preset test-windows`).
+
+`ctest` fails while `Livery_ENGLISH.txt` differs from the table or `Livery_JAPANESE.txt` lacks a text. The Japanese glossary: デフォルト for default, katakana loanwords over paraphrases, full-width （）, short labels.
+
 ## Git hooks
 
 `lefthook.yml` defines a commit-msg check (Conventional Commits: `feat`, `fix`, `chore`, `refactor`) and pre-commit formatting and lint checks. To enable them, install [Lefthook](https://github.com/evilmartians/lefthook) and run `lefthook install`; the checks need `clang-format`, `clang-tidy`, `cmake-format`, `shellcheck`, `dprint` and `vale`.

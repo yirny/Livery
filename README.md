@@ -157,6 +157,16 @@ Press **Release everyone** on the Livery page of SKSE Menu Framework first, with
 
 Livery never sets `ReleaseEveryone` back to `0`: set it yourself to keep playing with Livery. NPCs out of reach (not persistent, in a cell that is not loaded) are not released.
 
+## Languages
+
+Livery's window, HUD messages and settings page come in English and Japanese. The language follows your game's; to pick one yourself, set `Language=JAPANESE` (or `ENGLISH`) under `[UI]` in `Livery.ini`.
+
+- The settings page needs the language's letters in SKSE Menu Framework's font: turn on **Japanese** under **Fonts** in its own settings, or the page stays English and says so.
+- HUD messages use the game's own font, so they read in a game of that language (a Japanese game, or an English game with a Japanese font mod).
+- The Situations page and the messages about dressing are still English for now.
+
+To translate Livery, copy `Data\Interface\Translations\Livery_ENGLISH.txt` as `Livery_<LANGUAGE>.txt` (the game's language names: `FRENCH`, `GERMAN`, `RUSSIAN`, `CHINESE`...) and translate the text after each tab. Keep `{0}`, `{1}`... (their order may change) and `\n` for a line break; save as UTF-16 LE with a byte order mark, or UTF-8. A text the file lacks stays English, and `Livery.log` names any line it could not use.
+
 ## Limits
 
 - Japanese, Chinese or Korean names go in by paste (Ctrl + V); an IME does not open in the window.
