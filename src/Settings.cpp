@@ -1232,6 +1232,29 @@ namespace
 
 		RenderUnusedSlots();
 
+		// Features that add to the window, each off by default.
+		Heading(PageText(Text::kSetOptionalFeatures));
+
+		// Takes effect the next time the window opens.
+		bool itemChests = g_itemChests.load();
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetEnableChests), &itemChests)) {
+			g_itemChests = itemChests;
+			SaveFlag(kWindowSection, kItemChestsKey, itemChests);
+			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
+		}
+		SettingTooltip(Text::kSetEnableChestsTip, Text::kSetOff);
+
+		SettingGap();
+
+		// Takes effect the next time the window opens.
+		bool customSituations = g_customSituations.load();
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetEnableCustomSituations), &customSituations)) {
+			g_customSituations = customSituations;
+			SaveFlag(kWindowSection, kCustomSituationsKey, customSituations);
+			logger::info("CustomSituations = {} (SKSE Menu Framework)", customSituations);
+		}
+		SettingTooltip(Text::kSetEnableCustomSituationsTip, Text::kSetOff);
+
 		// Every tick here is immersive when on; so are the dropdowns' defaults.
 		Heading(PageText(Text::kSetImmersion));
 
@@ -1352,29 +1375,6 @@ namespace
 			Settings::SetMenuSounds(menuSounds, kMenuSource);
 		}
 		SettingTooltip(Text::kPlayMenuSoundsTooltip, Text::kSetOn);
-
-		// Features that add to the window, each off by default.
-		Heading(PageText(Text::kSetOptionalFeatures));
-
-		// Takes effect the next time the window opens.
-		bool itemChests = g_itemChests.load();
-		if (ImGuiMCP::Checkbox(PageText(Text::kSetEnableChests), &itemChests)) {
-			g_itemChests = itemChests;
-			SaveFlag(kWindowSection, kItemChestsKey, itemChests);
-			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
-		}
-		SettingTooltip(Text::kSetEnableChestsTip, Text::kSetOff);
-
-		SettingGap();
-
-		// Takes effect the next time the window opens.
-		bool customSituations = g_customSituations.load();
-		if (ImGuiMCP::Checkbox(PageText(Text::kSetEnableCustomSituations), &customSituations)) {
-			g_customSituations = customSituations;
-			SaveFlag(kWindowSection, kCustomSituationsKey, customSituations);
-			logger::info("CustomSituations = {} (SKSE Menu Framework)", customSituations);
-		}
-		SettingTooltip(Text::kSetEnableCustomSituationsTip, Text::kSetOff);
 
 		Heading(PageText(Text::kSetSystem));
 
