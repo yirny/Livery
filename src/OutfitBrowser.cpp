@@ -16,7 +16,7 @@ namespace
 {
 	// --- Helpers --------------------------------------------------------------
 
-	// Outfit names are UTF-8; only ASCII letters fold, as typed text is ASCII only.
+	// Outfit names are UTF-8; only ASCII letters fold.
 	unsigned char AsciiLower(unsigned char a_c)
 	{
 		return a_c >= 'A' && a_c <= 'Z' ? static_cast<unsigned char>(a_c - 'A' + 'a') : a_c;

@@ -13,6 +13,7 @@
 
 #include "CaptureWindow.h"
 #include "OutfitBrowser.h"
+#include "Strings.h"
 #include "sarrai/Theme.h"
 
 #include <imgui.h>
@@ -30,6 +31,8 @@
 
 namespace CaptureWindow::Internal
 {
+	using Text = Strings::Text;  // the player-facing texts, in the chosen language (Strings::Get)
+
 	constexpr std::size_t kNameCapacity = 64;                // bytes, UTF-8, including the terminator
 	constexpr float       kMaxListHeightRatio = 0.6f;        // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace items?";  // IDs shared by OpenPopup and BeginPopupModal
@@ -46,26 +49,32 @@ namespace CaptureWindow::Internal
 	// The Wardrobe page's unsaved-changes alert (DrawLeavePopup).
 	constexpr const char* kLeavePopup = "Unsaved changes";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
-	constexpr const char* kNeedName = "Enter a name.";
-	constexpr const char* kNeedPiece = "Select at least one item.";
-	constexpr const char* kNeedOutfit = "Select an outfit.";
-	constexpr const char* kAddFrom = "Add from";  // the words of the links under a piece list, before their icon (DrawCountLink)
-	constexpr float       kLinkRowGap = 4.0f;     // pixels at 1080p, between those two links, on top of a next line's own gap
-	constexpr const char* kNoOutfits = "No outfits in the Wardrobe.";
-	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
+	constexpr Strings::Ref kNeedName{ Strings::Text::kNeedName };
+	constexpr Strings::Ref kNeedPiece{ Strings::Text::kNeedPiece };
+	constexpr Strings::Ref kNeedOutfit{ Strings::Text::kNeedOutfit };
+	constexpr Strings::Ref kAddFrom{ Strings::Text::kAddFrom };  // the words of the links under a piece list, before their icon (DrawCountLink)
+	constexpr float        kLinkRowGap = 4.0f;                   // pixels at 1080p, between those two links, on top of a next line's own gap
+	constexpr Strings::Ref kNoOutfits{ Strings::Text::kNoOutfits };
+	constexpr Strings::Ref kNoLoadedPiece{ Strings::Text::kNoLoadedPiece };
 	// The Chests page's and the chest editor's (docs/chest-ui.md).
-	constexpr const char* kChestCreatePopup = "New chest";
-	constexpr const char* kChestRemovePopup = "Remove chest?";
-	constexpr const char* kNeedChest = "Select a chest.";
-	constexpr const char* kNoChests = "No chests yet.";
-	constexpr const char* kNoChanges = "No changes to save.";
+	constexpr const char*  kChestCreatePopup = "New chest";
+	constexpr const char*  kChestRemovePopup = "Remove chest?";
+	constexpr Strings::Ref kNeedChest{ Strings::Text::kNeedChest };
+	constexpr Strings::Ref kNoChests{ Strings::Text::kNoChests };
+	constexpr Strings::Ref kNoChanges{ Strings::Text::kNoChanges };
 	// Seconds after the last edit before the Situations page and the chest editor save (ScheduleAutosave).
-	constexpr double      kAutosaveDelay = 0.5;
-	constexpr const char* kWornAlready = "Already worn as is.";
+	constexpr double       kAutosaveDelay = 0.5;
+	constexpr Strings::Ref kWornAlready{ Strings::Text::kWornAlready };
 	// A piece list row of an item the player would not get (Request::carriedOnly): its opacity
 	// and its hover text. Shared by the piece lists of CaptureWindow.cpp and OutfitPages.cpp.
-	constexpr float       kNotCarriedAlpha = 0.5f;
-	constexpr const char* kNotCarriedHint = "You don't carry this item.\nDressing from inventory only leaves it off.";
+	constexpr float        kNotCarriedAlpha = 0.5f;
+	constexpr Strings::Ref kNotCarriedHint{ Strings::Text::kNotCarriedHint };
+
+	// A greyed button's reason (one of the texts above) while `a_when`, else nullptr.
+	inline const char* ReasonIf(bool a_when, const char* a_reason)
+	{
+		return a_when ? a_reason : nullptr;
+	}
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -79,10 +88,13 @@ namespace CaptureWindow::Internal
 	constexpr bool kShowFilter = false;
 
 	// The piece list's columns, in their order (State::sortColumn).
-	constexpr int                        kNameColumn = 0;
-	constexpr int                        kTypeColumn = 1;
-	constexpr int                        kSlotColumn = 2;
-	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Slot" };
+	constexpr int                     kNameColumn = 0;
+	constexpr int                     kTypeColumn = 1;
+	constexpr int                     kSlotColumn = 2;
+	inline std::array<const char*, 3> ColumnLabels()
+	{
+		return { Strings::Get(Strings::Text::kColumnName), Strings::Get(Strings::Text::kColumnType), Strings::Get(Strings::Text::kColumnSlot) };
+	}
 
 	// What an outfit row of the Situations page carries while it is dragged (OfferOutfitDrag).
 	constexpr const char* kOutfitPayload = "LiveryOutfit";
@@ -174,7 +186,7 @@ namespace CaptureWindow::Internal
 			kChar
 		};
 		Kind  kind;
-		int   code;  // ImGuiKey / mouse button / character
+		int   code;  // ImGuiKey / mouse button / UTF-16 code unit
 		bool  down;
 		float wheel;  // wheel steps
 	};
@@ -347,6 +359,18 @@ namespace CaptureWindow::Internal
 		int                         viewDragButton = -1;  // ImGui mouse button held since a press over the game; -1 for none
 		float                       viewDragX = 0.0f;     // mouse movement since the last frame while viewDragButton is held
 		float                       viewDragY = 0.0f;
+		bool                        padNav = false;       // the D-pad moved the focus since the right stick or the mouse last moved the cursor: A presses the focused item
+		bool                        padClicks = false;    // the held A clicks under the cursor, not on the focused item (RecordPadButton)
+		int                         popupsBefore = 0;     // ImGui's open popups before this frame's NewFrame (HoldNavEscape)
+		bool                        navMoveWide = false;  // a Left or Right move that found nothing goes again this frame, widened (WidenNavMove)
+		std::array<char, 4>         charBytes{};          // the ANSI bytes of a character not yet whole (RecordChar)
+		std::int32_t                charByteCount = 0;    // how many of charBytes are held
+		// Cursor diagnostics, logged as the window closes (LogCursorState): whether the mouse
+		// moves reached the Cursor Menu, which moves the game's cursor the window reads.
+		std::uint32_t cursorMoves = 0;      // mouse moves meant for the Cursor Menu since Open
+		std::uint32_t cursorMovesLost = 0;  // of them, dropped because the Cursor Menu was not open
+		float         cursorOpenX = 0.0f;   // MenuCursor's position as the window opened
+		float         cursorOpenY = 0.0f;
 		// The Save page's tabs' names, each kept while the window is open; a Create starts the
 		// Create tab's again (SetOutfits).
 		std::array<char, kNameCapacity> createName{};
@@ -390,7 +414,7 @@ namespace CaptureWindow::Internal
 	void        DrawError(const std::string& a_message);
 	void        RequestCancel();
 	bool        DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
-		bool* a_iconClicked = nullptr, const char* a_hint = "Outfit Name");
+		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName });
 	bool        BeginModal(const char* a_id);
 	void        SetGroupHeadings(State& a_state);
 
@@ -409,6 +433,7 @@ namespace CaptureWindow::Internal
 	float                                FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved = 0.0f);
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
 	void                                 PushListRowSpacing();
+	bool                                 FocusStandIn(const char* a_id);  // a keyboard focus stop over the last item, for a greyed one or text
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone);
 	float                                ButtonRowWidth(std::initializer_list<RowButton> a_buttons);
 	void                                 CentreButtonRow(std::initializer_list<RowButton> a_buttons);
@@ -419,6 +444,7 @@ namespace CaptureWindow::Internal
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
 	bool                                 BeginColumns(const char* a_id, int a_count = 2);
+	void                                 NextColumn();  // in place of ImGui::TableNextColumn in BeginColumns
 	void                                 EndColumns(int a_count = 2);
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
 	Theme::HeadingIcon                   GroupIcon(CaptureWindow::PieceGroup a_group);  // the icon of a group's heading
@@ -742,6 +768,43 @@ namespace CaptureWindow::Internal
 	inline void RunLine(std::initializer_list<Theme::SubtitleRun> a_parts)
 	{
 		Theme::RunText({ a_parts.begin(), a_parts.size() });
+	}
+
+	// A text's parts as a line draws them: its words, with `a_values[n]` where it names {n}
+	// (Strings::Pieces); a value the list lacks, or one with no text and no icon, is left out.
+	struct TextRuns
+	{
+		static constexpr std::size_t kMaxParts = 9;  // four values among their words
+
+		std::array<Theme::SubtitleRun, kMaxParts> parts{};
+		std::size_t                               count = 0;
+
+		std::span<const Theme::SubtitleRun> Parts() const { return { parts.data(), count }; }
+	};
+
+	inline TextRuns RunsOf(Strings::Text a_text, std::initializer_list<Theme::SubtitleRun> a_values)
+	{
+		TextRuns runs;
+		for (const auto& piece : Strings::Pieces(a_text)) {
+			if (runs.count == TextRuns::kMaxParts) {
+				break;
+			}
+			if (piece.value < 0) {
+				runs.parts[runs.count++] = TextRun(piece.words);
+			} else if (static_cast<std::size_t>(piece.value) < a_values.size()) {
+				const auto& value = a_values.begin()[piece.value];
+				if ((value.text && *value.text) || value.icon != Theme::HeadingIcon::kNone || !value.rowIconKey.empty()) {
+					runs.parts[runs.count++] = value;
+				}
+			}
+		}
+		return runs;
+	}
+
+	// One popup line of text `a_text` with `a_values` in it (RunsOf).
+	inline void RunLine(Strings::Text a_text, std::initializer_list<Theme::SubtitleRun> a_values)
+	{
+		Theme::RunText(RunsOf(a_text, a_values).Parts());
 	}
 
 	// What row `a_row` wears now with random off, as HeldOutfitName names it, as a line's part.

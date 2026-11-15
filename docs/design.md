@@ -241,6 +241,19 @@ on the player as on an NPC, unlocked like the default, and not in beast form.
 
 ### Who the hotkey opens on
 
+The hotkey is a keyboard key with Shift, Ctrl or Alt held or none (`[Hotkey] Key`, `Modifier`).
+A controller button with LB, RB, LT or RT held or none (`[Hotkey] Gamepad`, `GamepadModifier`,
+the ButtonEvent ID code: an XInput button mask, 9 / 10 for a trigger; none by default) opens it
+the same way. The settings page sets the key by waiting for the next key press, and the
+controller button with two dropdowns (the button to hold, the button), shown only while
+`BSInputDeviceManager::IsGamepadEnabled`, so a player without a controller sees no change.
+A wait for the next press cannot work for the controller: SKSE Menu Framework moves through
+its menu with A, B, Y, LT and the D-pad, and closes on LB, whatever its input callback
+returns (checked in game). A key wait the menu closed on (`GetMainWindow()->IsOpen`) ends at
+the next input event, taking nothing. Checked in game: the dropdowns set with the controller,
+LB, RB and LT as modifiers, the controller hotkey opening the window, a key wait ending as
+the menu closes.
+
 With nothing under the crosshair, or anything but a person (`TESObjectREFR::IsHumanoid`, the
 `ActorTypeNPC` keyword: not a horse or a creature), the hotkey opens the window on the player,
 always Full management. An NPC falls in the first group that fits, read at the
@@ -284,7 +297,9 @@ carried. The capture menu swallows every input event and disables the pause menu
 made while a preview is on, and no preview copy reaches a save. While the window is open the
 HUD is hidden and an NPC is held where they stand (`src/MovementHold.cpp`); the game's menus
 are shown even if the console's `tm` hid them, since the window is drawn and reads its input
-only while they are, and hidden again as it closes.
+only while they are, and hidden again as it closes. The game closes its Cursor Menu as the Fader
+Menu closes, even while the window's menu is open (the window opened right after a save loaded);
+sarrai-common's overlay shows it again.
 
 A dressing's HUD message names the pieces not carried (the player without `AddMissingPieces`)
 and those the engine refused to put on (`DressingNotes` in `src/Assignments.cpp`).
@@ -300,6 +315,33 @@ a left drag orbits the actor sideways and tilts up and down, a right drag pans, 
 zooms; `[Camera] SpeedPercent` scales all four. The camera stays near where the actor stood
 when the window opened: it stops with them at the edge of the view, and just short of
 passing through them.
+
+### Keyboard and controller in the window
+
+The arrow keys move the focus between the window's items (ImGui keyboard navigation), Space or
+Enter presses the focused item. Every sarrai-common widget takes part (`ImGuiButtonFlags_EnableNav`
+on its `InvisibleButton`) and a list's rows are reached directly (`ImGuiChildFlags_NavFlattened`).
+Up and Down stay in the part the focus is in: the tab column or the page, and on a page of
+`BeginColumns` the column (`PushNavPart`, `NextColumn`); ImGui alone scores an item beside the
+focus as one pixel further and would jump across. Left and Right cross the parts. ImGui reaches
+with them only an item level with the focus, so a Left or Right that found nothing goes again in
+the next frame, scored from just past the focus's edge with the screen's height in reach
+(`RetryNavMoveWide`, `WidenNavMove`): the nearest part that way, its item nearest in height.
+ImGui gives no focus to a greyed item, to text or to a read-only row; a greyed item with a
+tooltip, a "(?)" drawn as text, and the rows of the read-only item lists get a stand-in that
+takes it (`FocusStandIn`), so the tooltip shows and the list scrolls to the row; pressing it
+does nothing. A greyed item with no tooltip, and the page while a write runs, stay out.
+Navigation never claims the keyboard (`ConfigNavCaptureKeyboard` off), so W/A/S/D still move
+the camera. An Escape that ImGui spent closing a combo is not also the page's Back, Exit or
+Cancel (`HoldNavEscape`). The right stick's return to the centre is handed over too, or the
+Cursor Menu keeps moving the cursor at the last tilt. sarrai-common's overlay drops the
+controller keys ImGui's Win32 backend reads from XInput itself: a button change there made
+ImGui hold back the game's cursor for a frame, the OS cursor standing in its place (the focus
+highlight went out; a window being dragged jumped). The controller works as
+the keyboard does: the D-pad is the arrow keys, B is Escape, and A presses the focused item
+after a D-pad press, or clicks under the cursor after the right stick moved it (the right stick
+is handed to the Cursor Menu, as the mouse moves are), so drag and drop works with A held.
+Text fields still need a keyboard.
 
 ### Contracts
 
@@ -698,3 +740,43 @@ setting, off by default). Open:
   Bone white, Snowberry red, Sheogorath pink, Deathbell purple, Jazbay blue, Coldharbour
   cyan, Glass teal, Spriggan green, Luna yellow and Dwarven gold. A key is never changed once
   shipped; a tint may be.
+
+## 10. Translations
+
+- Every text Livery shows the player is to come from `LIVERY_STRINGS` (`src/Strings.h`): an id
+  and its English. So far the window does, but for the Situations page, the situations'
+  names and conditions and the `For Town, Cold` line under an outfit, which move there after
+  the custom situations (docs/custom-situations.md on its branch) reach `main`. Of the HUD
+  messages, those of saving, removing, chests, moving items and the hotkey's refusals do; those
+  of dressing and situations (`src/Assignments.cpp`) follow with the custom situations.
+- The settings page is drawn in SKSE Menu Framework's font, which has a language's letters
+  only while the player turns that language on in the framework's font settings (`[Fonts]
+  EnableJapanese` and the like; it never follows `sLanguage`). Each frame the page asks the
+  font for a glyph of `Strings::Probe` (`ImFont_FindGlyphNoFallback`); without it, or on a
+  framework without that export, the page is in English (`Strings::English`) under
+  `kSetFontHint`, which names `kLanguageName`. The log keeps the English option names. sarrai-common's widgets get their own words through
+  `Theme::SetTexts`, right after `Strings::Load`.
+- A sentence with a name drawn in a look of its own (an outfit after its icon) is one text
+  with values; `Strings::Pieces` gives it cut at them (at `Strings::Load`, so drawing
+  allocates nothing) and the window's `RunsOf` puts each value's part in its place. A
+  sentence is never built from fragments, so a translation can order it freely.
+- `Data/Interface/Translations/Livery_JAPANESE.txt` ships with Livery, deployed and packaged
+  with it, and so does `Livery_ENGLISH.txt`, the translators' template: the table's texts in
+  its order, written by the hidden test `[.write-template]`. The unit tests fail while the
+  English file differs from the table or the Japanese file lacks a text, so a new text is
+  never shipped untranslated by mistake (docs/DEVELOPMENT.md, Translations).
+- `[UI] Language` in `Livery.ini` picks the file: `Auto` (the default) is the game's
+  `sLanguage`, another value a language name (letters, digits and `_`). `Strings::Load` reads
+  `Data/Interface/Translations/Livery_<language>.txt` once, first at `kDataLoaded`; until then,
+  and without the file, every text is English.
+- The file: one text a line, `$Livery_<id without k>`, one or more tabs, the text. UTF-16 LE
+  with its byte order mark, as the game's translation files, or UTF-8; a file in neither is
+  not read. `\n` is a line break, `\\` a backslash. A text with values names them `{0}`,
+  `{1}`... and may leave some out; `{{` and `}}` are braces. A text with any other brace, or a
+  value its English does not name, keeps the English and is logged; so are unknown ids. Lines
+  not starting with `$` are notes.
+- The log names the language and how many texts the file gave (`Read 5 of 5 texts from
+  Livery_JAPANESE.txt`).
+- A label that is also an ImGui ID (a tab, a button) changes with the language; the language
+  stays for the whole game, so every use of the label through `Strings::Get` agrees. A popup's
+  ID stays English: popups have no title bar, so it is never shown.

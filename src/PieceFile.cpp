@@ -3,6 +3,7 @@
 
 #include "PieceFile.h"
 
+#include "Strings.h"
 #include "Utils.h"
 
 #include <algorithm>
@@ -47,7 +48,7 @@ namespace PieceFile
 			}
 			const auto* file = armor->IsDynamicForm() ? nullptr : armor->GetFile(0);
 			if (!file) {
-				return std::format("{} was created in game and cannot be saved.", DisplayName(*armor));
+				return Strings::Format(Strings::Text::kCreatedInGame, DisplayName(*armor));
 			}
 			PieceRef   piece{ std::string{ file->GetFilename() }, armor->GetLocalFormID(), DisplayName(*armor) };
 			const bool listed = std::ranges::any_of(a_pieces, [&piece](const PieceRef& other) {
@@ -101,7 +102,7 @@ namespace PieceFile
 			file.close();
 			if (!file) {
 				logger::error("Cannot write {}.tmp", a_fileName);
-				return std::format("Livery could not write {} (see Livery.log).", a_fileName);
+				return Strings::Format(Strings::Text::kFileNotWritten, a_fileName);
 			}
 		}
 		std::error_code error;
@@ -109,7 +110,7 @@ namespace PieceFile
 		if (error) {
 			logger::error("Cannot replace {}: {}", a_fileName, error.message());
 			std::filesystem::remove(temporary, error);
-			return std::format("Livery could not write {} (see Livery.log).", a_fileName);
+			return Strings::Format(Strings::Text::kFileNotWritten, a_fileName);
 		}
 		return std::nullopt;
 	}

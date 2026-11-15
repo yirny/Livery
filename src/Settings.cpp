@@ -4,7 +4,7 @@
 //   Constants  - the INI's sections, keys and defaults (kIniKeys, with the comments a new
 //                file gets), the setting options, the NPC groups
 //   State      - each setting as last read or chosen, in atomics the game and render threads share
-//   Keys       - the hotkey's modifiers and key names
+//   Keys       - the hotkey's modifiers and key names; the controller hotkey's buttons
 //   INI        - Livery.ini's own writer (WriteIniValues: one read and one write, in the file's
 //                encoding, through a temporary file), the template, the keys a newer version
 //                adds, and each setting's save and load
@@ -20,6 +20,7 @@
 #include "Settings.h"
 
 #include "PieceFile.h"
+#include "Strings.h"
 #include "Utils.h"
 
 #include <algorithm>
@@ -57,9 +58,12 @@ namespace
 	constexpr auto kUiSection = L"UI";
 	constexpr auto kPaletteKey = L"Palette";
 	constexpr auto kMenuSoundsKey = L"MenuSounds";
+	constexpr auto kLanguageKey = L"Language";
 	constexpr auto kHotkeySection = L"Hotkey";
 	constexpr auto kHotkeyKeyKey = L"Key";
 	constexpr auto kHotkeyModifierKey = L"Modifier";
+	constexpr auto kHotkeyGamepadKey = L"Gamepad";
+	constexpr auto kHotkeyGamepadModifierKey = L"GamepadModifier";
 	constexpr auto kCameraSection = L"Camera";
 	constexpr auto kSpeedPercentKey = L"SpeedPercent";
 	constexpr auto kPlayerSection = L"Player";
@@ -83,6 +87,7 @@ namespace
 
 	constexpr auto kPaletteDir = L"Data/SKSE/Plugins/Livery/palettes";
 	constexpr auto kDefaultPalette = L"Modern";  // only when Livery.ini lacks [UI] Palette and could not be written (see NewKeyValue)
+	constexpr auto kAutoLanguage = L"Auto";      // [UI] Language for the game's own; keep in step with kIniKeys
 
 	constexpr auto kMenuSource = "SKSE Menu Framework";  // the settings page, as the log names it
 
@@ -94,6 +99,10 @@ namespace
 	constexpr std::uint32_t kDefaultHotkey = Key::kV;            // keep in step with kIniKeys
 	constexpr std::uint32_t kDefaultModifier = Key::kLeftShift;  // keep in step with kIniKeys
 	constexpr std::uint32_t kNoModifier = 0;
+
+	// A controller button is its ButtonEvent ID code: an XInput button mask, or 9 / 10 for a trigger.
+	using Pad = RE::BSWin32GamepadDevice::Keys::Key;
+	constexpr std::uint32_t kNoGamepadButton = 0;  // the controller hotkey's default and its "none"; keep in step with kIniKeys
 
 	// The sort columns as the INI names them, in the lists' column order (Settings::SortOrder).
 	constexpr std::array<const wchar_t*, 2> kOutfitSortColumns{ L"Icon", L"Name" };
@@ -116,7 +125,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 24> kIniKeys{ {
+	constexpr std::array<IniKey, 27> kIniKeys{ {
 		{ kIniSection, kFollowersAndSpouseKey, L"Full",
 			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
 			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
@@ -138,11 +147,19 @@ namespace
 			L"The first time, Livery picks the one that suits your UI mod." },
 		{ kUiSection, kMenuSoundsKey, L"1",
 			L"1 = Livery plays the game's menu sounds as it opens and as you click in it." },
+		{ kUiSection, kLanguageKey, kAutoLanguage,
+			L"Language of Livery's window and messages. Auto = the game's language.\n"
+			L"Or a language name, such as JAPANESE for Interface/Translations/Livery_JAPANESE.txt." },
 		{ kHotkeySection, kHotkeyKeyKey, L"47",
 			L"Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n"
 			L"A DirectInput scan code (47 = V)." },
 		{ kHotkeySection, kHotkeyModifierKey, L"42",
 			L"Key to hold with the hotkey: 0 = none, 42 = Shift, 29 = Ctrl, 56 = Alt. Left and right count the same." },
+		{ kHotkeySection, kHotkeyGamepadKey, L"0",
+			L"Opens Livery from a controller, as the hotkey does. 0 = none.\n"
+			L"An XInput button code (4096 = A, 8192 = B, 16384 = X, 32768 = Y). In game, set it on Livery's settings page." },
+		{ kHotkeySection, kHotkeyGamepadModifierKey, L"0",
+			L"Button to hold with it: 0 = none, 256 = LB, 512 = RB, 9 = LT, 10 = RT." },
 		{ kCameraSection, kSpeedPercentKey, L"100",
 			L"Preview camera speed in percent (10 to 200, 100 = normal): W / A / S / D, mouse drag and wheel zoom.\n"
 			L"Hold Shift to move at half speed." },
@@ -193,32 +210,60 @@ namespace
 		{ Key::kLeftAlt, Key::kRightAlt },
 	} };
 
+	// Every controller button the controller hotkey accepts, with the name the settings page shows.
+	struct GamepadButton
+	{
+		std::uint32_t code;
+		const char*   name;
+	};
+	constexpr std::array<GamepadButton, 16> kGamepadButtons{ {
+		{ Pad::kA, "A" },
+		{ Pad::kB, "B" },
+		{ Pad::kX, "X" },
+		{ Pad::kY, "Y" },
+		{ Pad::kLeftShoulder, "LB" },
+		{ Pad::kRightShoulder, "RB" },
+		{ Pad::kLeftTrigger, "LT" },
+		{ Pad::kRightTrigger, "RT" },
+		{ Pad::kStart, "Start" },
+		{ Pad::kBack, "Back" },
+		{ Pad::kLeftThumb, "LS" },
+		{ Pad::kRightThumb, "RS" },
+		{ Pad::kUp, "D-pad Up" },
+		{ Pad::kDown, "D-pad Down" },
+		{ Pad::kLeft, "D-pad Left" },
+		{ Pad::kRight, "D-pad Right" },
+	} };
+	// The buttons that can be held with the controller hotkey, as Shift, Ctrl and Alt are with the hotkey.
+	constexpr std::array<std::uint32_t, 4> kGamepadModifiers{ Pad::kLeftShoulder, Pad::kRightShoulder, Pad::kLeftTrigger,
+		Pad::kRightTrigger };
+
 	using Settings::NpcAccess;
 
 	struct NpcAccessOption
 	{
 		const wchar_t* iniValue;
-		const char*    label;
+		Strings::Text  label;
 	};
 	// In NpcAccess order.
 	constexpr std::array<NpcAccessOption, 3> kNpcAccessOptions{ {
-		{ L"Full", "Full management" },
-		{ L"SaveOnly", "Save only" },
-		{ L"Off", "Disabled" },
+		{ L"Full", Strings::Text::kSetFullManagement },
+		{ L"SaveOnly", Strings::Text::kSetSaveOnly },
+		{ L"Off", Strings::Text::kSetDisabled },
 	} };
 
 	struct NpcGroupSetting
 	{
 		const wchar_t* key;
-		const char*    label;
-		const char*    who;            // the tooltip's first line
+		Strings::Text  label;
+		Strings::Text  who;            // the tooltip's first line
 		NpcAccess      defaultAccess;  // keep in step with kIniKeys
 	};
 	// In NpcGroup order.
 	constexpr std::array<NpcGroupSetting, 3> kNpcGroups{ {
-		{ kFollowersAndSpouseKey, "Followers and spouse", "Your followers and spouse.\nYou can always open Livery for yourself.", NpcAccess::kFull },
-		{ kFriendsKey, "Friends", "NPCs who count you as a friend or better.", NpcAccess::kSaveOnly },
-		{ kOtherNpcsKey, "Other NPCs", "Every other adult NPC.", NpcAccess::kDisabled },
+		{ kFollowersAndSpouseKey, Strings::Text::kSetFollowers, Strings::Text::kSetFollowersWho, NpcAccess::kFull },
+		{ kFriendsKey, Strings::Text::kSetFriends, Strings::Text::kSetFriendsWho, NpcAccess::kSaveOnly },
+		{ kOtherNpcsKey, Strings::Text::kSetOtherNpcs, Strings::Text::kSetOtherNpcsWho, NpcAccess::kDisabled },
 	} };
 
 	std::array<std::atomic<NpcAccess>, kNpcGroups.size()> g_npcAccess{ NpcAccess::kFull, NpcAccess::kSaveOnly, NpcAccess::kDisabled };
@@ -228,13 +273,13 @@ namespace
 	struct UnusedSlotsOption
 	{
 		const wchar_t* iniValue;
-		const char*    label;
+		Strings::Text  label;
 	};
 	// In UnusedSlots order.
 	constexpr std::array<UnusedSlotsOption, 3> kUnusedSlotsOptions{ {
-		{ L"All", "Allow all" },
-		{ L"ExceptHeadgear", "Except headgear" },
-		{ L"OutfitOnly", "Block all" },
+		{ L"All", Strings::Text::kSetAllowAll },
+		{ L"ExceptHeadgear", Strings::Text::kSetExceptHeadgear },
+		{ L"OutfitOnly", Strings::Text::kSetBlockAll },
 	} };
 
 	constexpr auto kDefaultUnusedSlots = UnusedSlots::kExceptHeadgear;  // keep in step with kIniKeys
@@ -245,8 +290,10 @@ namespace
 	std::atomic<bool>          g_npcReaction{ true };
 	std::atomic<bool>          g_menuSounds{ true };
 	std::atomic<std::uint32_t> g_hotkey{ kDefaultHotkey };
-	std::atomic<std::uint32_t> g_modifier{ kDefaultModifier };  // left-hand code of a kModifiers entry, or kNoModifier
-	std::atomic<bool>          g_pickingHotkey{ false };        // the settings page waits for the next key
+	std::atomic<std::uint32_t> g_modifier{ kDefaultModifier };         // left-hand code of a kModifiers entry, or kNoModifier
+	std::atomic<bool>          g_pickingHotkey{ false };               // the settings page waits for the next key
+	std::atomic<std::uint32_t> g_gamepadButton{ kNoGamepadButton };    // a kGamepadButtons code, or kNoGamepadButton
+	std::atomic<std::uint32_t> g_gamepadModifier{ kNoGamepadButton };  // a kGamepadModifiers code, or kNoGamepadButton
 	std::atomic<float>         g_speedPercent{ kDefaultSpeedPercent };
 	std::atomic<bool>          g_playerAddsMissing{ false };
 	std::atomic<bool>          g_showPlayerInventory{ true };
@@ -259,6 +306,8 @@ namespace
 	std::atomic<bool>          g_releaseEveryoneOnLoad{ false };
 	std::filesystem::path      g_iniPath;   // set once by Load, read-only afterwards
 	void (*g_releaseEveryone)() = nullptr;  // set once by RegisterMenu, before the page can render
+
+	std::string g_language;  // [UI] Language, empty for Auto; written once in Load, read-only after
 
 	// The sorts the window's lists open with (Settings::OutfitSort, ItemSort).
 	std::atomic<Settings::SortOrder> g_outfitSort{ kDefaultOutfitSort };
@@ -312,6 +361,53 @@ namespace
 		const auto modifier = g_modifier.load();
 		const auto key = KeyName(g_hotkey.load());
 		return modifier == kNoModifier ? key : KeyName(modifier) + " + " + key;
+	}
+
+	// nullptr for a code that is no controller button Livery knows.
+	const char* GamepadButtonName(std::uint32_t a_code)
+	{
+		for (const auto& button : kGamepadButtons) {
+			if (button.code == a_code) {
+				return button.name;
+			}
+		}
+		return nullptr;
+	}
+
+	bool IsGamepadModifier(std::uint32_t a_code)
+	{
+		return std::ranges::find(kGamepadModifiers, a_code) != kGamepadModifiers.end();
+	}
+
+	// Contract: reads the controller's current XInput state, so it is only meaningful while a
+	// button event is being handled on the input path. No controller, or one that is not the
+	// game's XInput device (Skyrim VR), holds nothing.
+	bool IsGamepadModifierHeld(std::uint32_t a_code)
+	{
+		auto* manager = RE::BSInputDeviceManager::GetSingleton();
+		auto* gamepad = manager ? skyrim_cast<RE::BSWin32GamepadDevice*>(manager->GetGamepad()) : nullptr;
+		if (!gamepad) {
+			return false;
+		}
+		const auto& state = gamepad->GetRuntimeData().currentState.gamepad;
+		switch (a_code) {
+		case Pad::kLeftTrigger:
+			return state.leftTrigger > REX::W32::XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+		case Pad::kRightTrigger:
+			return state.rightTrigger > REX::W32::XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+		default:
+			return (state.buttons & a_code) != 0;
+		}
+	}
+
+	std::string GamepadHotkeyName()
+	{
+		const auto* button = GamepadButtonName(g_gamepadButton.load());
+		if (!button) {
+			return "None";
+		}
+		const auto* modifier = GamepadButtonName(g_gamepadModifier.load());
+		return modifier ? std::format("{} + {}", modifier, button) : std::string{ button };
 	}
 
 	// --- INI ------------------------------------------------------------------
@@ -568,7 +664,7 @@ namespace
 				}
 			}
 			g_npcAccess[group] = access;
-			logger::info("{} = {}", kNpcGroups[group].label, kNpcAccessOptions[static_cast<std::size_t>(access)].label);
+			logger::info("{} = {}", Strings::English(kNpcGroups[group].label), Strings::English(kNpcAccessOptions[static_cast<std::size_t>(access)].label));
 		}
 	}
 
@@ -589,7 +685,7 @@ namespace
 			}
 		}
 		g_unusedSlots = mode;
-		logger::info("UnusedSlots = {}", kUnusedSlotsOptions[static_cast<std::size_t>(mode)].label);
+		logger::info("UnusedSlots = {}", Strings::English(kUnusedSlotsOptions[static_cast<std::size_t>(mode)].label));
 	}
 
 	void SaveLivePreview(bool value)
@@ -630,6 +726,15 @@ namespace
 		WriteIniValues(values);
 	}
 
+	void SaveGamepadHotkey(std::uint32_t a_button, std::uint32_t a_modifier)
+	{
+		const auto       button = std::to_wstring(a_button);
+		const auto       modifier = std::to_wstring(a_modifier);
+		const std::array values{ IniValue{ kHotkeySection, kHotkeyGamepadKey, button },
+			IniValue{ kHotkeySection, kHotkeyGamepadModifierKey, modifier } };
+		WriteIniValues(values);
+	}
+
 	// A missing column or one Livery does not know keeps the default's; a missing direction is ascending.
 	Settings::SortOrder LoadSort(const wchar_t* a_columnKey, const wchar_t* a_descendingKey, std::span<const wchar_t* const> a_columns,
 		Settings::SortOrder a_default)
@@ -656,13 +761,84 @@ namespace
 
 	// --- SKSE Menu Framework page ---------------------------------------------
 
+	// Whether this frame of the page draws its texts in the chosen language; else in English,
+	// with kSetFontHint on top.
+	// Contract: render thread (RenderSettings sets it first each frame).
+	bool g_pageInLanguage = true;
+
+	// Whether SKSE Menu Framework's font has the chosen language's letters (Strings::Probe),
+	// which it only has while the player turns that language on in its font settings. A
+	// framework without the glyph lookup counts as not having them.
+	// Contract: render thread, inside the page.
+	bool FontDrawsLanguage()
+	{
+		using FindGlyph = const ImGuiMCP::ImFontGlyph* (*)(ImGuiMCP::ImFont*, ImGuiMCP::ImWchar);
+		static const auto findGlyph = GetMenuFrameworkFunction<FindGlyph>("ImFont_FindGlyphNoFallback");
+		const char32_t    probe = Strings::Probe();
+		if (probe == 0) {
+			return true;
+		}
+		auto* font = ImGuiMCP::GetFont();
+		return findGlyph && font && probe <= 0xFFFF && findGlyph(font, static_cast<ImGuiMCP::ImWchar>(probe)) != nullptr;
+	}
+
+	const char* PageText(Strings::Text a_text)
+	{
+		return g_pageInLanguage ? Strings::Get(a_text) : Strings::English(a_text);
+	}
+
+	template <class... Args>
+	std::string PageFormat(Strings::Text a_text, const Args&... a_args)
+	{
+		return std::vformat(PageText(a_text), std::make_format_args(a_args...));
+	}
+
+	// The last item's tooltip: `a_text`, then after a blank line `Default: <a_default>`.
+	void SettingTooltip(Strings::Text a_text, const char* a_default)
+	{
+		ImGuiMCP::SetItemTooltip("%s\n\n%s", PageText(a_text), PageFormat(Strings::Text::kSetDefault, a_default).c_str());
+	}
+
+	void SettingTooltip(Strings::Text a_text, Strings::Text a_default)
+	{
+		SettingTooltip(a_text, PageText(a_default));
+	}
+
+	// A controller button as the page names it.
+	const char* PadLabel(const GamepadButton& a_button)
+	{
+		using Strings::Text;
+		switch (a_button.code) {
+		case Pad::kStart:
+			return PageText(Text::kPadStart);
+		case Pad::kBack:
+			return PageText(Text::kPadBack);
+		case Pad::kUp:
+			return PageText(Text::kPadUp);
+		case Pad::kDown:
+			return PageText(Text::kPadDown);
+		case Pad::kLeft:
+			return PageText(Text::kPadLeft);
+		case Pad::kRight:
+			return PageText(Text::kPadRight);
+		default:
+			return a_button.name;
+		}
+	}
+
 	// Contract: SKSE Menu Framework calls this on the game's input path for every event,
 	// its menu open or not; returning true keeps the event from the game. Idle unless the
 	// settings page is waiting for a key. A modifier pressed alone keeps waiting, so the
-	// player can hold it and then press the key it modifies; Esc cancels.
+	// player can hold it and then press the key it modifies; Esc cancels. A wait the menu
+	// closed on ends at the next event, so no later key press in game is taken.
 	bool __stdcall OnInput(RE::InputEvent* a_event)
 	{
 		if (!g_pickingHotkey.load()) {
+			return false;
+		}
+		// No main window: an SKSE Menu Framework too old to say whether it is open.
+		if (const auto* window = SKSEMenuFramework::GetMainWindow(); window && !window->IsOpen.load()) {
+			g_pickingHotkey = false;
 			return false;
 		}
 		auto* button = a_event ? a_event->AsButtonEvent() : nullptr;
@@ -704,6 +880,9 @@ namespace
 		g_hotkey = kDefaultHotkey;
 		g_modifier = kDefaultModifier;
 		SaveHotkey(kDefaultHotkey, kDefaultModifier);
+		g_gamepadButton = kNoGamepadButton;
+		g_gamepadModifier = kNoGamepadButton;
+		SaveGamepadHotkey(kNoGamepadButton, kNoGamepadButton);
 		g_notifySituationChanges = false;
 		SaveFlag(kSituationsSection, kNotifyChangesKey, false);
 		g_unusedSlots = kDefaultUnusedSlots;
@@ -741,21 +920,22 @@ namespace
 	// Contract: render thread (RenderSettings).
 	void RenderRestoreDefaults()
 	{
-		constexpr auto kPopup = "Restore default settings?###RestoreDefaults";
-		if (ImGuiMCP::Button("Restore default settings")) {
-			ImGuiMCP::OpenPopup(kPopup);
+		using Strings::Text;
+		const auto popup = std::string(PageText(Text::kSetRestoreDefaultsTitle)) + "###RestoreDefaults";  // the ID stays in every language
+		if (ImGuiMCP::Button(PageText(Text::kSetRestoreDefaults))) {
+			ImGuiMCP::OpenPopup(popup.c_str());
 		}
-		ImGuiMCP::SetItemTooltip("Puts every setting on this page back to its default.\nWindow skin keeps your choice.");
-		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGuiMCP::SetItemTooltip("%s", PageText(Text::kSetRestoreDefaultsTip));
+		if (!ImGuiMCP::BeginPopupModal(popup.c_str(), nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
-		ImGuiMCP::Text("Restore this page's default settings? Window skin stays unchanged.");
-		if (ImGuiMCP::Button("Yes")) {
+		ImGuiMCP::Text("%s", PageText(Text::kSetRestoreDefaultsQuestion));
+		if (ImGuiMCP::Button(PageText(Text::kYes))) {
 			RestoreDefaultSettings();
 			ImGuiMCP::CloseCurrentPopup();
 		}
 		ImGuiMCP::SameLine();
-		if (ImGuiMCP::Button("No")) {
+		if (ImGuiMCP::Button(PageText(Text::kNo))) {
 			ImGuiMCP::CloseCurrentPopup();
 		}
 		ImGuiMCP::EndPopup();
@@ -766,25 +946,24 @@ namespace
 	// which checks whether the release can run now.
 	void RenderReleaseEveryone()
 	{
-		constexpr auto kPopup = "Release everyone?###ReleaseEveryone";
-		if (ImGuiMCP::Button("Release everyone")) {
-			ImGuiMCP::OpenPopup(kPopup);
+		using Strings::Text;
+		const auto popup = std::string(PageText(Text::kSetReleaseEveryoneTitle)) + "###ReleaseEveryone";  // the ID stays in every language
+		if (ImGuiMCP::Button(PageText(Text::kSetReleaseEveryone))) {
+			ImGuiMCP::OpenPopup(popup.c_str());
 		}
-		ImGuiMCP::SetItemTooltip(
-			"Takes Livery's outfits off everyone, player included, and forgets their situational outfits.\n"
-			"Do this before you uninstall Livery.");
-		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGuiMCP::SetItemTooltip("%s", PageText(Text::kSetReleaseEveryoneTip));
+		if (!ImGuiMCP::BeginPopupModal(popup.c_str(), nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
-		ImGuiMCP::Text("Release all characters dressed by Livery? Do this before uninstalling.");
-		if (ImGuiMCP::Button("Yes")) {
+		ImGuiMCP::Text("%s", PageText(Text::kSetReleaseEveryoneQuestion));
+		if (ImGuiMCP::Button(PageText(Text::kYes))) {
 			if (g_releaseEveryone) {
 				g_releaseEveryone();
 			}
 			ImGuiMCP::CloseCurrentPopup();
 		}
 		ImGuiMCP::SameLine();
-		if (ImGuiMCP::Button("No")) {
+		if (ImGuiMCP::Button(PageText(Text::kNo))) {
 			ImGuiMCP::CloseCurrentPopup();
 		}
 		ImGuiMCP::EndPopup();
@@ -796,15 +975,16 @@ namespace
 	// Contract: render thread (RenderSettings).
 	void RenderWindowSkin()
 	{
+		using Strings::Text;
 		constexpr float kComboWidthEms = 14.0f;  // the dropdown's width, of the font size
-		constexpr auto  kPopup = "Restore original palette?###RestorePalette";
 
 		const auto palettes = Settings::ListPalettes();
 		if (palettes.labels.empty()) {
 			return;
 		}
+		const auto popup = std::string(PageText(Text::kSetRestorePaletteTitle)) + "###RestorePalette";  // the ID stays in every language
 		ImGuiMCP::AlignTextToFramePadding();
-		ImGuiMCP::Text("Window skin");
+		ImGuiMCP::Text("%s", PageText(Text::kWindowSkin));
 		ImGuiMCP::SameLine();
 		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
 		if (ImGuiMCP::BeginCombo("##WindowSkin", palettes.labels[palettes.chosen].c_str())) {
@@ -817,25 +997,25 @@ namespace
 			}
 			ImGuiMCP::EndCombo();
 		}
-		ImGuiMCP::SetItemTooltip("Takes effect the next time you open the window.");
+		ImGuiMCP::SetItemTooltip("%s", PageText(Text::kSetWindowSkinTip));
 
 		if (palettes.edited) {
 			ImGuiMCP::SameLine();
-			if (ImGuiMCP::Button("Restore original palette")) {
-				ImGuiMCP::OpenPopup(kPopup);
+			if (ImGuiMCP::Button(PageText(Text::kSetRestorePalette))) {
+				ImGuiMCP::OpenPopup(popup.c_str());
 			}
-			ImGuiMCP::SetItemTooltip("Writes the palette file back as Livery ships it.");
+			ImGuiMCP::SetItemTooltip("%s", PageText(Text::kRestoreOriginalPaletteTooltip));
 		}
-		if (!ImGuiMCP::BeginPopupModal(kPopup, nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
+		if (!ImGuiMCP::BeginPopupModal(popup.c_str(), nullptr, ImGuiMCP::ImGuiWindowFlags_AlwaysAutoResize)) {
 			return;
 		}
-		ImGuiMCP::Text("Restore %s.ini to its original state? Your changes will be lost.", palettes.file.c_str());
-		if (ImGuiMCP::Button("Yes")) {
+		ImGuiMCP::Text("%s", PageFormat(Text::kRestorePaletteQuestion, palettes.file).c_str());
+		if (ImGuiMCP::Button(PageText(Text::kYes))) {
 			Settings::RestoreChosenPalette(kMenuSource);
 			ImGuiMCP::CloseCurrentPopup();
 		}
 		ImGuiMCP::SameLine();
-		if (ImGuiMCP::Button("No")) {
+		if (ImGuiMCP::Button(PageText(Text::kNo))) {
 			ImGuiMCP::CloseCurrentPopup();
 		}
 		ImGuiMCP::EndPopup();
@@ -883,30 +1063,31 @@ namespace
 	void RenderNpcAccess()
 	{
 		constexpr float kComboWidthEms = 10.0f;  // the dropdown's width, of the font size
-		constexpr auto  kAccessHelp = "Full management: you can dress them.\nSave only: you can save what they wear as an outfit.\nDisabled: the hotkey does nothing on them.";
 
 		float labelColumn = 0.0f;
 		for (const auto& setting : kNpcGroups) {
-			labelColumn = (std::max)(labelColumn, ImGuiMCP::CalcTextSize(setting.label).x);
+			labelColumn = (std::max)(labelColumn, ImGuiMCP::CalcTextSize(PageText(setting.label)).x);
 		}
 		for (std::size_t group = 0; group < kNpcGroups.size(); ++group) {
 			const auto& setting = kNpcGroups[group];
 			const auto  current = static_cast<std::size_t>(g_npcAccess[group].load());
-			LabelBefore(setting.label, labelColumn);
+			LabelBefore(PageText(setting.label), labelColumn);
 			ImGuiMCP::PushID(static_cast<int>(group));
 			ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
-			if (ImGuiMCP::BeginCombo("##NpcAccess", kNpcAccessOptions[current].label)) {
+			if (ImGuiMCP::BeginCombo("##NpcAccess", PageText(kNpcAccessOptions[current].label))) {
 				for (std::size_t option = 0; option < kNpcAccessOptions.size(); ++option) {
-					if (ImGuiMCP::Selectable(kNpcAccessOptions[option].label, option == current)) {
+					if (ImGuiMCP::Selectable(PageText(kNpcAccessOptions[option].label), option == current)) {
 						const auto access = static_cast<NpcAccess>(option);
 						g_npcAccess[group] = access;
 						SaveNpcAccess(group, access);
-						logger::info("{} = {} ({})", setting.label, kNpcAccessOptions[option].label, kMenuSource);
+						logger::info("{} = {} ({})", Strings::English(setting.label), Strings::English(kNpcAccessOptions[option].label), kMenuSource);
 					}
 				}
 				ImGuiMCP::EndCombo();
 			}
-			ImGuiMCP::SetItemTooltip("%s\n\n%s\n\nDefault: %s", setting.who, kAccessHelp, kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
+			const auto defaultAccess = PageText(kNpcAccessOptions[static_cast<std::size_t>(setting.defaultAccess)].label);
+			ImGuiMCP::SetItemTooltip("%s\n\n%s\n\n%s", PageText(setting.who), PageText(Strings::Text::kSetAccessHelp),
+				PageFormat(Strings::Text::kSetDefault, defaultAccess).c_str());
 			ImGuiMCP::PopID();
 			SettingGap();
 		}
@@ -919,25 +1100,85 @@ namespace
 		constexpr float kComboWidthEms = 10.0f;  // the dropdown's width, of the font size
 
 		const auto current = static_cast<std::size_t>(g_unusedSlots.load());
-		LabelBefore("Gear in unused slots");
+		using Strings::Text;
+		LabelBefore(PageText(Text::kSetUnusedSlots));
 		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kComboWidthEms);
-		if (ImGuiMCP::BeginCombo("##UnusedSlots", kUnusedSlotsOptions[current].label)) {
+		if (ImGuiMCP::BeginCombo("##UnusedSlots", PageText(kUnusedSlotsOptions[current].label))) {
 			for (std::size_t option = 0; option < kUnusedSlotsOptions.size(); ++option) {
-				if (ImGuiMCP::Selectable(kUnusedSlotsOptions[option].label, option == current)) {
+				if (ImGuiMCP::Selectable(PageText(kUnusedSlotsOptions[option].label), option == current)) {
 					const auto mode = static_cast<UnusedSlots>(option);
 					g_unusedSlots = mode;
 					SaveUnusedSlots(mode);
-					logger::info("UnusedSlots = {} ({})", kUnusedSlotsOptions[option].label, kMenuSource);
+					logger::info("UnusedSlots = {} ({})", Strings::English(kUnusedSlotsOptions[option].label), kMenuSource);
 				}
 			}
 			ImGuiMCP::EndCombo();
 		}
-		ImGuiMCP::SetItemTooltip(
-			"Controls whether NPCs can equip extra gear in slots their Livery outfit leaves empty.\n"
-			"For example, with \"Allow all\" they can wear a helmet you give them if the outfit has no headgear.\n"
-			"Their original outfit never goes back on.\n\n"
-			"\"Except headgear\" blocks helmets, hoods, and circlets.\n\n"
-			"Default: Except headgear");
+		const auto help = PageFormat(Text::kSetUnusedSlotsTip, PageText(Text::kSetAllowAll), PageText(Text::kSetExceptHeadgear));
+		ImGuiMCP::SetItemTooltip("%s\n\n%s", help.c_str(), PageFormat(Text::kSetDefault, PageText(Text::kSetExceptHeadgear)).c_str());
+	}
+
+	// One dropdown of the controller hotkey: None, then each button of kGamepadButtons, or only
+	// LB, RB, LT and RT for a_holdList. Returns whether the player chose one, put in a_code.
+	// Contract: render thread (RenderGamepadHotkey).
+	bool GamepadButtonCombo(const char* a_id, bool a_holdList, std::uint32_t& a_code)
+	{
+		constexpr float kHoldWidthEms = 5.0f;    // the dropdowns' widths, of the font size
+		constexpr float kButtonWidthEms = 8.0f;  // fits "D-pad Right"
+
+		const auto  found = std::ranges::find(kGamepadButtons, a_code, &GamepadButton::code);
+		const char* none = PageText(Strings::Text::kSetNone);
+		bool        chosen = false;
+		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * (a_holdList ? kHoldWidthEms : kButtonWidthEms));
+		if (ImGuiMCP::BeginCombo(a_id, found != kGamepadButtons.end() ? PadLabel(*found) : none)) {
+			if (ImGuiMCP::Selectable(none, found == kGamepadButtons.end())) {
+				a_code = kNoGamepadButton;
+				chosen = true;
+			}
+			for (const auto& button : kGamepadButtons) {
+				if (a_holdList && !IsGamepadModifier(button.code)) {
+					continue;
+				}
+				if (ImGuiMCP::Selectable(PadLabel(button), button.code == a_code)) {
+					a_code = button.code;
+					chosen = true;
+				}
+			}
+			ImGuiMCP::EndCombo();
+		}
+		return chosen;
+	}
+
+	// The controller hotkey's row: a button to hold, then the button. Shown only while the game
+	// has a controller enabled, so the page of a player without one looks as it always has.
+	// Dropdowns rather than a wait for the next press: SKSE Menu Framework moves through its
+	// menu with the controller's buttons whatever OnInput returns. Applies at once.
+	// Contract: render thread (RenderSettings).
+	void RenderGamepadHotkey()
+	{
+		using Strings::Text;
+		auto* manager = RE::BSInputDeviceManager::GetSingleton();
+		if (!manager || !manager->IsGamepadEnabled()) {
+			return;
+		}
+		auto modifier = g_gamepadModifier.load();
+		auto button = g_gamepadButton.load();
+		SettingGap();
+		LabelBefore(PageText(Text::kSetControllerHotkey));
+		bool changed = GamepadButtonCombo("##GamepadModifier", true, modifier);
+		SettingTooltip(Text::kSetControllerTip, Text::kSetNone);
+		ImGuiMCP::SameLine();
+		ImGuiMCP::Text("+");
+		ImGuiMCP::SameLine();
+		changed = GamepadButtonCombo("##GamepadButton", false, button) || changed;
+		SettingTooltip(Text::kSetControllerTip, Text::kSetNone);
+		if (!changed) {
+			return;
+		}
+		g_gamepadModifier = modifier;
+		g_gamepadButton = button;
+		SaveGamepadHotkey(button, modifier);
+		logger::info("Controller hotkey = {} ({}, modifier {}) ({})", GamepadHotkeyName(), button, modifier, kMenuSource);
 	}
 
 	// Contract: SKSE Menu Framework calls this on its render thread every frame
@@ -945,101 +1186,103 @@ namespace
 	// Labels are short; each setting explains itself in a tooltip (CLAUDE.md, player-facing English).
 	void __stdcall RenderSettings()
 	{
-		HeadingRule("General");
+		using Strings::Text;
+		g_pageInLanguage = FontDrawsLanguage();
+		if (!g_pageInLanguage) {
+			// In English: the framework's font lacks the letters a translation would need.
+			const auto language = Strings::Get(Text::kLanguageName);
+			ImGuiMCP::TextWrapped("%s", std::vformat(Strings::English(Text::kSetFontHint), std::make_format_args(language)).c_str());
+			SettingGap();
+		}
+
+		HeadingRule(PageText(Text::kSetGeneral));
 
 		// The next key press is taken by OnInput; "###" keeps the button's ID while its text changes.
 		ImGuiMCP::AlignTextToFramePadding();
-		ImGuiMCP::Text("Hotkey");
+		ImGuiMCP::Text("%s", PageText(Text::kSetHotkey));
 		ImGuiMCP::SameLine();
 		const bool picking = g_pickingHotkey.load();
-		const auto label = picking ? std::string{ "Press a key (Esc cancels)###Hotkey" } : HotkeyName() + "###Hotkey";
+		const auto label = (picking ? std::string(PageText(Text::kSetPressKey)) : HotkeyName()) + "###Hotkey";
 		if (ImGuiMCP::Button(label.c_str())) {
 			g_pickingHotkey = !picking;
 		}
-		ImGuiMCP::SetItemTooltip("Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.\n\nDefault: Shift + V");
+		SettingTooltip(Text::kSetHotkeyTip, "Shift + V");
+
+		RenderGamepadHotkey();
 
 		SettingGap();
 
 		// Applies at once.
 		bool notifyChanges = g_notifySituationChanges.load();
-		if (ImGuiMCP::Checkbox("Show situation notifications", &notifyChanges)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetSituationNotifications), &notifyChanges)) {
 			g_notifySituationChanges = notifyChanges;
 			SaveFlag(kSituationsSection, kNotifyChangesKey, notifyChanges);
 			logger::info("NotifyChanges = {} (SKSE Menu Framework)", notifyChanges);
 		}
-		ImGuiMCP::SetItemTooltip("Notifies you when a character changes outfit as a situation starts or ends.\n\nDefault: OFF");
+		SettingTooltip(Text::kSetSituationNotificationsTip, Text::kSetOff);
 
 		SettingGap();
 
 		// Takes effect the next time the window opens.
 		bool itemChests = g_itemChests.load();
-		if (ImGuiMCP::Checkbox("Enable chests", &itemChests)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetEnableChests), &itemChests)) {
 			g_itemChests = itemChests;
 			SaveFlag(kWindowSection, kItemChestsKey, itemChests);
 			logger::info("ItemChests = {} (SKSE Menu Framework)", itemChests);
 		}
-		ImGuiMCP::SetItemTooltip(
-			"Adds a Chests tab to Livery.\nEach chest can hold any number of items, including several for the same slot.\n"
-			"Load a chest on the Dress page to choose between variants.\n\n"
-			"Default: OFF");
+		SettingTooltip(Text::kSetEnableChestsTip, Text::kSetOff);
 
 		SettingGap();
 
 		RenderUnusedSlots();
 
 		// Every tick here is immersive when on; so are the dropdowns' defaults.
-		Heading("Immersion");
+		Heading(PageText(Text::kSetImmersion));
 
 		RenderNpcAccess();
 
 		// Takes effect the next time the window opens.
 		bool npcReaction = g_npcReaction.load();
-		if (ImGuiMCP::Checkbox("NPC reaction", &npcReaction)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetNpcReaction), &npcReaction)) {
 			g_npcReaction = npcReaction;
 			SaveFlag(kIniSection, kNpcReactionKey, npcReaction);
 			logger::info("NpcReaction = {} (SKSE Menu Framework)", npcReaction);
 		}
-		ImGuiMCP::SetItemTooltip("With Live Preview on, the NPC turns toward you and greets you when the window opens.\n\nDefault: ON");
+		SettingTooltip(Text::kSetNpcReactionTip, Text::kSetOn);
 
 		SettingGap();
 
 		// Takes effect at the next Apply.
 		bool moveFromPlayer = g_moveFromPlayer.load();
-		if (ImGuiMCP::Checkbox("Transfer items to NPCs", &moveFromPlayer)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetTransfer), &moveFromPlayer)) {
 			g_moveFromPlayer = moveFromPlayer;
 			SaveFlag(kTransferSection, kMoveFromPlayerKey, moveFromPlayer);
 			logger::info("MoveFromPlayer = {} (SKSE Menu Framework)", moveFromPlayer);
 		}
-		ImGuiMCP::SetItemTooltip(
-			"On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n\n"
-			"Off: the NPC receives plain copies, and you keep yours.\n\n"
-			"Default: ON");
+		SettingTooltip(Text::kSetTransferTip, Text::kSetOn);
 
 		SettingGap();
 
 		// Takes effect the next time you dress yourself. The tick is the opposite of AddMissingPieces,
 		// so that on means immersive like the rest of the section; the INI key keeps its meaning.
 		bool inventoryOnly = !g_playerAddsMissing.load();
-		if (ImGuiMCP::Checkbox("Dress yourself from inventory only", &inventoryOnly)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetInventoryOnly), &inventoryOnly)) {
 			g_playerAddsMissing = !inventoryOnly;
 			SavePlayerAddsMissing(!inventoryOnly);
 			logger::info("AddMissingPieces = {} (SKSE Menu Framework)", !inventoryOnly);
 		}
-		ImGuiMCP::SetItemTooltip(
-			"Dressing yourself uses only items you carry.\nNPCs always get what they need, but you can't take those items from them.\n\n"
-			"Off: missing items are created in your inventory for free, which can break game balance.\nKeeping this on is strongly recommended.\n\n"
-			"Default: ON");
+		SettingTooltip(Text::kSetInventoryOnlyTip, Text::kSetOn);
 
-		Heading("Window");
+		Heading(PageText(Text::kSetWindow));
 
 		// Takes effect the next time the window opens.
 		bool livePreview = g_livePreview.load();
-		if (ImGuiMCP::Checkbox("Live Preview on open", &livePreview)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetLivePreviewOnOpen), &livePreview)) {
 			g_livePreview = livePreview;
 			SaveLivePreview(livePreview);
 			logger::info("LivePreview = {} (SKSE Menu Framework)", livePreview);
 		}
-		ImGuiMCP::SetItemTooltip("Starts with Live Preview enabled each time you open Livery.\n\nDefault: ON");
+		SettingTooltip(Text::kSetLivePreviewOnOpenTip, Text::kSetOn);
 
 		SettingGap();
 
@@ -1047,7 +1290,7 @@ namespace
 		// the slider is a little wider than the Window skin dropdown.
 		constexpr float kSliderWidthEms = 16.0f;  // the slider's width, of the font size
 		float percent = g_speedPercent.load();
-		LabelBefore("Preview camera speed");
+		LabelBefore(PageText(Text::kSetCameraSpeed));
 		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kSliderWidthEms);
 		if (ImGuiMCP::SliderFloat("##PreviewCameraSpeed", &percent, kMinSpeedPercent, kMaxSpeedPercent, "%.0f%%")) {
 			g_speedPercent = std::clamp(percent, kMinSpeedPercent, kMaxSpeedPercent);
@@ -1056,37 +1299,37 @@ namespace
 			SaveSpeedPercent(g_speedPercent.load());
 			logger::info("SpeedPercent = {:.0f} (SKSE Menu Framework)", g_speedPercent.load());
 		}
-		ImGuiMCP::SetItemTooltip("Adjusts camera movement speed.\nUse WASD, mouse drag, and scroll wheel to control the camera.");
+		ImGuiMCP::SetItemTooltip("%s", PageText(Text::kSetCameraSpeedTip));
 
 		SettingGap();
 
 		// The three below take effect the next time the window opens. The two under the first
 		// only matter while it is on, so they are greyed otherwise.
 		bool showInventory = g_showPlayerInventory.load();
-		if (ImGuiMCP::Checkbox("List your inventory for NPCs", &showInventory)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetListInventory), &showInventory)) {
 			g_showPlayerInventory = showInventory;
 			SaveFlag(kWindowSection, kShowPlayerInventoryKey, showInventory);
 			logger::info("ShowPlayerInventory = {} (SKSE Menu Framework)", showInventory);
 		}
-		ImGuiMCP::SetItemTooltip("In an NPC's window, also lists your armor under \"<your name>'s Inventory\".\n\nDefault: ON");
+		SettingTooltip(Text::kSetListInventoryTip, Text::kSetOn);
 		ImGuiMCP::Indent();
 		ImGuiMCP::BeginDisabled(!showInventory);
 		// The tick is the opposite of ShowPlayerWornPieces, so that on excludes like the tick
 		// below it; the INI key keeps its meaning.
 		bool excludeWorn = !g_showPlayerWorn.load();
-		if (ImGuiMCP::Checkbox("Exclude equipped items", &excludeWorn)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetExcludeEquipped), &excludeWorn)) {
 			g_showPlayerWorn = !excludeWorn;
 			SaveFlag(kWindowSection, kShowPlayerWornKey, !excludeWorn);
 			logger::info("ShowPlayerWornPieces = {} (SKSE Menu Framework)", !excludeWorn);
 		}
-		ImGuiMCP::SetItemTooltip("Leaves out items you're wearing unless you carry another copy.\n\nDefault: ON");
+		SettingTooltip(Text::kSetExcludeEquippedTip, Text::kSetOn);
 		bool protectFavorites = g_protectFavorites.load();
-		if (ImGuiMCP::Checkbox("Exclude favorites", &protectFavorites)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetExcludeFavorites), &protectFavorites)) {
 			g_protectFavorites = protectFavorites;
 			SaveFlag(kTransferSection, kProtectFavoritesKey, protectFavorites);
 			logger::info("ProtectFavorites = {} (SKSE Menu Framework)", protectFavorites);
 		}
-		ImGuiMCP::SetItemTooltip("Excludes items marked as favorites.\nQuest items are always excluded.\n\nDefault: ON");
+		SettingTooltip(Text::kSetExcludeFavoritesTip, Text::kSetOn);
 		ImGuiMCP::EndDisabled();
 		ImGuiMCP::Unindent();
 
@@ -1094,14 +1337,14 @@ namespace
 
 		// Takes effect the next time the window opens.
 		bool showSlots = g_showSlotColumn.load();
-		if (ImGuiMCP::Checkbox("Show Slot column", &showSlots)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetShowSlotColumn), &showSlots)) {
 			g_showSlotColumn = showSlots;
 			SaveFlag(kWindowSection, kShowSlotColumnKey, showSlots);
 			logger::info("ShowSlotColumn = {} (SKSE Menu Framework)", showSlots);
 		}
-		ImGuiMCP::SetItemTooltip("Shows each item's body slot numbers (e.g., 32, 34).\n\nDefault: OFF");
+		SettingTooltip(Text::kSetShowSlotColumnTip, Text::kSetOff);
 
-		Heading("Appearance");
+		Heading(PageText(Text::kPageAppearance));
 
 		RenderWindowSkin();
 
@@ -1109,12 +1352,12 @@ namespace
 
 		// Applies at once.
 		bool menuSounds = g_menuSounds.load();
-		if (ImGuiMCP::Checkbox("Play menu sounds", &menuSounds)) {
+		if (ImGuiMCP::Checkbox(PageText(Text::kPlayMenuSounds), &menuSounds)) {
 			Settings::SetMenuSounds(menuSounds, kMenuSource);
 		}
-		ImGuiMCP::SetItemTooltip("Plays the game's menu sounds for clicks in Livery.\n\nDefault: ON");
+		SettingTooltip(Text::kPlayMenuSoundsTooltip, Text::kSetOn);
 
-		Heading("System");
+		Heading(PageText(Text::kSetSystem));
 
 		RenderRestoreDefaults();
 
@@ -1166,6 +1409,11 @@ namespace Settings
 		g_menuSounds = std::wstring_view{ value } != L"0";
 		logger::info("MenuSounds = {}", g_menuSounds.load());
 
+		// Auto, or a missing key, is the game's language: Strings::Load reads it, at kDataLoaded.
+		wchar_t language[64]{};
+		::GetPrivateProfileStringW(kUiSection, kLanguageKey, kAutoLanguage, language, static_cast<DWORD>(std::size(language)), g_iniPath.c_str());
+		g_language = ::_wcsicmp(language, kAutoLanguage) == 0 ? std::string{} : ToUtf8(language);
+
 		// An out-of-range key or an unknown modifier keeps the default (Shift + V); 0 is no modifier.
 		const auto key = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyKeyKey, kDefaultHotkey, g_iniPath.c_str());
 		if (key > Key::kNone && key <= 0xFF) {
@@ -1178,6 +1426,14 @@ namespace Settings
 			g_modifier = known->left;
 		}
 		logger::info("Hotkey = {} ({}, modifier {})", HotkeyName(), g_hotkey.load(), g_modifier.load());
+
+		// A button Livery does not know is none, as is a modifier other than LB, RB, LT or RT.
+		const auto gamepadButton = ::GetPrivateProfileIntW(kHotkeySection, kHotkeyGamepadKey, kNoGamepadButton, g_iniPath.c_str());
+		g_gamepadButton = GamepadButtonName(gamepadButton) ? gamepadButton : kNoGamepadButton;
+		const auto gamepadModifier =
+			::GetPrivateProfileIntW(kHotkeySection, kHotkeyGamepadModifierKey, kNoGamepadButton, g_iniPath.c_str());
+		g_gamepadModifier = IsGamepadModifier(gamepadModifier) ? gamepadModifier : kNoGamepadButton;
+		logger::info("Controller hotkey = {} ({}, modifier {})", GamepadHotkeyName(), g_gamepadButton.load(), g_gamepadModifier.load());
 
 		// A missing or unreadable value keeps the default; one out of range is brought into it.
 		wchar_t percent[16]{};
@@ -1263,6 +1519,16 @@ namespace Settings
 		return known && IsModifierHeld(*known);
 	}
 
+	bool IsGamepadHotkey(std::uint32_t a_code)
+	{
+		const auto button = g_gamepadButton.load();
+		if (button == kNoGamepadButton || a_code != button) {
+			return false;
+		}
+		const auto modifier = g_gamepadModifier.load();
+		return modifier == kNoGamepadButton || IsGamepadModifierHeld(modifier);
+	}
+
 	NpcAccess AccessOf(NpcGroup a_group)
 	{
 		return g_npcAccess[static_cast<std::size_t>(a_group)].load();
@@ -1313,6 +1579,11 @@ namespace Settings
 	bool MenuSounds()
 	{
 		return g_menuSounds.load();
+	}
+
+	const std::string& Language()
+	{
+		return g_language;
 	}
 
 	void SetMenuSounds(bool a_on, const char* a_source)

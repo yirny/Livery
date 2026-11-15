@@ -120,6 +120,8 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, created with defaults on first 
 | `UI`         | `Palette`              | By UI mod        | Look of the window: a file in `Livery\palettes\`, named without `.ini` (see [Palettes](#palettes)).                                                                                                                              |
 | `Hotkey`     | `Key`                  | `47`             | The hotkey as a DirectInput scan code (`47` = V). In game, click the hotkey button and press a key.                                                                                                                              |
 | `Hotkey`     | `Modifier`             | `42`             | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).                                                                                                                                      |
+| `Hotkey`     | `Gamepad`              | `0`              | A controller button that opens Livery as the hotkey does: an XInput code (`4096` A, `8192` B, `16384` X, `32768` Y), or `0` for none. In game, set it on the settings page, which shows it while a controller is enabled.        |
+| `Hotkey`     | `GamepadModifier`      | `0`              | Button to hold together with `Gamepad`: `0` none, `256` LB, `512` RB, `9` LT, `10` RT.                                                                                                                                           |
 | `Camera`     | `SpeedPercent`         | `100`            | Speed of the preview camera's movement, drags and wheel zoom, in percent (`10` to `200`).                                                                                                                                        |
 | `Player`     | `AddMissingPieces`     | `0`              | `1` lets an outfit you give yourself add the items you do not carry, which creates items; in game the tick **Dress yourself from inventory only** is its opposite.                                                               |
 | `Window`     | `ShowPlayerInventory`  | `1`              | `1` lists your armor in an NPC's window, under `<your name>'s Inventory`; never quest items.                                                                                                                                     |
@@ -155,9 +157,19 @@ Press **Release everyone** on the Livery page of SKSE Menu Framework first, with
 
 Livery never sets `ReleaseEveryone` back to `0`: set it yourself to keep playing with Livery. NPCs out of reach (not persistent, in a cell that is not loaded) are not released.
 
+## Languages
+
+Livery's window, HUD messages and settings page come in English and Japanese. The language follows your game's; to pick one yourself, set `Language=JAPANESE` (or `ENGLISH`) under `[UI]` in `Livery.ini`.
+
+- The settings page needs the language's letters in SKSE Menu Framework's font: turn on **Japanese** under **Fonts** in its own settings, or the page stays English and says so.
+- HUD messages use the game's own font, so they read in a game of that language (a Japanese game, or an English game with a Japanese font mod).
+- The Situations page and the messages about dressing are still English for now.
+
+To translate Livery, copy `Data\Interface\Translations\Livery_ENGLISH.txt` as `Livery_<LANGUAGE>.txt` (the game's language names: `FRENCH`, `GERMAN`, `RUSSIAN`, `CHINESE`...) and translate the text after each tab. Keep `{0}`, `{1}`... (their order may change) and `\n` for a line break; save as UTF-16 LE with a byte order mark, or UTF-8. A text the file lacks stays English, and `Livery.log` names any line it could not use.
+
 ## Limits
 
-- Only ASCII can be typed into the name field.
+- Japanese, Chinese or Korean names go in by paste (Ctrl + V); an IME does not open in the window.
 - Items from plugins that are not loaded have no row in the window and stay in the outfit. Edit `outfits.json` to remove them.
 - Gear another mod puts on an NPC can stay on in a slot their outfit leaves empty, even when **Gear in unused slots** keeps it out. It comes off the next time you trade with them or they load in.
 - Your Sleep outfit goes on only with a mod that puts you into bed: the game's own beds just pass the time.

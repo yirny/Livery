@@ -136,7 +136,14 @@ Settings are available on the Livery page of SKSE Menu Framework, or in [font=Co
 The window's Appearance tab lets you change the skin, palette and menu sounds, even without SKSE Menu Framework.
 
 To change the window's colours, edit the #RRGGBB values in your palette's .ini under [font=Courier New]Data\SKSE\Plugins\Livery\palettes\[/font], or copy one under a new name and edit the copy.
-[b][color=#EAD08F]Restore Original Palette[/color][/b] on the Appearance tab undoes edits to a shipped palette.[/font]
+[b][color=#EAD08F]Restore Original Palette[/color][/b] on the Appearance tab undoes edits to a shipped palette.
+
+Livery comes in English and Japanese and uses the one your game runs in. To choose one yourself, set [font=Courier New]Language[/font] under [font=Courier New][UI][/font] in Livery.ini. Japanese on the settings page needs [b]Japanese[/b] enabled under [b]Fonts[/b] in SKSE Menu Framework.
+
+[b][size=4][color=#a7c17b]◆ Use a controller ◆[/color][/size][/b]
+
+Set a button to open Livery on Livery's settings page in SKSE Menu Framework, or under [font=Courier New][Hotkey][/font] in Livery.ini.
+In the window, the D-pad moves between items, A presses one, B goes back, and the right stick moves the cursor (A then clicks, and drags). The arrow keys, Space and Esc do the same on a keyboard. Typing a name still needs a keyboard.[/font]
 
 
 [center][img]https://raw.githubusercontent.com/yirny/Livery/main/docs/assets/nexus/h2_requirements.png[/img][/center]
@@ -195,9 +202,9 @@ NPCs won't replace gear assigned by Livery. To change it, edit their outfit in L
 Empty slots work differently: by default, NPCs can equip extra gear there, except headgear, so a shield goes on and a helmet comes off again.
 You can change this under [b][color=#EAD08F]Gear in unused slots[/color][/b] in the settings.
 
-[b][color=#a7c17b]I gave an NPC only a wig (or one item), and now they're naked.[/color][/b]
+[b][color=#a7c17b]I applied an outfit of just a wig (or a single item), and now the NPC is naked.[/color][/b]
 By design. An NPC dressed by Livery wears only the items in the outfit you applied, plus gear you can see in their inventory. Their own clothes stay off.
-To keep them dressed, open Livery on them while they wear their clothes and the new wig, and Apply all of it together.
+To keep them dressed, open Livery on them while they wear their clothes and the wig, and Apply all of it together.
 
 [b][color=#a7c17b]My Sleep outfit never goes on.[/color][/b]
 The game's own beds just pass the time. It goes on with a mod that actually puts you into bed.
@@ -209,6 +216,13 @@ Turn the other mod's sleepwear off for the characters Livery dresses, or leave t
 [b][color=#a7c17b]Where is my outfit data stored?[/color][/b]
 [font=Courier New]Data\SKSE\Plugins\Livery\outfits.json[/font], shared by all saves. 
 Items are stored by plugin name and FormID, so outfits survive a load order change. Back it up with your saves.
+
+[b][color=#a7c17b]Can I type a non-English name?[/color][/b]
+Accented letters type as usual. Japanese, Chinese or Korean go in by paste (Ctrl + V): an IME does not open in the window yet.
+
+[b][color=#a7c17b]Is Livery available in other languages?[/color][/b]
+English and Japanese so far; see Configure Livery to choose one. The Situations page and the dressing messages are still English for now.
+To translate Livery, copy [font=Courier New]Data\Interface\Translations\Livery_ENGLISH.txt[/font] as [font=Courier New]Livery_<LANGUAGE>.txt[/font] and translate the text after each tab; keep {0}, {1}... and \n. Translations are welcome: upload yours as a translation file here.
 
 [b][color=#a7c17b]The hotkey only shows "Livery: the window is not available."[/color][/b]
 Livery couldn't set up its window in this game. 
@@ -228,7 +242,6 @@ Please send it with your game version.
 
 [list]
 [*][font=Roboto][b]Custom situations[/b]: add your own, and edit their conditions.[/font][/*]
-[*][font=Roboto][b]Non-ASCII names[/b], so you can name an outfit in your own language.[/font][/*]
 [*][font=Roboto][b]Livery API[/b], so other mods can use its dressing and outfits.[/font][/*]
 [/list]
 

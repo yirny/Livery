@@ -18,6 +18,7 @@
 #include "Chests.h"
 
 #include "PieceFile.h"
+#include "Strings.h"
 #include "Utils.h"
 
 #include <nlohmann/json.hpp>
@@ -35,10 +36,15 @@ namespace
 
 	// --- Constants ------------------------------------------------------------
 
-	constexpr auto        kChestsFile = L"Data/SKSE/Plugins/Livery/chests.json";
-	constexpr auto        kChestsName = "chests.json";  // in the log and the messages
-	constexpr int         kChestsVersion = 1;           // the "version" field this code reads and writes
-	constexpr const char* kUnreadable = "Livery could not read chests.json, so it changes nothing (see Livery.log).";
+	constexpr auto kChestsFile = L"Data/SKSE/Plugins/Livery/chests.json";
+	constexpr auto kChestsName = "chests.json";  // in the log and the messages
+	constexpr int  kChestsVersion = 1;           // the "version" field this code reads and writes
+
+	// Why every write is refused once chests.json could not be read.
+	std::string UnreadableMessage()
+	{
+		return Strings::Format(Strings::Text::kFileUnreadable, kChestsName);
+	}
 
 	// --- State ----------------------------------------------------------------
 
@@ -191,13 +197,13 @@ namespace Chests
 	std::optional<std::string> Create(std::string_view a_name)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return UnreadableMessage();
 		}
 		if (a_name.empty()) {
-			return "Enter a name.";
+			return Strings::Get(Strings::Text::kNeedName);
 		}
 		if (FindByName(a_name)) {
-			return std::format("A chest named \"{}\" already exists.", a_name);
+			return Strings::Format(Strings::Text::kChestNameTaken, a_name);
 		}
 		auto chests = g_chests;
 		chests.push_back({ .id = g_nextId, .name = std::string{ a_name } });
@@ -213,18 +219,18 @@ namespace Chests
 	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return UnreadableMessage();
 		}
 		const auto found = std::ranges::find(g_chests, a_id, &Chest::id);
 		if (found == g_chests.end()) {
-			return "The chest no longer exists.";
+			return Strings::Get(Strings::Text::kChestNoLongerExists);
 		}
 		if (a_name.empty()) {
-			return "Enter a name.";
+			return Strings::Get(Strings::Text::kNeedName);
 		}
 		// Its own name, in another case, is free to take.
 		if (const auto* named = FindByName(a_name); named && named->id != a_id) {
-			return std::format("A chest named \"{}\" already exists.", a_name);
+			return Strings::Format(Strings::Text::kChestNameTaken, a_name);
 		}
 		std::vector<PieceRef> pieces;
 		if (auto problem = PieceFile::ToPieces(a_armor, pieces)) {
@@ -249,11 +255,11 @@ namespace Chests
 	std::optional<std::string> Remove(std::uint32_t a_id)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return UnreadableMessage();
 		}
 		auto chests = g_chests;
 		if (std::erase_if(chests, [a_id](const Chest& a_chest) { return a_chest.id == a_id; }) == 0) {
-			return "The chest no longer exists.";
+			return Strings::Get(Strings::Text::kChestNoLongerExists);
 		}
 		if (auto problem = WriteChests(chests, g_nextId)) {
 			return problem;

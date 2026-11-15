@@ -9,6 +9,8 @@
 #include <string_view>
 #include <vector>
 
+#include "Strings.h"
+
 // An outfit's icon (docs/design.md §9): a piece icon PNG, named by PieceIcons' key, tinted with
 // one of kColors, named by its key. The tables set the order of the icon picker (Choose icon)
 // and of the outfit lists' icon sort. Pure data and logic with no ImGui or SKSE, so the unit
@@ -114,7 +116,7 @@ namespace OutfitIcons
 	struct Color
 	{
 		std::string_view key;   // ASCII lower case, never changed once shipped
-		std::string_view name;  // shown to the player
+		Strings::Text    name;  // shown to the player
 		std::uint32_t    rgb;   // 0xRRGGBB
 	};
 
@@ -123,36 +125,36 @@ namespace OutfitIcons
 	// and Ash grey. Each row is white (grey below), then red, pink, purple, blue, cyan,
 	// teal, green, yellow and gold.
 	constexpr auto kColors = std::to_array<Color>({
-		{ "bone-white", "Bone white", 0xEAEAEA },
-		{ "snowberry-red", "Snowberry red", 0xB5414F },
-		{ "sheogorath-pink", "Sheogorath pink", 0xC357A5 },
-		{ "deathbell-purple", "Deathbell purple", 0x615EBC },
-		{ "jazbay-blue", "Jazbay blue", 0x4B6DAA },
-		{ "coldharbour-cyan", "Coldharbour cyan", 0x65A3B4 },
-		{ "glass-teal", "Glass teal", 0x449E94 },
-		{ "spriggan-green", "Spriggan green", 0x86C15C },
-		{ "luna-yellow", "Luna yellow", 0xCACA62 },
-		{ "dwarven-gold", "Dwarven gold", 0xCCA436 },
-		{ "bone-white-light", "Nordic silver", 0xAEAEAE },
-		{ "snowberry-red-light", "Snowberry red - Light", 0xC86D7A },
-		{ "sheogorath-pink-light", "Sheogorath pink - Light", 0xD283BD },
-		{ "deathbell-purple-light", "Deathbell purple - Light", 0x8987CE },
-		{ "jazbay-blue-light", "Jazbay blue - Light", 0x7693C1 },
-		{ "coldharbour-cyan-light", "Coldharbour cyan - Light", 0x8EBDC9 },
-		{ "glass-teal-light", "Glass teal - Light", 0x71BAB1 },
-		{ "spriggan-green-light", "Spriggan green - Light", 0xA9D388 },
-		{ "luna-yellow-light", "Luna yellow - Light", 0xDBDB8E },
-		{ "dwarven-gold-light", "Dwarven gold - Light", 0xDABE65 },
-		{ "bone-white-muted", "Ash grey", 0x777777 },
-		{ "snowberry-red-muted", "Snowberry red - Muted", 0xB2858B },
-		{ "sheogorath-pink-muted", "Sheogorath pink - Muted", 0xC19AB7 },
-		{ "deathbell-purple-muted", "Deathbell purple - Muted", 0x9695B7 },
-		{ "jazbay-blue-muted", "Jazbay blue - Muted", 0x8C9BB1 },
-		{ "coldharbour-cyan-muted", "Coldharbour cyan - Muted", 0xA7BEC4 },
-		{ "glass-teal-muted", "Glass teal - Muted", 0x92B6B2 },
-		{ "spriggan-green-muted", "Spriggan green - Muted", 0xBBCFAA },
-		{ "luna-yellow-muted", "Luna yellow - Muted", 0xDBDBB6 },
-		{ "dwarven-gold-muted", "Dwarven gold - Muted", 0xD1C497 },
+		{ "bone-white", Strings::Text::kColorBoneWhite, 0xEAEAEA },
+		{ "snowberry-red", Strings::Text::kColorSnowberryRed, 0xB5414F },
+		{ "sheogorath-pink", Strings::Text::kColorSheogorathPink, 0xC357A5 },
+		{ "deathbell-purple", Strings::Text::kColorDeathbellPurple, 0x615EBC },
+		{ "jazbay-blue", Strings::Text::kColorJazbayBlue, 0x4B6DAA },
+		{ "coldharbour-cyan", Strings::Text::kColorColdharbourCyan, 0x65A3B4 },
+		{ "glass-teal", Strings::Text::kColorGlassTeal, 0x449E94 },
+		{ "spriggan-green", Strings::Text::kColorSprigganGreen, 0x86C15C },
+		{ "luna-yellow", Strings::Text::kColorLunaYellow, 0xCACA62 },
+		{ "dwarven-gold", Strings::Text::kColorDwarvenGold, 0xCCA436 },
+		{ "bone-white-light", Strings::Text::kColorNordicSilver, 0xAEAEAE },
+		{ "snowberry-red-light", Strings::Text::kColorSnowberryRedLight, 0xC86D7A },
+		{ "sheogorath-pink-light", Strings::Text::kColorSheogorathPinkLight, 0xD283BD },
+		{ "deathbell-purple-light", Strings::Text::kColorDeathbellPurpleLight, 0x8987CE },
+		{ "jazbay-blue-light", Strings::Text::kColorJazbayBlueLight, 0x7693C1 },
+		{ "coldharbour-cyan-light", Strings::Text::kColorColdharbourCyanLight, 0x8EBDC9 },
+		{ "glass-teal-light", Strings::Text::kColorGlassTealLight, 0x71BAB1 },
+		{ "spriggan-green-light", Strings::Text::kColorSprigganGreenLight, 0xA9D388 },
+		{ "luna-yellow-light", Strings::Text::kColorLunaYellowLight, 0xDBDB8E },
+		{ "dwarven-gold-light", Strings::Text::kColorDwarvenGoldLight, 0xDABE65 },
+		{ "bone-white-muted", Strings::Text::kColorAshGrey, 0x777777 },
+		{ "snowberry-red-muted", Strings::Text::kColorSnowberryRedMuted, 0xB2858B },
+		{ "sheogorath-pink-muted", Strings::Text::kColorSheogorathPinkMuted, 0xC19AB7 },
+		{ "deathbell-purple-muted", Strings::Text::kColorDeathbellPurpleMuted, 0x9695B7 },
+		{ "jazbay-blue-muted", Strings::Text::kColorJazbayBlueMuted, 0x8C9BB1 },
+		{ "coldharbour-cyan-muted", Strings::Text::kColorColdharbourCyanMuted, 0xA7BEC4 },
+		{ "glass-teal-muted", Strings::Text::kColorGlassTealMuted, 0x92B6B2 },
+		{ "spriggan-green-muted", Strings::Text::kColorSprigganGreenMuted, 0xBBCFAA },
+		{ "luna-yellow-muted", Strings::Text::kColorLunaYellowMuted, 0xDBDBB6 },
+		{ "dwarven-gold-muted", Strings::Text::kColorDwarvenGoldMuted, 0xD1C497 },
 	});
 
 	constexpr std::string_view kDefaultColor = kColors[0].key;

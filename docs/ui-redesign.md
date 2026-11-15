@@ -99,7 +99,8 @@ situation is the Situations page's job (docs/situation-management-ui.md).
 - Both tabs start with the name, as the Wardrobe page's field: no label (`Outfit Name` on hover
   while not being typed in; a failed save's error instead). An empty field shows `kNeedName`
   inside it; a failed save turns it red, its error on hover, until the name is edited
-  (`DrawNameField`). Only ASCII can be typed: the game's text input carries the ANSI code page.
+  (`DrawNameField`). The game's typed characters come in the ANSI code page, a double-byte one
+  in several events; the window turns them into UTF-8 (`RecordChar`).
 - `Create New Outfit`: the icon field and the name, as the Wardrobe page's (its `Choose icon`
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
   NNN`, then the ticked pieces read only, with the Dress page's icons, under their count

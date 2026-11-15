@@ -76,7 +76,7 @@ namespace CaptureWindow::Internal
 		int clicked = -1;
 		if (Theme::BeginList("chests", RowListHeight(listed, a_reserved))) {
 			if (listed == 0) {
-				Theme::HintRow(a_except >= 0 ? "No other chests." : kNoChests, a_grip);
+				Theme::HintRow(Strings::Get(a_except >= 0 ? Text::kNoOtherChests : Text::kNoChests), a_grip);
 			}
 			std::size_t drawn = 0;
 			for (std::size_t i = 0; i < chests.size(); ++i) {
@@ -94,7 +94,7 @@ namespace CaptureWindow::Internal
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
-		Theme::CountText(std::format("{} chests", listed).c_str(), false);
+		Theme::CountText(Strings::Format(Text::kChestsCount, listed).c_str(), false);
 		if (clicked >= 0) {
 			QueueMenuSound(kFocusSound);
 		}
@@ -150,13 +150,13 @@ namespace CaptureWindow::Internal
 		if (!BeginModal(kChestCreatePopup)) {
 			return false;
 		}
-		ImGui::TextUnformatted("Name the new chest.");
-		const bool enter = DrawNameField(a_state, a_state.chest.newName, nullptr, nullptr, "Chest Name");
-		BeginButtonRow({ "Create", "Cancel" });
+		ImGui::TextUnformatted(Strings::Get(Text::kNameNewChest));
+		const bool enter = DrawNameField(a_state, a_state.chest.newName, nullptr, nullptr, Strings::Get(Text::kChestName));
+		BeginButtonRow({ Strings::Get(Text::kCreate), Strings::Get(Text::kCancel) });
 		const bool typed = !Trimmed(a_state.chest.newName.data()).empty();
-		const bool create = ReasonButton("Create", typed ? nullptr : kNeedName) || enter;
+		const bool create = ReasonButton(Strings::Get(Text::kCreate), ReasonIf(!typed, kNeedName)) || enter;
 		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
 		if (create || cancel) {
 			QueueMenuSound(create ? kOkSound : kCancelSound);
@@ -183,19 +183,19 @@ namespace CaptureWindow::Internal
 	void DrawChestsPage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
-		constexpr const char* kCreateChest = "Create New Chest...";
+		const char* createChest = Strings::Get(Text::kCreateNewChest);
 
-		Theme::LabelText("Select a chest to open");
+		Theme::LabelText(Strings::Get(Text::kSelectChestToOpen));
 		const int clicked = DrawChestList(a_state, -1, -1, 0.0f, Theme::Grip::kFlush);  // never selects a row
 		if (!a_state.error.empty()) {
 			DrawError(a_state.error);
 		}
-		BeginButtonRow({ { kCreateChest, Theme::HeadingIcon::kChest }, "Exit" });
+		BeginButtonRow({ { createChest, Theme::HeadingIcon::kChest }, Strings::Get(Text::kExit) });
 		ImGui::BeginDisabled(!a_state.request.onChestCreate);
-		const bool create = Theme::Button(Theme::HeadingIcon::kChest, kCreateChest);
+		const bool create = Theme::Button(Theme::HeadingIcon::kChest, createChest);
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		const bool exit = Theme::Button("Exit") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		const bool exit = Theme::Button(Strings::Get(Text::kExit)) || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 		EndButtonRow();
 		ImGui::EndDisabled();
 
@@ -341,7 +341,7 @@ namespace CaptureWindow::Internal
 				++listed;
 			}
 			if (!a_state.chest.takenOut.empty()) {
-				Theme::ListHeading("Taken Out of Chest", Theme::HeadingIcon::kChest);
+				Theme::ListHeading(Strings::Get(Text::kTakenOutOfChest), Theme::HeadingIcon::kChest);
 				drawn = 0;
 				for (const auto i : a_state.chest.takenOut) {
 					if (DrawItemRow(a_state, i, drawn % 2 == 1)) {
@@ -352,7 +352,7 @@ namespace CaptureWindow::Internal
 				}
 			}
 			if (listed == 0) {
-				Theme::HintRow("No items to put in.", Theme::Grip::kFlush);
+				Theme::HintRow(Strings::Get(Text::kNoItemsToPutIn), Theme::Grip::kFlush);
 			}
 		}
 		ImGui::PopStyleVar();
@@ -368,7 +368,7 @@ namespace CaptureWindow::Internal
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 		if (Theme::BeginList("inside", a_height)) {
 			if (inside.empty()) {
-				Theme::HintRow("Empty.", Theme::Grip::kFlush);
+				Theme::HintRow(Strings::Get(Text::kEmpty), Theme::Grip::kFlush);
 			}
 			std::size_t drawn = 0;
 			for (const auto i : a_state.pieceOrder) {
@@ -399,21 +399,20 @@ namespace CaptureWindow::Internal
 	// Dress page offers no Add from Chest... (the player dressing from their inventory only).
 	ChestAction DrawChestButtons(const State& a_state)
 	{
-		constexpr const char* kDressWithChest = "Dress with Chest...";
-		constexpr const char* kInventoryOnly = "Not available while dressing from your inventory only.";
+		const char* dressWithChest = Strings::Get(Text::kDressWithChest);
 
 		const char* noDress = nullptr;
 		if (!a_state.request.offersWardrobe) {
-			noDress = kInventoryOnly;
+			noDress = Strings::Get(Text::kNotWhileInventoryOnly);
 		} else if (a_state.chest.pieces.empty()) {
 			noDress = kNoLoadedPiece;
 		}
-		BeginButtonRow({ { kDressWithChest, Theme::HeadingIcon::kBareForm }, "Back" });
-		const bool dress = ReasonButton(kDressWithChest, noDress, nullptr, Theme::HeadingIcon::kBareForm);
+		BeginButtonRow({ { dressWithChest, Theme::HeadingIcon::kBareForm }, Strings::Get(Text::kBack) });
+		const bool dress = ReasonButton(dressWithChest, noDress, nullptr, Theme::HeadingIcon::kBareForm);
 		ImGui::SameLine();
-		const bool back = Theme::Button("Back") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		const bool back = Theme::Button(Strings::Get(Text::kBack)) || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 		ImGui::BeginDisabled(!a_state.request.onChestRemove);
-		const bool remove = Theme::LineLink("Remove");
+		const bool remove = Theme::LineLink(Strings::Get(Text::kRemove));
 		ImGui::EndDisabled();
 		if (dress) {
 			return ChestAction::kDress;
@@ -493,11 +492,11 @@ namespace CaptureWindow::Internal
 			ImGui::EndPopup();
 			return false;
 		}
-		RunLine({ TextRun("Remove "), ChestRun(ChestAt(a_state, a_state.chest.chest).name), TextRun("?") });
-		BeginButtonRow({ "Remove", "Cancel" });
-		const bool remove = Theme::Button("Remove");
+		RunLine(Text::kRemoveChest, { ChestRun(ChestAt(a_state, a_state.chest.chest).name) });
+		BeginButtonRow({ Strings::Get(Text::kRemove), Strings::Get(Text::kCancel) });
+		const bool remove = Theme::Button(Strings::Get(Text::kRemove));
 		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
 		if (remove || cancel) {
 			QueueMenuSound(remove ? kOkSound : kCancelSound);
@@ -513,11 +512,9 @@ namespace CaptureWindow::Internal
 	// page is left.
 	void DrawChestEditPage(State& a_state)
 	{
-		constexpr const char* kNoOtherChests = "No other chests.";
-
 		auto& form = a_state.chest;
 		BeginPageDisabled(a_state);
-		DrawNameField(a_state, form.name, nullptr, nullptr, "Chest Name");
+		DrawNameField(a_state, form.name, nullptr, nullptr, Strings::Get(Text::kChestName));
 		// The name counts once it is entered: Enter or the field losing focus. Polled, as a
 		// link's click can leave the page in the frame the field lets go.
 		const bool nameActive = ImGui::IsItemActive();
@@ -529,18 +526,20 @@ namespace CaptureWindow::Internal
 		CountLinks                 links;
 		if (BeginColumns("chest")) {
 			const float height = EditorListHeight(a_state);
-			ImGui::TableNextColumn();
+			NextColumn();
 			ResetCellBaseline();
-			Theme::LabelText("Items", Theme::HeadingIcon::kBackpack);
+			Theme::LabelText(Strings::Get(Text::kChestItems), Theme::HeadingIcon::kBackpack);
 			Theme::AfterFieldGap();
-			Theme::CountText(std::format("{} items", CountOutside(a_state).rows).c_str());
+			Theme::CountText(Strings::Format(Text::kItemsCount, CountOutside(a_state).rows).c_str());
 			putIn = DrawItemsOutside(a_state, height);
-			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
+			const auto* noOutfits = ReasonIf(a_state.request.existingOutfits.empty(), kNoOutfits);
+			links.wardrobe = DrawCountLink(a_state, Strings::Get(Text::kAddFromWardrobe), noOutfits, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
-			links.chest = DrawCountLink(a_state, "Chest...", a_state.request.chests.size() <= 1 ? kNoOtherChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
-			ImGui::TableNextColumn();
+			const auto* noOtherChests = ReasonIf(a_state.request.chests.size() <= 1, Strings::Get(Text::kNoOtherChests));
+			links.chest = DrawCountLink(a_state, Strings::Get(Text::kAddFromChest), noOtherChests, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
+			NextColumn();
 			ResetCellBaseline();
-			Theme::LabelText("In Chest", Theme::HeadingIcon::kChest);
+			Theme::LabelText(Strings::Get(Text::kInChest), Theme::HeadingIcon::kChest);
 			Theme::AfterFieldGap();
 			Theme::CountText(PieceCountText(form.pieces.size(), form.chest >= 0 ? ChestAt(a_state, form.chest).unloadedPieces : 0).c_str());
 			takeOut = DrawItemsInside(a_state, height);

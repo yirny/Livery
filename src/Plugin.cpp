@@ -56,9 +56,11 @@
 #include "Settings.h"
 #include "SituationStore.h"
 #include "Situations.h"
+#include "Strings.h"
 #include "TradeFilter.h"
 #include "sarrai/FreeCamera.h"
 #include "sarrai/Overlay.h"
+#include "sarrai/Theme.h"
 
 #include <algorithm>
 #include <bit>
@@ -90,7 +92,7 @@ namespace
 	std::string NextAutomaticName()
 	{
 		for (int index = 1; index <= 99999; ++index) {
-			auto name = std::format("New Outfit {:03}", index);
+			auto name = Strings::Format(Strings::Text::kNewOutfitName, std::format("{:03}", index));
 			if (!Library::FindByName(name)) {
 				return name;
 			}
@@ -118,7 +120,7 @@ namespace
 		if (auto error = Library::Create(name, armors, icon)) {
 			return error;
 		}
-		Notify(std::format("Livery: saved {} ({} items).", name, armors.size()));
+		Notify(Strings::Format(Strings::Text::kHudSaved, name, armors.size()));
 		return std::nullopt;
 	}
 
@@ -142,7 +144,7 @@ namespace
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
-			return "The outfit no longer exists.";
+			return Strings::Get(Strings::Text::kOutfitNoLongerExists);
 		}
 		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
@@ -150,12 +152,10 @@ namespace
 		if (auto error = Library::Update(id, name, armors, icon.value_or(outfit->icon))) {
 			return error;
 		}
-		auto text = name == oldName ? std::format("Livery: updated {} ({} items)", name, armors.size()) :
-		                              std::format("Livery: updated {}, renamed from {} ({} items)", name, oldName, armors.size());
-		if (unloaded) {
-			text += std::format("; {} items from plugins that are not loaded stay in it", unloaded);
-		}
-		Notify(text + ".");
+		using Strings::Text;
+		const auto message = name == oldName ? (unloaded ? Text::kHudUpdatedUnloaded : Text::kHudUpdated) :
+		                                       (unloaded ? Text::kHudUpdatedRenamedUnloaded : Text::kHudUpdatedRenamed);
+		Notify(Strings::Format(message, name, armors.size(), unloaded, oldName));
 		return std::nullopt;
 	}
 
@@ -166,7 +166,7 @@ namespace
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
-			return "The outfit no longer exists.";
+			return Strings::Get(Strings::Text::kOutfitNoLongerExists);
 		}
 		// Copied: the update leaves `outfit` stale.
 		const std::string name = outfit->name;
@@ -252,7 +252,7 @@ namespace
 		request.onPreviewOn = [handle = actor.GetHandle(), armors](const std::vector<std::size_t>& pieces) -> std::string {
 			const auto target = handle.get();
 			if (!target) {
-				return "Preview off: the character is gone.";
+				return Strings::Get(Strings::Text::kPreviewCharacterGone);
 			}
 			return OutfitPreview::Begin(*target, PickPieces(armors, pieces));
 		};
@@ -444,7 +444,7 @@ namespace
 			return description.c_str();
 		}
 		const auto* name = enchantment->GetName();
-		return name && *name ? name : "Enchanted";
+		return name && *name ? name : Strings::Get(Strings::Text::kEnchanted);
 	}
 
 	// The hover text of a tempered piece's mark: its quality as the game names the item, "Fine"
@@ -640,7 +640,7 @@ namespace
 			.selected = selected,
 			.slots = slots,
 			.group = group,
-			.type = icon.typeName.empty() ? std::string(type.name) : std::move(icon.typeName),
+			.type = !icon.typeName.empty() ? std::move(icon.typeName) : (type.name ? std::string(Strings::Get(*type.name)) : std::string()),
 			.typeOrder = type.order,
 			.slotText = SlotText(slots),
 			.slotOrder = std::countr_zero(slots),
@@ -695,11 +695,11 @@ namespace
 	{
 		std::vector<std::string> lines;
 		for (const auto& use : Assignments::UsesOf(id)) {
-			std::string line = ActorLabel(use.actor);
-			for (std::size_t i = 0; i < use.rows.size(); ++i) {
-				line += std::format("{}{}", i == 0 ? ": " : ", ", SituationStore::Name(use.rows[i]));
+			std::string rows;
+			for (const auto row : use.rows) {
+				rows += (rows.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + SituationStore::Name(row);
 			}
-			lines.push_back(std::move(line));
+			lines.push_back(Strings::Format(Strings::Text::kUsedByLine, ActorLabel(use.actor), rows));
 		}
 		return lines;
 	}
@@ -884,10 +884,11 @@ namespace
 	// `, 1 item not worn`, `, 2 extra items worn`, both, or "".
 	std::string GapsText(const WornGaps& gaps)
 	{
-		const auto count = [](std::size_t n, const char* what, const char* after) {
-			return n == 0 ? std::string{} : std::format(", {} {}{} {}", n, what, n == 1 ? "" : "s", after);
+		using Strings::Text;
+		const auto count = [](std::size_t n, Text one, Text many) {
+			return n == 0 ? std::string{} : Strings::Format(n == 1 ? one : many, n);
 		};
-		return count(gaps.notWorn, "item", "not worn") + count(gaps.extra, "extra item", "worn");
+		return count(gaps.notWorn, Text::kGapNotWornOne, Text::kGapNotWornMany) + count(gaps.extra, Text::kGapExtraOne, Text::kGapExtraMany);
 	}
 
 	// The line under the actor's name: what Livery has on them now and what for, `Wearing X
@@ -898,21 +899,22 @@ namespace
 	// extra items worn.`
 	CaptureWindow::ActorSummary DescribeAssignment(const Assignments::Choices& choices, const WornGaps& gaps)
 	{
+		using Strings::Text;
 		if (!choices.dressed) {
-			return { .lead = "Not dressed by Livery right now." };
+			return { .lead = Strings::Get(Text::kSummaryNotDressed) };
 		}
 		const auto* stored = choices.wornOutfit ? Library::Find(choices.wornOutfit) : nullptr;
 		if (!stored) {
-			return { .lead = std::format("Dressed by Livery{}.", GapsText(gaps)) };
+			return { .lead = Strings::Format(Text::kSummaryDressed, GapsText(gaps)) };
 		}
 		const bool isDefault = choices.worn == Situations::Situation::kDefault;
-		return { .lead = gaps.notWorn == 0 ? "Wearing " : "Assigned ",
+		const bool wearing = gaps.notWorn == 0;
+		return { .text = isDefault ? (wearing ? Text::kSummaryWearingAs : Text::kSummaryAssignedAs) : (wearing ? Text::kSummaryWearingFor : Text::kSummaryAssignedFor),
 			.outfit = stored->name,
 			.iconKey = stored->icon.key,
-			.link = isDefault ? " as " : " for ",
 			.situation = SituationStore::Name(choices.worn),
 			.situationIsDefault = isDefault,
-			.tail = GapsText(gaps) + "." };
+			.gaps = GapsText(gaps) };
 	}
 
 	// The library outfit Livery has on them now, for the first heading of the piece list;
@@ -948,11 +950,13 @@ namespace
 		}
 		auto        notMoved = Dressing::MoveFromPlayer(*player, npc, moving, Settings::ShowPlayerWornPieces());
 		const auto* name = npc.GetDisplayFullName();
-		auto        text = std::format("Livery: moved {} of {} items from you to {}", moving.size() - notMoved.size(), moving.size(), name && *name ? name : "them");
-		for (std::size_t i = 0; i < notMoved.size(); ++i) {
-			text += (i == 0 ? "; not moved: " : ", ") + DisplayName(*notMoved[i]);
+		const char* who = name && *name ? name : Strings::Get(Strings::Text::kHudThem);
+		std::string left;
+		for (const auto* armor : notMoved) {
+			left += (left.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + DisplayName(*armor);
 		}
-		Notify(text + ".");
+		const auto message = notMoved.empty() ? Strings::Text::kHudMoved : Strings::Text::kHudMovedNotAll;
+		Notify(Strings::Format(message, moving.size() - notMoved.size(), moving.size(), who, left));
 		return notMoved;
 	}
 
@@ -1200,7 +1204,7 @@ namespace
 			const auto target = handle.get();
 			if (save.applyRow && !target) {
 				// Before the write, so nothing is saved for a Create and Apply that cannot dress them.
-				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				CaptureWindow::SetError(Strings::Format(Strings::Text::kNoLongerHere, name));
 				return;
 			}
 			const auto picked = PickPieces(armors, save.pieces);
@@ -1263,7 +1267,7 @@ namespace
 							  const std::vector<std::uint32_t>& excluded) {
 			const auto target = handle.get();
 			if (!target) {
-				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				CaptureWindow::SetError(Strings::Format(Strings::Text::kNoLongerHere, name));
 				return;
 			}
 			// The row they wear as the window shows it, which follows a redress made while it is
@@ -1361,7 +1365,7 @@ namespace
 				return;
 			}
 			const auto wearing = Assignments::ForgetOutfit(outfit, pieces);
-			Notify(users > 0 ? std::format("Livery: removed \"{}\"; cleared from {} characters.", name, users) : std::format("Livery: removed \"{}\".", name));
+			Notify(Strings::Format(users > 0 ? Strings::Text::kHudRemovedOutfitFrom : Strings::Text::kHudRemovedOutfit, name, users));
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			for (const auto id : wearing) {
@@ -1382,17 +1386,17 @@ namespace
 									const std::vector<std::uint32_t>& excluded) {
 			const auto target = handle.get();
 			if (!target) {
-				CaptureWindow::SetError(std::format("{} is no longer here.", name));
+				CaptureWindow::SetError(Strings::Format(Strings::Text::kNoLongerHere, name));
 				return;
 			}
 			const auto* stored = Library::Find(outfit);
 			if (!stored) {
-				CaptureWindow::SetError("The outfit no longer exists.");
+				CaptureWindow::SetError(Strings::Get(Strings::Text::kOutfitNoLongerExists));
 				return;
 			}
 			const auto pieces = Library::LoadedPieces(*stored);
 			if (pieces.empty()) {
-				CaptureWindow::SetError("None of its items is loaded.");
+				CaptureWindow::SetError(Strings::Get(Strings::Text::kNoLoadedPiece));
 				return;
 			}
 			auto dressed = ApplyOutfit(*target, outfit, row, excluded, armors, offered, pieces);
@@ -1527,13 +1531,13 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify(std::format("Livery: created the chest \"{}\".", name));
+			Notify(Strings::Format(Strings::Text::kHudCreatedChest, name));
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
 		request.onChestUpdate = [actorID, armors](const CaptureWindow::ChestEdit& edit) {
 			const auto* chest = Chests::Find(edit.chest);
 			if (!chest) {
-				CaptureWindow::SetError("The chest no longer exists.");
+				CaptureWindow::SetError(Strings::Get(Strings::Text::kChestNoLongerExists));
 				return;
 			}
 			const auto  oldName = chest->name;  // the update leaves `chest` stale
@@ -1559,7 +1563,7 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify(std::format("Livery: removed the chest \"{}\".", name));
+			Notify(Strings::Format(Strings::Text::kHudRemovedChest, name));
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
 	}
@@ -1596,7 +1600,7 @@ namespace
 	void OpenNameWindow(RE::Actor& actor, const std::vector<InventoryArmor>& inventory, bool saveOnly)
 	{
 		CaptureWindow::Request request;
-		request.actorName = actor.GetName() ? actor.GetName() : "NPC";
+		request.actorName = actor.GetName() ? actor.GetName() : Strings::Get(Strings::Text::kNpc);
 		if (const auto* player = RE::PlayerCharacter::GetSingleton(); player && player->GetName()) {
 			request.playerName = player->GetName();
 		}
@@ -1632,7 +1636,7 @@ namespace
 		if (saveOnly) {
 			request.saveOnly = true;
 			request.offersWardrobe = false;
-			request.actorSummary.lead = std::format("{} dresses as they please. You can save what they wear, but not change it.", request.actorName);
+			request.actorSummary.lead = Strings::Format(Strings::Text::kSummarySaveOnly, request.actorName);
 			AttachSaveOnlyPreview(request);
 		} else {
 			AttachAssignment(request, actor, armors, offered, choices);
@@ -1689,7 +1693,7 @@ namespace
 	void Capture(RE::ObjectRefHandle handle)
 	{
 		if (!g_ready) {
-			Notify("Livery is not ready.");
+			Notify(Strings::Get(Strings::Text::kHudNotReady));
 			return;
 		}
 		if (CaptureWindow::IsOpen()) {
@@ -1697,7 +1701,7 @@ namespace
 		}
 		// No overlay (Skyrim VR, or ImGui failed to initialise): the hotkey only opens the window.
 		if (!Overlay::IsRenderReady()) {
-			Notify("Livery: the window is not available.");
+			Notify(Strings::Get(Strings::Text::kHudWindowUnavailable));
 			return;
 		}
 
@@ -1715,7 +1719,7 @@ namespace
 		const bool isPlayer = actor == player;
 		// Livery never dresses children (Assignments refuses them too).
 		if (actor->IsChild()) {
-			Notify("Livery: children are not supported.");
+			Notify(Strings::Get(Strings::Text::kHudNoChildren));
 			return;
 		}
 		// The NPC's group says what the hotkey may do, at this press only: outfits they already
@@ -1725,7 +1729,7 @@ namespace
 			const auto group = GroupOf(*actor);
 			access = Settings::AccessOf(group);
 			if (access == Settings::NpcAccess::kDisabled) {
-				Notify(std::format("Livery: {} keeps their own wardrobe (see Settings).", actor->GetName() ? actor->GetName() : "NPC"));
+				Notify(Strings::Format(Strings::Text::kHudOwnWardrobe, actor->GetName() ? actor->GetName() : Strings::Get(Strings::Text::kNpc)));
 				return;
 			}
 		}
@@ -1749,7 +1753,7 @@ namespace
 	{
 		SKSE::GetTaskInterface()->AddTask([] {
 			if (!g_ready || CaptureWindow::IsOpen()) {
-				Notify("Livery: load a save and close the window first.");
+				Notify(Strings::Get(Strings::Text::kHudLoadSaveFirst));
 				return;
 			}
 			Assignments::ReleaseEveryone();
@@ -1763,7 +1767,7 @@ namespace
 	void QueueUninstallRelease()
 	{
 		SKSE::GetTaskInterface()->AddTask([] {
-			Notify("Livery: uninstall mode is on (Livery.ini: [Uninstall] ReleaseEveryone=1).");
+			Notify(Strings::Get(Strings::Text::kHudUninstallMode));
 			Assignments::ReleaseEveryone();
 		});
 	}
@@ -1797,10 +1801,13 @@ namespace
 
 			for (auto* event = *events; event; event = event->next) {
 				auto* button = event->AsButtonEvent();
-				if (!button || button->GetDevice() != RE::INPUT_DEVICE::kKeyboard || !button->IsDown()) {
+				if (!button || !button->IsDown()) {
 					continue;
 				}
-				if (Settings::IsHotkey(button->GetIDCode())) {
+				const auto device = button->GetDevice();
+				const auto code = button->GetIDCode();
+				if ((device == RE::INPUT_DEVICE::kKeyboard && Settings::IsHotkey(code)) ||
+					(device == RE::INPUT_DEVICE::kGamepad && Settings::IsGamepadHotkey(code))) {
 					const auto handle = g_target;
 					SKSE::GetTaskInterface()->AddTask([handle] { Capture(handle); });
 					break;
@@ -1830,6 +1837,11 @@ namespace
 			break;
 
 		case SKSE::MessagingInterface::kDataLoaded:
+			// First: the game's sLanguage is read by now, and nothing shows text yet.
+			Strings::Load(Settings::Language());
+			Theme::SetTexts({ .currentOutfit = Strings::Get(Strings::Text::kCurrentOutfit),
+				.defaultOutfit = Strings::Get(Strings::Text::kDefaultOutfit),
+				.edit = Strings::Get(Strings::Text::kEdit) });
 			SituationStore::Load();  // before any co-save load, which drops the rows of removed situations
 			Library::Load();         // pieces resolve against the loaded plugins, so not before this
 			Chests::Load();          // the same; read whether or not the Item chests setting is on

@@ -508,7 +508,8 @@ namespace CaptureWindow::Internal
 			auto&       form = a_state.situationForm;
 			const float paneTop = ImGui::GetCursorPosY();
 			Theme::LabelText("Situation List");
-			if (Theme::LabelHelpMark()) {
+			const bool helpHovered = Theme::LabelHelpMark();
+			if (FocusStandIn("##listHelp") || helpHovered) {
 				DrawHelpTooltip(std::format(
 					"Each situation lists the outfits {} can wear there.\nWhen several apply, the most specific one with an "
 					"outfit is worn; otherwise, and in combat, the default outfit.\nDrag an outfit onto a situation to add it, between "
@@ -1096,7 +1097,8 @@ namespace CaptureWindow::Internal
 			}
 			ImGui::SameLine();
 			ImGui::TextDisabled("(?)");
-			if (ImGui::IsItemHovered()) {
+			const bool helpHovered = ImGui::IsItemHovered();
+			if (FocusStandIn("##randomHelp") || helpHovered) {
 				DrawHelpTooltip(std::format(
 					"On: Each time this situation begins, {0} wears a random outfit from the list until it ends.\n\n"
 					"Off: {0} wears the last picked outfit. The others stay in the list but are hidden.",
@@ -1216,8 +1218,11 @@ namespace CaptureWindow::Internal
 			BeginItemDisabled(a_state, installed || !request.onRestorePresets);
 			bool       helpHovered = false;
 			const bool restore = Theme::LineHelpLink("Restore Presets", &helpHovered);
-			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			EndItemDisabled();
+			if (installed && FocusStandIn("Restore Presets")) {
+				hovered = true;
+			}
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (installed && hovered) {
 				Theme::Tooltip(kAsInstalled);
@@ -1829,9 +1834,9 @@ namespace CaptureWindow::Internal
 		auto details = DetailsAction::kNone;
 		auto outfitView = OutfitViewAction::kNone;
 		if (BeginColumns("situations")) {
-			ImGui::TableNextColumn();
+			NextColumn();
 			reroll = DrawSituationList(a_state);
-			ImGui::TableNextColumn();
+			NextColumn();
 			ResetCellBaseline();
 			const int viewed = IndexOfOutfit(a_state, form.viewedOutfit);  // after the Situation List, whose clicks change it
 			switch (ShownPane(a_state, viewed)) {
