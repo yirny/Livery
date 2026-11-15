@@ -20,6 +20,7 @@
 #include "Library.h"
 
 #include "PieceFile.h"
+#include "Strings.h"
 #include "Utils.h"
 
 #include <nlohmann/json.hpp>
@@ -37,10 +38,15 @@ namespace
 
 	// --- Constants ------------------------------------------------------------
 
-	constexpr auto        kLibraryFile = L"Data/SKSE/Plugins/Livery/outfits.json";
-	constexpr auto        kLibraryName = "outfits.json";  // in the log and the messages
-	constexpr int         kLibraryVersion = 1;            // the "version" field this code reads and writes
-	constexpr const char* kUnreadable = "Livery could not read outfits.json, so it changes nothing (see Livery.log).";
+	constexpr auto kLibraryFile = L"Data/SKSE/Plugins/Livery/outfits.json";
+	constexpr auto kLibraryName = "outfits.json";  // in the log and the messages
+	constexpr int  kLibraryVersion = 1;            // the "version" field this code reads and writes
+
+	// Why every write is refused once outfits.json could not be read.
+	std::string UnreadableMessage()
+	{
+		return Strings::Format(Strings::Text::kFileUnreadable, kLibraryName);
+	}
 
 	// --- State ----------------------------------------------------------------
 
@@ -160,7 +166,7 @@ namespace
 			return problem;
 		}
 		if (a_pieces.empty()) {
-			return "Select at least one item.";
+			return Strings::Get(Strings::Text::kNeedPiece);
 		}
 		return std::nullopt;
 	}
@@ -233,13 +239,13 @@ namespace Library
 	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return UnreadableMessage();
 		}
 		if (a_name.empty()) {
-			return "Enter a name.";
+			return Strings::Get(Strings::Text::kNeedName);
 		}
 		if (FindByName(a_name)) {
-			return std::format("An outfit named \"{}\" already exists.", a_name);
+			return Strings::Format(Strings::Text::kOutfitNameTaken, a_name);
 		}
 		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .icon = a_icon };
 		if (auto problem = OutfitPieces(a_armor, outfit.pieces)) {
@@ -259,18 +265,18 @@ namespace Library
 	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return UnreadableMessage();
 		}
 		const auto found = std::ranges::find(g_outfits, a_id, &Outfit::id);
 		if (found == g_outfits.end()) {
-			return "The outfit no longer exists.";
+			return Strings::Get(Strings::Text::kOutfitNoLongerExists);
 		}
 		if (a_name.empty()) {
-			return "Enter a name.";
+			return Strings::Get(Strings::Text::kNeedName);
 		}
 		// Its own name, in another case, is free to take.
 		if (const auto* named = FindByName(a_name); named && named->id != a_id) {
-			return std::format("An outfit named \"{}\" already exists.", a_name);
+			return Strings::Format(Strings::Text::kOutfitNameTaken, a_name);
 		}
 		std::vector<PieceRef> pieces;
 		if (auto problem = OutfitPieces(a_armor, pieces)) {
@@ -296,11 +302,11 @@ namespace Library
 	std::optional<std::string> Remove(std::uint32_t a_id)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return UnreadableMessage();
 		}
 		auto outfits = g_outfits;
 		if (std::erase_if(outfits, [a_id](const Outfit& a_outfit) { return a_outfit.id == a_id; }) == 0) {
-			return "The outfit no longer exists.";
+			return Strings::Get(Strings::Text::kOutfitNoLongerExists);
 		}
 		if (auto problem = WriteLibrary(outfits, g_nextId)) {
 			return problem;

@@ -206,13 +206,43 @@
 	X(kOnlyCarriedEquipped, "Only carried items will be equipped.")                                                                      \
 	X(kCarryNone, "You carry none of these items.")
 
+// The Chests page, its New chest and Remove popups, and the chest editor.
+#define LIVERY_STRINGS_CHESTS(X)                                                        \
+	X(kNoOtherChests, "No other chests.")                                               \
+	X(kChestsCount, "{0} chests")                                                       \
+	X(kNameNewChest, "Name the new chest.")                                             \
+	X(kChestName, "Chest Name")                                                         \
+	X(kCreateNewChest, "Create New Chest...")                                           \
+	X(kSelectChestToOpen, "Select a chest to open")                                     \
+	X(kTakenOutOfChest, "Taken Out of Chest")                                           \
+	X(kNoItemsToPutIn, "No items to put in.")                                           \
+	X(kEmpty, "Empty.")                                                                 \
+	X(kDressWithChest, "Dress with Chest...")                                           \
+	X(kNotWhileInventoryOnly, "Not available while dressing from your inventory only.") \
+	X(kRemoveChest, "Remove {0}?")                                                      \
+	X(kChestItems, "Items")                                                             \
+	X(kInChest, "In Chest")
+
+// Why a write to outfits.json or chests.json was refused or failed, shown in the window and
+// logged.
+#define LIVERY_STRINGS_FILES(X)                                                              \
+	X(kOutfitNameTaken, "An outfit named \"{0}\" already exists.")                           \
+	X(kOutfitNoLongerExists, "The outfit no longer exists.")                                 \
+	X(kChestNameTaken, "A chest named \"{0}\" already exists.")                              \
+	X(kChestNoLongerExists, "The chest no longer exists.")                                   \
+	X(kFileUnreadable, "Livery could not read {0}, so it changes nothing (see Livery.log).") \
+	X(kFileNotWritten, "Livery could not write {0} (see Livery.log).")                       \
+	X(kCreatedInGame, "{0} was created in game and cannot be saved.")
+
 #define LIVERY_STRINGS(X)        \
 	LIVERY_STRINGS_COMMON(X)     \
 	LIVERY_STRINGS_DRESS(X)      \
 	LIVERY_STRINGS_SAVE(X)       \
 	LIVERY_STRINGS_APPEARANCE(X) \
 	LIVERY_STRINGS_OUTFITS(X)    \
-	LIVERY_STRINGS_WARDROBE(X)
+	LIVERY_STRINGS_WARDROBE(X)   \
+	LIVERY_STRINGS_CHESTS(X)     \
+	LIVERY_STRINGS_FILES(X)
 
 namespace Strings
 {
