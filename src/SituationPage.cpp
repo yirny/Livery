@@ -315,6 +315,20 @@ namespace CaptureWindow::Internal
 			ScheduleAutosave(a_state);
 		}
 
+		// Situation `a_entry`'s drag by its heading's grip (Theme::SituationHeadingLook::grip), its
+		// name following the mouse as a tooltip.
+		// Contract: right after the SituationHeading it drags, whose grip is the last item.
+		void OfferSituationDrag(std::size_t a_entry, const char* a_name)
+		{
+			if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoPreviewTooltip)) {
+				return;
+			}
+			const SituationPayload payload{ .entry = a_entry };
+			ImGui::SetDragDropPayload(kSituationPayload, &payload, sizeof(payload));
+			Theme::Tooltip(a_name);
+			ImGui::EndDragDropSource();
+		}
+
 		// A drag from the Situation List dropped on the outfit list: the outfit leaves its row
 		// (its `chosen` 0 if it was that), or the Default's pieces go.
 		void DropOnOutfitList(State& a_state, const OutfitPayload& a_payload)
@@ -535,7 +549,10 @@ namespace CaptureWindow::Internal
 
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
 		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
-		// details show; Edit always selects it and shows them; the chevron folds it. Its die and
+		// details show; Edit always selects it and shows them; the chevron folds it. Every heading
+		// but the Default's has a grip that drags it to another place in the order while the page
+		// offers that (Request::customSituations), and a warning mark after its name while it is
+		// never worn (NeverWornText). Its die and
 		// count show with random on alone; the die is a button as DiceOf says. Only random on
 		// with something to show has the chevron; else it is never folded (random off shows its
 		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
@@ -553,6 +570,8 @@ namespace CaptureWindow::Internal
 				entry.folded = false;
 			}
 			const auto  dice = entry.row.random ? DiceOf(a_state, a_entry) : Dice{};
+			const auto  neverWorn = NeverWornText(form, a_entry);
+			const bool  grip = a_entry != 0 && a_state.request.customSituations;
 			const float top = ImGui::GetCursorScreenPos().y;
 			const auto  click = Theme::SituationHeading(entry.name.data(),
 				{ .count = entry.row.random ? static_cast<int>(entry.row.outfits.size()) : -1,
@@ -563,7 +582,12 @@ namespace CaptureWindow::Internal
 					.foldable = foldable,
 					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
 					.dim = !shows,
-					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar });  // the Default is no situation: no star
+					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
+					.grip = grip,
+					.warning = neverWorn.empty() ? nullptr : neverWorn.c_str() });
+			if (grip) {
+				OfferSituationDrag(a_entry, entry.name.data());
+			}
 			const float bottom = top + Theme::SituationHeadingHeight();
 			if (form.scrollToSelected && form.selected == index) {
 				ImGui::SetScrollHereY(0.0f);

@@ -1,8 +1,7 @@
 # User-defined situations
 
 Design, decided 2026-11-13. Built and checked in game: 2a to 2c (§9); 2d (§8, the presets'
-rules and the order) is built but for the heading's drag grip and never-worn mark (§7), not
-checked in game. It turns the situations of
+rules and the order) is built, not checked in game. It turns the situations of
 docs/design.md §7 into one model: the five presets and the situations the user defines, each
 a key, a name, a list of conditions and a place in one order. The registry
 (`Situations::Count`, `Order`, `AddUser`, `kMaxSituations = 64`) is its base; the model is
@@ -23,7 +22,7 @@ Items marked *provisional* are tried in a prototype first and may change.
   the user's are. The one difference: Restore Presets brings a preset back as installed; a
   removed user's situation is gone. The Default is neither: no rules, no place in the order.
 - The settings page's `Enable custom situations` (`[Window] CustomSituations`, default off,
-  under the `Advanced` heading with `Enable chests`; `Settings::CustomSituations`, read as the
+  under the `Optional Features` heading with `Enable chests`; `Settings::CustomSituations`, read as the
   window opens, `Request::customSituations`) offers the editing: New Situation..., the order's
   drag and the condition editor. Off, every situation made stays in use, and the Situations page
   still lists them with their outfits, their Applies line read only, the never-worn mark, Remove
@@ -221,9 +220,10 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   until a drag), each dragged by its grip (`kSituationPayload`, apart from the outfits') to
   another place among them, with `Request::customSituations`: over a heading's upper half
   before it, anywhere lower in its block after it, on the caption first; the drop shows as a
-  line, as an outfit's does between outfits. The label's help says so
-  (docs/situation-management-ui.md §4). *Not built yet*: the grip on the heading needs
-  `Theme::SituationHeading` in sarrai-common; the drop side and the save are built.
+  line, as an outfit's does between outfits, and the situation's name follows the mouse as a
+  tooltip. The grip (`Theme::SituationHeadingLook::grip`) is the heading's left end up to its
+  name: while the heading is hovered, grip dots take the star's place; a click there without a
+  drag selects. The label's help says so (docs/situation-management-ui.md §4).
 - With `Request::customSituations`, the page's button row gains `New Situation...` (before
   Exit): the `New situation` popup asks
   for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
@@ -302,8 +302,9 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   while the window is open, follows them once it closes.
 - While a situation is never worn (§8a), its details say so under the name, after a field's
   gap, in the error colour, wrapped: `Never worn: <name>, lower in the list, applies whenever
-  this does.` *Not built yet*: the warning mark after the name on its heading, the same
-  sentence its tooltip, which needs `Theme::SituationHeading` in sarrai-common.
+  this does.` Its heading carries a warning mark after the name (and its count), a circle with
+  an exclamation mark in the error colour (`Theme::SituationHeadingLook::warning`), the same
+  sentence its tooltip.
 
 ## 8. Priority
 
@@ -354,7 +355,7 @@ mark proves nothing; the tooltip names what was found. The mark does not read th
    Built on `feat/cs-spell`, checked in game.
 4. 2d: the order and the presets' rules (§8): one list, the presets' rules in the model, the
    grip drag, Restore Presets with rules, the never-worn mark, `Enable custom situations` (§1).
-   On `feat/cs-priority`; built but for the heading's grip and mark (§7).
+   On `feat/cs-priority`, built.
 
 ## 10. Open and in-game checks
 
