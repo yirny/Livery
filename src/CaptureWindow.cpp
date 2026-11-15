@@ -4,7 +4,8 @@
 //   State        - the one State (CaptureWindowInternal.h, with the constants), the game freeze,
 //                  menu sounds, text trimming
 //   Game thread  - Open / Close / SetError (also freeze and unfreeze the game while Live Preview is off)
-//   Input        - QueueInput translates engine events and moves the game's cursor (the
+//   Input        - QueueInput translates engine events (typed bytes in the ANSI code page into
+//                  UTF-16, RecordChar) and moves the game's cursor (the
 //                  mouse or the right stick); the controller works the window as the keyboard
 //                  does (RecordPadButton); FeedInput hands them and the cursor position to
 //                  ImGui, with keyboard navigation on
@@ -257,6 +258,45 @@ namespace CaptureWindow::Internal
 		a_state.pending.push_back({ InputRecord::Kind::kKey, key, down, 0.0f });
 	}
 
+	// Contract: the game's window is an ANSI one, so a char event carries a byte in the ANSI
+	// code page, and a character of a double-byte code page (Japanese, Chinese, Korean) or of
+	// UTF-8 as the code page arrives as several events. The bytes wait in State::charBytes until
+	// they make a whole character; a control character drops them. A value above a byte is
+	// taken as UTF-16 already.
+	void RecordChar(State& a_state, std::uint32_t a_code)
+	{
+		constexpr std::uint32_t kAnsiCodePage = 0;       // CP_ACP
+		constexpr std::uint32_t kErrorOnInvalid = 0x08;  // MB_ERR_INVALID_CHARS: a partial character fails
+		auto&                   bytes = a_state.charBytes;
+		auto&                   held = a_state.charByteCount;
+		const auto              pushUnit = [&a_state](std::uint32_t a_unit) {
+			a_state.pending.push_back({ InputRecord::Kind::kChar, static_cast<int>(a_unit), true, 0.0f });
+		};
+
+		if (a_code < 0x20 || a_code == 0x7F || a_code > 0xFF) {
+			held = 0;
+			if (a_code > 0xFF && a_code <= 0xFFFF) {
+				pushUnit(a_code);
+			}
+			return;
+		}
+		if (held == 0 && a_code < 0x80) {
+			pushUnit(a_code);  // ASCII is the same in every ANSI code page
+			return;
+		}
+		bytes[held++] = static_cast<char>(a_code);
+		std::array<wchar_t, 4> units{};
+		const auto             count = REX::W32::MultiByteToWideChar(kAnsiCodePage, kErrorOnInvalid, bytes.data(), held, units.data(), static_cast<std::int32_t>(units.size()));
+		if (count > 0) {
+			for (std::int32_t i = 0; i < count; ++i) {
+				pushUnit(units[i]);
+			}
+			held = 0;
+		} else if (static_cast<std::size_t>(held) == bytes.size()) {
+			held = 0;  // no character takes this many bytes
+		}
+	}
+
 	// Contract: the cursor position is queued just before these (FeedInput):
 	// ImGui stops moving the cursor after a button change in a frame, so a
 	// position queued after a click would put the click elsewhere.
@@ -274,7 +314,7 @@ namespace CaptureWindow::Internal
 				a_io.AddMouseWheelEvent(0.0f, record.wheel);
 				break;
 			case InputRecord::Kind::kChar:
-				a_io.AddInputCharacter(static_cast<unsigned int>(record.code));
+				a_io.AddInputCharacterUTF16(static_cast<ImWchar16>(record.code));  // pairs surrogates itself
 				break;
 			}
 		}
@@ -2480,6 +2520,7 @@ namespace CaptureWindow
 			state.situationsLabel = std::format("SITUATIONS ({})", state.request.actorName);
 			state.error.clear();
 			state.pending.clear();
+			state.charByteCount = 0;
 			state.focusNameField = false;
 			state.status = Status::kEditing;
 			state.resetImGui = true;
@@ -2568,6 +2609,7 @@ namespace CaptureWindow
 			state.manage = {};
 			state.situationForm = {};
 			state.pending.clear();
+			state.charByteCount = 0;
 		}
 		g_open = false;  // before HideMenu: the menu's hide handler tells our hide from the game's by this
 		if (frozeGame) {
@@ -2756,10 +2798,7 @@ namespace CaptureWindow
 					handler->ProcessThumbstick(stick);
 				}
 			} else if (const auto* chr = event->AsCharEvent()) {
-				// ASCII only: the game's char events carry the ANSI code page.
-				if (chr->keyCode >= 0x20 && chr->keyCode < 0x7F) {
-					state.pending.push_back({ InputRecord::Kind::kChar, static_cast<int>(chr->keyCode), true, 0.0f });
-				}
+				RecordChar(state, chr->keyCode);
 			} else if (auto* move = event->AsMouseMoveEvent()) {
 				state.padNav = false;
 				if (state.viewDragButton >= 0) {

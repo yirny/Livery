@@ -174,7 +174,7 @@ namespace CaptureWindow::Internal
 			kChar
 		};
 		Kind  kind;
-		int   code;  // ImGuiKey / mouse button / character
+		int   code;  // ImGuiKey / mouse button / UTF-16 code unit
 		bool  down;
 		float wheel;  // wheel steps
 	};
@@ -338,6 +338,8 @@ namespace CaptureWindow::Internal
 		bool                        padClicks = false;    // the held A clicks under the cursor, not on the focused item (RecordPadButton)
 		int                         popupsBefore = 0;     // ImGui's open popups before this frame's NewFrame (HoldNavEscape)
 		bool                        navMoveWide = false;  // a Left or Right move that found nothing goes again this frame, widened (WidenNavMove)
+		std::array<char, 4>         charBytes{};          // the ANSI bytes of a character not yet whole (RecordChar)
+		std::int32_t                charByteCount = 0;    // how many of charBytes are held
 		// The Save page's tabs' names, each kept while the window is open; a Create starts the
 		// Create tab's again (SetOutfits).
 		std::array<char, kNameCapacity> createName{};
