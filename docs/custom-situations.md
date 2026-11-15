@@ -217,13 +217,14 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - The Situation List: the Default's heading first, pinned, then the caption `The lowest that
   applies is worn.` as a list heading (`Theme::ListHeading`, its rule after it), then one
   heading per situation not removed in the order (`SituationForm::order`, request.situations'
-  until a drag), each dragged by its grip (`kSituationPayload`, apart from the outfits') to
-  another place among them, with `Request::customSituations`: over a heading's upper half
-  before it, anywhere lower in its block after it, on the caption first; the drop shows as a
-  line, as an outfit's does between outfits, and the situation's name follows the mouse as a
-  tooltip. The grip (`Theme::SituationHeadingLook::grip`) is the heading's left end up to its
-  name: while the heading is hovered, grip dots take the star's place; a click there without a
-  drag selects. The label's help says so (docs/situation-management-ui.md §4).
+  until a drag), each dragged from anywhere on its heading (`kSituationPayload`, apart from the
+  outfits') to another place among them, with `Request::customSituations`: over a heading's
+  upper half before it, anywhere lower in its block after it, on the caption first; the drop
+  shows as a line, as an outfit's does between outfits, and a see-through copy of the heading
+  follows the mouse (`Theme::SituationDragGhost`), as an outfit row's does. While the heading
+  is hovered, grip dots take the star's place, where the rows' dots under it are
+  (`Theme::SituationHeadingLook::grip`); a click that became a drag does nothing. The label's
+  help says so (docs/situation-management-ui.md §4).
 - With `Request::customSituations`, the page's button row gains `New Situation...` (before
   Exit): the `New situation` popup asks
   for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
@@ -302,9 +303,9 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   while the window is open, follows them once it closes.
 - While a situation is never worn (§8a), its details say so under the name, after a field's
   gap, in the error colour, wrapped: `Never worn: <name>, lower in the list, applies whenever
-  this does.` Its heading carries a warning mark after the name (and its count), a circle with
-  an exclamation mark in the error colour (`Theme::SituationHeadingLook::warning`), the same
-  sentence its tooltip.
+  this does.`, naming the nearest. While it is selected, the Situation List draws the name of
+  every situation lower in the list that applies whenever it does in the error colour
+  (`SituationForm::neverWornBy`, `Theme::SituationHeadingLook::alert`); no mark otherwise.
 
 ## 8. Priority
 

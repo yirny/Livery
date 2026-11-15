@@ -315,9 +315,9 @@ namespace CaptureWindow::Internal
 			ScheduleAutosave(a_state);
 		}
 
-		// Situation `a_entry`'s drag by its heading's grip (Theme::SituationHeadingLook::grip), its
-		// name following the mouse as a tooltip.
-		// Contract: right after the SituationHeading it drags, whose grip is the last item.
+		// Situation `a_entry`'s drag from anywhere on its heading (Theme::SituationHeadingLook::grip),
+		// a see-through copy of the heading following the mouse (Theme::SituationDragGhost).
+		// Contract: right after the SituationHeading it drags, whose part held is the last item.
 		void OfferSituationDrag(std::size_t a_entry, const char* a_name)
 		{
 			if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoPreviewTooltip)) {
@@ -325,7 +325,7 @@ namespace CaptureWindow::Internal
 			}
 			const SituationPayload payload{ .entry = a_entry };
 			ImGui::SetDragDropPayload(kSituationPayload, &payload, sizeof(payload));
-			Theme::Tooltip(a_name);
+			Theme::SituationDragGhost(a_name);
 			ImGui::EndDragDropSource();
 		}
 
@@ -349,19 +349,18 @@ namespace CaptureWindow::Internal
 
 		// --- Never worn -------------------------------------------------------
 
-		// For each situation, one lower in the list that applies whenever it does
-		// (SituationRules::CoveredBy, from the rules and the order as edited): the nearest found.
-		// At most kMaxSituations squared pairs, each a few rows.
+		// For each situation, those lower in the list that apply whenever it does
+		// (SituationRules::CoveredBy, from the rules and the order as edited), nearest first. At
+		// most kMaxSituations squared pairs, each a few rows.
 		void TellNeverWorn(State& a_state)
 		{
 			auto& form = a_state.situationForm;
-			form.neverWornBy.assign(form.entries.size(), -1);
+			form.neverWornBy.assign(form.entries.size(), {});
 			for (std::size_t p = 0; p < form.order.size(); ++p) {
 				const auto& rules = form.entries[form.order[p]].rules;
 				for (std::size_t q = p + 1; q < form.order.size(); ++q) {
 					if (SituationRules::CoveredBy(rules, form.entries[form.order[q]].rules, a_state.request.placeFacts)) {
-						form.neverWornBy[form.order[p]] = static_cast<int>(form.order[q]);
-						break;
+						form.neverWornBy[form.order[p]].push_back(form.order[q]);
 					}
 				}
 			}
@@ -369,14 +368,25 @@ namespace CaptureWindow::Internal
 		}
 
 		// "Never worn: Rainy town, lower in the list, applies whenever this does." for entry
-		// `a_entry`; "" while it may be worn.
+		// `a_entry`, naming the nearest of those that do; "" while it may be worn.
 		std::string NeverWornText(const SituationForm& a_form, std::size_t a_entry)
 		{
-			const int by = a_entry < a_form.neverWornBy.size() ? a_form.neverWornBy[a_entry] : -1;
-			if (by < 0) {
+			if (a_entry >= a_form.neverWornBy.size() || a_form.neverWornBy[a_entry].empty()) {
 				return {};
 			}
-			return std::format("Never worn: {}, lower in the list, applies whenever this does.", Trimmed(a_form.entries[static_cast<std::size_t>(by)].name.data()));
+			const auto by = a_form.neverWornBy[a_entry].front();
+			return std::format("Never worn: {}, lower in the list, applies whenever this does.", Trimmed(a_form.entries[by].name.data()));
+		}
+
+		// Entry `a_entry` applies whenever the selected situation does, so the selected one is never
+		// worn: its heading's name shows in the error colour.
+		bool OverridesSelected(const SituationForm& a_form, std::size_t a_entry)
+		{
+			if (a_form.selected <= 0 || static_cast<std::size_t>(a_form.selected) >= a_form.neverWornBy.size()) {
+				return false;
+			}
+			const auto& by = a_form.neverWornBy[static_cast<std::size_t>(a_form.selected)];
+			return std::ranges::find(by, a_entry) != by.end();
 		}
 
 		// --- Situation List ---------------------------------------------------
@@ -550,9 +560,9 @@ namespace CaptureWindow::Internal
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
 		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
 		// details show; Edit always selects it and shows them; the chevron folds it. Every heading
-		// but the Default's has a grip that drags it to another place in the order while the page
-		// offers that (Request::customSituations), and a warning mark after its name while it is
-		// never worn (NeverWornText). Its die and
+		// but the Default's drags from anywhere on it to another place in the order while the page
+		// offers that (Request::customSituations); its name is in the error colour while the
+		// selected situation is never worn because of it (OverridesSelected). Its die and
 		// count show with random on alone; the die is a button as DiceOf says. Only random on
 		// with something to show has the chevron; else it is never folded (random off shows its
 		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
@@ -570,7 +580,6 @@ namespace CaptureWindow::Internal
 				entry.folded = false;
 			}
 			const auto  dice = entry.row.random ? DiceOf(a_state, a_entry) : Dice{};
-			const auto  neverWorn = NeverWornText(form, a_entry);
 			const bool  grip = a_entry != 0 && a_state.request.customSituations;
 			const float top = ImGui::GetCursorScreenPos().y;
 			const auto  click = Theme::SituationHeading(entry.name.data(),
@@ -584,7 +593,7 @@ namespace CaptureWindow::Internal
 					.dim = !shows,
 					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
 					.grip = grip,
-					.warning = neverWorn.empty() ? nullptr : neverWorn.c_str() });
+					.alert = OverridesSelected(form, a_entry) });
 			if (grip) {
 				OfferSituationDrag(a_entry, entry.name.data());
 			}
