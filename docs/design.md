@@ -738,8 +738,13 @@ setting, off by default). Open:
   names and conditions and the `For Town, Cold` line under an outfit, which move there after
   the custom situations (docs/custom-situations.md on its branch) reach `main`. Of the HUD
   messages, those of saving, removing, chests, moving items and the hotkey's refusals do; those
-  of dressing and situations (`src/Assignments.cpp`) follow with the custom situations, and
-  the settings page after them. sarrai-common's widgets get their own words through
+  of dressing and situations (`src/Assignments.cpp`) follow with the custom situations.
+- The settings page is drawn in SKSE Menu Framework's font, which has a language's letters
+  only while the player turns that language on in the framework's font settings (`[Fonts]
+  EnableJapanese` and the like; it never follows `sLanguage`). Each frame the page asks the
+  font for a glyph of `Strings::Probe` (`ImFont_FindGlyphNoFallback`); without it, or on a
+  framework without that export, the page is in English (`Strings::English`) under
+  `kSetFontHint`, which names `kLanguageName`. The log keeps the English option names. sarrai-common's widgets get their own words through
   `Theme::SetTexts`, right after `Strings::Load`.
 - A sentence with a name drawn in a look of its own (an outfit after its icon) is one text
   with values; `Strings::Pieces` gives it cut at them (at `Strings::Load`, so drawing

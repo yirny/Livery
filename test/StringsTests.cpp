@@ -122,3 +122,12 @@ TEST_CASE("CutAtValues reads doubled braces as braces", "[Strings]")
 	CHECK(cuts[0].words == "{a} ");
 	CHECK(cuts[1].value == 0);
 }
+
+TEST_CASE("FirstNonAscii finds the first letter past ASCII", "[Strings]")
+{
+	using Strings::Detail::FirstNonAscii;
+	CHECK(FirstNonAscii("Dress") == 0);
+	CHECK(FirstNonAscii("OK \xE7\x9D\x80") == 0x7740);  // 着
+	CHECK(FirstNonAscii("Caf\xC3\xA9") == 0xE9);         // é
+	CHECK(FirstNonAscii("\xF0\x9F\x93\xA6") == 0x1F4E6);
+}

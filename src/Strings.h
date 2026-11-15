@@ -329,6 +329,82 @@
 	X(kHudLoadSaveFirst, "Livery: load a save and close the window first.")                                                                    \
 	X(kHudUninstallMode, "Livery: uninstall mode is on (Livery.ini: [Uninstall] ReleaseEveryone=1).")
 
+// The settings page on SKSE Menu Framework, drawn in the framework's font (Settings.cpp draws
+// it in English while that font lacks the language's letters). Its tooltips end in
+// kSetDefault's line after a blank one. LanguageName is the language's name in English
+// letters, for kSetFontHint, which is always shown in English.
+#define LIVERY_STRINGS_SETTINGS(X)                                                                                                                                                                                                                                                                           \
+	X(kLanguageName, "English")                                                                                                                                                                                                                                                                              \
+	X(kSetFontHint, "To show this page in {0}, turn on {0} in the font settings of SKSE Menu Framework.")                                                                                                                                                                                                    \
+	X(kSetDefault, "Default: {0}")                                                                                                                                                                                                                                                                           \
+	X(kSetOn, "ON")                                                                                                                                                                                                                                                                                          \
+	X(kSetOff, "OFF")                                                                                                                                                                                                                                                                                        \
+	X(kSetNone, "None")                                                                                                                                                                                                                                                                                      \
+	X(kNo, "No")                                                                                                                                                                                                                                                                                             \
+	X(kSetGeneral, "General")                                                                                                                                                                                                                                                                                \
+	X(kSetImmersion, "Immersion")                                                                                                                                                                                                                                                                            \
+	X(kSetWindow, "Window")                                                                                                                                                                                                                                                                                  \
+	X(kSetSystem, "System")                                                                                                                                                                                                                                                                                  \
+	X(kSetHotkey, "Hotkey")                                                                                                                                                                                                                                                                                  \
+	X(kSetPressKey, "Press a key (Esc cancels)")                                                                                                                                                                                                                                                             \
+	X(kSetHotkeyTip, "Opens Livery for the NPC under your crosshair, or for yourself if no NPC is targeted.")                                                                                                                                                                                                \
+	X(kSetControllerHotkey, "Controller hotkey")                                                                                                                                                                                                                                                             \
+	X(kSetControllerTip, "Opens Livery from your controller, as the hotkey does.\nThe first list is a button to hold with it.")                                                                                                                                                                              \
+	X(kPadStart, "Start")                                                                                                                                                                                                                                                                                    \
+	X(kPadBack, "Back")                                                                                                                                                                                                                                                                                      \
+	X(kPadUp, "D-pad Up")                                                                                                                                                                                                                                                                                    \
+	X(kPadDown, "D-pad Down")                                                                                                                                                                                                                                                                                \
+	X(kPadLeft, "D-pad Left")                                                                                                                                                                                                                                                                                \
+	X(kPadRight, "D-pad Right")                                                                                                                                                                                                                                                                              \
+	X(kSetSituationNotifications, "Show situation notifications")                                                                                                                                                                                                                                            \
+	X(kSetSituationNotificationsTip, "Notifies you when a character changes outfit as a situation starts or ends.")                                                                                                                                                                                          \
+	X(kSetEnableChests, "Enable chests")                                                                                                                                                                                                                                                                     \
+	X(kSetEnableChestsTip, "Adds a Chests tab to Livery.\nEach chest can hold any number of items, including several for the same slot.\nLoad a chest on the Dress page to choose between variants.")                                                                                                        \
+	X(kSetUnusedSlots, "Gear in unused slots")                                                                                                                                                                                                                                                               \
+	X(kSetAllowAll, "Allow all")                                                                                                                                                                                                                                                                             \
+	X(kSetExceptHeadgear, "Except headgear")                                                                                                                                                                                                                                                                 \
+	X(kSetBlockAll, "Block all")                                                                                                                                                                                                                                                                             \
+	X(kSetUnusedSlotsTip, "Controls whether NPCs can equip extra gear in slots their Livery outfit leaves empty.\nFor example, with \"{0}\" they can wear a helmet you give them if the outfit has no headgear.\nTheir original outfit never goes back on.\n\n\"{1}\" blocks helmets, hoods, and circlets.") \
+	X(kSetFollowers, "Followers and spouse")                                                                                                                                                                                                                                                                 \
+	X(kSetFollowersWho, "Your followers and spouse.\nYou can always open Livery for yourself.")                                                                                                                                                                                                              \
+	X(kSetFriends, "Friends")                                                                                                                                                                                                                                                                                \
+	X(kSetFriendsWho, "NPCs who count you as a friend or better.")                                                                                                                                                                                                                                           \
+	X(kSetOtherNpcs, "Other NPCs")                                                                                                                                                                                                                                                                           \
+	X(kSetOtherNpcsWho, "Every other adult NPC.")                                                                                                                                                                                                                                                            \
+	X(kSetFullManagement, "Full management")                                                                                                                                                                                                                                                                 \
+	X(kSetSaveOnly, "Save only")                                                                                                                                                                                                                                                                             \
+	X(kSetDisabled, "Disabled")                                                                                                                                                                                                                                                                              \
+	X(kSetAccessHelp, "Full management: you can dress them.\nSave only: you can save what they wear as an outfit.\nDisabled: the hotkey does nothing on them.")                                                                                                                                              \
+	X(kSetNpcReaction, "NPC reaction")                                                                                                                                                                                                                                                                       \
+	X(kSetNpcReactionTip, "With Live Preview on, the NPC turns toward you and greets you when the window opens.")                                                                                                                                                                                            \
+	X(kSetTransfer, "Transfer items to NPCs")                                                                                                                                                                                                                                                                \
+	X(kSetTransferTip, "On Apply, transfers items from your inventory to the NPC, preserving enchantments and tempering.\n\nOff: the NPC receives plain copies, and you keep yours.")                                                                                                                        \
+	X(kSetInventoryOnly, "Dress yourself from inventory only")                                                                                                                                                                                                                                               \
+	X(kSetInventoryOnlyTip, "Dressing yourself uses only items you carry.\nNPCs always get what they need, but you can't take those items from them.\n\nOff: missing items are created in your inventory for free, which can break game balance.\nKeeping this on is strongly recommended.")                 \
+	X(kSetLivePreviewOnOpen, "Live Preview on open")                                                                                                                                                                                                                                                         \
+	X(kSetLivePreviewOnOpenTip, "Starts with Live Preview enabled each time you open Livery.")                                                                                                                                                                                                               \
+	X(kSetCameraSpeed, "Preview camera speed")                                                                                                                                                                                                                                                               \
+	X(kSetCameraSpeedTip, "Adjusts camera movement speed.\nUse WASD, mouse drag, and scroll wheel to control the camera.")                                                                                                                                                                                   \
+	X(kSetListInventory, "List your inventory for NPCs")                                                                                                                                                                                                                                                     \
+	X(kSetListInventoryTip, "In an NPC's window, also lists your armor under \"<your name>'s Inventory\".")                                                                                                                                                                                                  \
+	X(kSetExcludeEquipped, "Exclude equipped items")                                                                                                                                                                                                                                                         \
+	X(kSetExcludeEquippedTip, "Leaves out items you're wearing unless you carry another copy.")                                                                                                                                                                                                              \
+	X(kSetExcludeFavorites, "Exclude favorites")                                                                                                                                                                                                                                                             \
+	X(kSetExcludeFavoritesTip, "Excludes items marked as favorites.\nQuest items are always excluded.")                                                                                                                                                                                                      \
+	X(kSetShowSlotColumn, "Show Slot column")                                                                                                                                                                                                                                                                \
+	X(kSetShowSlotColumnTip, "Shows each item's body slot numbers (e.g., 32, 34).")                                                                                                                                                                                                                          \
+	X(kSetWindowSkinTip, "Takes effect the next time you open the window.")                                                                                                                                                                                                                                  \
+	X(kSetRestorePalette, "Restore original palette")                                                                                                                                                                                                                                                        \
+	X(kSetRestorePaletteTitle, "Restore original palette?")                                                                                                                                                                                                                                                  \
+	X(kSetRestoreDefaults, "Restore default settings")                                                                                                                                                                                                                                                       \
+	X(kSetRestoreDefaultsTip, "Puts every setting on this page back to its default.\nWindow skin keeps your choice.")                                                                                                                                                                                        \
+	X(kSetRestoreDefaultsTitle, "Restore default settings?")                                                                                                                                                                                                                                                 \
+	X(kSetRestoreDefaultsQuestion, "Restore this page's default settings? Window skin stays unchanged.")                                                                                                                                                                                                     \
+	X(kSetReleaseEveryone, "Release everyone")                                                                                                                                                                                                                                                               \
+	X(kSetReleaseEveryoneTip, "Takes Livery's outfits off everyone, player included, and forgets their situational outfits.\nDo this before you uninstall Livery.")                                                                                                                                          \
+	X(kSetReleaseEveryoneTitle, "Release everyone?")                                                                                                                                                                                                                                                         \
+	X(kSetReleaseEveryoneQuestion, "Release all characters dressed by Livery? Do this before uninstalling.")
+
 #define LIVERY_STRINGS(X)        \
 	LIVERY_STRINGS_COMMON(X)     \
 	LIVERY_STRINGS_DRESS(X)      \
@@ -340,7 +416,8 @@
 	LIVERY_STRINGS_FILES(X)      \
 	LIVERY_STRINGS_ITEMS(X)      \
 	LIVERY_STRINGS_CHARACTER(X)  \
-	LIVERY_STRINGS_HUD(X)
+	LIVERY_STRINGS_HUD(X)        \
+	LIVERY_STRINGS_SETTINGS(X)
 
 namespace Strings
 {
@@ -577,6 +654,24 @@ namespace Strings
 			return result;
 		}
 
+		// The first code point of `a_text` past ASCII, 0 for none. Contract: `a_text` is UTF-8 (IsUtf8).
+		inline char32_t FirstNonAscii(std::string_view a_text)
+		{
+			for (std::size_t i = 0; i < a_text.size(); ++i) {
+				const auto lead = static_cast<unsigned char>(a_text[i]);
+				if (lead < 0x80) {
+					continue;
+				}
+				const std::size_t length = lead >= 0xF0 ? 4 : (lead >= 0xE0 ? 3 : 2);
+				char32_t          code = lead & (0x7F >> length);
+				for (std::size_t k = 1; k < length && i + k < a_text.size(); ++k) {
+					code = (code << 6) | (static_cast<unsigned char>(a_text[i + k]) & 0x3F);
+				}
+				return code;
+			}
+			return 0;
+		}
+
 		// Whether a language name can be part of a file name: letters, digits and "_" only.
 		inline bool IsLanguageName(std::string_view a_name)
 		{
@@ -637,6 +732,15 @@ namespace Strings
 
 	// The text in the chosen language. The pointer stays valid for the whole game. Safe from any thread.
 	const char* Get(Text a_text);
+
+	// The text as Livery ships it, in English, whatever the chosen language: for the log, and
+	// for a page whose font lacks the language's letters. Safe from any thread.
+	const char* English(Text a_text);
+
+	// A letter of the chosen language past ASCII (the first in the file's texts, in the
+	// table's order), for testing whether a font draws the language; 0 while every text is
+	// ASCII, English included. Safe from any thread.
+	char32_t Probe();
 
 	// A part of a text cut at its values (Pieces): words, or where value `value` goes.
 	struct Piece

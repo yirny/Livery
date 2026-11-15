@@ -21,7 +21,8 @@ namespace
 	{
 		Strings::Detail::Table                                           texts{};
 		std::array<std::vector<Strings::Piece>, Strings::Detail::kCount> pieces;
-		std::deque<std::string>                                          storage;  // the translations and the pieces' words; a deque keeps them in place
+		std::deque<std::string>                                          storage;    // the translations and the pieces' words; a deque keeps them in place
+		char32_t                                                         probe = 0;  // Strings::Probe
 	};
 
 	// Contract: Load fills `g_published` once, then stores its address; Get and Pieces read it
@@ -69,6 +70,9 @@ namespace
 		for (std::size_t i = 0; i < kCount; ++i) {
 			const bool translated = i < a_texts.size() && !a_texts[i].empty();
 			g_published.texts[i] = translated ? g_published.storage.emplace_back(std::move(a_texts[i])).c_str() : Strings::Detail::kEnglish[i];
+			if (translated && g_published.probe == 0) {
+				g_published.probe = Strings::Detail::FirstNonAscii(g_published.texts[i]);
+			}
 			for (auto& cut : Strings::Detail::CutAtValues(g_published.texts[i])) {
 				const char* words = cut.value < 0 ? g_published.storage.emplace_back(std::move(cut.words)).c_str() : nullptr;
 				g_published.pieces[i].push_back({ .words = words, .value = cut.value });
@@ -97,6 +101,17 @@ namespace Strings
 		const auto  index = static_cast<std::size_t>(a_text);
 		const auto* published = g_current.load(std::memory_order_acquire);
 		return published ? published->texts[index] : Detail::kEnglish[index];
+	}
+
+	const char* English(Text a_text)
+	{
+		return Detail::kEnglish[static_cast<std::size_t>(a_text)];
+	}
+
+	char32_t Probe()
+	{
+		const auto* published = g_current.load(std::memory_order_acquire);
+		return published ? published->probe : 0;
 	}
 
 	std::span<const Piece> Pieces(Text a_text)
