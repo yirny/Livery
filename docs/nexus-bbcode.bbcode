@@ -66,9 +66,6 @@ Everything marked (Configurable) is a setting: tighten the rules or loosen them.
 Press the hotkey ([b][color=#EAD08F]Shift + V[/color][/b] by default).
 Aim at an NPC to open Livery on them; aim anywhere else to open it on yourself.
 
-With a controller, set a button for it on Livery's settings page in SKSE Menu Framework, or in Livery.ini.
-In the window, the arrow keys or the D-pad move between items, Space or A presses one, Esc or B goes back, and the right stick moves the cursor (A then clicks, and drags). Typing a name still needs a keyboard.
-
 By default, you can dress your followers and spouse and save what your friends wear. 
 Other NPCs are off limits. (Configurable)
 
@@ -139,7 +136,14 @@ Settings are available on the Livery page of SKSE Menu Framework, or in [font=Co
 The window's Appearance tab lets you change the skin, palette and menu sounds, even without SKSE Menu Framework.
 
 To change the window's colours, edit the #RRGGBB values in your palette's .ini under [font=Courier New]Data\SKSE\Plugins\Livery\palettes\[/font], or copy one under a new name and edit the copy.
-[b][color=#EAD08F]Restore Original Palette[/color][/b] on the Appearance tab undoes edits to a shipped palette.[/font]
+[b][color=#EAD08F]Restore Original Palette[/color][/b] on the Appearance tab undoes edits to a shipped palette.
+
+Livery comes in English and Japanese and uses the one your game runs in. To choose one yourself, set [font=Courier New]Language[/font] under [font=Courier New][UI][/font] in Livery.ini. Japanese on the settings page needs [b]Japanese[/b] enabled under [b]Fonts[/b] in SKSE Menu Framework.
+
+[b][size=4][color=#a7c17b]◆ Use a controller ◆[/color][/size][/b]
+
+Set a button to open Livery on Livery's settings page in SKSE Menu Framework, or under [font=Courier New][Hotkey][/font] in Livery.ini.
+In the window, the D-pad moves between items, A presses one, B goes back, and the right stick moves the cursor (A then clicks, and drags). The arrow keys, Space and Esc do the same on a keyboard. Typing a name still needs a keyboard.[/font]
 
 
 [center][img]https://raw.githubusercontent.com/yirny/Livery/main/docs/assets/nexus/h2_requirements.png[/img][/center]
@@ -217,8 +221,7 @@ Items are stored by plugin name and FormID, so outfits survive a load order chan
 Accented letters type as usual. Japanese, Chinese or Korean go in by paste (Ctrl + V): an IME does not open in the window yet.
 
 [b][color=#a7c17b]Is Livery available in other languages?[/color][/b]
-English and Japanese so far. Livery follows your game's language; to pick one yourself, set [font=Courier New]Language=JAPANESE[/font] under [font=Courier New][UI][/font] in Livery.ini.
-For the settings page, also turn on [b]Japanese[/b] under [b]Fonts[/b] in SKSE Menu Framework's own settings, or that page stays English and says so. The Situations page and the dressing messages are still English for now.
+English and Japanese so far; see Configure Livery to choose one. The Situations page and the dressing messages are still English for now.
 To translate Livery, copy [font=Courier New]Data\Interface\Translations\Livery_ENGLISH.txt[/font] as [font=Courier New]Livery_<LANGUAGE>.txt[/font] and translate the text after each tab; keep {0}, {1}... and \n. Translations are welcome: upload yours as a translation file here.
 
 [b][color=#a7c17b]The hotkey only shows "Livery: the window is not available."[/color][/b]
