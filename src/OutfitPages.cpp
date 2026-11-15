@@ -375,13 +375,14 @@ namespace CaptureWindow::Internal
 	{
 		auto&       order = a_state.outfitPieceOrder;
 		const auto& pieces = a_state.request.pieces;
-		float       typeWidth = ImGui::CalcTextSize(kColumnLabels[kTypeColumn]).x + ImGui::GetFontSize();  // the small-font label's arrow and its gap fit in a body-font em
+		float       typeWidth = ImGui::CalcTextSize(Strings::Get(Text::kColumnType)).x + ImGui::GetFontSize();  // the small-font label's arrow and its gap fit in a body-font em
 		for (const auto i : a_pieces) {
 			typeWidth = (std::max)(typeWidth, ImGui::CalcTextSize(pieces[i].type.c_str()).x);
 		}
 		const float                nameX = Theme::RowIconRoom();
 		const std::array<float, 2> columnX{ nameX, (std::max)(nameX, Theme::ColumnsWidth() - typeWidth) };
-		const auto                 labels = std::span(kColumnLabels).first<2>();
+		const auto                 columnLabels = ColumnLabels();
+		const auto                 labels = std::span(columnLabels).first<2>();
 		if (const int clicked = Theme::HeaderRow(labels, columnX, order.column, order.descending); clicked >= 0) {
 			QueueMenuSound(kFocusSound);
 			order.descending = clicked == order.column && !order.descending;

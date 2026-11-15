@@ -13,6 +13,7 @@
 
 #include "CaptureWindow.h"
 #include "OutfitBrowser.h"
+#include "Strings.h"
 #include "sarrai/Theme.h"
 
 #include <imgui.h>
@@ -30,6 +31,8 @@
 
 namespace CaptureWindow::Internal
 {
+	using Text = Strings::Text;  // the player-facing texts, in the chosen language (Strings::Get)
+
 	constexpr std::size_t kNameCapacity = 64;                // bytes, UTF-8, including the terminator
 	constexpr float       kMaxListHeightRatio = 0.6f;        // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace items?";  // IDs shared by OpenPopup and BeginPopupModal
@@ -46,26 +49,32 @@ namespace CaptureWindow::Internal
 	// The Wardrobe page's unsaved-changes alert (DrawLeavePopup).
 	constexpr const char* kLeavePopup = "Unsaved changes";
 	// Reasons a button is greyed out, shown on hover (and in the empty name field).
-	constexpr const char* kNeedName = "Enter a name.";
-	constexpr const char* kNeedPiece = "Select at least one item.";
-	constexpr const char* kNeedOutfit = "Select an outfit.";
-	constexpr const char* kAddFrom = "Add from";  // the words of the links under a piece list, before their icon (DrawCountLink)
-	constexpr float       kLinkRowGap = 4.0f;     // pixels at 1080p, between those two links, on top of a next line's own gap
-	constexpr const char* kNoOutfits = "No outfits in the Wardrobe.";
-	constexpr const char* kNoLoadedPiece = "None of its items is loaded.";
+	constexpr Strings::Ref kNeedName{ Strings::Text::kNeedName };
+	constexpr Strings::Ref kNeedPiece{ Strings::Text::kNeedPiece };
+	constexpr Strings::Ref kNeedOutfit{ Strings::Text::kNeedOutfit };
+	constexpr Strings::Ref kAddFrom{ Strings::Text::kAddFrom };  // the words of the links under a piece list, before their icon (DrawCountLink)
+	constexpr float        kLinkRowGap = 4.0f;                   // pixels at 1080p, between those two links, on top of a next line's own gap
+	constexpr Strings::Ref kNoOutfits{ Strings::Text::kNoOutfits };
+	constexpr Strings::Ref kNoLoadedPiece{ Strings::Text::kNoLoadedPiece };
 	// The Chests page's and the chest editor's (docs/chest-ui.md).
-	constexpr const char* kChestCreatePopup = "New chest";
-	constexpr const char* kChestRemovePopup = "Remove chest?";
-	constexpr const char* kNeedChest = "Select a chest.";
-	constexpr const char* kNoChests = "No chests yet.";
-	constexpr const char* kNoChanges = "No changes to save.";
+	constexpr const char*  kChestCreatePopup = "New chest";
+	constexpr const char*  kChestRemovePopup = "Remove chest?";
+	constexpr Strings::Ref kNeedChest{ Strings::Text::kNeedChest };
+	constexpr Strings::Ref kNoChests{ Strings::Text::kNoChests };
+	constexpr Strings::Ref kNoChanges{ Strings::Text::kNoChanges };
 	// Seconds after the last edit before the Situations page and the chest editor save (ScheduleAutosave).
-	constexpr double      kAutosaveDelay = 0.5;
-	constexpr const char* kWornAlready = "Already worn as is.";
+	constexpr double       kAutosaveDelay = 0.5;
+	constexpr Strings::Ref kWornAlready{ Strings::Text::kWornAlready };
 	// A piece list row of an item the player would not get (Request::carriedOnly): its opacity
 	// and its hover text. Shared by the piece lists of CaptureWindow.cpp and OutfitPages.cpp.
-	constexpr float       kNotCarriedAlpha = 0.5f;
-	constexpr const char* kNotCarriedHint = "You don't carry this item.\nDressing from inventory only leaves it off.";
+	constexpr float        kNotCarriedAlpha = 0.5f;
+	constexpr Strings::Ref kNotCarriedHint{ Strings::Text::kNotCarriedHint };
+
+	// A greyed button's reason (one of the texts above) while `a_when`, else nullptr.
+	inline const char* ReasonIf(bool a_when, const char* a_reason)
+	{
+		return a_when ? a_reason : nullptr;
+	}
 	// Frames the window's place is pinned after Open or a page change: an
 	// auto-resized window fits new content a frame late, and PlaceWindow sees
 	// the fitted height a frame after that.
@@ -79,10 +88,13 @@ namespace CaptureWindow::Internal
 	constexpr bool kShowFilter = false;
 
 	// The piece list's columns, in their order (State::sortColumn).
-	constexpr int                        kNameColumn = 0;
-	constexpr int                        kTypeColumn = 1;
-	constexpr int                        kSlotColumn = 2;
-	constexpr std::array<const char*, 3> kColumnLabels{ "Name", "Type", "Slot" };
+	constexpr int                     kNameColumn = 0;
+	constexpr int                     kTypeColumn = 1;
+	constexpr int                     kSlotColumn = 2;
+	inline std::array<const char*, 3> ColumnLabels()
+	{
+		return { Strings::Get(Strings::Text::kColumnName), Strings::Get(Strings::Text::kColumnType), Strings::Get(Strings::Text::kColumnSlot) };
+	}
 
 	// What an outfit row of the Situations page carries while it is dragged (OfferOutfitDrag).
 	constexpr const char* kOutfitPayload = "LiveryOutfit";
@@ -383,7 +395,7 @@ namespace CaptureWindow::Internal
 	void        DrawError(const std::string& a_message);
 	void        RequestCancel();
 	bool        DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
-		bool* a_iconClicked = nullptr, const char* a_hint = "Outfit Name");
+		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName });
 	bool        BeginModal(const char* a_id);
 	void        SetGroupHeadings(State& a_state);
 
@@ -732,6 +744,40 @@ namespace CaptureWindow::Internal
 	inline void RunLine(std::initializer_list<Theme::SubtitleRun> a_parts)
 	{
 		Theme::RunText({ a_parts.begin(), a_parts.size() });
+	}
+
+	// A text's parts as a line draws them: its words, with `a_values[n]` where it names {n}
+	// (Strings::Pieces); a value the list lacks is left out.
+	struct TextRuns
+	{
+		static constexpr std::size_t kMaxParts = 9;  // four values among their words
+
+		std::array<Theme::SubtitleRun, kMaxParts> parts{};
+		std::size_t                               count = 0;
+
+		std::span<const Theme::SubtitleRun> Parts() const { return { parts.data(), count }; }
+	};
+
+	inline TextRuns RunsOf(Strings::Text a_text, std::initializer_list<Theme::SubtitleRun> a_values)
+	{
+		TextRuns runs;
+		for (const auto& piece : Strings::Pieces(a_text)) {
+			if (runs.count == TextRuns::kMaxParts) {
+				break;
+			}
+			if (piece.value < 0) {
+				runs.parts[runs.count++] = TextRun(piece.words);
+			} else if (static_cast<std::size_t>(piece.value) < a_values.size()) {
+				runs.parts[runs.count++] = a_values.begin()[piece.value];
+			}
+		}
+		return runs;
+	}
+
+	// One popup line of text `a_text` with `a_values` in it (RunsOf).
+	inline void RunLine(Strings::Text a_text, std::initializer_list<Theme::SubtitleRun> a_values)
+	{
+		Theme::RunText(RunsOf(a_text, a_values).Parts());
 	}
 
 	// What row `a_row` wears now with random off, as HeldOutfitName names it, as a line's part.

@@ -72,7 +72,10 @@ namespace CaptureWindow::Internal
 
 	// The Save page's tabs, Create first, then Update: its heading (DrawSaveTabs), which sets its
 	// least width.
-	constexpr std::array<const char*, 2> kSaveTabs{ "Create New Outfit", "Update Existing Outfit" };
+	std::array<const char*, 2> SaveTabs()
+	{
+		return { Strings::Get(Text::kCreateNewOutfit), Strings::Get(Text::kUpdateExistingOutfit) };
+	}
 
 	// --- State ----------------------------------------------------------------
 
@@ -883,12 +886,12 @@ namespace CaptureWindow::Internal
 		if (a_drawDetails) {
 			a_drawDetails(a_state);
 		}
-		BeginButtonRow({ "Save Changes", "Discard Changes", "Back" });
-		const bool save = ReasonButton("Save Changes", a_noSave);
+		BeginButtonRow({ Strings::Get(Text::kSaveChanges), Strings::Get(Text::kDiscardChanges), Strings::Get(Text::kBack) });
+		const bool save = ReasonButton(Strings::Get(Text::kSaveChanges), a_noSave);
 		ImGui::SameLine();
-		const bool discard = Theme::Button("Discard Changes");
+		const bool discard = Theme::Button(Strings::Get(Text::kDiscardChanges));
 		ImGui::SameLine();
-		const bool back = Theme::Button("Back") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool back = Theme::Button(Strings::Get(Text::kBack)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
 		auto choice = LeaveChoice::kNone;
 		if (save) {
@@ -948,44 +951,28 @@ namespace CaptureWindow::Internal
 			DrawSummaryHeading(a_state.request.actorName.c_str(), a_state.request.actorSummary);
 			break;
 		case Page::kManage:
-			Theme::HeadingText(Theme::HeadingIcon::kWardrobe, Strings::Get(Strings::Text::kPageWardrobe));
+			Theme::HeadingText(Theme::HeadingIcon::kWardrobe, Strings::Get(Text::kPageWardrobe));
 			break;
 		case Page::kSituations:
 			Theme::HeadingText(Theme::HeadingIcon::kStar, a_state.situationsTitle.c_str());
 			break;
 		case Page::kEdit:
-			{
-				const std::array<Theme::SubtitleRun, 2> title{ {
-					{ .text = "Edit " },
-					{ .text = a_state.editTitle.c_str(), .rowIconKey = a_state.manage.icon.key },
-				} };
-				Theme::HeadingRunText(title);
-				break;
-			}
+			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { OutfitRun(a_state.editTitle, a_state.manage.icon) }).Parts());
+			break;
 		case Page::kChests:
 			{
-				const std::array<Theme::SubtitleRun, 3> subtitle{ {
-					{ .text = "Items in a chest can be loaded on the " },
-					{ .text = Strings::Get(Strings::Text::kPageDress), .icon = Theme::HeadingIcon::kBareForm },
-					{ .text = " page." },
-				} };
-				Theme::HeadingText(Theme::HeadingIcon::kChest, Strings::Get(Strings::Text::kPageChests), subtitle);
+				const Theme::SubtitleRun dress{ .text = Strings::Get(Text::kPageDress), .icon = Theme::HeadingIcon::kBareForm };
+				Theme::HeadingText(Theme::HeadingIcon::kChest, Strings::Get(Text::kPageChests), RunsOf(Text::kChestsSubtitle, { dress }).Parts());
 				break;
 			}
 		case Page::kChestEdit:
-			{
-				const std::array<Theme::SubtitleRun, 2> title{ {
-					{ .text = "Edit " },
-					{ .text = a_state.chest.titleName.c_str(), .icon = Theme::HeadingIcon::kChest },
-				} };
-				Theme::HeadingRunText(title);
-				break;
-			}
+			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { ChestRun(a_state.chest.titleName) }).Parts());
+			break;
 		case Page::kLoad:
 			DrawSummaryHeading(a_state.request.actorName.c_str(), a_state.request.actorSummary);
 			break;
 		case Page::kAppearance:
-			Theme::HeadingText(Theme::HeadingIcon::kPalette, Strings::Get(Strings::Text::kPageAppearance), "Other settings are in Livery.ini or on the SKSE Menu Framework page.");
+			Theme::HeadingText(Theme::HeadingIcon::kPalette, Strings::Get(Text::kPageAppearance), Strings::Get(Text::kAppearanceSubtitle));
 			break;
 		case Page::kSave:
 			break;
@@ -1120,12 +1107,13 @@ namespace CaptureWindow::Internal
 		using Group = CaptureWindow::PieceGroup;
 		const auto& request = a_state.request;
 		auto&       headings = a_state.headings;
-		headings[GroupIndex(Group::kLiveryOutfit)] = std::format("Outfit (\"{}\")", request.outfitName);
-		headings[GroupIndex(Group::kNotInLibrary)] = "Outfit (Not in Wardrobe)";
-		headings[GroupIndex(Group::kUnmanaged)] = "Outfit (Unmanaged)";
-		headings[GroupIndex(Group::kCarried)] = "Inventory";
+		headings[GroupIndex(Group::kLiveryOutfit)] = Strings::Format(Text::kGroupWornOutfit, request.outfitName);
+		headings[GroupIndex(Group::kNotInLibrary)] = Strings::Get(Text::kGroupNotInWardrobe);
+		headings[GroupIndex(Group::kUnmanaged)] = Strings::Get(Text::kGroupUnmanaged);
+		headings[GroupIndex(Group::kCarried)] = Strings::Get(Text::kGroupInventory);
 		// Theme::ListHeadingHelp adds its "(?)".
-		headings[GroupIndex(Group::kPlayer)] = std::format("{}'s Inventory", request.playerName.empty() ? "Player" : request.playerName);
+		const std::string player = request.playerName.empty() ? Strings::Get(Text::kPlayer) : request.playerName;
+		headings[GroupIndex(Group::kPlayer)] = Strings::Format(Text::kGroupPlayerInventory, player);
 		headings[GroupIndex(Group::kNotCarried)].clear();
 	}
 
@@ -1252,8 +1240,8 @@ namespace CaptureWindow::Internal
 		constexpr const char* kWidestSlots = "00, 00, 00, 00";  // the Slot column's widest
 
 		const float labelRoom = ImGui::GetFontSize();  // the small-font label's arrow and its gap fit in a body-font em
-		const float slotLabel = ImGui::CalcTextSize(kColumnLabels[kSlotColumn]).x + labelRoom;
-		float       typeWidth = ImGui::CalcTextSize(kColumnLabels[kTypeColumn]).x + labelRoom;
+		const float slotLabel = ImGui::CalcTextSize(Strings::Get(Text::kColumnSlot)).x + labelRoom;
+		float       typeWidth = ImGui::CalcTextSize(Strings::Get(Text::kColumnType)).x + labelRoom;
 		float       slotWidth = slotLabel;
 		for (const auto& piece : a_state.request.pieces) {
 			typeWidth = (std::max)(typeWidth, ImGui::CalcTextSize(piece.type.c_str()).x);
@@ -1329,9 +1317,9 @@ namespace CaptureWindow::Internal
 			return;
 		}
 		const auto& name = a_state.request.actorName;
-		const auto  apply = a_state.request.movesFromPlayer ? std::format("\"Apply\" moves the selected items from your inventory to {}.", name) :
-		                                                      std::format("\"Apply\" gives {} a new copy of each selected item; yours stay with you.", name);
-		DrawHelpTooltip(apply + (a_state.request.protectsFavorites ? "\nQuest items and your favorites are not listed." : "\nQuest items are not listed."));
+		const auto  apply = Strings::Format(a_state.request.movesFromPlayer ? Text::kPlayerHelpMove : Text::kPlayerHelpCopy, name);
+		const auto* notListed = Strings::Get(a_state.request.protectsFavorites ? Text::kPlayerHelpNotListedFavorites : Text::kPlayerHelpNotListed);
+		DrawHelpTooltip(apply + "\n" + notListed);
 	}
 
 	// Height of the piece list with every listed piece and heading in view, capped as
@@ -1357,8 +1345,9 @@ namespace CaptureWindow::Internal
 		const auto&       onToggled = a_state.request.onPieceToggled;
 		const bool        locked = a_state.request.saveOnly;
 		const auto        positions = ColumnPositions(a_state);
-		const std::size_t columns = a_state.showSlots ? kColumnLabels.size() : static_cast<std::size_t>(kSlotColumn);  // Slot is the last
-		const auto        labels = std::span(kColumnLabels).first(columns);
+		const auto        columnLabels = ColumnLabels();
+		const std::size_t columns = a_state.showSlots ? columnLabels.size() : static_cast<std::size_t>(kSlotColumn);  // Slot is the last
+		const auto        labels = std::span(columnLabels).first(columns);
 		const auto        columnX = std::span<const float>(positions).first(columns);
 		if (const int clicked = Theme::HeaderRow(labels, columnX, a_state.sortColumn, a_state.sortDescending); clicked >= 0) {
 			QueueMenuSound(kFocusSound);
@@ -1446,13 +1435,15 @@ namespace CaptureWindow::Internal
 	CountLinks DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks)
 	{
 		const auto ticked = Ticked(a_state, a_list).size();
-		Theme::CountText(std::format("{} of {} items selected", ticked, CountListedPieces(a_state, a_list)).c_str(), false);
+		Theme::CountText(Strings::Format(Text::kItemsSelected, ticked, CountListedPieces(a_state, a_list)).c_str(), false);
 		CountLinks links;
 		if (a_withLinks) {
-			links.wardrobe = DrawCountLink(a_state, "Wardrobe...", a_state.request.existingOutfits.empty() ? kNoOutfits : nullptr, Theme::HeadingIcon::kWardrobe);
+			const auto* noOutfits = ReasonIf(a_state.request.existingOutfits.empty(), kNoOutfits);
+			links.wardrobe = DrawCountLink(a_state, Strings::Get(Text::kAddFromWardrobe), noOutfits, Theme::HeadingIcon::kWardrobe);
 			if (a_state.request.offersChests) {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kLinkRowGap * Theme::Scale());
-				links.chest = DrawCountLink(a_state, "Chest...", a_state.request.chests.empty() ? kNoChests : nullptr, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
+				const auto* noChests = ReasonIf(a_state.request.chests.empty(), kNoChests);
+				links.chest = DrawCountLink(a_state, Strings::Get(Text::kAddFromChest), noChests, Theme::HeadingIcon::kChest, Theme::LinkLine::kNext);
 			}
 		}
 		return links;
@@ -1467,11 +1458,9 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		bool       hovered = false;
-		const bool restore = Theme::LineHelpLink("Restore Outfit", &hovered);
+		const bool restore = Theme::LineHelpLink(Strings::Get(Text::kRestoreOutfit), &hovered);
 		if (hovered) {
-			DrawHelpTooltip(std::format(
-				"Takes Livery's outfit off {} and forgets their situational outfits.\nItems moved from your inventory stay with them.",
-				a_state.request.actorName));
+			DrawHelpTooltip(Strings::Format(Text::kRestoreOutfitHelp, a_state.request.actorName));
 		}
 		return restore;
 	}
@@ -1516,23 +1505,16 @@ namespace CaptureWindow::Internal
 	// set: a newline inside one text keeps the font's own line height.
 	void DrawPreviewHelpTooltip()
 	{
-		constexpr const char*                kSummary = "Keeps the game running and dresses the character in the selected items.";
-		constexpr std::array<const char*, 5> kControls{
-			"Camera, with the cursor over the game:",
-			"Left drag - turns around the character",
-			"Right drag - pans",
-			"Mouse wheel - zooms",
-			"W / A / S / D - moves (hold Shift for half speed)",
-		};
-		constexpr float kLineGap = 2.0f;     // pixels at 1080p, between lines
-		constexpr float kSummaryGap = 8.0f;  // pixels at 1080p, between the summary and the controls
+		constexpr std::array<Text, 5> kControls{ Text::kPreviewCamera, Text::kPreviewLeftDrag, Text::kPreviewRightDrag, Text::kPreviewWheel, Text::kPreviewMove };
+		constexpr float               kLineGap = 2.0f;     // pixels at 1080p, between lines
+		constexpr float               kSummaryGap = 8.0f;  // pixels at 1080p, between the summary and the controls
 
 		Theme::BeginTooltip();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, kLineGap * Theme::Scale()));
-		ImGui::TextUnformatted(kSummary);
+		ImGui::TextUnformatted(Strings::Get(Text::kPreviewSummary));
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (kSummaryGap - kLineGap) * Theme::Scale());
-		for (const char* line : kControls) {
-			ImGui::TextUnformatted(line);
+		for (const auto line : kControls) {
+			ImGui::TextUnformatted(Strings::Get(line));
 		}
 		ImGui::PopStyleVar();
 		Theme::EndTooltip();
@@ -1549,7 +1531,7 @@ namespace CaptureWindow::Internal
 		bool        on = a_state.previewOn;
 		ImGui::BeginDisabled(!available || a_state.previewBusy);
 		Theme::SectionGap();  // a field of its own, with no label
-		const bool clicked = Theme::Checkbox("Live Preview", &on);
+		const bool clicked = Theme::Checkbox(Strings::Get(Text::kLivePreview), &on);
 		bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
 		if (!note.empty() && FocusStandIn("Live Preview")) {
@@ -1608,13 +1590,13 @@ namespace CaptureWindow::Internal
 		return unticked;
 	}
 
-	constexpr const char* kSaveToWardrobe = "Save to Wardrobe...";
+	constexpr Strings::Ref kSaveToWardrobe{ Text::kSaveToWardrobe };
 
 	// The widest button row of the Capture page, which sets the page's least width, whatever
 	// the font or screen.
 	float CaptureButtonsWidth()
 	{
-		return ButtonRowWidth({ { "Apply", Theme::HeadingIcon::kDressedForm }, { kSaveToWardrobe, Theme::HeadingIcon::kWardrobe }, "Exit" });
+		return ButtonRowWidth({ { Strings::Get(Text::kApply), Theme::HeadingIcon::kDressedForm }, { kSaveToWardrobe, Theme::HeadingIcon::kWardrobe }, Strings::Get(Text::kExit) });
 	}
 
 	enum class CaptureAction
@@ -1641,30 +1623,30 @@ namespace CaptureWindow::Internal
 	// or Add from Chest... was clicked under the list. `a_restore`: DrawRestoreLink was clicked.
 	CaptureAction DrawCaptureButtons(const State& a_state, bool a_load, bool a_restore)
 	{
-		constexpr const char* kSaveTooltip = "Save the selected items as a new outfit, or into an existing one.";
-
-		const bool saveOnly = a_state.request.saveOnly;
+		const char* applyLabel = Strings::Get(Text::kApply);
+		const char* exitLabel = Strings::Get(Text::kExit);
+		const bool  saveOnly = a_state.request.saveOnly;
 		if (saveOnly) {
-			BeginButtonRow({ { kSaveToWardrobe, Theme::HeadingIcon::kWardrobe }, "Exit" });
+			BeginButtonRow({ { kSaveToWardrobe, Theme::HeadingIcon::kWardrobe }, exitLabel });
 		} else {
-			BeginButtonRow({ { "Apply", Theme::HeadingIcon::kDressedForm }, { kSaveToWardrobe, Theme::HeadingIcon::kWardrobe }, "Exit" });
+			BeginButtonRow({ { applyLabel, Theme::HeadingIcon::kDressedForm }, { kSaveToWardrobe, Theme::HeadingIcon::kWardrobe }, exitLabel });
 		}
-		const char* noPiece = CountTickedPieces(a_state) == 0 ? kNeedPiece : nullptr;
+		const char* noPiece = ReasonIf(CountTickedPieces(a_state) == 0, kNeedPiece);
 		bool        apply = false;
 		if (!saveOnly) {
-			apply = ReasonButton("Apply", noPiece, nullptr, Theme::HeadingIcon::kDressedForm);
+			apply = ReasonButton(applyLabel, noPiece, nullptr, Theme::HeadingIcon::kDressedForm);
 			if (!noPiece && ImGui::IsItemHovered()) {
 				Theme::Tooltip(TickedFromPlayer(a_state).empty() ? a_state.applyTooltip.c_str() : a_state.applyFromPlayerTooltip.c_str());
 			}
 			ImGui::SameLine();
 		}
-		const bool save = ReasonButton(kSaveToWardrobe, noPiece, kSaveTooltip, Theme::HeadingIcon::kWardrobe);
+		const bool save = ReasonButton(kSaveToWardrobe, noPiece, Strings::Get(Text::kSaveToWardrobeTooltip), Theme::HeadingIcon::kWardrobe);
 		ImGui::SameLine();
 		// While the Apply or Restore popup is open, Escape is its own Cancel.
-		const bool exitPressed = Theme::Button("Exit") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
+		const bool exitPressed = Theme::Button(exitLabel) || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId));
 
 		if (a_state.status != Status::kEditing) {
-			ImGui::TextDisabled("Applying...");
+			ImGui::TextDisabled("%s", Strings::Get(Text::kApplying));
 			return CaptureAction::kNone;
 		}
 		if (a_load) {
@@ -1742,9 +1724,6 @@ namespace CaptureWindow::Internal
 	// only when the actor has one) or Cancel.
 	ApplyChoice DrawApplyPopup(const State& a_state)
 	{
-		constexpr const char* kJustApply = "Apply Only";
-		constexpr const char* kJustApplyWidth = "Apply Only (?)";  // what the button's width is measured on (Theme::HelpButton)
-
 		if (!BeginModal(kApplyPopup)) {
 			return ApplyChoice::kNone;
 		}
@@ -1756,25 +1735,27 @@ namespace CaptureWindow::Internal
 		}
 		const auto& request = a_state.request;
 		const auto& outfit = OutfitAt(a_state, worn);
-		RunLine({ TextRun("Update "), OutfitRun(outfit.name, outfit.icon), TextRun(" with the selected items?") });
+		RunLine(Text::kUpdateWithSelected, { OutfitRun(outfit.name, outfit.icon) });
 		if (!request.wornSituation.empty()) {
-			const auto whose = std::format("This is {}'s ", request.actorName);
-			RunLine({ TextRun(whose.c_str()), SituationRun(request.wornSituation.c_str()), TextRun(" outfit.") });
+			RunLine(Text::kWornForSituation, { TextRun(request.actorName.c_str()), SituationRun(request.wornSituation.c_str()) });
 		}
-		BeginButtonRow({ "Update", kJustApplyWidth, "Cancel" });
-		const bool update = Theme::Button("Update");
+		const char* justApplyLabel = Strings::Get(Text::kApplyOnly);
+		const auto  justApplyWidth = std::format("{} (?)", justApplyLabel);  // what the button's width is measured on (Theme::HelpButton)
+		BeginButtonRow({ Strings::Get(Text::kUpdate), justApplyWidth.c_str(), Strings::Get(Text::kCancel) });
+		const bool update = Theme::Button(Strings::Get(Text::kUpdate));
 		ImGui::SameLine();
 		bool       helpHovered = false;
-		const bool justApply = Theme::HelpButton(kJustApply, &helpHovered);
+		const bool justApply = Theme::HelpButton(justApplyLabel, &helpHovered);
 		if (helpHovered) {
-			auto help = std::format("Sets the selected items as {}'s default outfit without adding them to the Wardrobe.", request.actorName);
+			auto help = Strings::Format(Text::kApplyOnlyHelp, request.actorName);
 			if (HasSituationalOutfits(a_state)) {
-				help += "\nThe new default outfit takes effect when no situational outfit applies.";
+				help += "\n";
+				help += Strings::Get(Text::kApplyOnlyHelpSituations);
 			}
 			DrawHelpTooltip(help);
 		}
 		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
 		auto choice = ApplyChoice::kNone;
 		if (update) {
@@ -1808,12 +1789,12 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& name = a_state.request.actorName;
-		ImGui::TextUnformatted(std::format("Restore {}'s original outfit?", name).c_str());
-		ImGui::TextUnformatted("Their situational outfits are cleared too.");
-		BeginButtonRow({ "Restore", "Cancel" });
-		const bool restore = Theme::Button("Restore");
+		ImGui::TextUnformatted(Strings::Format(Text::kRestoreOriginalOutfit, name).c_str());
+		ImGui::TextUnformatted(Strings::Get(Text::kSituationalOutfitsCleared));
+		BeginButtonRow({ Strings::Get(Text::kRestore), Strings::Get(Text::kCancel) });
+		const bool restore = Theme::Button(Strings::Get(Text::kRestore));
 		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
 		if (restore || cancel) {
 			QueueMenuSound(restore ? kOkSound : kCancelSound);
@@ -1967,25 +1948,25 @@ namespace CaptureWindow::Internal
 	{
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, a_outfit, &CaptureWindow::ExistingOutfit::id);
-		return found != outfits.end() ? std::format("\"{}\"", found->name) : std::string("an outfit no longer in the Wardrobe");
+		return found != outfits.end() ? Strings::Format(Text::kQuotedName, found->name) : std::string(Strings::Get(Text::kOutfitGone));
 	}
 
 	// What row `a_row` wears now with random off, as Apply as Default's help names it.
 	std::string HeldOutfitName(const State& a_state, std::size_t a_row)
 	{
 		const auto outfit = a_state.request.assigned[a_row].row.chosen;
-		return outfit ? QuotedOutfitName(a_state, outfit) : std::string("items that are not a saved outfit");
+		return outfit ? QuotedOutfitName(a_state, outfit) : std::string(Strings::Get(Text::kItemsNotSaved));
 	}
 
 	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row)
 	{
 		const auto outfit = a_state.request.assigned[a_row].row.chosen;
 		if (outfit == 0) {
-			return TextRun("items that are not a saved outfit");
+			return TextRun(Strings::Get(Text::kItemsNotSaved));
 		}
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, outfit, &CaptureWindow::ExistingOutfit::id);
-		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun("an outfit no longer in the Wardrobe");
+		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun(Strings::Get(Text::kOutfitGone));
 	}
 
 	Theme::SubtitleRun WornOutfitRun(const State& a_state)
@@ -2002,17 +1983,18 @@ namespace CaptureWindow::Internal
 	// clicked, else -1.
 	int DrawSaveTabs(const State& a_state)
 	{
-		Theme::BeginHeadingTabs(kSaveTabs);
-		int clicked = Theme::TextTab(kSaveTabs[0], !a_state.updateTab) ? 0 : -1;
+		const auto tabs = SaveTabs();
+		Theme::BeginHeadingTabs(tabs);
+		int clicked = Theme::TextTab(tabs[0], !a_state.updateTab) ? 0 : -1;
 		Theme::HeadingTabSeparator();
 		const bool noOutfits = a_state.request.existingOutfits.empty();
 		ImGui::BeginDisabled(noOutfits);
-		if (Theme::TextTab(kSaveTabs[1], a_state.updateTab) && !noOutfits) {
+		if (Theme::TextTab(tabs[1], a_state.updateTab) && !noOutfits) {
 			clicked = 1;
 		}
 		bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 		ImGui::EndDisabled();
-		if (noOutfits && FocusStandIn(kSaveTabs[1])) {
+		if (noOutfits && FocusStandIn(tabs[1])) {
 			hovered = true;
 		}
 		Theme::EndHeadingTabs();
@@ -2038,7 +2020,7 @@ namespace CaptureWindow::Internal
 			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon), a_iconClicked != nullptr);
 			if (a_iconClicked) {
 				if (ImGui::IsItemHovered()) {
-					Theme::Tooltip("Outfit Icon");
+					Theme::Tooltip(Strings::Get(Text::kOutfitIcon));
 				}
 				*a_iconClicked = clicked;
 			}
@@ -2175,13 +2157,13 @@ namespace CaptureWindow::Internal
 			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit, controls.height);
 			if (chosen) {
 				const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-				DrawPieceColumn(a_state, "Current Items", outfit.pieces, outfit.unloadedPieces);
+				DrawPieceColumn(a_state, Strings::Get(Text::kCurrentItems), outfit.pieces, outfit.unloadedPieces);
 			} else {
 				NextColumn();
 				ResetCellBaseline();
-				Theme::LabelText("Select an outfit to update");
+				Theme::LabelText(Strings::Get(Text::kSelectOutfitToUpdate));
 			}
-			DrawPieceColumn(a_state, "New Items", TickedPieces(a_state), 0);
+			DrawPieceColumn(a_state, Strings::Get(Text::kNewItems), TickedPieces(a_state), 0);
 			EndColumns(3);
 		}
 		ImGui::PopID();
@@ -2201,18 +2183,19 @@ namespace CaptureWindow::Internal
 	// unless a popup is open, which has its own, or the outfit search took it (`a_escapeTaken`).
 	SaveAction DrawSaveButtons(const State& a_state, bool a_enter, bool a_escapeTaken)
 	{
-		constexpr const char* kCreateAndApply = "Create and Apply";
+		const char* createAndApply = Strings::Get(Text::kCreateAndApply);
+		const char* backLabel = Strings::Get(Text::kBack);
 
 		const bool  chosen = a_state.chosenOutfit >= 0;
 		const bool  offersApply = !a_state.updateTab && !a_state.request.saveOnly;
-		std::string save = "Create";
+		std::string save = Strings::Get(Text::kCreate);
 		if (a_state.updateTab) {
-			save = chosen ? std::format("Update {}", OutfitAt(a_state, a_state.chosenOutfit).name) : std::string("Update");
+			save = chosen ? Strings::Format(Text::kUpdateOutfit, OutfitAt(a_state, a_state.chosenOutfit).name) : std::string(Strings::Get(Text::kUpdate));
 		}
 		if (offersApply) {
-			BeginButtonRow({ save.c_str(), kCreateAndApply, "Back" });
+			BeginButtonRow({ save.c_str(), createAndApply, backLabel });
 		} else {
-			BeginButtonRow({ save.c_str(), "Back" });
+			BeginButtonRow({ save.c_str(), backLabel });
 		}
 		const char* reason = nullptr;
 		if (a_state.updateTab && !chosen) {
@@ -2224,14 +2207,14 @@ namespace CaptureWindow::Internal
 		bool       apply = false;
 		if (offersApply) {
 			ImGui::SameLine();
-			apply = ReasonButton(kCreateAndApply, reason);
+			apply = ReasonButton(createAndApply, reason);
 		}
 		ImGui::SameLine();
 		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-		const bool back = Theme::Button("Back") || escape;
+		const bool back = Theme::Button(backLabel) || escape;
 
 		if (a_state.status != Status::kEditing) {
-			ImGui::TextDisabled("Saving...");
+			ImGui::TextDisabled("%s", Strings::Get(Text::kSaving));
 			return SaveAction::kNone;
 		}
 		if (apply) {
@@ -2252,7 +2235,7 @@ namespace CaptureWindow::Internal
 			return std::nullopt;
 		}
 		const auto name = Trimmed(a_state.createName.data());
-		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = "Create and Apply", .saveFirst = ApplySubject::SaveFirst::kCreate });
+		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = Strings::Get(Text::kCreateAndApply), .saveFirst = ApplySubject::SaveFirst::kCreate });
 		ImGui::EndPopup();
 		return row;
 	}
@@ -2270,18 +2253,19 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
-		const auto  counts = std::format("'s {} items with the {} selected items?", outfit.pieces.size(), CountTickedPieces(a_state));
-		RunLine({ TextRun("Replace "), OutfitRun(outfit.name, outfit.icon), TextRun(counts.c_str()) });
+		const auto  current = std::to_string(outfit.pieces.size());
+		const auto  selected = std::to_string(CountTickedPieces(a_state));
+		RunLine(Text::kReplaceItems, { OutfitRun(outfit.name, outfit.icon), TextRun(current.c_str()), TextRun(selected.c_str()) });
 		if (outfit.unloadedPieces) {
-			ImGui::TextDisabled("%s", std::format("{} items from unloaded plugins stay in it.", outfit.unloadedPieces).c_str());
+			ImGui::TextDisabled("%s", Strings::Format(Text::kUnloadedItemsStay, outfit.unloadedPieces).c_str());
 		}
 		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
-			RunLine({ TextRun("New name: "), OutfitRun(name, outfit.icon) });
+			RunLine(Text::kNewName, { OutfitRun(name, outfit.icon) });
 		}
-		BeginButtonRow({ "Confirm", "Cancel" });
-		const bool confirm = Theme::Button("Confirm");
+		BeginButtonRow({ Strings::Get(Text::kConfirm), Strings::Get(Text::kCancel) });
+		const bool confirm = Theme::Button(Strings::Get(Text::kConfirm));
 		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
 		if (confirm || cancel) {
 			QueueMenuSound(confirm ? kOkSound : kCancelSound);
@@ -2412,7 +2396,7 @@ namespace CaptureWindow::Internal
 		for (const auto& label : a_palettes.labels) {
 			width = (std::max)(width, Theme::DropdownWidth(label.c_str(), style));
 		}
-		Theme::LabelText("Window skin");
+		Theme::LabelText(Strings::Get(Text::kWindowSkin));
 		ImGui::SetNextItemWidth((std::min)(width, ImGui::GetContentRegionAvail().x));
 		const bool open = Theme::BeginCombo("##windowSkin", ImGuiComboFlags_None, style);
 		if (open) {
@@ -2434,11 +2418,11 @@ namespace CaptureWindow::Internal
 		if (!BeginModal(a_id)) {
 			return false;
 		}
-		ImGui::TextUnformatted(std::format("Restore {}.ini to its original state? Your changes will be lost.", a_file).c_str());
-		BeginButtonRow({ "Restore", "Cancel" });
-		const bool restore = Theme::Button("Restore");
+		ImGui::TextUnformatted(Strings::Format(Text::kRestorePaletteQuestion, a_file).c_str());
+		BeginButtonRow({ Strings::Get(Text::kRestore), Strings::Get(Text::kCancel) });
+		const bool restore = Theme::Button(Strings::Get(Text::kRestore));
 		ImGui::SameLine();
-		const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+		const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 		EndButtonRow();
 		if (restore || cancel) {
 			QueueMenuSound(restore ? kOkSound : kCancelSound);
@@ -2463,24 +2447,24 @@ namespace CaptureWindow::Internal
 		if (!palettes.labels.empty()) {
 			DrawWindowSkin(palettes, kSource);
 			if (palettes.edited) {
-				restore = Theme::LineLink("Restore Original Palette");
+				restore = Theme::LineLink(Strings::Get(Text::kRestoreOriginalPalette));
 				if (ImGui::IsItemHovered()) {
-					Theme::Tooltip("Writes the palette file back as Livery ships it.");
+					Theme::Tooltip(Strings::Get(Text::kRestoreOriginalPaletteTooltip));
 				}
 			}
 		}
 		Theme::SectionGap();  // a field of its own, with no label
 		bool sounds = Settings::MenuSounds();
-		if (Theme::Checkbox("Play menu sounds", &sounds)) {
+		if (Theme::Checkbox(Strings::Get(Text::kPlayMenuSounds), &sounds)) {
 			Settings::SetMenuSounds(sounds, kSource);
 			QueueMenuSound(kFocusSound);
 		}
 		if (ImGui::IsItemHovered()) {
-			Theme::Tooltip("Plays the game's menu sounds for clicks in Livery.");
+			Theme::Tooltip(Strings::Get(Text::kPlayMenuSoundsTooltip));
 		}
-		BeginButtonRow({ "Exit" });
+		BeginButtonRow({ Strings::Get(Text::kExit) });
 		const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-		const bool exit = Theme::Button("Exit") || escape;
+		const bool exit = Theme::Button(Strings::Get(Text::kExit)) || escape;
 		EndButtonRow();
 		ImGui::EndDisabled();
 
@@ -2526,9 +2510,8 @@ namespace CaptureWindow
 			state.status = Status::kEditing;
 			state.resetImGui = true;
 			state.page = Page::kCapture;
-			state.applyTooltip = std::format("Dress {} in the selected items.", state.request.actorName);
-			state.applyFromPlayerTooltip = state.request.movesFromPlayer ? std::format("Dress {0} in the selected items.\nItems from your inventory move to {0}.", state.request.actorName) :
-			                                                               std::format("Dress {0} in the selected items.\n{0} gets a new copy of each item from your inventory; yours stay with you.", state.request.actorName);
+			state.applyTooltip = Strings::Format(Text::kApplyTooltip, state.request.actorName);
+			state.applyFromPlayerTooltip = Strings::Format(state.request.movesFromPlayer ? Text::kApplyTooltipMove : Text::kApplyTooltipCopy, state.request.actorName);
 			SetGroupHeadings(state);
 			// The item lists open in the sort the player last chose on one of them; a list without
 			// the Slot column sorts by Name ascending instead of Slot.
@@ -2563,7 +2546,7 @@ namespace CaptureWindow
 			state.situationForm = {};
 			FillSituationForm(state, state.request.situations);
 			state.situationsTitle = std::format("Situational Outfits ({})", state.request.actorName);
-			state.manageApplyLabel = std::format("Apply to {}", state.request.actorName);
+			state.manageApplyLabel = Strings::Format(Text::kApplyToActor, state.request.actorName);
 			state.manageApplyTip.clear();
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
 			state.editShown.clear();
@@ -2871,7 +2854,7 @@ namespace CaptureWindow
 		if (state.page == Page::kCapture) {
 			width = (std::max)(width, CaptureButtonsWidth() + ImGui::GetStyle().WindowPadding.x * 2.0f);  // a large font's buttons still fit
 		} else if (state.page == Page::kSave) {
-			width = (std::max)(width, Theme::HeadingTabsWidth(kSaveTabs) + ImGui::GetStyle().WindowPadding.x * 2.0f);  // the heading's tabs fit on one line
+			width = (std::max)(width, Theme::HeadingTabsWidth(SaveTabs()) + ImGui::GetStyle().WindowPadding.x * 2.0f);  // the heading's tabs fit on one line
 		}
 		const bool tabs = HasTabs(state.page);
 		if (tabs) {

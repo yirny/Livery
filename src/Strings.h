@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <format>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -15,8 +16,8 @@
 // FILE MAP
 //   Table      - LIVERY_STRINGS: every text Livery shows the player, by id, with its English
 //   Detail     - the translation file's parse and checks, with no SKSE, so the unit tests reach them
-//   Strings    - Load (Strings.cpp) reads the chosen language's file once; Get and Format hand out
-//                the text in it, or the English
+//   Strings    - Load (Strings.cpp) reads the chosen language's file once; Get, Format, Pieces and
+//                Ref hand out the text in it, or the English
 //
 // Livery's player-facing text (docs/design.md §10). A translation file,
 // Data/Interface/Translations/Livery_<LANGUAGE>.txt, holds one text a line as the game's own
@@ -30,13 +31,116 @@
 
 // --- Table -------------------------------------------------------------------
 
-// X(id, English text). The id names the text in the file without its "k".
-#define LIVERY_STRINGS(X)            \
-	X(kPageDress, "Dress")           \
-	X(kPageWardrobe, "Wardrobe")     \
-	X(kPageSituations, "Situations") \
-	X(kPageChests, "Chests")         \
-	X(kPageAppearance, "Appearance")
+// X(id, English text), one list per part of Livery, joined in LIVERY_STRINGS. The id names the
+// text in the file without its "k".
+
+// Words the window uses on several pages: page names, buttons, reasons a button is greyed.
+#define LIVERY_STRINGS_COMMON(X)                                                                  \
+	X(kPageDress, "Dress")                                                                        \
+	X(kPageWardrobe, "Wardrobe")                                                                  \
+	X(kPageSituations, "Situations")                                                              \
+	X(kPageChests, "Chests")                                                                      \
+	X(kPageAppearance, "Appearance")                                                              \
+	X(kApply, "Apply")                                                                            \
+	X(kBack, "Back")                                                                              \
+	X(kCancel, "Cancel")                                                                          \
+	X(kConfirm, "Confirm")                                                                        \
+	X(kCreate, "Create")                                                                          \
+	X(kExit, "Exit")                                                                              \
+	X(kRestore, "Restore")                                                                        \
+	X(kUpdate, "Update")                                                                          \
+	X(kSaveChanges, "Save Changes")                                                               \
+	X(kDiscardChanges, "Discard Changes")                                                         \
+	X(kApplying, "Applying...")                                                                   \
+	X(kSaving, "Saving...")                                                                       \
+	X(kEditHeading, "Edit {0}")                                                                   \
+	X(kQuotedName, "\"{0}\"")                                                                     \
+	X(kNewName, "New name: {0}")                                                                  \
+	X(kOutfitIcon, "Outfit Icon")                                                                 \
+	X(kOutfitName, "Outfit Name")                                                                 \
+	X(kColumnName, "Name")                                                                        \
+	X(kColumnType, "Type")                                                                        \
+	X(kColumnSlot, "Slot")                                                                        \
+	X(kNeedName, "Enter a name.")                                                                 \
+	X(kNeedPiece, "Select at least one item.")                                                    \
+	X(kNeedOutfit, "Select an outfit.")                                                           \
+	X(kNeedChest, "Select a chest.")                                                              \
+	X(kNoOutfits, "No outfits in the Wardrobe.")                                                  \
+	X(kNoLoadedPiece, "None of its items is loaded.")                                             \
+	X(kNoChests, "No chests yet.")                                                                \
+	X(kNoChanges, "No changes to save.")                                                          \
+	X(kWornAlready, "Already worn as is.")                                                        \
+	X(kNotCarriedHint, "You don't carry this item.\nDressing from inventory only leaves it off.") \
+	X(kOutfitGone, "an outfit no longer in the Wardrobe")                                         \
+	X(kItemsNotSaved, "items that are not a saved outfit")                                        \
+	X(kChestsSubtitle, "Items in a chest can be loaded on the {0} page.")                         \
+	X(kAppearanceSubtitle, "Other settings are in Livery.ini or on the SKSE Menu Framework page.")
+
+// The Dress page: its item list, Live Preview and its buttons and popups.
+#define LIVERY_STRINGS_DRESS(X)                                                                                                                    \
+	X(kGroupWornOutfit, "Outfit (\"{0}\")")                                                                                                        \
+	X(kGroupNotInWardrobe, "Outfit (Not in Wardrobe)")                                                                                             \
+	X(kGroupUnmanaged, "Outfit (Unmanaged)")                                                                                                       \
+	X(kGroupInventory, "Inventory")                                                                                                                \
+	X(kGroupPlayerInventory, "{0}'s Inventory")                                                                                                    \
+	X(kPlayer, "Player")                                                                                                                           \
+	X(kPlayerHelpMove, "\"Apply\" moves the selected items from your inventory to {0}.")                                                           \
+	X(kPlayerHelpCopy, "\"Apply\" gives {0} a new copy of each selected item; yours stay with you.")                                               \
+	X(kPlayerHelpNotListed, "Quest items are not listed.")                                                                                         \
+	X(kPlayerHelpNotListedFavorites, "Quest items and your favorites are not listed.")                                                             \
+	X(kItemsSelected, "{0} of {1} items selected")                                                                                                 \
+	X(kAddFrom, "Add from")                                                                                                                        \
+	X(kAddFromWardrobe, "Wardrobe...")                                                                                                             \
+	X(kAddFromChest, "Chest...")                                                                                                                   \
+	X(kRestoreOutfit, "Restore Outfit")                                                                                                            \
+	X(kRestoreOutfitHelp, "Takes Livery's outfit off {0} and forgets their situational outfits.\nItems moved from your inventory stay with them.") \
+	X(kLivePreview, "Live Preview")                                                                                                                \
+	X(kPreviewSummary, "Keeps the game running and dresses the character in the selected items.")                                                  \
+	X(kPreviewCamera, "Camera, with the cursor over the game:")                                                                                    \
+	X(kPreviewLeftDrag, "Left drag - turns around the character")                                                                                  \
+	X(kPreviewRightDrag, "Right drag - pans")                                                                                                      \
+	X(kPreviewWheel, "Mouse wheel - zooms")                                                                                                        \
+	X(kPreviewMove, "W / A / S / D - moves (hold Shift for half speed)")                                                                           \
+	X(kSaveToWardrobe, "Save to Wardrobe...")                                                                                                      \
+	X(kSaveToWardrobeTooltip, "Save the selected items as a new outfit, or into an existing one.")                                                 \
+	X(kApplyTooltip, "Dress {0} in the selected items.")                                                                                           \
+	X(kApplyTooltipMove, "Dress {0} in the selected items.\nItems from your inventory move to {0}.")                                               \
+	X(kApplyTooltipCopy, "Dress {0} in the selected items.\n{0} gets a new copy of each item from your inventory; yours stay with you.")           \
+	X(kUpdateWithSelected, "Update {0} with the selected items?")                                                                                  \
+	X(kWornForSituation, "This is {0}'s {1} outfit.")                                                                                              \
+	X(kApplyOnly, "Apply Only")                                                                                                                    \
+	X(kApplyOnlyHelp, "Sets the selected items as {0}'s default outfit without adding them to the Wardrobe.")                                      \
+	X(kApplyOnlyHelpSituations, "The new default outfit takes effect when no situational outfit applies.")                                         \
+	X(kRestoreOriginalOutfit, "Restore {0}'s original outfit?")                                                                                    \
+	X(kSituationalOutfitsCleared, "Their situational outfits are cleared too.")                                                                    \
+	X(kApplyToActor, "Apply to {0}")
+
+// The Save page: its Create and Update tabs and the Update tab's popup.
+#define LIVERY_STRINGS_SAVE(X)                                               \
+	X(kCreateNewOutfit, "Create New Outfit")                                 \
+	X(kUpdateExistingOutfit, "Update Existing Outfit")                       \
+	X(kCreateAndApply, "Create and Apply")                                   \
+	X(kUpdateOutfit, "Update {0}")                                           \
+	X(kCurrentItems, "Current Items")                                        \
+	X(kNewItems, "New Items")                                                \
+	X(kSelectOutfitToUpdate, "Select an outfit to update")                   \
+	X(kReplaceItems, "Replace {0}'s {1} items with the {2} selected items?") \
+	X(kUnloadedItemsStay, "{0} items from unloaded plugins stay in it.")
+
+// The Appearance page.
+#define LIVERY_STRINGS_APPEARANCE(X)                                                                \
+	X(kWindowSkin, "Window skin")                                                                   \
+	X(kRestoreOriginalPalette, "Restore Original Palette")                                          \
+	X(kRestoreOriginalPaletteTooltip, "Writes the palette file back as Livery ships it.")           \
+	X(kRestorePaletteQuestion, "Restore {0}.ini to its original state? Your changes will be lost.") \
+	X(kPlayMenuSounds, "Play menu sounds")                                                          \
+	X(kPlayMenuSoundsTooltip, "Plays the game's menu sounds for clicks in Livery.")
+
+#define LIVERY_STRINGS(X)    \
+	LIVERY_STRINGS_COMMON(X) \
+	LIVERY_STRINGS_DRESS(X)  \
+	LIVERY_STRINGS_SAVE(X)   \
+	LIVERY_STRINGS_APPEARANCE(X)
 
 namespace Strings
 {
@@ -280,6 +384,47 @@ namespace Strings
 				return (a_c >= 'A' && a_c <= 'Z') || (a_c >= 'a' && a_c <= 'z') || (a_c >= '0' && a_c <= '9') || a_c == '_';
 			});
 		}
+
+		// A text cut at its values, for Strings::Pieces: runs of words ("{{" and "}}" read as
+		// braces) and the values' indexes, in order; an empty run is left out.
+		struct Cut
+		{
+			std::string words;       // when `value` is negative
+			int         value = -1;  // {n}: n
+		};
+
+		// Contract: `a_text` passes ValueCount, as every text Load keeps does.
+		inline std::vector<Cut> CutAtValues(std::string_view a_text)
+		{
+			std::vector<Cut> cuts;
+			std::string      words;
+			const auto       endWords = [&] {
+				if (!words.empty()) {
+					cuts.push_back({ .words = std::move(words) });
+					words.clear();
+				}
+			};
+			for (std::size_t i = 0; i < a_text.size(); ++i) {
+				const char c = a_text[i];
+				if ((c == '{' || c == '}') && i + 1 < a_text.size() && a_text[i + 1] == c) {
+					words += c;
+					++i;
+				} else if (c == '{') {
+					const auto close = a_text.find('}', i + 1);
+					endWords();
+					int index = 0;
+					for (std::size_t j = i + 1; j < close; ++j) {
+						index = index * 10 + (a_text[j] - '0');
+					}
+					cuts.push_back({ .value = index });
+					i = close;
+				} else {
+					words += c;
+				}
+			}
+			endWords();
+			return cuts;
+		}
 	}
 
 	// --- Strings ---------------------------------------------------------------
@@ -292,6 +437,27 @@ namespace Strings
 
 	// The text in the chosen language. The pointer stays valid for the whole game. Safe from any thread.
 	const char* Get(Text a_text);
+
+	// A part of a text cut at its values (Pieces): words, or where value `value` goes.
+	struct Piece
+	{
+		const char* words = nullptr;  // when `value` is negative
+		int         value = -1;
+	};
+
+	// The text in the chosen language cut at its {0}, {1}..., for a line that draws a value in a
+	// look of its own (an outfit's name after its icon). Empty until Load is done. The pieces
+	// stay valid for the whole game. Safe from any thread.
+	std::span<const Piece> Pieces(Text a_text);
+
+	// A text named where it is defined and read where it is used, in the chosen language: a
+	// constant that stands for a const char*.
+	struct Ref
+	{
+		Text text;
+
+		operator const char*() const { return Get(text); }  // NOLINT(google-explicit-constructor): stands in for a text constant
+	};
 
 	// The text with its {0}, {1}... filled by `a_args`, as many as its English names. Safe from any thread.
 	template <class... Args>

@@ -734,19 +734,27 @@ setting, off by default). Open:
 ## 10. Translations
 
 - Every text Livery shows the player is to come from `LIVERY_STRINGS` (`src/Strings.h`): an id
-  and its English. So far the window's page names (the tabs and the headings that repeat
-  them) do; the other texts move there page by page.
+  and its English. So far the window's shared texts and its Dress, Save and Appearance pages
+  do; the other pages move there one by one, the Situations page and the situations' names
+  after the custom situations (docs/custom-situations.md on its branch) reach `main`.
+- A sentence with a name drawn in a look of its own (an outfit after its icon) is one text
+  with values; `Strings::Pieces` gives it cut at them (at `Strings::Load`, so drawing
+  allocates nothing) and the window's `RunsOf` puts each value's part in its place. A
+  sentence is never built from fragments, so a translation can order it freely.
+- `Data/Interface/Translations/Livery_JAPANESE.txt` ships with Livery and is deployed with
+  it.
 - `[UI] Language` in `Livery.ini` picks the file: `Auto` (the default) is the game's
   `sLanguage`, another value a language name (letters, digits and `_`). `Strings::Load` reads
   `Data/Interface/Translations/Livery_<language>.txt` once, first at `kDataLoaded`; until then,
   and without the file, every text is English.
 - The file: one text a line, `$Livery_<id without k>`, one or more tabs, the text. UTF-16 LE
   with its byte order mark, as the game's translation files, or UTF-8; a file in neither is
-  not read. `\n` is a line break, `\` a backslash. A text with values names them `{0}`,
+  not read. `\n` is a line break, `\\` a backslash. A text with values names them `{0}`,
   `{1}`... and may leave some out; `{{` and `}}` are braces. A text with any other brace, or a
   value its English does not name, keeps the English and is logged; so are unknown ids. Lines
   not starting with `$` are notes.
 - The log names the language and how many texts the file gave (`Read 5 of 5 texts from
   Livery_JAPANESE.txt`).
-- A label that is also an ImGui ID (a tab, a popup's title) changes with the language; the
-  language stays for the whole game, so every use of the label through `Strings::Get` agrees.
+- A label that is also an ImGui ID (a tab, a button) changes with the language; the language
+  stays for the whole game, so every use of the label through `Strings::Get` agrees. A popup's
+  ID stays English: popups have no title bar, so it is never shown.

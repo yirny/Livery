@@ -4,6 +4,7 @@
 #include "Strings.h"
 
 #include <atomic>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -14,12 +15,19 @@ namespace
 	constexpr auto             kTranslationFolder = L"Data/Interface/Translations";
 	constexpr std::string_view kGameDefaultLanguage = "ENGLISH";  // when the game's sLanguage cannot be read
 
-	// The texts Get hands out: the English until Load publishes the translated table, which
-	// then stays for the whole game. Load runs once, so `g_translated` and the strings it
-	// points into are written before the store and never again.
-	std::atomic<const Strings::Detail::Table*> g_current{ &Strings::Detail::kEnglish };
-	Strings::Detail::Table                     g_translated{};
-	std::vector<std::string>                   g_texts;
+	// What Load hands out for the rest of the game: each text in the chosen language and its
+	// pieces (Strings::Pieces).
+	struct Published
+	{
+		Strings::Detail::Table                                           texts{};
+		std::array<std::vector<Strings::Piece>, Strings::Detail::kCount> pieces;
+		std::deque<std::string>                                          storage;  // the translations and the pieces' words; a deque keeps them in place
+	};
+
+	// Contract: Load fills `g_published` once, then stores its address; Get and Pieces read it
+	// only through `g_current`, so a reader sees it whole or not at all (then the English).
+	Published                     g_published;
+	std::atomic<const Published*> g_current{ nullptr };
 
 	// The game's language as its INI names it (sLanguage), as the game's own translation files
 	// are chosen.
@@ -33,6 +41,41 @@ namespace
 		}
 		return setting->data.s;
 	}
+
+	// The texts Livery_<language>.txt gives, or none when it is missing; logs what it read.
+	std::vector<std::string> ReadTranslation(const std::string& a_language)
+	{
+		const auto    fileName = std::format("Livery_{}.txt", a_language);
+		const auto    path = std::filesystem::current_path() / kTranslationFolder / fileName;
+		std::ifstream in{ path, std::ios::binary };
+		if (!in) {
+			logger::info("No {}, so Livery stays in English", fileName);
+			return {};
+		}
+		const std::string bytes{ std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>() };
+		auto              translation = Strings::Detail::Translate(bytes);
+		for (const auto& problem : translation.problems) {
+			logger::warn("{}: {}", fileName, problem);
+		}
+		logger::info("Read {} of {} texts from {}", translation.read, Strings::Detail::kCount, fileName);
+		return std::move(translation.texts);
+	}
+
+	// Fills g_published from `a_texts` (empty or one per text; an empty one keeps the English)
+	// and hands it out.
+	void Publish(std::vector<std::string> a_texts)
+	{
+		using Strings::Detail::kCount;
+		for (std::size_t i = 0; i < kCount; ++i) {
+			const bool translated = i < a_texts.size() && !a_texts[i].empty();
+			g_published.texts[i] = translated ? g_published.storage.emplace_back(std::move(a_texts[i])).c_str() : Strings::Detail::kEnglish[i];
+			for (auto& cut : Strings::Detail::CutAtValues(g_published.texts[i])) {
+				const char* words = cut.value < 0 ? g_published.storage.emplace_back(std::move(cut.words)).c_str() : nullptr;
+				g_published.pieces[i].push_back({ .words = words, .value = cut.value });
+			}
+		}
+		g_current.store(&g_published, std::memory_order_release);
+	}
 }
 
 namespace Strings
@@ -43,32 +86,22 @@ namespace Strings
 		logger::info("Language = {}{}", language, a_language.empty() ? " (Auto)" : "");
 		if (!Detail::IsLanguageName(language)) {
 			logger::warn("{} is not a language name (letters, digits and _ only), so Livery stays in English", language);
+			Publish({});
 			return;
 		}
-
-		const auto    fileName = std::format("Livery_{}.txt", language);
-		const auto    path = std::filesystem::current_path() / kTranslationFolder / fileName;
-		std::ifstream in{ path, std::ios::binary };
-		if (!in) {
-			logger::info("No {}, so Livery stays in English", fileName);
-			return;
-		}
-		const std::string bytes{ std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>() };
-
-		auto translation = Detail::Translate(bytes);
-		for (const auto& problem : translation.problems) {
-			logger::warn("{}: {}", fileName, problem);
-		}
-		g_texts = std::move(translation.texts);
-		for (std::size_t i = 0; i < Detail::kCount; ++i) {
-			g_translated[i] = g_texts[i].empty() ? Detail::kEnglish[i] : g_texts[i].c_str();
-		}
-		g_current.store(&g_translated, std::memory_order_release);
-		logger::info("Read {} of {} texts from {}", translation.read, Detail::kCount, fileName);
+		Publish(ReadTranslation(language));
 	}
 
 	const char* Get(Text a_text)
 	{
-		return (*g_current.load(std::memory_order_acquire))[static_cast<std::size_t>(a_text)];
+		const auto  index = static_cast<std::size_t>(a_text);
+		const auto* published = g_current.load(std::memory_order_acquire);
+		return published ? published->texts[index] : Detail::kEnglish[index];
+	}
+
+	std::span<const Piece> Pieces(Text a_text)
+	{
+		const auto* published = g_current.load(std::memory_order_acquire);
+		return published ? std::span<const Piece>{ published->pieces[static_cast<std::size_t>(a_text)] } : std::span<const Piece>{};
 	}
 }

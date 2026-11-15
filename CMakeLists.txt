@@ -224,6 +224,9 @@ else()
             DESTINATION "${DEPLOY_DIR}/SKSE/Plugins")
     sarrai_install_assets("${DEPLOY_DIR}/SKSE/Plugins/Livery")
 
+    # The translations of Livery's texts (src/Strings.cpp reads Livery_<language>.txt).
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Data/Interface" DESTINATION "${DEPLOY_DIR}")
+
     # `cmake --build --preset deploy`  (or  cmake --workflow --preset deploy)
     add_custom_target(
         deploy

@@ -100,3 +100,25 @@ TEST_CASE("IsLanguageName takes letters, digits and _ only", "[Strings]")
 	CHECK_FALSE(IsLanguageName("..\\ENGLISH"));
 	CHECK_FALSE(IsLanguageName("EN GLISH"));
 }
+
+TEST_CASE("CutAtValues cuts a text into its words and values in order", "[Strings]")
+{
+	using Strings::Detail::CutAtValues;
+	const auto cuts = CutAtValues("Replace {0}'s {1} items");
+	REQUIRE(cuts.size() == 5);
+	CHECK(cuts[0].words == "Replace ");
+	CHECK(cuts[1].value == 0);
+	CHECK(cuts[2].words == "'s ");
+	CHECK(cuts[3].value == 1);
+	CHECK(cuts[4].words == " items");
+	CHECK(CutAtValues("{1}{0}").size() == 2);
+	CHECK(CutAtValues("").empty());
+}
+
+TEST_CASE("CutAtValues reads doubled braces as braces", "[Strings]")
+{
+	const auto cuts = Strings::Detail::CutAtValues("{{a}} {0}");
+	REQUIRE(cuts.size() == 2);
+	CHECK(cuts[0].words == "{a} ");
+	CHECK(cuts[1].value == 0);
+}
