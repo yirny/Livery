@@ -44,6 +44,7 @@
 
 #include "ArmorInfo.h"
 #include "Assignments.h"
+#include "BuildInfo.h"  // generated in the build directory (cmake/BuildInfo.cmake)
 #include "CaptureWindow.h"
 #include "Chests.h"
 #include "Dressing.h"
@@ -1904,7 +1905,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 	// OwnOutfitGuard.cpp) need 14 bytes each; 128 leaves room to grow.
 	SKSE::Init(skse, { .trampoline = true, .trampolineSize = 128 });
 	SetupLog();
-	logger::info("Livery loaded");
+	// The build's git state tells which build runs (a worktree's, a branch's, one with local edits).
+	logger::info("Livery {} loaded ({} on {})", LIVERY_VERSION, LIVERY_BUILD_DESCRIBE, LIVERY_BUILD_BRANCH);
 	Settings::Load();
 	Assignments::RegisterCoSave();
 	InstallOverlay();
