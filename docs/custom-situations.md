@@ -303,9 +303,12 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   while the window is open, follows them once it closes.
 - While a situation is never worn (§8a), its details say so under the name, after a field's
   gap, in the error colour, wrapped: `Never worn: <name>, lower in the list, applies whenever
-  this does.`, naming the nearest. While it is selected, the Situation List draws the name of
-  every situation lower in the list that applies whenever it does in the error colour
-  (`SituationForm::neverWornBy`, `Theme::SituationHeadingLook::alert`); no mark otherwise.
+  this does.`, naming the nearest. Its heading carries a warning mark after the name (and its
+  count), a circle with an exclamation mark in the error colour
+  (`Theme::SituationHeadingLook::warning`), the same sentence its tooltip. While it is
+  selected, the Situation List draws the name of every situation lower in the list that applies
+  whenever it does in the error colour (`SituationForm::neverWornBy`,
+  `Theme::SituationHeadingLook::alert`).
 
 ## 8. Priority
 

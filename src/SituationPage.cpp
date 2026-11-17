@@ -561,8 +561,9 @@ namespace CaptureWindow::Internal
 		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
 		// details show; Edit always selects it and shows them; the chevron folds it. Every heading
 		// but the Default's drags from anywhere on it to another place in the order while the page
-		// offers that (Request::customSituations); its name is in the error colour while the
-		// selected situation is never worn because of it (OverridesSelected). Its die and
+		// offers that (Request::customSituations). A heading that is never worn carries a warning
+		// mark after its name, saying why (NeverWornText); one whose situation makes the selected
+		// one never worn has its name in the error colour (OverridesSelected). Its die and
 		// count show with random on alone; the die is a button as DiceOf says. Only random on
 		// with something to show has the chevron; else it is never folded (random off shows its
 		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
@@ -580,6 +581,7 @@ namespace CaptureWindow::Internal
 				entry.folded = false;
 			}
 			const auto  dice = entry.row.random ? DiceOf(a_state, a_entry) : Dice{};
+			const auto  neverWorn = NeverWornText(form, a_entry);
 			const bool  grip = a_entry != 0 && a_state.request.customSituations;
 			const float top = ImGui::GetCursorScreenPos().y;
 			const auto  click = Theme::SituationHeading(entry.name.data(),
@@ -593,7 +595,8 @@ namespace CaptureWindow::Internal
 					.dim = !shows,
 					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
 					.grip = grip,
-					.alert = OverridesSelected(form, a_entry) });
+					.alert = OverridesSelected(form, a_entry),
+					.warning = neverWorn.empty() ? nullptr : neverWorn.c_str() });
 			if (grip) {
 				OfferSituationDrag(a_entry, entry.name.data());
 			}
