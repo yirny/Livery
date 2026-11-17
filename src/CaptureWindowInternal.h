@@ -34,7 +34,7 @@ namespace CaptureWindow::Internal
 	using Text = Strings::Text;  // the player-facing texts, in the chosen language (Strings::Get)
 
 	constexpr std::size_t kNameCapacity = 64;                // bytes, UTF-8, including the terminator
-	constexpr float       kMaxListHeightRatio = 0.6f;        // of the screen height, for every scrolling list
+	constexpr float       kMaxListHeightRatio = 0.75f;       // of the screen height, for every scrolling list
 	constexpr const char* kConfirmPopup = "Replace items?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kCreateApplyPopup = "Apply outfit?###createAndApply";
 	constexpr const char* kApplyPopup = "Update the outfit?";

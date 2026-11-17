@@ -41,7 +41,7 @@ row with values holds while any of its values holds (OR), and `not` inverts the 
 nest:
 there are no OR groups (*provisional*: revisited after use; so far every wanted rule
 fits, "night or rain" being two situations). The same kind may appear in several rows
-("Rain" and "not Snowy region"). A row with values and none selected never holds, so its
+("Rain" and "not Cold"). A row with values and none selected never holds, so its
 situation never applies; the Situations page says so (§7). A situation with no rows never
 applies either.
 
@@ -65,8 +65,8 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Swimming | none | the actor state's swimming flag | `ActorState::IsSwimming` | not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no (`IsExteriorCell` is used by Cold) |
 | Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
-| Place | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
-| Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
+| Place (Specific Location in the editor) | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
+| Weather | Rain, Snow, Cold (key `snowyRegion`) | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Cold = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Cold not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell Effect (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
 | Weapon | none | a weapon, spell or fists drawn, or being put away (`kDrawn`, `kWantToSheathe`, `kSheathing`); negated, sheathed | `ActorState::IsWeaponDrawn` | no |
@@ -79,7 +79,7 @@ Notes:
 
 - The presets as installed (`SituationTable::PresetRules`), each with `Allow during combat` off:
   Town = Location type {Town}; Castle = Location type {Castle}; Home = Location type
-  {Player home}; Cold = Weather {Rain, Snow, Snowy region} and not Indoors; Sleep = Sleeping.
+  {Player home}; Cold = Weather {Rain, Snow, Cold} and not Indoors; Sleep = Sleeping.
   Two changes from the first release's fixed rules, decided 2026-11-14 since a rule cannot
   depend on who the actor is: Home no longer holds in any house for an NPC (`LocTypeHouse`),
   and Town holds in any house for the player too. Town and Cold by rain, verified through the
@@ -250,38 +250,49 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   Conditions...` under the text opens it on none. Off, the text is greyed and a hovered phrase
   says `Turn on custom situations in the settings to edit.` The links are for the mouse alone;
   the button is the way in by controller.
-- The `Edit conditions` popup, a modal as wide as the details pane, holds the editor in a list
-  that scrolls past 60% of the screen's height, then `Done`; Escape is Done unless it closed a
-  dropdown or a popup over the editor. Opened on a condition, it scrolls to it and fills it in a
-  selected row's colour, fading out over 1.5 s. The Add place and Add spell popups open over it.
-- The editor: each condition has a heading, the
-  kind's name as a field label (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the
-  kind's help and a × (`Theme::ClearButton`, `Remove this condition.` on hover) at the line's
-  right end; the label's gap sets the conditions apart. Under it the row reads as a sentence.
-  No `Not` checkbox: the row's `not` is a dropdown of two choices. A kind that reads an actor's
-  state (`Targetable`) starts with whose, a dropdown of the actor's name and `Player`
-  (`Row::target`; its help `<name>: checks this character` and `Player: checks you`; in the
-  player's own window, `Request::actorIsPlayer`, `<name>: checks each character wearing the
-  outfit` and `Player: always checks you`). A two-state kind
-  (`SituationRules::TwoState`) then reads `is` / `is not` and its phrase, `[Lydia] [is] in
-  water`, or is a dropdown of its two states where it has them (`KindInfo::state`, `negState`):
-  `Indoors` / `Outdoors`, `Weapon drawn` / `Weapon sheathed`. The others have the operator
-  dropdown: `is` / `is not` with up to one value or form selected, `is any of` / `is none of`
-  with more (as Linear and Airtable word it), Spell Effect `has` / `has not`, `has any of` /
-  `has none of`, `between` / `not between` for Time of day; then the values. Location type's
-  and Weather's are a multi-choice dropdown (the Filter field's rows, staying open for several
-  ticks) whose preview lists the ticked values, `Rain, Snow`, or a greyed `Select...` with
-  none; Time of day's are `[time] and [time]`, two dropdowns in 30-minute steps (a time read
-  from the file off those steps shows as it is). Both sit on the row while they fit, else under
-  it, 16px in. Place and Spell list their forms under the row, 16px in, one a line with a × at
-  its right end (`Remove this place.` / `Remove this spell.`; one whose plugin is not loaded
-  greyed, saying so on hover), then `Add Place...` or `Add Spell...`. Then `Add Condition...`,
-  a dropdown of the kinds, closed by the choice, which adds a row with nothing selected (a
-  Place or Spell row opens its Add popup at once); a two-state kind the situation has every row
-  it can take of (one; one per target for a kind with a target) is greyed there, a second adding
-  nothing. The label's help: `Applies while every condition holds.` and `A condition with
-  several values holds for any of them.`
-- `Add Place...` opens the `Add place` popup, its choices read as the window opens
+- The `Edit conditions` popup, a modal (every modal of the window: the main window's padding,
+  Vanilla's frame and Nordic's ornaments over the popup's own background, moved by a drag on it
+  as the main window is), as wide as the details pane or the widest row any kind can have
+  (`EditorContentWidth`), so only a Place or Spell row's list goes under its row: the heading
+  `Conditions` over the situation's name (`Theme::HeadingText`), the editor in an area as tall as
+  it up to 75% of the screen's height (`kMaxListHeightRatio`, every list's), scrolling with the
+  skin's scroll bar past it (`Theme::BeginScrollArea`), the `Applies` label with the help
+  `Applies while every condition holds.` and `A condition with several values holds for any of
+  them.` over the Applies text with its links, then `Done`; Escape is Done unless it closed a
+  dropdown or a popup over the editor. Opened on a condition, or on one clicked in its own
+  Applies text, it scrolls to it and fills its box in a selected row's colour, fading out over
+  1.5 s. The Add location and Add spell popups open over it. It stays hidden a frame longer
+  than ImGui's own, so its first opening is centred at its full height.
+- The editor: each condition is in a box, in every skin a 1px line of the rule colour with 4px
+  round corners, 12x8px inside and 8px apart. Its heading is the kind's name as a field label
+  (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the kind's help and a ×
+  (`Theme::ClearButton`, `Remove this condition.` on hover) at the line's right end. Under it the
+  row reads as a sentence. No `Not` checkbox: the row's `not` is a dropdown of two choices. A
+  kind that reads an actor's state (`Targetable`) starts with whose, a dropdown of the actor's
+  name and `Player` (`Row::target`; its help `<name>: checks this character` and `Player: checks
+  you`; in the player's own window, `Request::actorIsPlayer`, `<name>: checks each character
+  wearing the outfit` and `Player: always checks you`); the others with their subject in the
+  text colour (`KindInfo::subject`): `<name> is`, `The location type`, `The location`, `The
+  weather`, `The time is`. A two-state kind (`SituationRules::TwoState`) then reads `is` / `is
+  not` and its phrase, `[Lydia] [is] in water`, or is a dropdown of its two states where it has
+  them (`KindInfo::state`, `negState`): `Indoors` / `Outdoors`, `Weapon drawn` / `Weapon
+  sheathed`. The others have the operator dropdown, as wide as its widest wording so ticking
+  more values never widens it: `is` / `is not` with up to one value or form selected, `is any
+  of` / `is none of` with more (as Linear and Airtable word it), Spell Effect `has` / `has not`,
+  `has any of` / `has none of`, `between` / `not between` for Time of day; then the values.
+  Location type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying
+  open for several ticks; a value with a tip, `Value::tip`, says it while hovered: Cold's `A
+  region where it often snows, whatever the sky.`) whose preview lists the ticked values, `Rain,
+  Snow`, or a greyed `Select...` with none; Time of day's are `[time] and [time]`, two dropdowns
+  in 30-minute steps (a time read from the file off those steps shows as it is). Both sit on the
+  row while they fit, else under it, 16px in. Place (`Specific Location` in the editor) and
+  Spell list their forms under the row, 16px in, one a line with a × at its right end (`Remove
+  this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
+  hover), then `Add Location...` or `Add Spell...`. Then `Add Condition...`, a dropdown of the
+  kinds by label, closed by the choice, which adds a row with nothing selected (a Place or Spell
+  row opens its Add popup at once); a two-state kind the situation has every row it can take of
+  (one; one per target for a kind with a target) is greyed there, a second adding nothing.
+- `Add Location...` opens the `Add location` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
   `Parent Location (<name>)` for each location it is in, nearest first, up to the first hold
   or location holding a hold (Tamriel), left out with all above it, and of two in a row with

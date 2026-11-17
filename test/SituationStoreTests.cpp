@@ -171,7 +171,7 @@ TEST_CASE("The presets are installed with their rules, Allow during combat off",
 	CHECK(cold.rows[0].kind == Kind::kWeather);
 	CHECK(cold.rows[0].values == (SituationRules::kRain | SituationRules::kSnow | SituationRules::kSnowyRegion));
 	CHECK(cold.rows[1] == SituationRules::Row{ .kind = Kind::kIndoors, .negated = true });
-	CHECK(SituationRules::Text(cold) == "In rain, snow or a snowy region, outdoors.");
+	CHECK(SituationRules::Text(cold) == "In rain, snow or a cold region, outdoors.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kTown)) == "In a town.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kHome)) == "In a player home.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kSleep)) == "Sleeping.");
@@ -442,7 +442,7 @@ TEST_CASE("A Place row reads at its places, and never holds with none", "[situat
 	negated.negated = true;
 	negated.places.pop_back();
 	CHECK(SituationRules::Text({ .rows = { negated } }) == "Not at Breezehome.");
-	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kPlace } } }) == "Place (nothing selected).");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kPlace } } }) == "Specific Location (nothing selected).");
 	CHECK(SituationRules::NothingSelected({ .kind = Kind::kPlace }));
 	CHECK_FALSE(SituationRules::NothingSelected(home));
 	CHECK_FALSE(SituationRules::NothingSelected({ .kind = Kind::kIndoors }));

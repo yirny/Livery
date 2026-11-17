@@ -231,9 +231,10 @@ namespace SituationRules
 	struct Value
 	{
 		std::uint32_t bit;
-		const char*   key;     // in situations.json
-		const char*   label;   // the editor's checkbox
-		const char*   phrase;  // in the Applies line, after "in"
+		const char*   key;       // in situations.json
+		const char*   label;     // the editor's checkbox
+		const char*   phrase;    // in the Applies line, after "in"
+		const char*   tip = "";  // on its row in the editor's dropdown, while hovered; "" for none
 	};
 
 	inline constexpr std::array<Value, 4> kLocationTypes{ {
@@ -246,7 +247,7 @@ namespace SituationRules
 	inline constexpr std::array<Value, 3> kWeathers{ {
 		{ kRain, "rain", "Rain", "rain" },
 		{ kSnow, "snow", "Snow", "snow" },
-		{ kSnowyRegion, "snowyRegion", "Snowy region", "a snowy region" },
+		{ kSnowyRegion, "snowyRegion", "Cold", "a cold region", "A region where it often snows, whatever the sky." },
 	} };
 
 	struct KindInfo
@@ -263,22 +264,24 @@ namespace SituationRules
 		const char*            youNegPhrase;  // negated; "" for "while you are not " + phrase
 		std::span<const Value> values;        // empty for a kind without
 		bool                   targetable;    // the row may read the player instead of the wearer (Target)
+		const char*            subject = "";  // the row's first words in the editor for a kind that is not targetable ("The weather"); `{}` names the actor
 	};
 
-	// Every kind at the index of its Kind (InfoOf), in the order the editor offers them.
+	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them by label.
 	inline constexpr std::array<KindInfo, 11> kKinds{ {
 		{ Kind::kInCombat, "inCombat", "In combat", "", "", "Fighting.\nWith this condition the situation applies in combat.", "in combat", "", "", "", {}, true },
 		{ Kind::kSleeping, "sleeping", "Sleeping", "", "", "Going to bed, in it or getting up.", "sleeping", "", "", "", {}, true },
 		{ Kind::kInWater, "inWater", "In water", "", "", "Swimming, or wading.\nOn a horse, swimming only.", "in water", "", "", "", {}, true },
 		{ Kind::kSwimming, "swimming", "Swimming", "", "", "Swimming only, not wading.", "swimming", "", "", "", {}, true },
-		{ Kind::kIndoors, "indoors", "Indoors", "Indoors", "Outdoors", "Inside a building, cave or other interior.", "indoors", "outdoors", "", "", {}, false },
+		{ Kind::kIndoors, "indoors", "Indoors", "Indoors", "Outdoors", "Inside a building, cave or other interior.", "indoors", "outdoors", "", "", {}, false, "{} is" },
 		{ Kind::kLocationType, "locationType", "Location type", "", "",
 			"Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.",
-			"", "", "", "", kLocationTypes, false },
-		{ Kind::kPlace, "place", "Place", "", "", "In one of the places listed.\nA place counts with every room and area in it.", "", "", "", "", {}, false },
+			"", "", "", "", kLocationTypes, false, "The location type" },
+		{ Kind::kPlace, "place", "Specific Location", "", "", "In one of the locations listed.\nA location counts with every room and area in it.", "", "", "", "", {}, false,
+			"The location" },
 		{ Kind::kWeather, "weather", "Weather", "", "",
-			"Rain and Snow follow the sky, indoors too.\nSnowy region: a region where it often snows, whatever the sky.", "", "", "", "", kWeathers, false },
-		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "", "", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", "", "", "", {}, false },
+			"Rain and Snow follow the sky, indoors too.\nCold: a region where it often snows, whatever the sky.", "", "", "", "", kWeathers, false, "The weather" },
+		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "", "", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", "", "", "", {}, false, "The time is" },
 		{ Kind::kSpell, "spell", "Spell Effect", "", "",
 			"A spell, power, shout, potion or other effect currently affecting {}.\nListed by spell name, not effect name.\n"
 			"Any spell, scroll or potion with the same effects counts.",

@@ -68,13 +68,18 @@ namespace CaptureWindow::Internal
 		constexpr const char* kRemoveSituationPopup = "Remove situation?";
 		constexpr const char* kRestorePresetsPopup = "Restore presets?";
 		constexpr const char* kNewSituationPopup = "New situation";
-		constexpr const char* kAddPlacePopup = "Add place";
+		constexpr const char* kAddPlacePopup = "Add location";
 		constexpr const char* kAddSpellPopup = "Add spell";
 		constexpr const char* kEditConditionsPopup = "Edit conditions";
 		constexpr const char* kNewSituation = "New Situation...";
 		constexpr const char* kEditConditions = "Edit Conditions...";
 		// Over a condition in the Applies text while the settings page does not offer the editor.
 		constexpr const char* kTurnOnCustom = "Turn on custom situations in the settings to edit.";
+		// A condition's box in the editor, in every skin (pixels at 1080p): its padding inside,
+		// the gap under it, its corners' radius.
+		constexpr ImVec2 kConditionBoxPadding{ 12.0f, 8.0f };
+		constexpr float  kConditionBoxGap = 8.0f;
+		constexpr float  kConditionBoxRounding = 4.0f;
 		// Reasons a button is greyed out, shown on hover.
 		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
 		// The name a situation gets when neither the one typed nor the one before can be used.
@@ -756,13 +761,42 @@ namespace CaptureWindow::Internal
 			return a_negated ? "is not" : "is";
 		}
 
-		// A dropdown of two choices, `a_positive` while `a_negated` is off and `a_negative` on: a
-		// row's operator, or a two-state condition itself. Returns true when switched; `a_hovered`
-		// tells the caller to show the kind's help (never while open).
-		bool DrawNegationDropdown(const char* a_id, const char* a_positive, const char* a_negative, bool& a_negated, bool& a_hovered)
+		// The widest of `a_labels` as a dropdown's preview and row (Theme::DropdownWidth).
+		float WidestDropdown(std::initializer_list<const char*> a_labels)
 		{
 			const Theme::FieldStyle style{};
-			ImGui::SetNextItemWidth((std::max)(Theme::DropdownWidth(a_positive, style), Theme::DropdownWidth(a_negative, style)));
+			float                   widest = 0.0f;
+			for (const char* label : a_labels) {
+				widest = (std::max)(widest, Theme::DropdownWidth(label, style));
+			}
+			return widest;
+		}
+
+		// A row's operator dropdown is as wide as its widest wording (OperatorLabel), so a second
+		// value ticked ("is" to "is any of") never widens it.
+		float OperatorWidth(SituationRules::Kind a_kind)
+		{
+			using SituationRules::Kind;
+			if (a_kind == Kind::kTimeOfDay) {
+				return WidestDropdown({ "between", "not between" });
+			}
+			if (a_kind == Kind::kSpell) {
+				return WidestDropdown({ "has", "has not", "has any of", "has none of" });
+			}
+			if (SituationRules::HasValues(a_kind) || SituationRules::HasForms(a_kind)) {
+				return WidestDropdown({ "is", "is not", "is any of", "is none of" });
+			}
+			return WidestDropdown({ "is", "is not" });
+		}
+
+		// A dropdown of two choices, `a_positive` while `a_negated` is off and `a_negative` on: a
+		// row's operator, `a_width` wide (OperatorWidth), or a two-state condition itself, as wide
+		// as its wider choice with `a_width` 0. Returns true when switched; `a_hovered` tells the
+		// caller to show the kind's help (never while open).
+		bool DrawNegationDropdown(const char* a_id, const char* a_positive, const char* a_negative, float a_width, bool& a_negated, bool& a_hovered)
+		{
+			const Theme::FieldStyle style{};
+			ImGui::SetNextItemWidth(a_width > 0.0f ? a_width : WidestDropdown({ a_positive, a_negative }));
 			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_None, style);
 			a_hovered = !open && ImGui::IsItemHovered();
 			bool changed = false;
@@ -788,7 +822,7 @@ namespace CaptureWindow::Internal
 
 			const char*             wearer = a_request.actorName.c_str();
 			const Theme::FieldStyle style{};
-			ImGui::SetNextItemWidth((std::max)(Theme::DropdownWidth(wearer, style), Theme::DropdownWidth(kPlayer, style)));
+			ImGui::SetNextItemWidth(WidestDropdown({ wearer, kPlayer }));
 			const bool open = Theme::BeginCombo("##target", ImGuiComboFlags_None, style);
 			const bool hovered = !open && ImGui::IsItemHovered();
 			bool       changed = false;
@@ -834,6 +868,9 @@ namespace CaptureWindow::Internal
 					if (Theme::DropdownRow(value.label, &ticked, true)) {  // stays open for several ticks
 						a_row.values ^= value.bit;
 						changed = true;
+					}
+					if (*value.tip && ImGui::IsItemHovered()) {
+						Theme::Tooltip(value.tip);
 					}
 				}
 			}
@@ -927,7 +964,7 @@ namespace CaptureWindow::Internal
 			kNone,
 			kChanged,
 			kRemove,
-			kAddForm  // a Place row's Add Place... or a Spell row's Add Spell... pressed
+			kAddForm  // a Place row's Add Location... or a Spell row's Add Spell... pressed
 		};
 
 		// A spell's hover: its plugin and FormID, then its visible effects a line each
@@ -958,7 +995,7 @@ namespace CaptureWindow::Internal
 
 		// A Place or Spell row's forms, a line each with a × centred on `a_crossX`, one whose
 		// plugin is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
-		// Place... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
+		// Location... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
 		// link was pressed.
 		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_crossX, bool& a_add)
 		{
@@ -981,7 +1018,7 @@ namespace CaptureWindow::Internal
 				} else if (!place && ImGui::IsItemHovered()) {
 					Theme::Tooltip(SpellTip(form, EffectLinesOf(a_request, form)).c_str());
 				}
-				if (DrawRemoveCross("##remove", a_crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y, place ? "Remove this place." : "Remove this spell.")) {
+				if (DrawRemoveCross("##remove", a_crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y, place ? "Remove this location." : "Remove this spell.")) {
 					removed = i;
 				}
 				ImGui::PopID();
@@ -989,8 +1026,39 @@ namespace CaptureWindow::Internal
 			if (removed) {
 				forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(*removed));
 			}
-			a_add = Theme::LabelLink(place ? "Add Place..." : "Add Spell...", Theme::LinkLine::kNext);
+			a_add = Theme::LabelLink(place ? "Add Location..." : "Add Spell...", Theme::LinkLine::kNext);
 			return removed.has_value();
+		}
+
+		// A row's first words for a kind that is not targetable (KindInfo::subject, the actor
+		// named); "" for a targetable kind, whose row starts with whose state.
+		std::string SubjectOf(const CaptureWindow::Request& a_request, const SituationRules::KindInfo& a_info)
+		{
+			return std::vformat(a_info.subject, std::make_format_args(a_request.actorName));
+		}
+
+		// How wide a row of `a_kind` is with every value shown on it: whose state or its subject,
+		// the operator or state dropdown, then the phrase, the values or the times. A Place or
+		// Spell row lists its forms under it, so only its first line counts.
+		float ConditionRowWidth(const CaptureWindow::Request& a_request, SituationRules::Kind a_kind)
+		{
+			const auto& info = SituationRules::InfoOf(a_kind);
+			const float gap = ImGui::GetStyle().ItemSpacing.x;
+			float       width = info.targetable ? WidestDropdown({ a_request.actorName.c_str(), "Player" }) : ImGui::CalcTextSize(SubjectOf(a_request, info).c_str()).x;
+			if (SituationRules::TwoState(a_kind) && *info.state) {
+				width += gap + WidestDropdown({ info.state, info.negState });
+			} else {
+				width += gap + OperatorWidth(a_kind);
+				if (SituationRules::TwoState(a_kind)) {
+					width += gap + ImGui::CalcTextSize(info.phrase).x;
+				}
+			}
+			if (!info.values.empty()) {
+				width += gap + ValuesDropdownWidth(a_kind).most;
+			} else if (a_kind == SituationRules::Kind::kTimeOfDay) {
+				width += gap + TimeRangeWidth();
+			}
+			return width;
 		}
 
 		// One condition: its heading (the kind's name, its help on the (?), a × at the line's right
@@ -1003,7 +1071,7 @@ namespace CaptureWindow::Internal
 			const auto& info = SituationRules::InfoOf(a_row.kind);
 			const float side = ImGui::GetFrameHeight();
 			const float crossX = a_lineRight - side * 0.5f;
-			Theme::LabelText(info.label);
+			Theme::LabelText(info.label, Theme::HeadingIcon::kNone, false);  // the box sets the conditions apart
 			if (Theme::LabelHelpMark()) {
 				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
@@ -1015,12 +1083,16 @@ namespace CaptureWindow::Internal
 			if (info.targetable) {
 				changed = DrawTargetDropdown(a_request, a_row);
 				ImGui::SameLine();
+			} else {
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted(SubjectOf(a_request, info).c_str());
+				ImGui::SameLine();
 			}
 			if (SituationRules::TwoState(a_row.kind) && *info.state) {
-				changed = DrawNegationDropdown("##state", info.state, info.negState, a_row.negated, ignored) || changed;
+				changed = DrawNegationDropdown("##state", info.state, info.negState, 0.0f, a_row.negated, ignored) || changed;
 			} else {
 				changed = DrawNegationDropdown("##operator", time ? "between" : OperatorLabel(a_row, false), time ? "not between" : OperatorLabel(a_row, true),
-							  a_row.negated, ignored) ||
+							  OperatorWidth(a_row.kind), a_row.negated, ignored) ||
 				          changed;
 				if (SituationRules::TwoState(a_row.kind)) {
 					ImGui::SameLine();
@@ -1085,8 +1157,26 @@ namespace CaptureWindow::Internal
 			return (wearer || player) && (!SituationRules::Targetable(a_kind) || (wearer && player));
 		}
 
-		// Add Condition...: a dropdown of the kinds, closed by a choice; returns the one chosen. A
-		// two-state kind the situation has every row it can take of is greyed (KindExhausted).
+		// The kinds by label, ASCII case ignored, as Add Condition... lists them.
+		const std::array<const SituationRules::KindInfo*, SituationRules::kKinds.size()>& KindsByLabel()
+		{
+			static const auto sorted = [] {
+				std::array<const SituationRules::KindInfo*, SituationRules::kKinds.size()> kinds{};
+				for (std::size_t i = 0; i < kinds.size(); ++i) {
+					kinds[i] = &SituationRules::kKinds[i];
+				}
+				const auto lower = [](char a_char) { return a_char >= 'A' && a_char <= 'Z' ? static_cast<char>(a_char - 'A' + 'a') : a_char; };
+				std::ranges::sort(kinds, [&lower](const SituationRules::KindInfo* a_left, const SituationRules::KindInfo* a_right) {
+					return std::ranges::lexicographical_compare(std::string_view(a_left->label), std::string_view(a_right->label), {}, lower, lower);
+				});
+				return kinds;
+			}();
+			return sorted;
+		}
+
+		// Add Condition...: a dropdown of the kinds by label, closed by a choice; returns the one
+		// chosen. A two-state kind the situation has every row it can take of is greyed
+		// (KindExhausted).
 		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
 		{
 			constexpr const char* kAddCondition = "Add Condition...";
@@ -1096,11 +1186,11 @@ namespace CaptureWindow::Internal
 			const bool                          open = Theme::BeginCombo("##addCondition", ImGuiComboFlags_HeightLargest, style);
 			std::optional<SituationRules::Kind> added;
 			if (open) {
-				for (const auto& info : SituationRules::kKinds) {
+				for (const auto* info : KindsByLabel()) {
 					bool chosen = false;
-					ImGui::BeginDisabled(KindExhausted(a_rules, info.kind));
-					if (Theme::DropdownRow(info.label, &chosen, false)) {
-						added = info.kind;
+					ImGui::BeginDisabled(KindExhausted(a_rules, info->kind));
+					if (Theme::DropdownRow(info->label, &chosen, false)) {
+						added = info->kind;
 						ImGui::CloseCurrentPopup();
 					}
 					ImGui::EndDisabled();
@@ -1130,10 +1220,11 @@ namespace CaptureWindow::Internal
 			return changed;
 		}
 
-		// The fill behind the condition the editor was opened on (SituationForm::editorFocus), at
-		// the cursor, as tall as it was last drawn, fading out; scrolls the editor to it while
-		// SituationForm::editorScroll frames remain.
-		void LightFocusedCondition(SituationForm& a_form, float a_lineRight)
+		// The fill inside the box of the condition the editor was opened on
+		// (SituationForm::editorFocus), its top left `a_topLeft`, as tall as the box was last
+		// drawn, fading out; scrolls the editor to it while SituationForm::editorScroll frames
+		// remain.
+		void LightFocusedCondition(SituationForm& a_form, ImVec2 a_topLeft, float a_right)
 		{
 			constexpr double kLightSeconds = 1.5;  // from the editor's opening to the fill gone
 
@@ -1145,38 +1236,56 @@ namespace CaptureWindow::Internal
 			if (lit <= 0.0 || a_form.editorFocusHeight <= 0.0f) {
 				return;
 			}
-			ImVec4       fill = ImGui::GetStyleColorVec4(ImGuiCol_Header);  // a selected row's
-			const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+			ImVec4 fill = ImGui::GetStyleColorVec4(ImGuiCol_Header);  // a selected row's
 			fill.w *= static_cast<float>(lit);
-			ImGui::GetWindowDrawList()->AddRectFilled(topLeft, ImVec2(a_lineRight, topLeft.y + a_form.editorFocusHeight), ImGui::GetColorU32(fill));
+			ImGui::GetWindowDrawList()->AddRectFilled(a_topLeft, ImVec2(a_right, a_topLeft.y + a_form.editorFocusHeight), ImGui::GetColorU32(fill),
+				kConditionBoxRounding * Theme::Scale());
 		}
 
-		// A user's situation's conditions as edited: a line per row (DrawConditionRow), the one
-		// it was opened on lit (LightFocusedCondition), Add Condition..., Allow during combat,
-		// then the Applies line they make. Returns true on a change; sets `a_addForm` when a Place
-		// or Spell row's Add link was pressed, that row in SituationForm::formRow.
+		// The editor's content width: the widest row any kind can have (ConditionRowWidth) in its
+		// box, and room for the scroll bar, so only a Place or Spell row's list goes under its row.
+		float EditorContentWidth(const CaptureWindow::Request& a_request)
+		{
+			float widest = 0.0f;
+			for (const auto& info : SituationRules::kKinds) {
+				widest = (std::max)(widest, ConditionRowWidth(a_request, info.kind));
+			}
+			return widest + std::round(kConditionBoxPadding.x * Theme::Scale()) * 2.0f + ImGui::GetStyle().ScrollbarSize;
+		}
+
+		// A user's situation's conditions as edited: a row each (DrawConditionRow) in a box of a
+		// 1px rule-coloured line with round corners, the one the editor was opened on lit
+		// (LightFocusedCondition), then Add Condition... and Allow during combat. Returns true on
+		// a change; sets `a_addForm` when a Place or Spell row's Add link was pressed, that row in
+		// SituationForm::formRow.
 		bool DrawConditionEditor(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
 		{
-			Theme::LabelText("Conditions");
-			if (Theme::LabelHelpMark()) {
-				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
-			}
 			auto&                      form = a_state.situationForm;
-			const float                lineRight = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+			const float                scale = Theme::Scale();
+			const ImVec2               padding(std::round(kConditionBoxPadding.x * scale), std::round(kConditionBoxPadding.y * scale));
+			const float                boxRight = std::round(ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x);
+			auto*                      draw = ImGui::GetWindowDrawList();
 			bool                       changed = false;
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
-				const bool  focused = static_cast<int>(i) == form.editorFocus;
-				const float top = ImGui::GetCursorScreenPos().y;
+				const bool   focused = static_cast<int>(i) == form.editorFocus;
+				const ImVec2 cursor = ImGui::GetCursorScreenPos();
+				const ImVec2 topLeft(std::round(cursor.x), std::round(cursor.y));
 				if (focused) {
-					LightFocusedCondition(form, lineRight);
+					LightFocusedCondition(form, topLeft, boxRight);
 				}
+				ImGui::SetCursorScreenPos(ImVec2(topLeft.x, topLeft.y + padding.y));
+				ImGui::Indent(padding.x);
 				ImGui::PushID(static_cast<int>(i));
-				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], lineRight);  // its heading opens its field
+				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], boxRight - padding.x);
 				ImGui::PopID();
+				ImGui::Unindent(padding.x);
+				const float bottom = std::round(ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y + padding.y);
+				draw->AddRect(topLeft, ImVec2(boxRight, bottom), ImGui::GetColorU32(ImGuiCol_Border), kConditionBoxRounding * scale, ImDrawFlags_None, 1.0f);
 				if (focused) {
-					form.editorFocusHeight = ImGui::GetCursorScreenPos().y - top - ImGui::GetStyle().ItemSpacing.y;
+					form.editorFocusHeight = bottom - topLeft.y;
 				}
+				ImGui::SetCursorScreenPos(ImVec2(topLeft.x, bottom + std::round(kConditionBoxGap * scale)));
 				if (edit == ConditionEdit::kAddForm) {
 					a_state.situationForm.formRow = static_cast<int>(i);
 					a_addForm = true;
@@ -1191,9 +1300,6 @@ namespace CaptureWindow::Internal
 				a_rules.rows.erase(a_rules.rows.begin() + static_cast<std::ptrdiff_t>(*removed));
 				form.editorFocus = -1;  // its index may now name another
 			}
-			if (!a_rules.rows.empty()) {
-				Theme::SectionGap();
-			}
 			if (const auto kind = DrawAddCondition(a_rules)) {
 				a_rules.rows.push_back({ .kind = *kind });
 				changed = true;
@@ -1205,10 +1311,6 @@ namespace CaptureWindow::Internal
 			}
 			Theme::SectionGap();  // not a condition: apart from the list
 			changed = DrawAllowDuringCombat(a_state, a_rules) || changed;
-			Theme::LabelText("Applies");
-			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			DrawFieldText(SituationRules::Text(a_rules).c_str());
-			ImGui::PopStyleColor();
 			if (changed) {
 				QueueMenuSound(kFocusSound);
 			}
@@ -1386,11 +1488,12 @@ namespace CaptureWindow::Internal
 				ImGui::PopStyleColor();
 				return false;
 			}
-			form.editorWidth = ImGui::GetContentRegionAvail().x;
-			const bool pressed = Theme::Button(kEditConditions);
+			const float paneWidth = ImGui::GetContentRegionAvail().x;
+			const bool  pressed = Theme::Button(kEditConditions);
 			if (clicked < 0 && !pressed) {
 				return false;
 			}
+			form.editorWidth = (std::max)(paneWidth, EditorContentWidth(a_state.request));
 			form.editorFocus = clicked;
 			return true;
 		}
@@ -1878,9 +1981,7 @@ namespace CaptureWindow::Internal
 			// past the content into the window's padding in Vanilla and Nordic (Theme::BeginList),
 			// which a popup fitted to its content would take in and grow by at every frame.
 			const float width = (std::max)(ImGui::CalcTextSize(lead.c_str()).x, ImGui::GetFontSize() * kWidthInFonts);
-			Theme::PushPopupPadding();
 			const float windowWidth = width + ImGui::GetStyle().WindowPadding.x * 2.0f;
-			Theme::PopPopupPadding();
 			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
 			if (!BeginModal(kAddSpellPopup)) {
 				return std::nullopt;
@@ -2047,19 +2148,18 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// The Edit conditions popup (docs/custom-situations.md §7): the selected situation's
-		// condition editor (DrawConditionEditor) as wide as the details pane, scrolling past a
-		// part of the screen's height, then Done; Escape is Done unless it closed a dropdown or
-		// a popup over it. Its edits are saved once it closes (TakeAutosaveDue waits for it).
+		// The Edit conditions popup (docs/custom-situations.md §7), as wide as the details pane
+		// or its widest row (EditorContentWidth): the heading `Conditions` over the situation's
+		// name, the condition editor (DrawConditionEditor) in an area scrolling past
+		// kMaxListHeightRatio of the screen, the Applies text with its links, then Done; Escape is
+		// Done unless it closed a dropdown or a popup over it. Its edits are saved once it closes
+		// (TakeAutosaveDue waits for it).
 		void DrawConditionEditorPopup(State& a_state)
 		{
-			constexpr float       kMaxHeightRatio = 0.6f;  // of the screen's height, the conditions' at most
 			constexpr const char* kDone = "Done";
 
-			auto& form = a_state.situationForm;
-			Theme::PushPopupPadding();
+			auto&       form = a_state.situationForm;
 			const float windowWidth = form.editorWidth + ImGui::GetStyle().WindowPadding.x * 2.0f;
-			Theme::PopPopupPadding();
 			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
 			if (!BeginModal(kEditConditionsPopup)) {
 				return;
@@ -2071,23 +2171,39 @@ namespace CaptureWindow::Internal
 			}
 			if (ImGui::IsWindowAppearing()) {
 				form.editorFocusFrom = ImGui::GetTime();
-				form.editorScroll = 2;  // the list's height is known from its second frame
+				form.editorScroll = 2;  // the area's height is known from its second frame
 				form.editorFocusHeight = 0.0f;
 				form.editorPopupAbove = false;
+				// Contract: ImGui 1.92.7 centres the popup (BeginModal's pivot) at the first frame
+				// it is shown, at the size its content had the frame before. The scroll area learns
+				// its height a frame after it is made, so the popup stays hidden one frame more
+				// than ImGui's own, or the first opening is centred too short and grows downwards.
+				ImGui::GetCurrentWindow()->HiddenFramesCannotSkipItems = 2;
 			}
 			// Before anything is drawn: a dropdown that Escape closed is gone by now.
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !form.editorPopupAbove && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 
-			auto& rules = form.entries[static_cast<std::size_t>(form.selected)].rules;
-			bool  addForm = false;
-			ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, ImGui::GetIO().DisplaySize.y * kMaxHeightRatio));
-			if (ImGui::BeginChild("conditions", ImVec2(0.0f, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground)) {
-				if (DrawConditionEditor(a_state, rules, addForm)) {
+			auto&                                   entry = form.entries[static_cast<std::size_t>(form.selected)];
+			const std::array<Theme::SubtitleRun, 1> name{ SituationRun(entry.name.data()) };
+			Theme::HeadingText("Conditions", name);
+			bool addForm = false;
+			if (Theme::BeginScrollArea("conditions", ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio)) {
+				if (DrawConditionEditor(a_state, entry.rules, addForm)) {
 					form.neverWornStale = true;
 					ScheduleAutosave(a_state);
 				}
 			}
-			ImGui::EndChild();
+			Theme::EndScrollArea();
+			Theme::LabelText("Applies");
+			if (Theme::LabelHelpMark()) {
+				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
+			}
+			if (const int clicked = DrawAppliesLinks(a_state, entry.rules); clicked >= 0) {
+				QueueMenuSound(kFocusSound);
+				form.editorFocus = clicked;
+				form.editorFocusFrom = ImGui::GetTime();
+				form.editorScroll = 1;
+			}
 			if (addForm) {
 				QueueMenuSound(kOkSound);
 				OpenAddFormPopup(a_state);

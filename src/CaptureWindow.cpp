@@ -1065,7 +1065,8 @@ namespace CaptureWindow::Internal
 		Theme::EndTooltip();
 	}
 
-	// Opens a modal popup centred on the screen, in the skin; when it returns true, fill it
+	// Opens a modal popup centred on the screen, dressed as the main window (Theme::PushModalStyle,
+	// DecorateWindow) and moved as it is, by a drag on its background; when it returns true, fill it
 	// and call ImGui::EndPopup.
 	// Contract: called every frame on the page that opens it: a modal that is open but not
 	// submitted stays invisible and still blocks the window.
@@ -1073,10 +1074,10 @@ namespace CaptureWindow::Internal
 	{
 		const auto& io = ImGui::GetIO();
 		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar;
-		Theme::PushPopupPadding();
+		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar;
+		Theme::PushModalStyle();
 		const bool open = ImGui::BeginPopupModal(a_id, nullptr, flags);
-		Theme::PopPopupPadding();
+		Theme::PopModalStyle();
 		if (!open) {
 			return false;
 		}
