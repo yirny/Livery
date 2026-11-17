@@ -17,10 +17,10 @@
 //                     die of the row worn puts on another of its outfits) over the outfits it
 //                     shows; a click on an outfit row of either pane shows its details and puts
 //                     it on the preview
-//   Condition editor - a situation's conditions (docs/custom-situations.md §7): a line
-//                     per row that reads as a sentence (a two-state dropdown, or the kind, an
-//                     operator dropdown and its values), places or spells under it, a × at each
-//                     line's end; Add Condition..., Allow during combat, the Applies line
+//   Condition editor - a situation's conditions (docs/custom-situations.md §7): per condition a
+//                     heading with its × and a row that reads as a sentence (whose state, "is" or
+//                     a two-state dropdown, an operator dropdown and its values), places or spells
+//                     under it with a × each; Add Condition..., Allow during combat, the Applies line
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
 //                     details: name, never worn, conditions, Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
@@ -724,18 +724,26 @@ namespace CaptureWindow::Internal
 
 		// --- Condition editor -------------------------------------------------
 		//
-		// A condition reads as a sentence (docs/custom-situations.md §7): a two-state kind is one
-		// dropdown of its two states ("In combat" / "Not in combat"); the others are the kind's name,
-		// an operator dropdown ("is" / "is not", "is any of" / "is none of" with several selected,
-		// "between" / "not between") and their values: a multi-choice dropdown, the two times, or
-		// the places or spells listed under the line. Each condition, place and spell has a × at
-		// the line's right end.
+		// Each condition has a heading, its kind's name with (?) and a × at the line's right end,
+		// and under it reads as a sentence (docs/custom-situations.md §7): a kind reading an actor's
+		// state starts with whose, the wearer or the player (a dropdown, hidden while the actor is
+		// the player), then "is" / "is not" and its phrase, or for Weapon a dropdown of its two
+		// states, as Indoors is; the others an operator dropdown ("is" / "is not", "is any of" /
+		// "is none of" with several selected, "between" / "not between") and their values: a
+		// multi-choice dropdown, the two times, or the places or spells listed under, each with a ×.
 
 		// The operator a row with values or forms reads with: "is" / "is not" up to one
-		// selected, "is any of" / "is none of" with more.
+		// selected, "is any of" / "is none of" with more; a Spell Effect row "has" / "has not",
+		// "has any of" / "has none of".
 		const char* OperatorLabel(const SituationRules::Row& a_row, bool a_negated)
 		{
 			const auto count = SituationRules::HasValues(a_row.kind) ? static_cast<std::size_t>(std::popcount(a_row.values)) : SituationRules::FormsOf(a_row).size();
+			if (a_row.kind == SituationRules::Kind::kSpell) {
+				if (count > 1) {
+					return a_negated ? "has none of" : "has any of";
+				}
+				return a_negated ? "has not" : "has";
+			}
 			if (count > 1) {
 				return a_negated ? "is none of" : "is any of";
 			}
@@ -762,6 +770,34 @@ namespace CaptureWindow::Internal
 				}
 			}
 			Theme::EndCombo(open, a_negated ? a_negative : a_positive, style);
+			return changed;
+		}
+
+		// Whose state the row reads (SituationRules::Target): the wearer, named as the actor, or
+		// the player. Returns true when switched.
+		bool DrawTargetDropdown(const CaptureWindow::Request& a_request, SituationRules::Row& a_row)
+		{
+			constexpr const char* kPlayer = "Player";
+
+			const char*             wearer = a_request.actorName.c_str();
+			const Theme::FieldStyle style{};
+			ImGui::SetNextItemWidth((std::max)(Theme::DropdownWidth(wearer, style), Theme::DropdownWidth(kPlayer, style)));
+			const bool open = Theme::BeginCombo("##target", ImGuiComboFlags_None, style);
+			const bool hovered = !open && ImGui::IsItemHovered();
+			bool       changed = false;
+			if (open) {
+				for (const auto target : { SituationRules::Target::kWearer, SituationRules::Target::kPlayer }) {
+					bool chosen = target == a_row.target;
+					if (Theme::DropdownRow(target == SituationRules::Target::kPlayer ? kPlayer : wearer, &chosen, false) && target != a_row.target) {
+						a_row.target = target;
+						changed = true;
+					}
+				}
+			}
+			Theme::EndCombo(open, a_row.target == SituationRules::Target::kPlayer ? kPlayer : wearer, style);
+			if (hovered) {
+				Theme::Tooltip(std::format("{}: checks this character\nPlayer: checks you", wearer).c_str());
+			}
 			return changed;
 		}
 
@@ -948,63 +984,65 @@ namespace CaptureWindow::Internal
 			return removed.has_value();
 		}
 
-		// One condition, its × at the line's right end (`a_lineRight`): a two-state kind as its
-		// dropdown; else its name (what it means on hover, the actor's name in it), the operator
-		// dropdown and its values dropdown or times, on the same line while they fit and under it
-		// otherwise; a Place or Spell row lists its forms under the line.
+		// One condition: its heading (the kind's name, its help on the (?), a × at the line's right
+		// end, `a_lineRight`), then the row under it as the section says; a Place or Spell row lists
+		// its forms under that, each with a ×; values or times that do not fit the row go under it.
 		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_lineRight)
 		{
-			constexpr float kListIndent = 16.0f;  // pixels at 1080p, what sits under the line in from the kind's name
+			constexpr float kListIndent = 16.0f;  // pixels at 1080p, what sits under the row in from its left
 
 			const auto& info = SituationRules::InfoOf(a_row.kind);
-			const auto& style = ImGui::GetStyle();
 			const float side = ImGui::GetFrameHeight();
 			const float crossX = a_lineRight - side * 0.5f;
-			const float contentRight = a_lineRight - side - style.ItemSpacing.x;
-			const float top = ImGui::GetCursorScreenPos().y;
-			const bool  twoState = SituationRules::TwoState(a_row.kind);
-			const bool  time = a_row.kind == SituationRules::Kind::kTimeOfDay;
-			bool        changed = false;
-			bool        hovered = false;
-			if (twoState) {
-				changed = DrawNegationDropdown("##state", info.label, info.negLabel, a_row.negated, hovered);
-			} else {
-				ImGui::AlignTextToFramePadding();
-				ImGui::TextUnformatted(info.label);
-				hovered = ImGui::IsItemHovered();
-				ImGui::SameLine();
-				bool operatorHovered = false;
-				changed = DrawNegationDropdown("##operator", time ? "between" : OperatorLabel(a_row, false), time ? "not between" : OperatorLabel(a_row, true),
-					a_row.negated, operatorHovered);
-			}
-			if (hovered) {
+			Theme::LabelText(info.label);
+			if (Theme::LabelHelpMark()) {
 				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
-			// The values on the line while they fit; else under it, after the ×, which ends the line.
+			const bool removed = DrawRemoveCross("##removeRow", crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y, "Remove this condition.");
+
+			const bool time = a_row.kind == SituationRules::Kind::kTimeOfDay;
+			bool       changed = false;
+			bool       ignored = false;
+			if (info.targetable && !a_request.actorIsPlayer) {
+				changed = DrawTargetDropdown(a_request, a_row);
+				ImGui::SameLine();
+			}
+			if (SituationRules::TwoState(a_row.kind) && *info.state) {
+				changed = DrawNegationDropdown("##state", info.state, info.negState, a_row.negated, ignored) || changed;
+			} else {
+				changed = DrawNegationDropdown("##operator", time ? "between" : OperatorLabel(a_row, false), time ? "not between" : OperatorLabel(a_row, true),
+							  a_row.negated, ignored) ||
+				          changed;
+				if (SituationRules::TwoState(a_row.kind)) {
+					ImGui::SameLine();
+					ImGui::AlignTextToFramePadding();
+					ImGui::TextUnformatted(info.phrase);
+				}
+			}
+			// The values on the row while they fit, else under it.
 			bool under = false;
 			if (!info.values.empty()) {
 				const auto width = ValuesDropdownWidth(a_row.kind);
-				if (FitsOnLine(width.least, contentRight)) {
+				if (FitsOnLine(width.least, a_lineRight)) {
 					ImGui::SameLine();
-					changed = DrawValuesDropdown(a_row, (std::min)(width.most, contentRight - ImGui::GetCursorScreenPos().x)) || changed;
+					changed = DrawValuesDropdown(a_row, (std::min)(width.most, a_lineRight - ImGui::GetCursorScreenPos().x)) || changed;
 				} else {
 					under = true;
 				}
 			} else if (time) {
-				if (FitsOnLine(TimeRangeWidth(), contentRight)) {
+				if (FitsOnLine(TimeRangeWidth(), a_lineRight)) {
 					ImGui::SameLine();
 					changed = DrawTimeRange(a_row) || changed;
 				} else {
 					under = true;
 				}
 			}
-			const bool removed = DrawRemoveCross("##removeRow", crossX, top, side, "Remove this condition.");
-			bool       addForm = false;
+			bool addForm = false;
 			if (under || SituationRules::HasForms(a_row.kind)) {
 				const float indent = kListIndent * Theme::Scale();
 				ImGui::Indent(indent);
 				if (!info.values.empty()) {
-					changed = DrawValuesDropdown(a_row, (std::min)(ValuesDropdownWidth(a_row.kind).most, contentRight - ImGui::GetCursorScreenPos().x)) || changed;
+					changed = DrawValuesDropdown(a_row, (std::min)(ValuesDropdownWidth(a_row.kind).most, a_lineRight - ImGui::GetCursorScreenPos().x)) || changed;
 				} else if (time) {
 					changed = DrawTimeRange(a_row) || changed;
 				} else {
@@ -1021,9 +1059,26 @@ namespace CaptureWindow::Internal
 			return changed ? ConditionEdit::kChanged : ConditionEdit::kNone;
 		}
 
+		// A two-state kind the situation has every row it can take of: one, or with a target to
+		// choose (the actor not the player), one per target. A second adds nothing.
+		bool KindExhausted(const CaptureWindow::Request& a_request, const SituationRules::Rules& a_rules, SituationRules::Kind a_kind)
+		{
+			if (!SituationRules::TwoState(a_kind)) {
+				return false;
+			}
+			bool wearer = false;
+			bool player = false;
+			for (const auto& row : a_rules.rows) {
+				if (row.kind == a_kind) {
+					(row.target == SituationRules::Target::kPlayer ? player : wearer) = true;
+				}
+			}
+			return (wearer || player) && (!SituationRules::Targetable(a_kind) || a_request.actorIsPlayer || (wearer && player));
+		}
+
 		// Add Condition...: a dropdown of the kinds, closed by a choice; returns the one chosen. A
-		// two-state kind the situation has already is greyed: a second row of it adds nothing.
-		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
+		// two-state kind the situation has every row it can take of is greyed (KindExhausted).
+		std::optional<SituationRules::Kind> DrawAddCondition(const CaptureWindow::Request& a_request, const SituationRules::Rules& a_rules)
 		{
 			constexpr const char* kAddCondition = "Add Condition...";
 
@@ -1033,10 +1088,8 @@ namespace CaptureWindow::Internal
 			std::optional<SituationRules::Kind> added;
 			if (open) {
 				for (const auto& info : SituationRules::kKinds) {
-					const bool present = SituationRules::TwoState(info.kind) &&
-					                     std::ranges::any_of(a_rules.rows, [&info](const SituationRules::Row& a_row) { return a_row.kind == info.kind; });
-					bool       chosen = false;
-					ImGui::BeginDisabled(present);
+					bool chosen = false;
+					ImGui::BeginDisabled(KindExhausted(a_request, a_rules, info.kind));
 					if (Theme::DropdownRow(info.label, &chosen, false)) {
 						added = info.kind;
 						ImGui::CloseCurrentPopup();
@@ -1082,11 +1135,8 @@ namespace CaptureWindow::Internal
 			bool                       changed = false;
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
-				if (i > 0) {
-					Theme::SectionGap();  // each condition a field of its own
-				}
 				ImGui::PushID(static_cast<int>(i));
-				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], lineRight);
+				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], lineRight);  // its heading opens its field
 				ImGui::PopID();
 				if (edit == ConditionEdit::kAddForm) {
 					a_state.situationForm.formRow = static_cast<int>(i);
@@ -1104,7 +1154,7 @@ namespace CaptureWindow::Internal
 			if (!a_rules.rows.empty()) {
 				Theme::SectionGap();
 			}
-			if (const auto kind = DrawAddCondition(a_rules)) {
+			if (const auto kind = DrawAddCondition(a_state.request, a_rules)) {
 				a_rules.rows.push_back({ .kind = *kind });
 				changed = true;
 				// A Place or Spell row starts empty, so its Add link is pressed for the user.

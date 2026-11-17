@@ -1455,6 +1455,7 @@ namespace
 		const auto actorID = actor.GetFormID();
 		request.restoreChanges = SituationStore::RestoreChanges();
 		request.customSituations = Settings::CustomSituations();
+		request.actorIsPlayer = actor.IsPlayerRef();
 		if (request.customSituations) {
 			request.places = Situations::PlacesAround(actor);
 			request.spells = Situations::SpellsAround(actor);
