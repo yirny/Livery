@@ -414,7 +414,9 @@ namespace CaptureWindow::Internal
 
 	// While a modal popup shows, the windows under it (the main window, a modal it was opened
 	// over) are drawn at half opacity: the alpha of every vertex they drew this frame is halved,
-	// as ImGuiStyleVar_Alpha halves it. The popup's own dropdowns and tooltips are above it.
+	// as ImGuiStyleVar_Alpha halves it. The popup's own dropdowns come after it in the display
+	// order. Tooltips are kept wherever they are in it: ImGui draws them on a layer above every
+	// window, and none shows for a window under a modal.
 	// Contract: render thread, after the frame's last window and before ImGui::Render; only the
 	// windows begun this frame (Active), whose draw lists hold this frame's vertices alone.
 	void FadeBehindModal()
@@ -427,7 +429,8 @@ namespace CaptureWindow::Internal
 		}
 		const int modalOrder = ImGui::FindWindowDisplayIndex(modal);
 		for (auto* window : ImGui::GetCurrentContext()->Windows) {
-			if (!window->Active || window->Hidden || ImGui::FindWindowDisplayIndex(window->RootWindow) >= modalOrder) {
+			if (!window->Active || window->Hidden || (window->RootWindow->Flags & ImGuiWindowFlags_Tooltip) ||
+				ImGui::FindWindowDisplayIndex(window->RootWindow) >= modalOrder) {
 				continue;
 			}
 			for (auto& vertex : window->DrawList->VtxBuffer) {
