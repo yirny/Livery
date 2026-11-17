@@ -229,6 +229,7 @@ TEST_CASE("The Applies line has a phrase per row, not first", "[situations]")
 	CHECK(SituationRules::Text({}) == "Never applies.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather } } }) == "Weather (nothing selected).");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kInCombat, .negated = true }, { .kind = Kind::kSwimming } } }) == "Not in combat, swimming.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeapon }, { .kind = Kind::kWeapon, .negated = true } } }) == "With a weapon drawn, with weapons sheathed.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType,
 									 .values = SituationRules::kTown | SituationRules::kPlayerHome | SituationRules::kDungeon } } }) ==
 		  "In a town, a player home or a dungeon.");
@@ -249,6 +250,51 @@ TEST_CASE("Time of day wraps midnight when To is before From", "[situations]")
 	CHECK(InTimeRange(7 * 60, 7 * 60, 3 * 60));  // the whole day
 	CHECK(SituationRules::TimeText(0) == "12 AM");
 	CHECK(SituationRules::TimeText(12 * 60 + 30) == "12:30 PM");
+}
+
+TEST_CASE("A row reading the player says so in the Applies line", "[situations]")
+{
+	using SituationRules::Target;
+	const Row you{ .kind = Kind::kInCombat, .target = Target::kPlayer };
+	const Row notYou{ .kind = Kind::kSleeping, .negated = true, .target = Target::kPlayer };
+	const Row yourWeapon{ .kind = Kind::kWeapon, .target = Target::kPlayer };
+	const Row yourSheathed{ .kind = Kind::kWeapon, .negated = true, .target = Target::kPlayer };
+	CHECK(SituationRules::Text({ .rows = { you, notYou } }) == "While you are in combat, while you are not sleeping.");
+	CHECK(SituationRules::Text({ .rows = { yourWeapon, yourSheathed } }) == "While your weapon is drawn, while your weapons are sheathed.");
+	const Row spell{ .kind = Kind::kSpell, .target = Target::kPlayer, .spells = { { .ref = { "Skyrim.esm", 0x059B7A, "Stoneflesh" } } } };
+	CHECK(SituationRules::Text({ .rows = { spell } }) == "While Stoneflesh is on you.");
+	// A kind that reads no actor's state ignores the target.
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kIndoors, .target = Target::kPlayer } } }) == "Indoors.");
+	for (const auto& info : SituationRules::kKinds) {
+		const bool reads = info.kind == Kind::kInCombat || info.kind == Kind::kSleeping || info.kind == Kind::kInWater || info.kind == Kind::kSwimming ||
+		                   info.kind == Kind::kSpell || info.kind == Kind::kWeapon;
+		CHECK(SituationRules::Targetable(info.kind) == reads);
+	}
+}
+
+TEST_CASE("A row's target is written only for the player and refused where a kind has none", "[situations]")
+{
+	using SituationRules::Target;
+	auto table = SituationTable::Presets();
+	table.nextKey = 2;
+	AddUserTo(table, User(1, "Your fight", { .rows = { { .kind = Kind::kInCombat, .target = Target::kPlayer }, { .kind = Kind::kWeapon } } }));
+	const auto text = SituationTable::Serialize(table);
+	CHECK(text.find("\"target\": \"player\"") != std::string::npos);
+	CHECK(text.find("\"wearer\"") == std::string::npos);
+	SituationTable::Table read;
+	REQUIRE_FALSE(SituationTable::Parse(text, read));
+	CHECK(read == table);
+
+	REQUIRE_FALSE(SituationTable::Parse(
+		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "swimming", "target": "wearer" } ] } ] })", read));
+	CHECK(read[Situations::kPresetCount].rules.rows[0].target == Target::kWearer);
+	const auto refuses = [&read](const char* a_text) {
+		const bool refused = SituationTable::Parse(a_text, read).has_value();
+		return refused && read == SituationTable::Presets();
+	};
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "indoors", "target": "player" } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "inCombat", "target": "horse" } ] } ] })"));
+	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "inCombat", "target": 1 } ] } ] })"));
 }
 
 TEST_CASE("An In combat row makes a situation apply in combat", "[situations]")
@@ -655,6 +701,19 @@ TEST_CASE("A situation is never worn while one lower applies whenever it does", 
 	// The presets as installed: Sleep and Cold are not covered by each other.
 	CHECK_FALSE(CoveredBy(SituationTable::PresetRules(Situation::kCold), SituationTable::PresetRules(Situation::kSleep), none));
 	CHECK_FALSE(CoveredBy(SituationTable::PresetRules(Situation::kHome), SituationTable::PresetRules(Situation::kTown), none));
+}
+
+TEST_CASE("Never worn: a row reading the player implies only one reading the player", "[situations]")
+{
+	using SituationRules::Target;
+	const std::span<const PlaceFact> none;
+	const Row                        wearerFights{ .kind = Kind::kInCombat };
+	const Row                        youFight{ .kind = Kind::kInCombat, .target = Target::kPlayer };
+	CHECK(CoveredBy(RulesOf({ youFight }), RulesOf({ youFight }, true), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ youFight }), RulesOf({ wearerFights }, true), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ wearerFights }), RulesOf({ youFight }, true), none));
+	const Row yourWeapon{ .kind = Kind::kWeapon, .target = Target::kPlayer };
+	CHECK(CoveredBy(RulesOf({ yourWeapon, youFight }), RulesOf({ yourWeapon }, true), none));
 }
 
 TEST_CASE("Never worn: a time range within another, spells with the same effects", "[situations]")

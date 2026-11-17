@@ -226,7 +226,7 @@ namespace
 		return static_cast<std::uint16_t>(std::clamp(minute, 0, SituationRules::kMinutesPerDay - 1));
 	}
 
-	// What one evaluation reads of an actor, each part once, and only when a row asks for it.
+	// What one evaluation reads of one actor, each part once, and only when a row asks for it.
 	struct Facts
 	{
 		RE::Actor&                              actor;
@@ -256,6 +256,30 @@ namespace
 				inWater = InWaterNow(actor);
 			}
 			return *inWater;
+		}
+	};
+
+	// What one evaluation reads: the wearer's facts, and the player's once a row reads the
+	// player (SituationRules::Target::kPlayer), whoever wears the situation.
+	struct Evaluation
+	{
+		Facts                wearer;
+		std::optional<Facts> player;
+
+		// The facts a row of `a_target` reads; nullptr for the player while there is none.
+		Facts* Of(SituationRules::Target a_target)
+		{
+			if (a_target == SituationRules::Target::kWearer) {
+				return &wearer;
+			}
+			if (!player) {
+				auto* playerRef = RE::PlayerCharacter::GetSingleton();
+				if (!playerRef) {
+					return nullptr;
+				}
+				player.emplace(Facts{ .actor = *playerRef });
+			}
+			return &*player;
 		}
 	};
 
@@ -349,15 +373,19 @@ namespace
 		return found;
 	}
 
-	// Whether one row of a situation's rules holds: its kind's test, inverted by `not`. A row
-	// with nothing selected never holds.
-	bool RowHolds(const SituationRules::Row& a_row, Facts& a_facts)
+	// Whether one row of a situation's rules holds: its kind's test of the wearer or the player
+	// (Row::target), inverted by `not`. A row with nothing selected never holds.
+	bool RowHolds(const SituationRules::Row& a_row, Evaluation& a_evaluation)
 	{
 		using Kind = SituationRules::Kind;
 		if (SituationRules::NothingSelected(a_row)) {
 			return false;
 		}
-		auto&       actor = a_facts.actor;
+		auto* facts = a_evaluation.Of(a_row.target);
+		if (!facts) {
+			return a_row.negated;
+		}
+		auto&       actor = facts->actor;
 		const auto* state = actor.AsActorState();
 		bool        holds = false;
 		switch (a_row.kind) {
@@ -368,25 +396,25 @@ namespace
 			holds = IsSleeping(actor);
 			break;
 		case Kind::kInWater:
-			holds = a_facts.InWater();
+			holds = facts->InWater();
 			break;
 		case Kind::kSwimming:
 			holds = state && state->IsSwimming();
 			break;
 		case Kind::kIndoors:
 			{
-				const auto* cell = a_facts.Cell();
+				const auto* cell = facts->Cell();
 				holds = cell && cell->IsInteriorCell();
 			}
 			break;
 		case Kind::kLocationType:
 			{
-				const auto* location = a_facts.Location();
+				const auto* location = facts->Location();
 				holds = location && HasLocationType(*location, a_row.values);
 			}
 			break;
 		case Kind::kPlace:
-			holds = InPlaces(a_row.places, a_facts);
+			holds = InPlaces(a_row.places, *facts);
 			break;
 		case Kind::kWeather:
 			holds = HasWeather(a_row.values);
@@ -397,18 +425,21 @@ namespace
 		case Kind::kSpell:
 			holds = UnderSpells(a_row.spells, actor);
 			break;
+		case Kind::kWeapon:
+			holds = state && state->IsWeaponDrawn();  // drawn, or being put away; fists and spells count
+			break;
 		}
 		return holds != a_row.negated;
 	}
 
 	// A situation applies: in combat only when it is allowed during combat, then while every row
 	// holds; never with no rows.
-	bool RulesHold(const SituationRules::Rules& a_rules, Facts& a_facts, bool a_inCombat)
+	bool RulesHold(const SituationRules::Rules& a_rules, Evaluation& a_evaluation, bool a_inCombat)
 	{
 		if (a_rules.rows.empty() || (a_inCombat && !SituationRules::AppliesInCombat(a_rules))) {
 			return false;
 		}
-		return std::ranges::all_of(a_rules.rows, [&a_facts](const SituationRules::Row& a_row) { return RowHolds(a_row, a_facts); });
+		return std::ranges::all_of(a_rules.rows, [&a_evaluation](const SituationRules::Row& a_row) { return RowHolds(a_row, a_evaluation); });
 	}
 
 	// A werewolf or Vampire Lord, or a mod's transformation: their races are not playable
@@ -683,7 +714,11 @@ namespace
 		const auto gone = [&actors](const auto& a_entry) { return std::ranges::find(actors, a_entry.first) == actors.end(); };
 		std::erase_if(g_lastSeen, gone);
 		std::erase_if(g_lastRedressed, gone);
-		std::erase_if(g_inWater, [&actors](RE::FormID a_actor) { return std::ranges::find(actors, a_actor) == actors.end(); });
+		// The player keeps their in-water record even with no situation outfit of their own: a
+		// row of someone else's situation may read them (SituationRules::Target::kPlayer).
+		const auto* player = RE::PlayerCharacter::GetSingleton();
+		const auto  playerID = player ? player->GetFormID() : 0;
+		std::erase_if(g_inWater, [&actors, playerID](RE::FormID a_actor) { return a_actor != playerID && std::ranges::find(actors, a_actor) == actors.end(); });
 		const auto time = std::chrono::steady_clock::now();
 		bool       redressed = false;
 		for (const auto id : actors) {
@@ -735,13 +770,13 @@ namespace Situations
 		}
 		// A fight is fought in the default outfit, unless a situation is allowed during combat.
 		const bool inCombat = a_actor.IsInCombat();
-		Facts      facts{ .actor = a_actor };
+		Evaluation evaluation{ .wearer = { .actor = a_actor } };
 		for (const auto situation : order | std::views::reverse) {  // the lowest wins
 			if (!wanted(situation)) {
 				continue;
 			}
 			const auto* rules = SituationStore::RulesOf(situation);
-			if (rules && RulesHold(*rules, facts, inCombat)) {
+			if (rules && RulesHold(*rules, evaluation, inCombat)) {
 				applicable.Add(situation);
 			}
 		}

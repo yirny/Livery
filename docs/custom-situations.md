@@ -32,8 +32,12 @@ Items marked *provisional* are tried in a prototype first and may change.
 ## 2. Condition model
 
 A situation holds a list of condition rows. The situation applies while every row holds
-(AND). A row is a kind, a `not` flag and, for a kind with values, a set of values; a row with
-values holds while any of its values holds (OR), and `not` inverts the row. Rows do not nest:
+(AND). A row is a kind, a `not` flag, for a kind with values a set of values, and for a kind
+that reads an actor's own state (`SituationRules::Targetable`: In Combat, Sleeping, In Water,
+Swimming, Spell Effect, Weapon) whose state it reads (`Row::target`): the character wearing the
+situation's outfit, or the player whoever wears it (a follower who changes when you fight). A
+row with values holds while any of its values holds (OR), and `not` inverts the row. Rows do not
+nest:
 there are no OR groups (*provisional*: revisited after use; so far every wanted rule
 fits, "night or rain" being two situations). The same kind may appear in several rows
 ("Rain" and "not Snowy region"). A row with values and none selected never holds, so its
@@ -42,8 +46,10 @@ applies either.
 
 Combat: every situation but the Default has the flag `Allow during combat`:
 off, the situation does not apply in combat, so a fight is fought in the Default unless another
-one applies; on, its rows decide. A situation with an `In Combat` row has the flag on and not
-editable, since the row would never hold otherwise. Every preset has it off as installed.
+one applies (the wearer's combat, whoever the rows read); on, its rows decide. A situation with
+an `In Combat` row, reading the wearer or the player, has the flag on and not editable: the row
+would never hold otherwise, or only while the player fights and the wearer does not. Every
+preset has it off as installed.
 
 ## 3. Condition kinds
 
@@ -62,6 +68,11 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Weather | Rain, Snow, Snowy region | the Cold preset's weather rule without its cell test: Rain = the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in); Snowy region = the sky's region has snow weathers for a quarter of its weather chance | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`, `region` | Rain and Snow yes; Snowy region not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell Effect (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
+| Weapon | none | a weapon, spell or fists drawn, or being put away (`kDrawn`, `kWantToSheathe`, `kSheathing`); negated, sheathed | `ActorState::IsWeaponDrawn` | no |
+
+"The actor" above is the wearer, or with `Row::target` the player (§2); the player's facts are
+read once per evaluation, as the wearer's are, and only when a row asks. The player's in-water
+record (`g_inWater`) is kept across polls whether or not they have a situation outfit.
 
 Notes:
 
@@ -107,7 +118,6 @@ Notes:
 
 Not offered in the first version; added on request. The rule each would use:
 
-- Drawing Weapon: `ActorState::IsWeaponDrawn`.
 - Sitting: `GetSitSleepState() == kIsSitting` and not `IsOnMount()`; `kRidingMount` has the
   same value as `kIsSitting`.
 - Mounting: `Actor::IsOnMount`.
@@ -215,7 +225,8 @@ keeps its installed rules. Shape:
 Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order (§8).
 
 - The Situation List: the Default's heading first, pinned, then the caption `The lowest that
-  applies is worn.` as a list heading (`Theme::ListHeading`, its rule after it), then one
+  applies is worn.` as a list heading (`Theme::ListHeading`) with a plain 1px rule after it in
+  every skin, so it does not read as a situation's heading, then one
   heading per situation not removed in the order (`SituationForm::order`, request.situations'
   until a drag), each dragged from anywhere on its heading (`kSituationPayload`, apart from the
   outfits') to another place among them, with `Request::customSituations`: over a heading's
@@ -233,27 +244,33 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   popup with the Restore Presets line, a user's without it) and the condition editor below
   the name.
 - The editor, for every situation but the Default with `Request::customSituations` (off, the
-  `Conditions` label over the Applies line, read only): each row reads as a sentence, with a ×
-  (`Theme::ClearButton`, `Remove this condition.` on hover) at its line's right end, and the
-  rows a field's gap apart (`Theme::SectionGap`). No `Not` checkbox: the row's `not` is a
-  dropdown of two choices. A kind that is so or not (`SituationRules::TwoState`: In combat,
-  Sleeping, In water, Swimming, Indoors) is one dropdown of its two states, `In combat` /
-  `Not in combat`, `Indoors` / `Outdoors` (`KindInfo::label`, `negLabel`), the kind's tooltip
-  on it. The others start with the kind's name (its tooltip says what it means), then the
-  operator dropdown: `is` / `is not` with up to one value or form selected, `is any of` /
-  `is none of` with more (as Linear and Airtable word it), `between` / `not between` for
-  Time of day; then the values. Location type's and Weather's are a multi-choice dropdown
-  (the Filter field's rows, staying open for several ticks) whose preview lists the ticked
-  values, `Rain, Snow`, or a greyed `Select...` with none; Time of day's are `[time] and
-  [time]`, two dropdowns in 30-minute steps (a time read from the file off those steps shows
-  as it is). Both sit on the kind's line while they fit before the ×, else under it, 16px in.
-  Place and Spell list their forms under the line, 16px in, one a line with a × at its right
-  end (`Remove this place.` / `Remove this spell.`; one whose plugin is not loaded greyed,
-  saying so on hover), then `Add Place...` or `Add Spell...`. Then `Add Condition...`, a
-  dropdown of the kinds, closed by the choice, which adds a row with nothing selected (a Place
-  or Spell row opens its Add popup at once); a two-state kind the situation has already is
-  greyed there, a second row of it adding nothing. The label's help: `Applies while every
-  condition holds.` and `A condition with several values holds for any of them.`
+  `Conditions` label over the Applies line, read only): each condition has a heading, the
+  kind's name as a field label (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the
+  kind's help and a × (`Theme::ClearButton`, `Remove this condition.` on hover) at the line's
+  right end; the label's gap sets the conditions apart. Under it the row reads as a sentence.
+  No `Not` checkbox: the row's `not` is a dropdown of two choices. A kind that reads an actor's
+  state (`Targetable`) starts with whose, a dropdown of the actor's name and `Player`
+  (`Row::target`; its help `<name>: checks this character` and `Player: checks you`; in the
+  player's own window, `Request::actorIsPlayer`, `<name>: checks each character wearing the
+  outfit` and `Player: always checks you`). A two-state kind
+  (`SituationRules::TwoState`) then reads `is` / `is not` and its phrase, `[Lydia] [is] in
+  water`, or is a dropdown of its two states where it has them (`KindInfo::state`, `negState`):
+  `Indoors` / `Outdoors`, `Weapon drawn` / `Weapon sheathed`. The others have the operator
+  dropdown: `is` / `is not` with up to one value or form selected, `is any of` / `is none of`
+  with more (as Linear and Airtable word it), Spell Effect `has` / `has not`, `has any of` /
+  `has none of`, `between` / `not between` for Time of day; then the values. Location type's
+  and Weather's are a multi-choice dropdown (the Filter field's rows, staying open for several
+  ticks) whose preview lists the ticked values, `Rain, Snow`, or a greyed `Select...` with
+  none; Time of day's are `[time] and [time]`, two dropdowns in 30-minute steps (a time read
+  from the file off those steps shows as it is). Both sit on the row while they fit, else under
+  it, 16px in. Place and Spell list their forms under the row, 16px in, one a line with a × at
+  its right end (`Remove this place.` / `Remove this spell.`; one whose plugin is not loaded
+  greyed, saying so on hover), then `Add Place...` or `Add Spell...`. Then `Add Condition...`,
+  a dropdown of the kinds, closed by the choice, which adds a row with nothing selected (a
+  Place or Spell row opens its Add popup at once); a two-state kind the situation has every row
+  it can take of (one; one per target for a kind with a target) is greyed there, a second adding
+  nothing. The label's help: `Applies while every condition holds.` and `A condition with
+  several values holds for any of them.`
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
   `Parent Location (<name>)` for each location it is in, nearest first, up to the first hold
@@ -264,7 +281,10 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   (?) saying what it covers. The game's own terms, as "room" or "area" would blur the two. It
   opens on the location, or on the cell when they are outside any. Add is greyed for a place
   the row has already.
-- `Add Spell...` opens the `Add spell` popup: `Add a spell to look for on <name>.`, a search
+- `Add Spell...` opens the `Add spell` popup, its width set before it begins (22 font sizes,
+  or the first line's when wider), since its list runs into the window's padding in Vanilla and
+  Nordic and a popup fitted to its content would grow by that at every frame:
+  `Add a spell to look for on <name>.`, a search
   field (`Search by name`, ASCII case ignored, as the outfit search), `Show all spells`, and a
   list ten rows tall of the spells whose name holds the search, a click picking one. Hovering a
   spell there or on the row shows its plugin and FormID, then its visible effects a line each,
@@ -295,9 +315,11 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - The `Applies` line, under its own label, is every situation's but the Default's
   (`ConditionsText` stays for the Default alone) and is built from the rows in order, one phrase per row, `not` first: `In a town
   or a castle, in rain or snow, outdoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh
-  is on.` A two-state row negated reads as its state, `not in combat`, `outdoors`. A row with
-  nothing selected reads `Weather (nothing selected)`; a situation without rows `Never
-  applies.`
+  is on, with a weapon drawn.` Negated, `not in combat`, `outdoors`, `with weapons sheathed`
+  (`KindInfo::negPhrase`); reading the player, `while you are in combat`, `while you are not
+  sleeping`, `while Stoneflesh is on you`, `while your weapon is drawn`, `while your weapons are
+  sheathed` (`youPhrase`, `youNegPhrase`). A row with nothing selected reads `Weather (nothing
+  selected)`; a situation without rows `Never applies.`
 - Edits save as the page's other edits do: 0.5 s after the last one or as the page is left,
   the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
@@ -329,8 +351,8 @@ the rules tell (`SituationRules::CoveredBy`, computed as the page opens and afte
 never on the poll; at most 64 × 64 situations). Situation B, lower than A, covers A when B has
 rows, B's `Allow during combat` is on or A's off, and every row of B is implied by a row of A:
 
-- the same kind and `not`, and A's values within B's (B's within A's with `not`): the value
-  set, the time range, the list of places or spells;
+- the same kind, `not` and target, and A's values within B's (B's within A's with `not`): the
+  value set, the time range, the list of places or spells;
 - the same kind and `not`, Place, neither negated: each of A's places is one of B's or within
   one (its parents, as the rule walks them);
 - Location type in B by Place in A, neither negated: each of A's places is a location, or a

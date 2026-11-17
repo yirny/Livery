@@ -39,7 +39,17 @@ namespace SituationRules
 		kPlace,
 		kWeather,
 		kTimeOfDay,
-		kSpell
+		kSpell,
+		kWeapon
+	};
+
+	// Whose state a row reads (Row::target): the character wearing the situation's outfit, or
+	// the player whoever wears it. Only a kind that reads an actor's own state takes it
+	// (Targetable).
+	enum class Target : std::uint8_t
+	{
+		kWearer,
+		kPlayer
 	};
 
 	// Location type's values, bits of Row::values.
@@ -198,9 +208,10 @@ namespace SituationRules
 	struct Row
 	{
 		Kind               kind = Kind::kInCombat;
-		bool               negated = false;  // the row's `not`
-		std::uint32_t      values = 0;       // a kind with values (KindInfo::values): the bits of those ticked
-		std::uint16_t      from = 20 * 60;   // Time of day: minutes after midnight, below kMinutesPerDay
+		bool               negated = false;           // the row's `not`
+		Target             target = Target::kWearer;  // a Targetable kind: whose state it reads; kWearer for the others
+		std::uint32_t      values = 0;                // a kind with values (KindInfo::values): the bits of those ticked
+		std::uint16_t      from = 20 * 60;            // Time of day: minutes after midnight, below kMinutesPerDay
 		std::uint16_t      to = 6 * 60;
 		std::vector<Place> places;  // Place: in the order added
 		std::vector<Spell> spells;  // Spell: in the order added
@@ -241,32 +252,39 @@ namespace SituationRules
 	struct KindInfo
 	{
 		Kind                   kind;
-		const char*            key;       // in situations.json
-		const char*            label;     // the editor's; a two-state kind's row reads so while not negated
-		const char*            negLabel;  // a two-state kind's row negated ("Not in combat", "Outdoors"); "" for the others
-		const char*            tip;       // the label's tooltip; the editor formats it, `{}` naming the actor
-		const char*            phrase;    // in the Applies line; unused for a kind with values or Time of day
-		std::span<const Value> values;    // empty for a kind without
+		const char*            key;           // in situations.json
+		const char*            label;         // the condition's heading in the editor, and its name in Add Condition...
+		const char*            state;         // a two-state kind whose row is a dropdown of its states: the state while not negated ("Indoors", "Weapon drawn"); "" for a row that reads "is" + phrase
+		const char*            negState;      // that dropdown's other state ("Outdoors", "Weapon sheathed")
+		const char*            tip;           // the heading's help; the editor formats it, `{}` naming the actor
+		const char*            phrase;        // in the Applies line, and after "is" in the editor; unused for a kind with values or Time of day
+		const char*            negPhrase;     // in the Applies line negated; "" for "not " + phrase
+		const char*            youPhrase;     // in the Applies line with Target::kPlayer; "" for "while you are " + phrase
+		const char*            youNegPhrase;  // negated; "" for "while you are not " + phrase
+		std::span<const Value> values;        // empty for a kind without
+		bool                   targetable;    // the row may read the player instead of the wearer (Target)
 	};
 
 	// Every kind at the index of its Kind (InfoOf), in the order the editor offers them.
-	inline constexpr std::array<KindInfo, 10> kKinds{ {
-		{ Kind::kInCombat, "inCombat", "In combat", "Not in combat", "Fighting.\nWith this condition the situation applies in combat.", "in combat", {} },
-		{ Kind::kSleeping, "sleeping", "Sleeping", "Not sleeping", "Going to bed, in it or getting up.", "sleeping", {} },
-		{ Kind::kInWater, "inWater", "In water", "Not in water", "Swimming, or wading.\nOn a horse, swimming only.", "in water", {} },
-		{ Kind::kSwimming, "swimming", "Swimming", "Not swimming", "Swimming only, not wading.", "swimming", {} },
-		{ Kind::kIndoors, "indoors", "Indoors", "Outdoors", "Inside a building, cave or other interior.", "indoors", {} },
-		{ Kind::kLocationType, "locationType", "Location type", "",
+	inline constexpr std::array<KindInfo, 11> kKinds{ {
+		{ Kind::kInCombat, "inCombat", "In combat", "", "", "Fighting.\nWith this condition the situation applies in combat.", "in combat", "", "", "", {}, true },
+		{ Kind::kSleeping, "sleeping", "Sleeping", "", "", "Going to bed, in it or getting up.", "sleeping", "", "", "", {}, true },
+		{ Kind::kInWater, "inWater", "In water", "", "", "Swimming, or wading.\nOn a horse, swimming only.", "in water", "", "", "", {}, true },
+		{ Kind::kSwimming, "swimming", "Swimming", "", "", "Swimming only, not wading.", "swimming", "", "", "", {}, true },
+		{ Kind::kIndoors, "indoors", "Indoors", "Indoors", "Outdoors", "Inside a building, cave or other interior.", "indoors", "outdoors", "", "", {}, false },
+		{ Kind::kLocationType, "locationType", "Location type", "", "",
 			"Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.",
-			"", kLocationTypes },
-		{ Kind::kPlace, "place", "Place", "", "In one of the places listed.\nA place counts with every room and area in it.", "", {} },
-		{ Kind::kWeather, "weather", "Weather", "",
-			"Rain and Snow follow the sky, indoors too.\nSnowy region: a region where it often snows, whatever the sky.", "", kWeathers },
-		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", {} },
-		{ Kind::kSpell, "spell", "Spell Effect", "",
+			"", "", "", "", kLocationTypes, false },
+		{ Kind::kPlace, "place", "Place", "", "", "In one of the places listed.\nA place counts with every room and area in it.", "", "", "", "", {}, false },
+		{ Kind::kWeather, "weather", "Weather", "", "",
+			"Rain and Snow follow the sky, indoors too.\nSnowy region: a region where it often snows, whatever the sky.", "", "", "", "", kWeathers, false },
+		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "", "", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", "", "", "", {}, false },
+		{ Kind::kSpell, "spell", "Spell Effect", "", "",
 			"A spell, power, shout, potion or other effect currently affecting {}.\nListed by spell name, not effect name.\n"
 			"Any spell, scroll or potion with the same effects counts.",
-			"", {} },
+			"", "", "", "", {}, true },
+		{ Kind::kWeapon, "weapon", "Weapon", "Weapon drawn", "Weapon sheathed", "Drawn: a weapon, spell or fists at the ready.\nSheathed: put away.",
+			"with a weapon drawn", "with weapons sheathed", "while your weapon is drawn", "while your weapons are sheathed", {}, true },
 	} };
 
 	static_assert([] {
@@ -294,12 +312,22 @@ namespace SituationRules
 		return a_kind == Kind::kPlace || a_kind == Kind::kSpell;
 	}
 
-	// A kind that is so or not, with nothing to choose: its row is one of two states
-	// (KindInfo::label, negLabel).
+	// A kind that is so or not, with nothing to choose: its row reads "is" / "is not" and its
+	// phrase, or is a dropdown of its two states (KindInfo::state).
 	inline bool TwoState(Kind a_kind)
 	{
 		return !HasValues(a_kind) && !HasForms(a_kind) && a_kind != Kind::kTimeOfDay;
 	}
+
+	// A kind whose row may read the player instead of the wearer (Row::target).
+	inline bool Targetable(Kind a_kind)
+	{
+		return InfoOf(a_kind).targetable;
+	}
+
+	// The key of a target in situations.json; the wearer's is left out of the file.
+	inline constexpr const char* kPlayerTargetKey = "player";
+	inline constexpr const char* kWearerTargetKey = "wearer";
 
 	// The forms a Place or Spell row lists; a row of another kind lists none.
 	inline const std::vector<FormRef>& FormsOf(const Row& a_row)
@@ -367,18 +395,25 @@ namespace SituationRules
 	}
 
 	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not in rain",
-	// "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on"; a two-state row negated
-	// reads as its negLabel, "not in combat", "outdoors".
+	// "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on", "with a weapon drawn";
+	// negated as KindInfo::negPhrase words it ("outdoors", "with weapons sheathed") or with
+	// "not"; reading the player (Target::kPlayer), "while you are in combat", "while Stoneflesh
+	// is on you", "while your weapon is drawn".
 	inline std::string RowText(const Row& a_row)
 	{
 		const auto& info = InfoOf(a_row.kind);
 		if (NothingSelected(a_row)) {
 			return std::format("{} (nothing selected)", info.label);
 		}
-		if (TwoState(a_row.kind) && a_row.negated) {
-			std::string phrase = info.negLabel;
-			phrase[0] = static_cast<char>(ExampleMod::AsciiToLower(static_cast<unsigned char>(phrase[0])));
-			return phrase;
+		const bool you = a_row.target == Target::kPlayer && Targetable(a_row.kind);
+		if (TwoState(a_row.kind)) {
+			if (you) {
+				const char* phrase = a_row.negated ? info.youNegPhrase : info.youPhrase;
+				return *phrase ? phrase : std::format("while you are {}{}", a_row.negated ? "not " : "", info.phrase);
+			}
+			if (a_row.negated && *info.negPhrase) {
+				return info.negPhrase;
+			}
 		}
 		std::string phrase;
 		if (!info.values.empty()) {
@@ -394,7 +429,7 @@ namespace SituationRules
 			for (const auto& form : FormsOf(a_row)) {
 				names.push_back(FormName(form));
 			}
-			phrase = a_row.kind == Kind::kPlace ? "at " + JoinWithOr(names) : "while " + JoinWithOr(names) + " is on";
+			phrase = a_row.kind == Kind::kPlace ? "at " + JoinWithOr(names) : "while " + JoinWithOr(names) + (you ? " is on you" : " is on");
 		} else if (a_row.kind == Kind::kTimeOfDay) {
 			phrase = a_row.from == a_row.to ? "at any hour" : std::format("from {} to {}", TimeText(a_row.from), TimeText(a_row.to));
 		} else {
@@ -518,7 +553,7 @@ namespace SituationRules
 			if (a_by.kind == Kind::kPlace && a_row.kind == Kind::kLocationType && !a_by.negated && !a_row.negated) {
 				return PlacesHaveTypes(a_by.places, a_row.values, a_facts);
 			}
-			if (a_by.kind != a_row.kind || a_by.negated != a_row.negated) {
+			if (a_by.kind != a_row.kind || a_by.negated != a_row.negated || a_by.target != a_row.target) {
 				return false;
 			}
 			// Negated, the row holds outside its values: the narrower list is the one implied.
@@ -558,7 +593,8 @@ namespace SituationRules
 	//
 	// A row: { "kind": "weather", "not": false, "values": ["rain", "snow"] }; Time of day has
 	// "from" and "to" ("20:00") instead of "values"; Place's and Spell's values are pieces
-	// (PieceFile::ToJson: plugin, formId, name). Other fields are ignored.
+	// (PieceFile::ToJson: plugin, formId, name); a Targetable kind reading the player has
+	// "target": "player" (the wearer's is left out). Other fields are ignored.
 
 	namespace Detail
 	{
@@ -624,6 +660,16 @@ namespace SituationRules
 				a_row.negated = negated->get<bool>();
 			}
 			const auto& info = InfoOf(*kind);
+			if (const auto target = a_json.find("target"); target != a_json.end()) {
+				const auto key = target->is_string() ? target->get<std::string>() : std::string{};
+				if (!info.targetable) {
+					return std::format("has a target, which {} cannot have.", info.label);
+				}
+				if (key != kPlayerTargetKey && key != kWearerTargetKey) {
+					return std::format("has a target that is neither \"{}\" nor \"{}\".", kWearerTargetKey, kPlayerTargetKey);
+				}
+				a_row.target = key == kPlayerTargetKey ? Target::kPlayer : Target::kWearer;
+			}
 			if (!info.values.empty()) {
 				const auto values = a_json.find("values");
 				if (values == a_json.end() || !values->is_array()) {
@@ -677,6 +723,9 @@ namespace SituationRules
 		for (const auto& row : a_rows) {
 			const auto&            info = InfoOf(row.kind);
 			nlohmann::ordered_json json{ { "kind", info.key }, { "not", row.negated } };
+			if (row.target == Target::kPlayer && info.targetable) {
+				json["target"] = kPlayerTargetKey;
+			}
 			if (!info.values.empty()) {
 				auto values = nlohmann::ordered_json::array();
 				for (const auto& value : info.values) {
