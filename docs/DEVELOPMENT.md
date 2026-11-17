@@ -22,6 +22,8 @@ The DLL lands in `build/msvc/livery.dll`. In VS Code, `.vscode/tasks.json` runs 
 
 Linux: `./scripts/build.sh`, or the `release-linux` preset; the DLL lands in `build/release-linux/livery.dll`.
 
+Every build writes `BuildInfo.h` (`cmake/BuildInfo.cmake`) with the version, `git describe --tags --always --dirty` and the branch, and Livery.log's first line names them: `Livery 1.1.1 loaded (v1.1.0-11-gfc6b19c-dirty on feat/build-info)`. Check it before reading an in-game result: another worktree's build, or one with local edits (`-dirty`), shows there.
+
 ## Deploy
 
 The `deploy` target copies `livery.dll`, its PDB and the `Data/SKSE/Plugins/Livery` folder (skin fonts and textures) into `<deploy dir>/SKSE/Plugins/`. No INI or palette is deployed; the plugin creates them on first start.

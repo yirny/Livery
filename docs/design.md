@@ -297,9 +297,11 @@ carried. The capture menu swallows every input event and disables the pause menu
 made while a preview is on, and no preview copy reaches a save. While the window is open the
 HUD is hidden and an NPC is held where they stand (`src/MovementHold.cpp`); the game's menus
 are shown even if the console's `tm` hid them, since the window is drawn and reads its input
-only while they are, and hidden again as it closes. The game closes its Cursor Menu as the Fader
-Menu closes, even while the window's menu is open (the window opened right after a save loaded);
-sarrai-common's overlay shows it again.
+only while they are, and hidden again as it closes. A button the game saw go down before the
+window opened (the hotkey, its modifier) is released to it after the close, with the gameplay
+mapping and a long held time, or the game keeps it held (movement locked, Shift held). The game closes its Cursor Menu as another
+menu closes, even while the window's menu is open (the Fader Menu after a save loaded; another
+mod's HUD menu closing as the window opened); sarrai-common's overlay shows it again.
 
 A dressing's HUD message names the pieces not carried (the player without `AddMissingPieces`)
 and those the engine refused to put on (`DressingNotes` in `src/Assignments.cpp`).

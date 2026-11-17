@@ -132,6 +132,18 @@ else()
 
     source_group("Resources" FILES "${CMAKE_CURRENT_BINARY_DIR}/src/version.rc")
 
+    # BuildInfo.h: the version and git state of this build, logged at load (src/Plugin.cpp).
+    # Runs on every build; the header changes only with the git state.
+    add_custom_target(
+        build_info
+        COMMAND
+            "${CMAKE_COMMAND}" "-DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/src/BuildInfo.h" "-DVERSION=${PROJECT_VERSION}"
+            "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuildInfo.cmake"
+        BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/src/BuildInfo.h"
+        COMMENT "Writing BuildInfo.h"
+        VERBATIM)
+    add_dependencies(${PROJECT_NAME} build_info)
+
     # cmake_llvm_rc preprocesses RC files using the target's INCLUDE_DIRECTORIES, not CMAKE_C_FLAGS.
     # The xwin SDK paths are in CMAKE_C_FLAGS_INIT as /imsvc flags and are invisible to cmake_llvm_rc,
     # so we add them explicitly here for the RC compiler to find winres.h.
