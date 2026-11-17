@@ -253,6 +253,17 @@ namespace CaptureWindow::Internal
 		// The Place or Spell row the Add place or Add spell popup adds to: index into the selected
 		// entry's rules.rows.
 		int formRow = -1;
+		// The Edit conditions popup: its content width (the details pane's, last drawn); the
+		// condition it was opened on (index into the selected entry's rules.rows; -1 for none),
+		// lit from `editorFocusFrom` (ImGui::GetTime() seconds) and scrolled to while
+		// `editorScroll` frames remain, its height as last drawn; whether a popup was open over
+		// it at the end of the last frame (its Escape closed that, not the editor).
+		float  editorWidth = 0.0f;
+		int    editorFocus = -1;
+		double editorFocusFrom = 0.0;
+		int    editorScroll = 0;
+		float  editorFocusHeight = 0.0f;
+		bool   editorPopupAbove = false;
 		// The Add place popup's choice, in the order it shows them (request.places.At).
 		int placePick = 0;
 		// The Add spell popup: its search, Show all spells, the spells it lists (indices into

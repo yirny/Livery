@@ -20,15 +20,17 @@
 //   Condition editor - a situation's conditions (docs/custom-situations.md §7): per condition a
 //                     heading with its × and a row that reads as a sentence (whose state, "is" or
 //                     a two-state dropdown, an operator dropdown and its values), places or spells
-//                     under it with a × each; Add Condition..., Allow during combat, the Applies line
+//                     under it with a × each, the one it opened on lit; Add Condition..., Allow during
+//                     combat, the Applies line
 //   Right pane      - the outfit list with what a drag does under it; the selected situation's
-//                     details: name, never worn, conditions, Random Outfit (for #{Name}), Show
+//                     details: name, never worn, the Applies text with a link per condition and Edit
+//                     Conditions..., Random Outfit (for #{Name}), Show
 //                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
 //                     pieces ticked as the row it was clicked under wears them
 //   Buttons, popups - New Situation..., Exit, Restore Presets (?); the New situation, Remove's and
 //                     Restore Presets' popups, each handing its write to the Request's handler;
-//                     the Add place and Add spell popups, edits of the selected situation's Place
-//                     or Spell row
+//                     the Edit conditions popup (the editor, Done) with the Add place and Add spell
+//                     popups over it, edits of the selected situation's Place or Spell row
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
@@ -68,7 +70,11 @@ namespace CaptureWindow::Internal
 		constexpr const char* kNewSituationPopup = "New situation";
 		constexpr const char* kAddPlacePopup = "Add place";
 		constexpr const char* kAddSpellPopup = "Add spell";
+		constexpr const char* kEditConditionsPopup = "Edit conditions";
 		constexpr const char* kNewSituation = "New Situation...";
+		constexpr const char* kEditConditions = "Edit Conditions...";
+		// Over a condition in the Applies text while the settings page does not offer the editor.
+		constexpr const char* kTurnOnCustom = "Turn on custom situations in the settings to edit.";
 		// Reasons a button is greyed out, shown on hover.
 		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
 		// The name a situation gets when neither the one typed nor the one before can be used.
@@ -1124,23 +1130,53 @@ namespace CaptureWindow::Internal
 			return changed;
 		}
 
-		// A user's situation's conditions as edited: a line per row (DrawConditionRow), Add
-		// Condition..., Allow during combat, then the Applies line they make. Returns true on a
-		// change; sets `a_addForm` when a Place or Spell row's Add link was pressed, that row in
-		// SituationForm::formRow.
+		// The fill behind the condition the editor was opened on (SituationForm::editorFocus), at
+		// the cursor, as tall as it was last drawn, fading out; scrolls the editor to it while
+		// SituationForm::editorScroll frames remain.
+		void LightFocusedCondition(SituationForm& a_form, float a_lineRight)
+		{
+			constexpr double kLightSeconds = 1.5;  // from the editor's opening to the fill gone
+
+			if (a_form.editorScroll > 0) {
+				ImGui::SetScrollHereY(0.0f);
+				--a_form.editorScroll;
+			}
+			const double lit = 1.0 - (ImGui::GetTime() - a_form.editorFocusFrom) / kLightSeconds;
+			if (lit <= 0.0 || a_form.editorFocusHeight <= 0.0f) {
+				return;
+			}
+			ImVec4       fill = ImGui::GetStyleColorVec4(ImGuiCol_Header);  // a selected row's
+			const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+			fill.w *= static_cast<float>(lit);
+			ImGui::GetWindowDrawList()->AddRectFilled(topLeft, ImVec2(a_lineRight, topLeft.y + a_form.editorFocusHeight), ImGui::GetColorU32(fill));
+		}
+
+		// A user's situation's conditions as edited: a line per row (DrawConditionRow), the one
+		// it was opened on lit (LightFocusedCondition), Add Condition..., Allow during combat,
+		// then the Applies line they make. Returns true on a change; sets `a_addForm` when a Place
+		// or Spell row's Add link was pressed, that row in SituationForm::formRow.
 		bool DrawConditionEditor(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
 		{
 			Theme::LabelText("Conditions");
 			if (Theme::LabelHelpMark()) {
 				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
 			}
+			auto&                      form = a_state.situationForm;
 			const float                lineRight = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
 			bool                       changed = false;
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
+				const bool  focused = static_cast<int>(i) == form.editorFocus;
+				const float top = ImGui::GetCursorScreenPos().y;
+				if (focused) {
+					LightFocusedCondition(form, lineRight);
+				}
 				ImGui::PushID(static_cast<int>(i));
 				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], lineRight);  // its heading opens its field
 				ImGui::PopID();
+				if (focused) {
+					form.editorFocusHeight = ImGui::GetCursorScreenPos().y - top - ImGui::GetStyle().ItemSpacing.y;
+				}
 				if (edit == ConditionEdit::kAddForm) {
 					a_state.situationForm.formRow = static_cast<int>(i);
 					a_addForm = true;
@@ -1153,6 +1189,7 @@ namespace CaptureWindow::Internal
 			}
 			if (removed) {
 				a_rules.rows.erase(a_rules.rows.begin() + static_cast<std::ptrdiff_t>(*removed));
+				form.editorFocus = -1;  // its index may now name another
 			}
 			if (!a_rules.rows.empty()) {
 				Theme::SectionGap();
@@ -1162,7 +1199,7 @@ namespace CaptureWindow::Internal
 				changed = true;
 				// A Place or Spell row starts empty, so its Add link is pressed for the user.
 				if (SituationRules::HasForms(*kind)) {
-					a_state.situationForm.formRow = static_cast<int>(a_rules.rows.size() - 1);
+					form.formRow = static_cast<int>(a_rules.rows.size() - 1);
 					a_addForm = true;
 				}
 			}
@@ -1273,11 +1310,52 @@ namespace CaptureWindow::Internal
 			ImGui::PopStyleColor();
 		}
 
+		// A user's situation's Applies text as SituationRules::Text words it, each condition a link
+		// (Theme::RunLinks), where a field's text sits (DrawFieldText): lit while hovered with the
+		// editor on offer (Request::customSituations), else saying how to offer it. Returns the
+		// condition clicked (index into rules.rows), or -1.
+		int DrawAppliesLinks(const State& a_state, const SituationRules::Rules& a_rules)
+		{
+			if (a_rules.rows.empty()) {
+				DrawFieldText(SituationRules::Text(a_rules).c_str());  // "Never applies."
+				return -1;
+			}
+			std::vector<std::string> phrases;
+			phrases.reserve(a_rules.rows.size());
+			for (const auto& row : a_rules.rows) {
+				phrases.push_back(SituationRules::RowText(row));
+			}
+			auto& first = phrases.front();
+			if (!first.empty() && first[0] >= 'a' && first[0] <= 'z') {
+				first[0] = static_cast<char>(first[0] - 'a' + 'A');
+			}
+			// A phrase per even index, the commas and the full stop between: run / 2 is the row.
+			std::vector<Theme::LinkRun> runs;
+			runs.reserve(phrases.size() * 2);
+			for (std::size_t i = 0; i < phrases.size(); ++i) {
+				if (i > 0) {
+					runs.push_back({ ", ", false });
+				}
+				runs.push_back({ phrases[i].c_str() });
+			}
+			runs.push_back({ ".", false });
+
+			const bool editable = a_state.request.customSituations;
+			int        hovered = -1;
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
+			const int clicked = Theme::RunLinks(runs, editable, &hovered);
+			if (hovered >= 0 && !editable) {
+				Theme::Tooltip(kTurnOnCustom);
+			}
+			return editable && clicked >= 0 ? clicked / 2 : -1;
+		}
+
 		// The settings every actor shares: the name, its label with the situation star (none for
 		// the Default, which says what it is under it), why it is never worn, and the conditions:
-		// in the condition editor while the page offers it (Request::customSituations), else read
-		// only. Returns true when a Place or Spell row's Add link was pressed
-		// (SituationForm::formRow).
+		// the Default's read only; another's Applies text (DrawAppliesLinks), greyed and read only
+		// unless the page offers the editor (Request::customSituations), then with Edit
+		// Conditions... under it. Returns true when the editor is to open, on the condition in
+		// SituationForm::editorFocus (-1 for none).
 		bool DrawGlobalSettings(State& a_state, std::size_t a_entry)
 		{
 			auto&      form = a_state.situationForm;
@@ -1295,23 +1373,26 @@ namespace CaptureWindow::Internal
 				DrawDefaultNote(a_state);
 			}
 			DrawNeverWorn(form, a_entry);
-			if (!isDefault && a_state.request.customSituations) {
-				bool addForm = false;
-				if (DrawConditionEditor(a_state, entry.rules, addForm)) {
-					form.neverWornStale = true;
-					ScheduleAutosave(a_state);
-				}
-				return addForm;
-			}
 			Theme::LabelText("Conditions");
-			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			const bool editable = !isDefault && a_state.request.customSituations;
+			if (!editable) {
+				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			}
+			const int clicked = isDefault ? -1 : DrawAppliesLinks(a_state, entry.rules);
 			if (isDefault) {
 				DrawDefaultConditions();
-			} else {
-				DrawFieldText(SituationRules::Text(entry.rules).c_str());
 			}
-			ImGui::PopStyleColor();
-			return false;
+			if (!editable) {
+				ImGui::PopStyleColor();
+				return false;
+			}
+			form.editorWidth = ImGui::GetContentRegionAvail().x;
+			const bool pressed = Theme::Button(kEditConditions);
+			if (clicked < 0 && !pressed) {
+				return false;
+			}
+			form.editorFocus = clicked;
+			return true;
 		}
 
 		enum class DetailsAction
@@ -1319,7 +1400,7 @@ namespace CaptureWindow::Internal
 			kNone,
 			kShowList,
 			kRemove,
-			kAddForm
+			kEditConditions
 		};
 
 		// The selected situation's details as edited: its name and conditions,
@@ -1334,7 +1415,7 @@ namespace CaptureWindow::Internal
 			auto&       entry = form.entries[selected];
 			const auto& name = a_state.request.actorName;
 			ImGui::PushID(form.selected);
-			const bool addForm = DrawGlobalSettings(a_state, selected);
+			const bool editConditions = DrawGlobalSettings(a_state, selected);
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
@@ -1364,7 +1445,7 @@ namespace CaptureWindow::Internal
 				action = DetailsAction::kRemove;
 			}
 			ImGui::PopID();
-			return addForm ? DetailsAction::kAddForm : action;
+			return editConditions ? DetailsAction::kEditConditions : action;
 		}
 
 		enum class OutfitViewAction
@@ -1623,7 +1704,8 @@ namespace CaptureWindow::Internal
 		// Opens the popup of the row SituationForm::formRow names: Add place on its first choice
 		// (This Location, or This Cell outside any location), or Add spell on the actor's spells
 		// with nothing typed or picked.
-		// Contract: in the page's ID scope, as the popups are drawn there.
+		// Contract: inside the Edit conditions popup, as the popups are drawn there
+		// (DrawAddFormPopups).
 		void OpenAddFormPopup(State& a_state)
 		{
 			auto& form = a_state.situationForm;
@@ -1943,6 +2025,86 @@ namespace CaptureWindow::Internal
 			}
 		}
 
+		// The Add place and Add spell popups over the Edit conditions popup, and what they add.
+		// An edit, saved as the others are (the autosave waits while a popup is open).
+		// Contract: inside the Edit conditions popup, where OpenAddFormPopup opens them.
+		void DrawAddFormPopups(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			if (auto place = DrawAddPlacePopup(a_state)) {
+				if (auto* row = FormRow(a_state, SituationRules::Kind::kPlace)) {
+					row->places.push_back(std::move(*place));
+					form.neverWornStale = true;
+					ScheduleAutosave(a_state);
+				}
+			}
+			if (auto spell = DrawAddSpellPopup(a_state)) {
+				if (auto* row = FormRow(a_state, SituationRules::Kind::kSpell)) {
+					row->spells.push_back(std::move(*spell));
+					form.neverWornStale = true;
+					ScheduleAutosave(a_state);
+				}
+			}
+		}
+
+		// The Edit conditions popup (docs/custom-situations.md §7): the selected situation's
+		// condition editor (DrawConditionEditor) as wide as the details pane, scrolling past a
+		// part of the screen's height, then Done; Escape is Done unless it closed a dropdown or
+		// a popup over it. Its edits are saved once it closes (TakeAutosaveDue waits for it).
+		void DrawConditionEditorPopup(State& a_state)
+		{
+			constexpr float       kMaxHeightRatio = 0.6f;  // of the screen's height, the conditions' at most
+			constexpr const char* kDone = "Done";
+
+			auto& form = a_state.situationForm;
+			Theme::PushPopupPadding();
+			const float windowWidth = form.editorWidth + ImGui::GetStyle().WindowPadding.x * 2.0f;
+			Theme::PopPopupPadding();
+			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
+			if (!BeginModal(kEditConditionsPopup)) {
+				return;
+			}
+			if (form.selected <= 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
+				ImGui::CloseCurrentPopup();
+				ImGui::EndPopup();
+				return;
+			}
+			if (ImGui::IsWindowAppearing()) {
+				form.editorFocusFrom = ImGui::GetTime();
+				form.editorScroll = 2;  // the list's height is known from its second frame
+				form.editorFocusHeight = 0.0f;
+				form.editorPopupAbove = false;
+			}
+			// Before anything is drawn: a dropdown that Escape closed is gone by now.
+			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !form.editorPopupAbove && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+
+			auto& rules = form.entries[static_cast<std::size_t>(form.selected)].rules;
+			bool  addForm = false;
+			ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, ImGui::GetIO().DisplaySize.y * kMaxHeightRatio));
+			if (ImGui::BeginChild("conditions", ImVec2(0.0f, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground)) {
+				if (DrawConditionEditor(a_state, rules, addForm)) {
+					form.neverWornStale = true;
+					ScheduleAutosave(a_state);
+				}
+			}
+			ImGui::EndChild();
+			if (addForm) {
+				QueueMenuSound(kOkSound);
+				OpenAddFormPopup(a_state);
+			}
+			DrawAddFormPopups(a_state);
+
+			BeginButtonRow({ kDone });
+			const bool done = Theme::Button(kDone);
+			EndButtonRow();
+			if (done || escape) {
+				QueueMenuSound(done ? kOkSound : kCancelSound);
+				ImGui::CloseCurrentPopup();
+			}
+			form.editorPopupAbove = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+			ImGui::EndPopup();
+		}
+
 		// The page's popups, each opened by the page in its own ID scope.
 		void DrawSituationPopups(State& a_state)
 		{
@@ -1955,19 +2117,7 @@ namespace CaptureWindow::Internal
 			if (DrawNewSituationPopup(a_state)) {
 				RequestSituationCreate(a_state);
 			}
-			// An edit, saved as the others are (the autosave waits while a popup is open).
-			if (auto place = DrawAddPlacePopup(a_state)) {
-				if (auto* row = FormRow(a_state, SituationRules::Kind::kPlace)) {
-					row->places.push_back(std::move(*place));
-					ScheduleAutosave(a_state);
-				}
-			}
-			if (auto spell = DrawAddSpellPopup(a_state)) {
-				if (auto* row = FormRow(a_state, SituationRules::Kind::kSpell)) {
-					row->spells.push_back(std::move(*spell));
-					ScheduleAutosave(a_state);
-				}
-			}
+			DrawConditionEditorPopup(a_state);
 		}
 	}
 
@@ -2161,9 +2311,9 @@ namespace CaptureWindow::Internal
 		} else if (details == DetailsAction::kRemove) {
 			QueueMenuSound(kOkSound);
 			OpenAfterSave(a_state, kRemoveSituationPopup);
-		} else if (details == DetailsAction::kAddForm) {
+		} else if (details == DetailsAction::kEditConditions) {
 			QueueMenuSound(kOkSound);
-			OpenAddFormPopup(a_state);
+			OpenAfterSave(a_state, kEditConditionsPopup);
 		}
 		switch (action) {
 		case SituationAction::kNew:

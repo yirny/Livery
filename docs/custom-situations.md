@@ -24,8 +24,9 @@ Items marked *provisional* are tried in a prototype first and may change.
 - The settings page's `Enable custom situations` (`[Window] CustomSituations`, default off,
   under the `Optional Features` heading with `Enable chests`; `Settings::CustomSituations`, read as the
   window opens, `Request::customSituations`) offers the editing: New Situation..., the order's
-  drag and the condition editor. Off, every situation made stays in use, and the Situations page
-  still lists them with their outfits, their Applies line read only, the never-worn mark, Remove
+  drag and the condition editor (Edit Conditions... and the Applies text's links, §7). Off, every
+  situation made stays in use, and the Situations page still lists them with their outfits,
+  their Applies text read only, the never-worn mark, Remove
   and Restore Presets; renaming stays too. The poll does not read the setting.
 - The first version ships the kinds of §3; §4 lists the kinds held back.
 
@@ -241,10 +242,19 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
   situation, with no conditions, is appended last, where it wins over every other, and
   selected with its details shown. Every situation but the Default has Remove (a preset's
-  popup with the Restore Presets line, a user's without it) and the condition editor below
-  the name.
-- The editor, for every situation but the Default with `Request::customSituations` (off, the
-  `Conditions` label over the Applies line, read only): each condition has a heading, the
+  popup with the Restore Presets line, a user's without it) and its conditions below the name.
+- A situation's details, every one's but the Default's, show the `Conditions` label over its
+  Applies text (below), each condition's phrase a link (`Theme::RunLinks`). With
+  `Request::customSituations` the text is in the text colour, a hovered phrase is lit and
+  underlined, a click opens the `Edit conditions` popup on that condition, and `Edit
+  Conditions...` under the text opens it on none. Off, the text is greyed and a hovered phrase
+  says `Turn on custom situations in the settings to edit.` The links are for the mouse alone;
+  the button is the way in by controller.
+- The `Edit conditions` popup, a modal as wide as the details pane, holds the editor in a list
+  that scrolls past 60% of the screen's height, then `Done`; Escape is Done unless it closed a
+  dropdown or a popup over the editor. Opened on a condition, it scrolls to it and fills it in a
+  selected row's colour, fading out over 1.5 s. The Add place and Add spell popups open over it.
+- The editor: each condition has a heading, the
   kind's name as a field label (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the
   kind's help and a × (`Theme::ClearButton`, `Remove this condition.` on hover) at the line's
   right end; the label's gap sets the conditions apart. Under it the row reads as a sentence.
@@ -320,8 +330,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   sleeping`, `while Stoneflesh is on you`, `while your weapon is drawn`, `while your weapons are
   sheathed` (`youPhrase`, `youNegPhrase`). A row with nothing selected reads `Weather (nothing
   selected)`; a situation without rows `Never applies.`
-- Edits save as the page's other edits do: 0.5 s after the last one or as the page is left,
-  the file first. Nobody is redressed for changed conditions then: the poll, which waits
+- The editor's edits save once its popup closes (the page's autosave waits while a popup is
+  open) or as the page is left, the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
 - While a situation is never worn (§8a), its details say so under the name, after a field's
   gap, in the error colour, wrapped: `Never worn: <name>, lower in the list, applies whenever
