@@ -412,6 +412,31 @@ namespace CaptureWindow::Internal
 		a_state.navMoveWide = true;
 	}
 
+	// While a modal popup shows, the windows under it (the main window, a modal it was opened
+	// over) are drawn at half opacity: the alpha of every vertex they drew this frame is halved,
+	// as ImGuiStyleVar_Alpha halves it. The popup's own dropdowns and tooltips are above it.
+	// Contract: render thread, after the frame's last window and before ImGui::Render; only the
+	// windows begun this frame (Active), whose draw lists hold this frame's vertices alone.
+	void FadeBehindModal()
+	{
+		constexpr float kBehindModalAlpha = 0.5f;
+
+		auto* modal = ImGui::GetTopMostAndVisiblePopupModal();
+		if (!modal) {
+			return;
+		}
+		const int modalOrder = ImGui::FindWindowDisplayIndex(modal);
+		for (auto* window : ImGui::GetCurrentContext()->Windows) {
+			if (!window->Active || window->Hidden || ImGui::FindWindowDisplayIndex(window->RootWindow) >= modalOrder) {
+				continue;
+			}
+			for (auto& vertex : window->DrawList->VtxBuffer) {
+				const auto alpha = static_cast<ImU32>(static_cast<float>((vertex.col & IM_COL32_A_MASK) >> IM_COL32_A_SHIFT) * kBehindModalAlpha);
+				vertex.col = (vertex.col & ~IM_COL32_A_MASK) | (alpha << IM_COL32_A_SHIFT);
+			}
+		}
+	}
+
 	// Contract: render thread, after ImGui::NewFrame and before any item (RetryNavMoveWide).
 	void WidenNavMove(State& a_state)
 	{
@@ -728,10 +753,11 @@ namespace CaptureWindow::Internal
 	}
 
 	// The outfit pages' `a_count` equal columns; every table of them on a page lines up, each
-	// with its own `a_id`. When it returns true, fill the cells, each begun with NextColumn,
-	// and call EndColumns with the same count, which draws the rules between them
+	// with its own `a_id`. With `a_firstWidth`, the first column is that wide (its content) and
+	// the others share the rest. When it returns true, fill the cells, each begun with
+	// NextColumn, and call EndColumns with the same count, which draws the rules between them
 	// (Theme::ColumnRule).
-	bool BeginColumns(const char* a_id, int a_count)
+	bool BeginColumns(const char* a_id, int a_count, float a_firstWidth)
 	{
 		constexpr float kColumnGap = 36.0f;  // pixels at 1080p, between the columns
 
@@ -742,7 +768,11 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		for (int column = 0; column < a_count; ++column) {
-			ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch);
+			if (column == 0 && a_firstWidth > 0.0f) {
+				ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed, a_firstWidth);
+			} else {
+				ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch);
+			}
 		}
 		return true;
 	}
@@ -767,16 +797,19 @@ namespace CaptureWindow::Internal
 
 	void EndColumns(int a_count)
 	{
-		if (ImGui::GetCurrentTable()->CurrentColumn >= 0) {
+		const auto* table = ImGui::GetCurrentTable();
+		if (table->CurrentColumn >= 0) {
 			ImGui::PopItemFlag();  // the last cell's PushNavPart (NextColumn)
 		}
 		ImGui::EndTable();
 		ImGui::PopStyleVar();
-		// The table is the last item: its rect spans every column, which are equally wide.
-		const ImVec2 min = ImGui::GetItemRectMin();
-		const ImVec2 max = ImGui::GetItemRectMax();
+		// The table is the last item: its rect spans the columns' height. A rule goes in the middle
+		// of the gap between two columns.
+		// Contract: ImGui keeps the table, with its columns' layout, in its pool after EndTable.
+		const float top = ImGui::GetItemRectMin().y;
+		const float bottom = ImGui::GetItemRectMax().y;
 		for (int rule = 1; rule < a_count; ++rule) {
-			Theme::ColumnRule(min.x + (max.x - min.x) * static_cast<float>(rule) / static_cast<float>(a_count), min.y, max.y);
+			Theme::ColumnRule((table->Columns[rule - 1].WorkMaxX + table->Columns[rule].WorkMinX) * 0.5f, top, bottom);
 		}
 	}
 
@@ -3014,6 +3047,7 @@ namespace CaptureWindow
 		}
 		RetryNavMoveWide(state);
 		ImGui::End();
+		FadeBehindModal();
 		ForwardViewInput(state);
 	}
 }

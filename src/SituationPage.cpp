@@ -2190,8 +2190,8 @@ namespace CaptureWindow::Internal
 		// heading (the name as last entered, not while it is typed); the situation's settings
 		// (DrawSituationSettings) as wide as the page's right pane, and while the page offers the
 		// editor (Request::customSituations), for every situation but the Default, the conditions
-		// (DrawConditionsColumn) in a column of their own beside them, both as wide as that pane
-		// or the editor's widest row (EditorContentWidth); then Done, with Remove at the row's
+		// (DrawConditionsColumn) in a column of their own beside them, as wide as the editor's
+		// widest row (EditorContentWidth); then Done, with Remove at the row's
 		// right end (not for the Default). A condition clicked in the Applies text is lit and
 		// scrolled to in the editor. Escape is Done unless it closed a dropdown or a popup over
 		// it. Its edits are saved once it closes (TakeAutosaveDue waits for it). Returns true on
@@ -2205,8 +2205,8 @@ namespace CaptureWindow::Internal
 			}
 			auto&       form = a_state.situationForm;
 			const bool  conditions = form.selected > 0 && a_state.request.customSituations;  // the editor's column
-			const float column = conditions ? (std::max)(form.paneWidth, EditorContentWidth(a_state.request)) : form.paneWidth;
-			const float windowWidth = (conditions ? column * 2.0f + form.columnGap : column) + ImGui::GetStyle().WindowPadding.x * 2.0f;
+			const float columns = conditions ? form.paneWidth + form.columnGap + EditorContentWidth(a_state.request) : form.paneWidth;
+			const float windowWidth = columns + ImGui::GetStyle().WindowPadding.x * 2.0f;
 			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
 			if (!BeginModal(kEditSituationPopup, &form.editorCentred)) {
 				return false;
@@ -2243,7 +2243,7 @@ namespace CaptureWindow::Internal
 			float areaShown = 0.0f;
 			if (!conditions) {
 				DrawSituationSettings(a_state, selected);  // no link to click: the Default's, or greyed
-			} else if (BeginColumns("edit")) {
+			} else if (BeginColumns("edit", 2, form.paneWidth)) {
 				NextColumn();
 				if (const int clicked = DrawSituationSettings(a_state, selected); clicked >= 0) {
 					QueueMenuSound(kFocusSound);

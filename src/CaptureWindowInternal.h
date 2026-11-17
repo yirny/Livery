@@ -470,7 +470,7 @@ namespace CaptureWindow::Internal
 	int                                  CompareColumn(const CaptureWindow::Piece& a_left, const CaptureWindow::Piece& a_right, int a_column);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
-	bool                                 BeginColumns(const char* a_id, int a_count = 2);
+	bool                                 BeginColumns(const char* a_id, int a_count = 2, float a_firstWidth = 0.0f);
 	void                                 NextColumn();  // in place of ImGui::TableNextColumn in BeginColumns
 	void                                 EndColumns(int a_count = 2);
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);

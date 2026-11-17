@@ -256,12 +256,14 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - The `Edit situation` popup (docs/situation-management-ui.md §5), a modal (every modal of the
   window: the main window's padding, Vanilla's frame and Nordic's ornaments over the popup's
   own background, moved by a drag on it as the main window is, never with ImGui's own scroll
-  bar), centred on the screen at every frame, so it stays centred as conditions come and go,
-  until the user drags it (`BeginModal`'s `a_centred`, again on the next opening). With
-  `Request::customSituations`, for every situation but the Default, it has two equal columns as
-  the pages have (`BeginColumns`), each as wide as the page's right pane or the widest row any
-  kind can have (`EditorContentWidth`), whichever is wider, so only a Place or Spell row's list
-  goes under its row: the situation's settings on the left, and on the right `Conditions` (no
+  bar; the windows under the top one, the main window and a modal it opened over, drawn at
+  half opacity over ImGui's dark backdrop, `FadeBehindModal`), centred on the screen at every
+  frame, so it stays centred as conditions come and go, until the user drags it
+  (`BeginModal`'s `a_centred`, again on the next opening). With `Request::customSituations`,
+  for every situation but the Default, it has two columns with the pages' gap and rule
+  (`BeginColumns` with a first column's width): the situation's settings on the left, as wide
+  as the page's right pane, and on the right, as wide as the widest row any kind can have
+  (`EditorContentWidth`), so only a Place or Spell row's list goes under its row, `Conditions` (no
   help) over the editor in an area as tall as it while the whole popup stays within 90% of the
   screen's height (`kMaxWindowHeightRatio`; the rest of the popup measured the frame before),
   scrolling past that with the skin's scroll bar in the window's right padding, the boxes as
