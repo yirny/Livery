@@ -4,6 +4,8 @@
 #include <array>
 #include <cstdint>
 #include <format>
+#include <initializer_list>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -75,8 +77,8 @@ TEST_CASE("Parse replaces the presets' fields an entry has and ignores the other
 		{ "key": "Default", "description": 3 } ] })",
 		table);
 	REQUIRE_FALSE(problem);
-	CHECK(At(table, Situation::kTown) == SituationTable::Entry{ .name = "City" });
-	CHECK(At(table, Situation::kHome) == SituationTable::Entry{ .name = "Home", .removed = true });
+	CHECK(At(table, Situation::kTown) == SituationTable::Entry{ .name = "City", .rules = SituationTable::PresetRules(Situation::kTown) });
+	CHECK(At(table, Situation::kHome) == SituationTable::Entry{ .name = "Home", .removed = true, .rules = SituationTable::PresetRules(Situation::kHome) });
 	CHECK(At(table, Situation::kSleep) == SituationTable::Preset(Situation::kSleep));
 	CHECK(At(table, Situation::kDefault) == SituationTable::Preset(Situation::kDefault));
 
@@ -138,15 +140,46 @@ TEST_CASE("Keys name each situation once", "[situations]")
 	CHECK_FALSE(Situations::FromKey("Tavern"));
 }
 
-TEST_CASE("The registry holds the presets in the window's and Evaluate's orders", "[situations]")
+TEST_CASE("The registry holds the presets in the installed order, the lowest winning", "[situations]")
 {
 	CHECK(Situations::Count() == 6);
 	CHECK(Situations::Count() <= Situations::kMaxSituations);
-	CHECK(std::ranges::equal(Situations::Choosable(), std::array{ Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kSleep, Situation::kCold }));
-	CHECK(std::ranges::equal(Situations::Priority(), std::array{ Situation::kSleep, Situation::kCold, Situation::kHome, Situation::kCastle, Situation::kTown }));
+	CHECK(std::ranges::equal(Situations::Order(), std::array{ Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kCold, Situation::kSleep }));
 	CHECK(std::string(Situations::Name(Situation::kDefault)) == "Default");
-	CHECK(Situations::ConditionOf(Situation::kSleep) == Situations::Condition::kSleeping);
 	CHECK(SituationTable::Presets().size() == Situations::Count());
+	CHECK(std::ranges::equal(SituationTable::Presets().order, Situations::Order()));
+}
+
+TEST_CASE("Reorder takes every situation but the Default once, or nothing", "[situations]")
+{
+	const std::array before{ Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kCold, Situation::kSleep };
+	CHECK_FALSE(Situations::Reorder(std::array{ Situation::kTown, Situation::kCastle }));
+	CHECK_FALSE(Situations::Reorder(std::array{ Situation::kTown, Situation::kTown, Situation::kHome, Situation::kCold, Situation::kSleep }));
+	CHECK_FALSE(Situations::Reorder(std::array{ Situation::kDefault, Situation::kCastle, Situation::kHome, Situation::kCold, Situation::kSleep }));
+	CHECK(std::ranges::equal(Situations::Order(), before));
+	const std::array after{ Situation::kSleep, Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kCold };
+	CHECK(Situations::Reorder(after));
+	CHECK(std::ranges::equal(Situations::Order(), after));
+	CHECK(Situations::Reorder(before));
+}
+
+TEST_CASE("The presets are installed with their rules, Allow during combat off", "[situations]")
+{
+	using SituationRules::Kind;
+	const auto cold = SituationTable::PresetRules(Situation::kCold);
+	REQUIRE(cold.rows.size() == 2);
+	CHECK(cold.rows[0].kind == Kind::kWeather);
+	CHECK(cold.rows[0].values == (SituationRules::kRain | SituationRules::kSnow | SituationRules::kSnowyRegion));
+	CHECK(cold.rows[1] == SituationRules::Row{ .kind = Kind::kIndoors, .negated = true });
+	CHECK(SituationRules::Text(cold) == "In rain, snow or a snowy region, outdoors.");
+	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kTown)) == "In a town.");
+	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kHome)) == "In a player home.");
+	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kSleep)) == "Sleeping.");
+	CHECK(SituationTable::PresetRules(Situation::kDefault).rows.empty());
+	for (const auto situation : Situations::kInstalledOrder) {
+		CHECK_FALSE(SituationRules::AppliesInCombat(SituationTable::PresetRules(situation)));
+		CHECK_FALSE(SituationRules::NeverApplies(SituationTable::PresetRules(situation)));
+	}
 }
 
 TEST_CASE("RestoreChanges names each situation that differs, under its name now", "[situations]")
@@ -157,6 +190,11 @@ TEST_CASE("RestoreChanges names each situation that differs, under its name now"
 	At(table, Situation::kCold).name = "Chill";
 	At(table, Situation::kDefault).name = "Everyday";
 	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Everyday: name reset", "Town: restored", "Cottage: name reset", "Chill: name reset" });
+
+	At(table, Situation::kCold).rules.applyInCombat = true;
+	At(table, Situation::kCastle).rules.rows.clear();
+	CHECK(SituationTable::RestoreChanges(table) ==
+		  Lines{ "Everyday: name reset", "Town: restored", "Castle: conditions reset", "Cottage: name reset", "Chill: name and conditions reset" });
 }
 
 namespace
@@ -169,6 +207,13 @@ namespace
 	SituationTable::Entry User(std::uint32_t a_number, std::string a_name, Rules a_rules = {})
 	{
 		return { .name = std::move(a_name), .key = SituationTable::UserKey(a_number), .rules = std::move(a_rules) };
+	}
+
+	// Adds a user's situation last, in the table and its order, as SituationStore::Create does.
+	void AddUserTo(SituationTable::Table& a_table, SituationTable::Entry a_entry)
+	{
+		a_table.order.push_back(static_cast<Situation>(a_table.size()));
+		a_table.entries.push_back(std::move(a_entry));
 	}
 
 	const Rules kRainyTown{ .rows = { { .kind = Kind::kLocationType, .values = SituationRules::kTown | SituationRules::kCastle },
@@ -232,8 +277,8 @@ TEST_CASE("Serialize writes version 1 until a user's situation is made, then ver
 	CHECK(SituationTable::Serialize(table).find("nextKey") == std::string::npos);
 
 	table.nextKey = 4;
-	table.entries.push_back(User(1, "Rainy town", kRainyTown));
-	table.entries.push_back(User(3, "Night", { .rows = { { .kind = Kind::kTimeOfDay, .from = 22 * 60, .to = 5 * 60 + 30 } }, .applyInCombat = true }));
+	AddUserTo(table, User(1, "Rainy town", kRainyTown));
+	AddUserTo(table, User(3, "Night", { .rows = { { .kind = Kind::kTimeOfDay, .from = 22 * 60, .to = 5 * 60 + 30 } }, .applyInCombat = true }));
 	const auto text = SituationTable::Serialize(table);
 	CHECK(text.find("\"version\": 2") != std::string::npos);
 	CHECK(text.find("\"nextKey\": 4") != std::string::npos);
@@ -266,6 +311,12 @@ TEST_CASE("Parse reads version 2's user's situations after the presets, in the f
 	REQUIRE(table.size() == Situations::kPresetCount + 2);
 	CHECK(table.nextKey == 6);
 	CHECK(At(table, Situation::kTown).name == "City");
+	CHECK(At(table, Situation::kTown).rules == SituationTable::PresetRules(Situation::kTown));  // conditions left out: as installed
+	// The presets it lacks first, as installed, then the file's order.
+	const auto night = static_cast<Situation>(Situations::kPresetCount);
+	const auto wet = static_cast<Situation>(Situations::kPresetCount + 1);
+	CHECK(table.order ==
+		  std::vector{ Situation::kCastle, Situation::kHome, Situation::kCold, Situation::kSleep, night, Situation::kTown, wet });
 	CHECK(table[Situations::kPresetCount] == User(5, "Night", { .rows = { { .kind = Kind::kTimeOfDay, .from = 8 * 60, .to = 6 * 60 } } }));
 	CHECK(table[Situations::kPresetCount + 1] ==
 		  User(2, "Wet", { .rows = { { .kind = Kind::kWeather, .values = SituationRules::kRain }, { .kind = Kind::kIndoors, .negated = true } }, .applyInCombat = true }));
@@ -299,8 +350,8 @@ TEST_CASE("Restore Presets leaves the user's situations as they are", "[situatio
 	auto table = SituationTable::Presets();
 	table.nextKey = 3;
 	At(table, Situation::kTown).removed = true;
-	table.entries.push_back(User(1, "Rainy town", kRainyTown));
-	table.entries.push_back(User(2, "Gone"));
+	AddUserTo(table, User(1, "Rainy town", kRainyTown));
+	AddUserTo(table, User(2, "Gone"));
 	table[Situations::kPresetCount + 1].removed = true;
 	CHECK(SituationTable::RestoreChanges(table) == Lines{ "Town: restored" });
 
@@ -316,9 +367,9 @@ TEST_CASE("A user's situation's name follows the same rules as a preset's", "[si
 {
 	auto table = SituationTable::Presets();
 	table.nextKey = 3;
-	table.entries.push_back(User(1, "Rainy town"));
+	AddUserTo(table, User(1, "Rainy town"));
 	CHECK_FALSE(SituationTable::CheckNames(table));
-	table.entries.push_back(User(2, "TOWN"));
+	AddUserTo(table, User(2, "TOWN"));
 	CHECK(SituationTable::CheckNames(table));
 	At(table, Situation::kTown).removed = true;
 	CHECK_FALSE(SituationTable::CheckNames(table));
@@ -361,7 +412,7 @@ TEST_CASE("A place is the same by plugin and FormID, its load order FormID neith
 	table.nextKey = 2;
 	const SituationRules::Rules rules{ .rows = { { .kind = SituationRules::Kind::kPlace,
 										   .places = { PlaceOf("Skyrim.esm", 0x0165EC, "Breezehome", 0x000165EC), PlaceOf("MyHome.esp", 0x000801, "Lakeside", 0) } } } };
-	table.entries.push_back(User(1, "Home sweet home", rules));
+	AddUserTo(table, User(1, "Home sweet home", rules));
 	const auto text = SituationTable::Serialize(table);
 	CHECK(text.find("\"kind\": \"place\"") != std::string::npos);
 	CHECK(text.find("\"formId\": \"0x0165EC\"") != std::string::npos);
@@ -452,7 +503,7 @@ TEST_CASE("A Spell row is written and read as pieces, and the whole file refused
 	const SituationRules::Rules rules{ .rows = { { .kind = SituationRules::Kind::kSpell,
 										   .spells = { PlaceOf("Skyrim.esm", 0x059B7A, "Stoneflesh", 0x00059B7A), PlaceOf("Magic.esp", 0x000812, "Frost Skin", 0) } } },
 		.applyInCombat = true };
-	table.entries.push_back(User(1, "Stone skin", rules));
+	AddUserTo(table, User(1, "Stone skin", rules));
 	const auto text = SituationTable::Serialize(table);
 	CHECK(text.find("\"kind\": \"spell\"") != std::string::npos);
 	CHECK(text.find("\"formId\": \"0x059B7A\"") != std::string::npos);
@@ -505,4 +556,164 @@ TEST_CASE("The popup keeps one of each spell with the same name and effects, by 
 	}
 	// Flames twice (other effects), oakflesh before Scroll (case ignored), the lower Stoneflesh.
 	CHECK(kept == std::vector<std::uint32_t>{ 0x10, 0x11, 0x5AD5C, 0x965A3, 0x5AD5D });
+}
+
+TEST_CASE("Version 2 keeps the order and the presets' rules; back to version 1 once nothing else differs", "[situations]")
+{
+	using SituationRules::Kind;
+	auto table = SituationTable::Presets();
+	table.order = { Situation::kSleep, Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kCold };
+	auto text = SituationTable::Serialize(table);
+	CHECK(text.find("\"version\": 2") != std::string::npos);
+	CHECK(text.find("\"nextKey\": 1") != std::string::npos);
+	CHECK(text.find("\"Default\"") == std::string::npos);  // as installed
+	SituationTable::Table read;
+	REQUIRE_FALSE(SituationTable::Parse(text, read));
+	CHECK(read == table);
+
+	table.order = SituationTable::Presets().order;
+	At(table, Situation::kHome).rules.rows.push_back({ .kind = Kind::kIndoors });
+	At(table, Situation::kCastle).removed = true;
+	At(table, Situation::kDefault).name = "Everyday";
+	text = SituationTable::Serialize(table);
+	CHECK(text.find("\"version\": 2") != std::string::npos);
+	CHECK(text.find("\"Everyday\"") != std::string::npos);
+	REQUIRE_FALSE(SituationTable::Parse(text, read));
+	CHECK(read == table);
+
+	At(table, Situation::kHome).rules = SituationTable::PresetRules(Situation::kHome);
+	text = SituationTable::Serialize(table);
+	CHECK(text.find("\"version\": 1") != std::string::npos);
+	REQUIRE_FALSE(SituationTable::Parse(text, read));
+	CHECK(read == table);
+}
+
+TEST_CASE("Reordered puts the shown situations in their new order, a removed one keeping its place", "[situations]")
+{
+	const std::vector order{ Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kCold, Situation::kSleep };
+	const auto        removed = [](Situation a_situation) { return a_situation == Situation::kCastle; };
+	const std::vector shown{ Situation::kSleep, Situation::kTown, Situation::kHome, Situation::kCold };
+	CHECK(SituationTable::Reordered(order, shown, removed) ==
+		  std::vector{ Situation::kSleep, Situation::kCastle, Situation::kTown, Situation::kHome, Situation::kCold });
+	CHECK_FALSE(SituationTable::Reordered(order, std::vector{ Situation::kSleep, Situation::kTown, Situation::kHome }, removed));
+	CHECK_FALSE(SituationTable::Reordered(order, std::vector{ Situation::kSleep, Situation::kTown, Situation::kHome, Situation::kCastle }, removed));
+	CHECK_FALSE(SituationTable::Reordered(order, std::vector{ Situation::kSleep, Situation::kSleep, Situation::kHome, Situation::kCold }, removed));
+}
+
+TEST_CASE("Restore Presets brings back the presets' rules and leaves the order", "[situations]")
+{
+	auto table = SituationTable::Presets();
+	table.order = { Situation::kSleep, Situation::kTown, Situation::kCastle, Situation::kHome, Situation::kCold };
+	At(table, Situation::kCold).rules.rows.pop_back();
+	At(table, Situation::kSleep).rules.applyInCombat = true;
+	const auto restored = SituationTable::RestorePresets(table);
+	CHECK(restored[IndexOf(Situation::kCold)] == SituationTable::Preset(Situation::kCold));
+	CHECK(restored[IndexOf(Situation::kSleep)] == SituationTable::Preset(Situation::kSleep));
+	CHECK(restored.order == table.order);
+	CHECK(SituationTable::RestoreChanges(restored).empty());
+}
+
+namespace
+{
+	using SituationRules::CoveredBy;
+	using SituationRules::PlaceFact;
+
+	Rules RulesOf(std::initializer_list<Row> a_rows, bool a_applyInCombat = false)
+	{
+		return { .rows = a_rows, .applyInCombat = a_applyInCombat };
+	}
+}
+
+TEST_CASE("A situation is never worn while one lower applies whenever it does", "[situations]")
+{
+	const Row                        town{ .kind = Kind::kLocationType, .values = SituationRules::kTown };
+	const Row                        townOrCastle{ .kind = Kind::kLocationType, .values = SituationRules::kTown | SituationRules::kCastle };
+	const Row                        rain{ .kind = Kind::kWeather, .values = SituationRules::kRain };
+	const Row                        outdoors{ .kind = Kind::kIndoors, .negated = true };
+	const std::span<const PlaceFact> none;
+
+	// The lower one asks for less.
+	CHECK(CoveredBy(RulesOf({ town, rain }), RulesOf({ townOrCastle }), none));
+	CHECK(CoveredBy(RulesOf({ rain, outdoors }), RulesOf({ outdoors }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ townOrCastle }), RulesOf({ town }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ town }), RulesOf({ town, rain }), none));
+	// Negated, the narrower list is the one implied.
+	const Row notRain{ .kind = Kind::kWeather, .negated = true, .values = SituationRules::kRain };
+	const Row notRainOrSnow{ .kind = Kind::kWeather, .negated = true, .values = SituationRules::kRain | SituationRules::kSnow };
+	CHECK(CoveredBy(RulesOf({ notRainOrSnow }), RulesOf({ notRain }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ notRain }), RulesOf({ notRainOrSnow }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ notRain }), RulesOf({ rain }), none));
+	// Combat: the lower one must be allowed during combat when the upper one is.
+	const Row combat{ .kind = Kind::kInCombat };
+	CHECK(CoveredBy(RulesOf({ town }), RulesOf({ town }, true), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ town }, true), RulesOf({ town }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ town, combat }), RulesOf({ town }), none));
+	// A situation that never applies is never marked and covers nothing.
+	CHECK_FALSE(CoveredBy(RulesOf({}), RulesOf({ town }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ town }), RulesOf({}), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ town, { .kind = Kind::kWeather } }), RulesOf({ town }), none));
+	// The presets as installed: Sleep and Cold are not covered by each other.
+	CHECK_FALSE(CoveredBy(SituationTable::PresetRules(Situation::kCold), SituationTable::PresetRules(Situation::kSleep), none));
+	CHECK_FALSE(CoveredBy(SituationTable::PresetRules(Situation::kHome), SituationTable::PresetRules(Situation::kTown), none));
+}
+
+TEST_CASE("Never worn: a time range within another, spells with the same effects", "[situations]")
+{
+	const std::span<const PlaceFact> none;
+	const Row                        night{ .kind = Kind::kTimeOfDay, .from = 20 * 60, .to = 6 * 60 };
+	const Row                        lateNight{ .kind = Kind::kTimeOfDay, .from = 23 * 60, .to = 2 * 60 };
+	const Row                        evening{ .kind = Kind::kTimeOfDay, .from = 18 * 60, .to = 22 * 60 };
+	const Row                        wholeDay{ .kind = Kind::kTimeOfDay, .from = 0, .to = 0 };
+	CHECK(CoveredBy(RulesOf({ lateNight }), RulesOf({ night }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ night }), RulesOf({ lateNight }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ evening }), RulesOf({ night }), none));
+	CHECK(CoveredBy(RulesOf({ night }), RulesOf({ wholeDay }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ wholeDay }), RulesOf({ night }), none));
+
+	const auto spell = [](std::uint32_t a_localID, std::vector<std::uint32_t> a_effects) {
+		return SituationRules::Spell{ .ref = { "Skyrim.esm", a_localID, "" }, .formID = a_localID, .effects = std::move(a_effects) };
+	};
+	const Row stoneflesh{ .kind = Kind::kSpell, .spells = { spell(0x59B7A, { 0x1 }) } };
+	const Row scroll{ .kind = Kind::kSpell, .spells = { spell(0x965A3, { 0x1 }) } };  // the same effects
+	const Row flesh{ .kind = Kind::kSpell, .spells = { spell(0x51B15, { 0x2 }), spell(0x59B7A, { 0x1 }) } };
+	CHECK(CoveredBy(RulesOf({ stoneflesh }), RulesOf({ flesh }), none));
+	CHECK(CoveredBy(RulesOf({ scroll }), RulesOf({ stoneflesh }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ flesh }), RulesOf({ stoneflesh }), none));
+}
+
+TEST_CASE("Never worn: a place within another, and a place whose every location is of a type", "[situations]")
+{
+	const auto                   place = [](std::uint32_t a_formID) { return PlaceOf("Skyrim.esm", a_formID, "", a_formID); };
+	constexpr std::uint32_t      kWhiterun = 0x10;
+	constexpr std::uint32_t      kBreezehome = 0x11;
+	constexpr std::uint32_t      kCell = 0x12;
+	constexpr std::uint32_t      kRuin = 0x13;
+	const auto                   mask = [](std::uint32_t a_types) { return static_cast<std::uint16_t>(1u << a_types); };
+	const std::vector<PlaceFact> facts{
+		{ .formID = kWhiterun, .typeMasks = static_cast<std::uint16_t>(mask(SituationRules::kTown) | mask(SituationRules::kTown | SituationRules::kCastle)) },
+		{ .formID = kBreezehome, .within = { kWhiterun }, .typeMasks = mask(SituationRules::kTown | SituationRules::kPlayerHome) },
+		{ .formID = kCell, .within = { kBreezehome, kWhiterun }, .typeMasks = mask(SituationRules::kTown | SituationRules::kPlayerHome) },
+		{ .formID = kRuin, .typeMasks = static_cast<std::uint16_t>(mask(SituationRules::kDungeon) | mask(0)) },
+	};
+	const Row whiterun{ .kind = Kind::kPlace, .places = { place(kWhiterun) } };
+	const Row breezehome{ .kind = Kind::kPlace, .places = { place(kBreezehome) } };
+	const Row cell{ .kind = Kind::kPlace, .places = { place(kCell) } };
+	const Row ruin{ .kind = Kind::kPlace, .places = { place(kRuin) } };
+	CHECK(CoveredBy(RulesOf({ breezehome }), RulesOf({ whiterun }), facts));
+	CHECK(CoveredBy(RulesOf({ cell }), RulesOf({ whiterun }), facts));
+	CHECK_FALSE(CoveredBy(RulesOf({ whiterun }), RulesOf({ breezehome }), facts));
+	CHECK_FALSE(CoveredBy(RulesOf({ breezehome }), RulesOf({ whiterun }), {}));  // no facts: nothing told
+
+	const Row town{ .kind = Kind::kLocationType, .values = SituationRules::kTown };
+	const Row home{ .kind = Kind::kLocationType, .values = SituationRules::kPlayerHome };
+	const Row dungeon{ .kind = Kind::kLocationType, .values = SituationRules::kDungeon };
+	CHECK(CoveredBy(RulesOf({ whiterun }), RulesOf({ town }), facts));
+	CHECK(CoveredBy(RulesOf({ breezehome }), RulesOf({ home }), facts));
+	CHECK_FALSE(CoveredBy(RulesOf({ whiterun }), RulesOf({ home }), facts));
+	CHECK_FALSE(CoveredBy(RulesOf({ ruin }), RulesOf({ dungeon }), facts));  // a location within it has no type
+	// Negated, the narrower list is the one implied.
+	const Row notWhiterun{ .kind = Kind::kPlace, .negated = true, .places = { place(kWhiterun) } };
+	const Row notBreezehome{ .kind = Kind::kPlace, .negated = true, .places = { place(kBreezehome) } };
+	CHECK(CoveredBy(RulesOf({ notWhiterun }), RulesOf({ notBreezehome }), facts));
+	CHECK_FALSE(CoveredBy(RulesOf({ notBreezehome }), RulesOf({ notWhiterun }), facts));
 }

@@ -3,20 +3,23 @@
 // FILE MAP
 //   Constants - the poll interval and redress hold, the water reach and leave, the snow share,
 //               the location depth
-//   Detection - the presets' conditions (sleep, cold outdoors, home, castle, town), the
-//               rows of the user's situations (SituationRules), in water with its
-//               hysteresis, and the player's beast form
-//   Places    - what the Add place popup offers: the actor's location and its parents, their cell
+//   Detection - the rows of every situation's rules (SituationRules): sleep, location types,
+//               weather, places, spells and the rest, in water with its hysteresis, and the
+//               player's beast form
+//   Places    - what the Add place popup offers: the actor's location and its parents, their
+//               cell; what the never-worn mark knows of a place (PlaceFacts)
 //   Spells    - what the Add spell popup offers: the spells the actor casts on themselves and
 //               those behind the visible effects on them, or every spell, potion, scroll and
 //               ingredient of the loaded plugins with a visible effect; a spell's visible effects
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
-//   API       - Evaluate / PlacesAround / SpellsAround / AllSpells / VisibleEffectsOf / Start / Stop
+//   API       - Evaluate / PlacesAround / PlaceFacts / SpellsAround / AllSpells / VisibleEffectsOf /
+//               Start / Stop
 //
-// The presets' rules follow Tailor 3.0's src/events/SituationHandler.cpp and its policy headers
-// (SwimmingPolicy, SleepStatePolicy, WarmPolicy, WarmWeather, LocationSituationPolicy).
+// The rules the presets are installed with (SituationTable::PresetRules) follow Tailor 3.0's
+// src/events/SituationHandler.cpp and its policy headers (SwimmingPolicy, SleepStatePolicy,
+// WarmPolicy, WarmWeather, LocationSituationPolicy).
 #include "PCH.h"
 
 #include "Situations.h"
@@ -34,6 +37,7 @@
 #include <cmath>
 #include <compare>
 #include <format>
+#include <functional>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -182,32 +186,8 @@ namespace
 		return sky && sky->region && IsSnowyRegion(*sky->region);
 	}
 
-	// Outdoors in rain or snow, or anywhere outdoors in a snowy region (whose clear days are
-	// its own); a cloudy sky alone is not cold.
-	bool IsColdOutdoors(RE::Actor& a_actor)
-	{
-		using Flag = RE::TESWeather::WeatherDataFlag;
-		const auto* cell = a_actor.GetParentCell();
-		if (!cell || !cell->IsExteriorCell()) {
-			return false;
-		}
-		return WeatherHas(Flag::kRainy, Flag::kSnow) || InSnowyRegion();
-	}
-
 	// Location keywords keep their editor IDs at runtime, so they are named rather than
 	// numbered. A location's own keywords only: a room of a city is not in it by its parent.
-
-	// Any house for an NPC, their own for the player.
-	bool IsHome(const RE::Actor& a_actor, const RE::BGSLocation& a_location)
-	{
-		return a_location.HasKeywordString("LocTypePlayerHouse"sv) || (!a_actor.IsPlayerRef() && a_location.HasKeywordString("LocTypeHouse"sv));
-	}
-
-	// A jarl's palace or keep. Every one in the game is a dwelling too, so in a town (IsTown).
-	bool IsCastle(const RE::BGSLocation& a_location)
-	{
-		return a_location.HasKeywordString("LocTypeCastle"sv);
-	}
 
 	// A city, town, settlement, dwelling or inn.
 	bool IsInhabited(const RE::BGSLocation& a_location)
@@ -216,39 +196,14 @@ namespace
 		return has("LocTypeCity"sv) || has("LocTypeTown"sv) || has("LocTypeSettlement"sv) || has("LocTypeDwelling"sv) || has("LocTypeInn"sv);
 	}
 
-	// Inhabited, or a home (IsHome), so a home without an outfit of its own falls back to the
-	// Town one.
-	bool IsTown(const RE::Actor& a_actor, const RE::BGSLocation& a_location)
-	{
-		return IsHome(a_actor, a_location) || IsInhabited(a_location);
-	}
-
-	// `a_location`: their current location, or null outside any.
-	bool Holds(Situations::Condition a_condition, RE::Actor& a_actor, const RE::BGSLocation* a_location)
-	{
-		using Condition = Situations::Condition;
-		switch (a_condition) {
-		case Condition::kSleeping:
-			return IsSleeping(a_actor);
-		case Condition::kCold:
-			return IsColdOutdoors(a_actor);
-		case Condition::kHome:
-			return a_location && IsHome(a_actor, *a_location);
-		case Condition::kCastle:
-			return a_location && IsCastle(*a_location);
-		case Condition::kTown:
-			return a_location && IsTown(a_actor, *a_location);
-		}
-		return false;
-	}
-
-	// Location type's values (SituationRules) the location has, as the presets read
-	// keywords: Town is any house, the player's included, or inhabited.
+	// Location type's values (SituationRules) the location's own keywords give: Town is any
+	// house, the player's included, or inhabited; Castle a jarl's palace or keep, every one of
+	// which is a dwelling too, so a town as well.
 	bool HasLocationType(const RE::BGSLocation& a_location, std::uint32_t a_values)
 	{
 		const auto has = [&a_location](std::string_view a_keyword) { return a_location.HasKeywordString(a_keyword); };
 		return ((a_values & SituationRules::kTown) && (has("LocTypePlayerHouse"sv) || has("LocTypeHouse"sv) || IsInhabited(a_location))) ||
-		       ((a_values & SituationRules::kCastle) && IsCastle(a_location)) ||
+		       ((a_values & SituationRules::kCastle) && has("LocTypeCastle"sv)) ||
 		       ((a_values & SituationRules::kPlayerHome) && has("LocTypePlayerHouse"sv)) ||
 		       ((a_values & SituationRules::kDungeon) && has("LocTypeDungeon"sv));
 	}
@@ -394,7 +349,7 @@ namespace
 		return found;
 	}
 
-	// Whether one row of a user's situation holds: its kind's test, inverted by `not`. A row
+	// Whether one row of a situation's rules holds: its kind's test, inverted by `not`. A row
 	// with nothing selected never holds.
 	bool RowHolds(const SituationRules::Row& a_row, Facts& a_facts)
 	{
@@ -446,8 +401,8 @@ namespace
 		return holds != a_row.negated;
 	}
 
-	// A user's situation applies: in combat only when it applies in combat, then while every
-	// row holds; never with no rows.
+	// A situation applies: in combat only when it is allowed during combat, then while every row
+	// holds; never with no rows.
 	bool RulesHold(const SituationRules::Rules& a_rules, Facts& a_facts, bool a_inCombat)
 	{
 		if (a_rules.rows.empty() || (a_inCombat && !SituationRules::AppliesInCombat(a_rules))) {
@@ -521,6 +476,45 @@ namespace
 			}
 		}
 		return parents;
+	}
+
+	// The Location type values (SituationRules::kLocationTypes) the location's own keywords give,
+	// as bits: below 16.
+	std::uint32_t TypeMaskOf(const RE::BGSLocation& a_location)
+	{
+		std::uint32_t mask = 0;
+		for (const auto& value : SituationRules::kLocationTypes) {
+			if (HasLocationType(a_location, value.bit)) {
+				mask |= value.bit;
+			}
+		}
+		return mask;
+	}
+
+	// What the never-worn mark knows of one place, all but the locations within it
+	// (PlaceFacts adds them): its location (a cell's) and that one's parents, its own type mask.
+	// `a_isLocation` tells PlaceFacts to add those within it.
+	SituationRules::PlaceFact FactOf(std::uint32_t a_formID, bool& a_isLocation)
+	{
+		SituationRules::PlaceFact fact{ .formID = a_formID };
+		const auto*               form = RE::TESForm::LookupByID(a_formID);
+		const RE::BGSLocation*    location = form ? form->As<RE::BGSLocation>() : nullptr;
+		a_isLocation = location != nullptr;
+		if (const auto* cell = form && !location ? form->As<RE::TESObjectCELL>() : nullptr) {
+			location = cell->GetLocation();
+			if (location) {
+				fact.within.push_back(location->GetFormID());
+			}
+		}
+		if (!location) {
+			return fact;
+		}
+		fact.typeMasks = static_cast<std::uint16_t>(1u << TypeMaskOf(*location));
+		const auto* parent = location->parentLoc;
+		for (int depth = 0; parent && depth < kMaxLocationDepth; ++depth, parent = parent->parentLoc) {
+			fact.within.push_back(parent->GetFormID());
+		}
+		return fact;
 	}
 
 	// --- Spells ---------------------------------------------------------------
@@ -734,23 +728,20 @@ namespace Situations
 	Applicable Evaluate(RE::Actor& a_actor, const OutfitRows::Rows& a_rows)
 	{
 		Applicable applicable;
+		const auto order = Order();
 		const auto wanted = [&a_rows](Situation a_situation) { return OutfitRows::HoldsAny(a_rows[OutfitRows::RowOf(a_situation)]); };
-		if (std::ranges::none_of(Priority(), wanted)) {
+		if (std::ranges::none_of(order, wanted)) {
 			return applicable;  // nothing to read: no situation they could be dressed for
 		}
-		// A fight is fought in the default outfit, unless a user's situation applies in combat.
+		// A fight is fought in the default outfit, unless a situation is allowed during combat.
 		const bool inCombat = a_actor.IsInCombat();
 		Facts      facts{ .actor = a_actor };
-		for (const auto situation : Priority()) {
+		for (const auto situation : order | std::views::reverse) {  // the lowest wins
 			if (!wanted(situation)) {
 				continue;
 			}
-			if (IsUser(situation)) {
-				const auto* rules = SituationStore::RulesOf(situation);
-				if (rules && RulesHold(*rules, facts, inCombat)) {
-					applicable.Add(situation);
-				}
-			} else if (!inCombat && Holds(ConditionOf(situation), a_actor, facts.Location())) {
+			const auto* rules = SituationStore::RulesOf(situation);
+			if (rules && RulesHold(*rules, facts, inCombat)) {
 				applicable.Add(situation);
 			}
 		}
@@ -770,6 +761,38 @@ namespace Situations
 			choices.cell = PlaceOf(*cell);
 		}
 		return choices;
+	}
+
+	std::vector<SituationRules::PlaceFact> PlaceFacts(std::span<const std::uint32_t> a_places)
+	{
+		std::vector<SituationRules::PlaceFact> facts;
+		std::vector<bool>                      isLocation;
+		for (const auto id : a_places) {
+			if (id == 0 || std::ranges::find(facts, id, &SituationRules::PlaceFact::formID) != facts.end()) {
+				continue;
+			}
+			bool location = false;
+			facts.push_back(FactOf(id, location));
+			isLocation.push_back(location);
+		}
+		auto* dataHandler = RE::TESDataHandler::GetSingleton();
+		if (!dataHandler || std::ranges::none_of(isLocation, std::identity{})) {
+			return facts;
+		}
+		// Each loaded location adds its type mask to every listed location it is in.
+		for (const auto* location : dataHandler->GetFormArray<RE::BGSLocation>()) {
+			const auto*   parent = location ? location->parentLoc : nullptr;
+			std::uint16_t mask = 0;
+			for (int depth = 0; parent && depth < kMaxLocationDepth; ++depth, parent = parent->parentLoc) {
+				for (std::size_t i = 0; i < facts.size(); ++i) {
+					if (isLocation[i] && facts[i].formID == parent->GetFormID()) {
+						mask = mask != 0 ? mask : static_cast<std::uint16_t>(1u << TypeMaskOf(*location));
+						facts[i].typeMasks |= mask;
+					}
+				}
+			}
+		}
+		return facts;
 	}
 
 	std::vector<SituationRules::SpellChoice> SpellsAround(RE::Actor& a_actor)

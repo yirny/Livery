@@ -221,26 +221,35 @@ namespace CaptureWindow::Internal
 		std::string                     nameBefore;      // its name as its field's edit began, put back for an empty or taken one
 		OutfitRows::Row                 row;             // the actor's row for it
 		bool                            folded = false;  // its heading in the Situation List is folded
-		SituationRules::Rules           rules;           // a user's situation's conditions as edited (SituationInfo::user)
+		SituationRules::Rules           rules;           // its conditions as edited; none for the Default
 	};
 
 	// the Situations page's edits, kept while the window is open; a change a handler made
 	// (SetOutfits) and Discard Changes start them again from the request.
 	struct SituationForm
 	{
-		std::vector<SituationEntry>     entries;
-		bool                            defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
-		int                             selected = -1;             // index into entries; -1 for none
-		bool                            details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
-		std::uint32_t                   viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
-		int                             viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
-		bool                            scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
-		int                             nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
-		ImGuiID                         nameField = 0;             // that field's ImGui ID
-		int                             dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
-		double                          dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
-		float                           outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
-		std::array<char, kNameCapacity> newName{};                 // the New situation popup's field
+		std::vector<SituationEntry> entries;
+		// The entries after the Default as the Situation List shows them, top to bottom: indices
+		// into entries, in request.situations' order until the user drags one.
+		std::vector<std::size_t> order;
+		// Per entry, the entries lower in the list that apply whenever it does, so it is never
+		// worn (SituationRules::CoveredBy), nearest first; empty for none. Worked out again before
+		// the page draws after `neverWornStale` was set: the form refilled, a condition or the
+		// order edited.
+		std::vector<std::vector<std::size_t>> neverWornBy;
+		bool                                  neverWornStale = true;
+		bool                                  defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
+		int                                   selected = -1;             // index into entries; -1 for none
+		bool                                  details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
+		std::uint32_t                         viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
+		int                                   viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
+		bool                                  scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
+		int                                   nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
+		ImGuiID                               nameField = 0;             // that field's ImGui ID
+		int                                   dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
+		double                                dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
+		float                                 outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
+		std::array<char, kNameCapacity>       newName{};                 // the New situation popup's field
 		// The Place or Spell row the Add place or Add spell popup adds to: index into the selected
 		// entry's rules.rows.
 		int formRow = -1;

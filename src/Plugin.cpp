@@ -716,8 +716,8 @@ namespace
 	}
 
 	// The window's rows (Request::situations): the Default, then the situations not removed
-	// (SituationStore::Offered), each with its name, conditions (a user's situation's rules and
-	// their Applies line) and who has outfits on it.
+	// (SituationStore::Offered), each with its name, conditions (its rules and their Applies
+	// line; the Default's words) and who has outfits on it.
 	// Contract: game thread.
 	std::vector<CaptureWindow::SituationInfo> SituationInfos()
 	{
@@ -726,8 +726,8 @@ namespace
 			const auto* rules = SituationStore::RulesOf(situation);
 			infos.push_back({ .situation = situation,
 				.name = SituationStore::Name(situation),
-				.conditions = rules ? SituationRules::Text(*rules) : Situations::ConditionsText(situation),
-				.user = rules != nullptr,
+				.conditions = rules ? SituationRules::Text(*rules) : Situations::kDefaultConditions,
+				.user = Situations::IsUser(situation),
 				.rules = rules ? *rules : SituationRules::Rules{},
 				.holders = std::move(holders) });
 		};
@@ -1420,6 +1420,27 @@ namespace
 		return rows;
 	}
 
+	// The places the never-worn mark may meet (Situations::PlaceFacts): those of every
+	// situation's rules, and those the Add place popup offers.
+	// Contract: game thread.
+	std::vector<std::uint32_t> PlacesToTell(const SituationRules::PlaceChoices& choices)
+	{
+		std::vector<std::uint32_t> places;
+		for (const auto situation : Situations::Order()) {
+			if (const auto* rules = SituationStore::RulesOf(situation)) {
+				for (const auto& row : rules->rows) {
+					for (const auto& place : row.places) {
+						places.push_back(place.formID);
+					}
+				}
+			}
+		}
+		for (int i = 0; const auto* place = choices.At(i); ++i) {
+			places.push_back(place->formID);
+		}
+		return places;
+	}
+
 	// the Situations page's save, Remove (a situation) and Restore Presets. Each writes
 	// situations.json first; a refused or failed write changes no row and redresses no one
 	// (CLAUDE.md §2.1). Then the captured actor's rows change and the actors are redressed
@@ -1432,27 +1453,32 @@ namespace
 		const auto handle = actor.GetHandle();
 		const auto actorID = actor.GetFormID();
 		request.restoreChanges = SituationStore::RestoreChanges();
-		request.places = Situations::PlacesAround(actor);
-		request.spells = Situations::SpellsAround(actor);
-		request.allSpells = Situations::AllSpells();
+		request.customSituations = Settings::CustomSituations();
+		if (request.customSituations) {
+			request.places = Situations::PlacesAround(actor);
+			request.spells = Situations::SpellsAround(actor);
+			request.allSpells = Situations::AllSpells();
+		}
+		request.placeFacts = Situations::PlaceFacts(PlacesToTell(request.places));
 		// The rows are made at once, so the window shows them, and dressed for in one Refresh,
 		// at once, Live Preview on or off (RedressCaptured, the preview begun again on the
 		// outfit whose details show, else on what they wear). The row they wear, when random,
 		// wears the outfit it gained first, or with `reroll` another of its outfits, picked at
 		// random.
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
-			if (!save.edits.empty()) {
+			if (!save.edits.empty() || !save.order.empty()) {
 				std::vector<SituationStore::Edit> edits;
 				for (const auto& [situation, name, rules] : save.edits) {
 					edits.push_back({ .situation = situation, .name = name, .rules = rules });
 				}
-				if (const auto error = SituationStore::Apply(edits)) {
+				if (const auto error = SituationStore::Apply(edits, save.order)) {
 					CaptureWindow::SetError(*error);
 					return;
 				}
 				// No HUD message: the page saves as it is edited. Nobody is redressed for changed
-				// conditions here: the poll, which waits while the window is open, follows them.
-				logger::info("Saved the situations' names and conditions.");
+				// conditions or order here: the poll, which waits while the window is open, follows
+				// them.
+				logger::info("Saved the situations' names, conditions and order.");
 			}
 			const auto                                target = handle.get();
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};

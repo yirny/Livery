@@ -42,8 +42,8 @@ namespace OutfitRows
 	};
 
 	// One row per Situations::Situation, at the index of its id (RowOf): the Default first, then
-	// the situations in Situations::Choosable() order. A row not stored yet is empty: reading
-	// one past the stored rows gives an empty row, and writing one stores the rows up to it.
+	// the presets, then the user's situations in the order made. A row not stored yet is empty:
+	// reading one past the stored rows gives an empty row, and writing one stores the rows up to it.
 	class Rows
 	{
 	public:

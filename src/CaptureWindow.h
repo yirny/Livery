@@ -128,20 +128,20 @@ namespace CaptureWindow
 	{
 		Situations::Situation situation = Situations::Situation::kDefault;  // its key, which the handlers take
 		std::string           name;
-		std::string           conditions;    // when it applies: a preset's shown read only on the Situations page, a user's Applies line
-		bool                  user = false;  // one the user defined (docs/custom-situations.md), with `rules` the page edits
-		SituationRules::Rules rules;
+		std::string           conditions;    // when it applies: its Applies line (SituationRules::Text), the Default's words
+		bool                  user = false;  // one the user defined (docs/custom-situations.md), not a preset
+		SituationRules::Rules rules;         // every situation's but the Default's, which the page edits with Request::customSituations
 		// Who has outfits on its list in this save, one line each, for the Remove situation? popup:
 		// "Lydia: 2 outfits", the actor's FormID when not in memory. Empty for the Default.
 		std::vector<std::string> holders;
 	};
 
-	// A situation's name, and a user's situation's rules, as the Situations page leaves them.
+	// A situation's name, and its rules, as the Situations page leaves them.
 	struct SituationEdit
 	{
 		Situations::Situation                situation = Situations::Situation::kDefault;
 		std::string                          name;   // trimmed, non-empty
-		std::optional<SituationRules::Rules> rules;  // a user's situation's when they changed; nullopt keeps them
+		std::optional<SituationRules::Rules> rules;  // when they changed; nullopt keeps them. Never the Default's
 	};
 
 	// One of the actor's rows as the Situations page leaves it.
@@ -154,9 +154,12 @@ namespace CaptureWindow
 	// What the Situations page saves.
 	struct SituationSave
 	{
-		std::vector<SituationEdit> edits;                      // the situations whose name or rules changed; empty for none
-		std::vector<RowEdit>       rows;                       // every row of Request::assigned when any changed, else empty
-		bool                       dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
+		std::vector<SituationEdit> edits;  // the situations whose name or rules changed; empty for none
+		// The situations of Request::situations after the Default, in the order the user left
+		// them, when it changed; else empty.
+		std::vector<Situations::Situation> order;
+		std::vector<RowEdit>               rows;                       // every row of Request::assigned when any changed, else empty
+		bool                               dropDefaultPieces = false;  // with `rows`: the Default's pieces not in the wardrobe go
 		// The outfit whose details show, less the items the row they were opened from leaves
 		// off, as indices into Request::pieces: a preview begun again after the redress shows
 		// it; nullopt for what the actor wears then.
@@ -232,6 +235,12 @@ namespace CaptureWindow
 		std::vector<RowAssignment>   assigned;         // one per row, in `situations`' order
 		std::vector<std::string>     restoreChanges;   // what Restore Presets would change, one line each; empty while every preset is as installed
 		SituationRules::PlaceChoices places;           // what the Situations page's Add place popup offers, read at Open
+		// What the never-worn mark knows of the places of every situation's rules and of `places`
+		// (Situations::PlaceFacts), read at Open.
+		std::vector<SituationRules::PlaceFact> placeFacts;
+		// The Situations page offers New Situation..., the order's drag and the condition editor
+		// (Settings::CustomSituations at Open); off, `places` and the spells are empty.
+		bool customSituations = false;
 		// What the Situations page's Add spell popup offers: the actor's spells (read at Open), and
 		// with Show all spells every one (Situations::AllSpells, valid until the game closes).
 		std::vector<SituationRules::SpellChoice>     spells;

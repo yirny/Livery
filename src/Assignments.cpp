@@ -119,7 +119,7 @@ namespace
 
 	bool HasSituations(const Assignment& a_assignment)
 	{
-		return std::ranges::any_of(Situations::Choosable(), [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
+		return std::ranges::any_of(Situations::Order(), [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
 	}
 
 	// An assignment with nothing on the actor, no row holding an outfit and no row random is
@@ -974,7 +974,7 @@ namespace
 	// Contract: SituationStore is loaded (kDataLoaded, before any co-save load).
 	void DropRemovedRows(Assignment& a_assignment)
 	{
-		for (const auto situation : Situations::Choosable()) {
+		for (const auto situation : Situations::Order()) {
 			auto& row = a_assignment.rows[RowOf(situation)];
 			if (SituationStore::IsRemoved(situation) && row != OutfitRows::Row{}) {
 				logger::info("Dropped the {} row of {:08X}: the situation is removed in situations.json", Situations::Name(situation), a_assignment.actor);
@@ -1344,7 +1344,7 @@ namespace Assignments
 		auto&      assignment = FindOrAddAssignment(id);
 		const auto pick = GainedPick(assignment, a_rows);
 		assignment.rows = a_rows;
-		for (const auto situation : Situations::Choosable()) {
+		for (const auto situation : Situations::Order()) {
 			if (SituationStore::IsRemoved(situation)) {
 				assignment.rows[RowOf(situation)] = {};
 			}
@@ -1445,11 +1445,15 @@ namespace Assignments
 			return uses;
 		}
 		for (const auto& assignment : g_assignments) {
-			Use use{ .actor = assignment.actor };
-			for (std::size_t row = 0; row < assignment.rows.size(); ++row) {
-				if (OutfitRows::Holds(assignment.rows[row], a_outfit)) {
-					use.rows.push_back(static_cast<Situation>(row));
+			Use        use{ .actor = assignment.actor };
+			const auto add = [&](Situation a_situation) {
+				if (OutfitRows::Holds(assignment.rows[RowOf(a_situation)], a_outfit)) {
+					use.rows.push_back(a_situation);
 				}
+			};
+			add(Situation::kDefault);
+			for (const auto situation : Situations::Order()) {
+				add(situation);
 			}
 			if (!use.rows.empty()) {
 				uses.push_back(std::move(use));

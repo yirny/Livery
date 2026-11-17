@@ -420,6 +420,140 @@ namespace SituationRules
 		return text + ".";
 	}
 
+	// --- Never worn -----------------------------------------------------------
+	//
+	// A situation is never worn while one lower in the list applies whenever it does, as far as
+	// the rules tell (docs/custom-situations.md §8a). The Situations page works it out as it opens
+	// and after each edit; never the poll.
+
+	// What the never-worn mark knows of a place: Situations::PlaceFacts reads it as the window
+	// opens.
+	struct PlaceFact
+	{
+		std::uint32_t formID = 0;
+		// The locations it is in, nearest first, as the Place rule walks them: a location's
+		// parents; a cell's location, then that location's parents.
+		std::vector<std::uint32_t> within;
+		// Bit m set when its own keywords, or those of a location within it, give exactly the
+		// Location type values m (a cell: those of its location); 0 for a cell without one.
+		std::uint16_t typeMasks = 0;
+	};
+
+	// A situation that never applies: no rows, or a row with nothing selected (its Applies line
+	// says so). It is never marked and covers nothing.
+	inline bool NeverApplies(const Rules& a_rules)
+	{
+		return a_rules.rows.empty() || std::ranges::any_of(a_rules.rows, NothingSelected);
+	}
+
+	namespace Detail
+	{
+		inline const PlaceFact* FactOf(std::span<const PlaceFact> a_facts, std::uint32_t a_formID)
+		{
+			const auto found = std::ranges::find(a_facts, a_formID, &PlaceFact::formID);
+			return a_formID != 0 && found != a_facts.end() ? &*found : nullptr;
+		}
+
+		// Every minute of range `a_inner` is in range `a_outer` (InTimeRange). Each range's
+		// membership changes only at its From and To, so the minutes at the four of them start
+		// every stretch where neither changes.
+		inline bool TimeWithin(const Row& a_inner, const Row& a_outer)
+		{
+			for (const auto minute : { a_inner.from, a_inner.to, a_outer.from, a_outer.to }) {
+				if (InTimeRange(a_inner.from, a_inner.to, minute) && !InTimeRange(a_outer.from, a_outer.to, minute)) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		// The same spell, or one with the same visible effects, which a Spell Effect row counts
+		// the same (SameEffects).
+		inline bool SameSpell(const FormRef& a_left, const FormRef& a_right)
+		{
+			return SameForm(a_left.ref, a_right.ref) || (!a_left.effects.empty() && a_left.effects == a_right.effects);
+		}
+
+		// Each spell of `a_inner` is one of `a_outer`'s.
+		inline bool SpellsWithin(const std::vector<FormRef>& a_inner, const std::vector<FormRef>& a_outer)
+		{
+			return std::ranges::all_of(a_inner, [&a_outer](const FormRef& a_spell) {
+				return std::ranges::any_of(a_outer, [&a_spell](const FormRef& a_other) { return SameSpell(a_spell, a_other); });
+			});
+		}
+
+		// Each place of `a_inner` is one of `a_outer`'s or within one (PlaceFact::within).
+		inline bool PlacesWithin(const std::vector<Place>& a_inner, const std::vector<Place>& a_outer, std::span<const PlaceFact> a_facts)
+		{
+			return std::ranges::all_of(a_inner, [&a_outer, a_facts](const Place& a_place) {
+				const auto* fact = FactOf(a_facts, a_place.formID);
+				return std::ranges::any_of(a_outer, [&a_place, fact](const Place& a_other) {
+					return SameForm(a_place.ref, a_other.ref) ||
+					       (fact && a_other.formID != 0 && std::ranges::find(fact->within, a_other.formID) != fact->within.end());
+				});
+			});
+		}
+
+		// Each place of `a_places` gives one of Location type's `a_values` wherever in it the
+		// actor is: it and every location within it (PlaceFact::typeMasks).
+		inline bool PlacesHaveTypes(const std::vector<Place>& a_places, std::uint32_t a_values, std::span<const PlaceFact> a_facts)
+		{
+			return std::ranges::all_of(a_places, [a_values, a_facts](const Place& a_place) {
+				const auto* fact = FactOf(a_facts, a_place.formID);
+				if (!fact || fact->typeMasks == 0) {
+					return false;
+				}
+				for (std::uint32_t mask = 0; mask < 16; ++mask) {
+					if ((fact->typeMasks & (1u << mask)) && (mask & a_values) == 0) {
+						return false;
+					}
+				}
+				return true;
+			});
+		}
+
+		// Row `a_row` holds whenever row `a_by` does.
+		inline bool Implies(const Row& a_by, const Row& a_row, std::span<const PlaceFact> a_facts)
+		{
+			if (a_by.kind == Kind::kPlace && a_row.kind == Kind::kLocationType && !a_by.negated && !a_row.negated) {
+				return PlacesHaveTypes(a_by.places, a_row.values, a_facts);
+			}
+			if (a_by.kind != a_row.kind || a_by.negated != a_row.negated) {
+				return false;
+			}
+			// Negated, the row holds outside its values: the narrower list is the one implied.
+			const auto& inner = a_row.negated ? a_row : a_by;
+			const auto& outer = a_row.negated ? a_by : a_row;
+			switch (a_row.kind) {
+			case Kind::kLocationType:
+			case Kind::kWeather:
+				return (inner.values & ~outer.values) == 0;
+			case Kind::kTimeOfDay:
+				return TimeWithin(inner, outer);
+			case Kind::kPlace:
+				return PlacesWithin(inner.places, outer.places, a_facts);
+			case Kind::kSpell:
+				return SpellsWithin(inner.spells, outer.spells);
+			default:
+				return true;  // a two-state kind
+			}
+		}
+	}
+
+	// Whether `a_lower` applies whenever `a_rules` does, so that a situation with `a_rules` above
+	// one with `a_lower` is never worn: `a_lower` has rows and applies in combat if `a_rules`
+	// does, and each of its rows holds whenever one row of `a_rules` holds (Detail::Implies).
+	// False for a pair this cannot tell, so a missing mark proves nothing.
+	inline bool CoveredBy(const Rules& a_rules, const Rules& a_lower, std::span<const PlaceFact> a_facts)
+	{
+		if (NeverApplies(a_rules) || NeverApplies(a_lower) || (AppliesInCombat(a_rules) && !AppliesInCombat(a_lower))) {
+			return false;
+		}
+		return std::ranges::all_of(a_lower.rows, [&a_rules, a_facts](const Row& a_row) {
+			return std::ranges::any_of(a_rules.rows, [&a_row, a_facts](const Row& a_by) { return Detail::Implies(a_by, a_row, a_facts); });
+		});
+	}
+
 	// --- situations.json ------------------------------------------------------
 	//
 	// A row: { "kind": "weather", "not": false, "values": ["rain", "snow"] }; Time of day has
