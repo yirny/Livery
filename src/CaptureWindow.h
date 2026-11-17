@@ -241,8 +241,8 @@ namespace CaptureWindow
 		// The Situations page offers New Situation..., the order's drag and the condition editor
 		// (Settings::CustomSituations at Open); off, `places` and the spells are empty.
 		bool customSituations = false;
-		// The actor is the player: a condition's target (the wearer or you) is the same either
-		// way, so the editor offers no choice.
+		// The actor is the player: a condition's target dropdown names both the wearer and the
+		// player after them, so its help says which is which.
 		bool actorIsPlayer = false;
 		// What the Situations page's Add spell popup offers: the actor's spells (read at Open), and
 		// with Show all spells every one (Situations::AllSpells, valid until the game closes).

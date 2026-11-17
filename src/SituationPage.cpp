@@ -699,7 +699,7 @@ namespace CaptureWindow::Internal
 				if (!form.order.empty()) {
 					// The caption takes a situation dropped on it first in the order.
 					const float captionTop = ImGui::GetCursorScreenPos().y;
-					Theme::ListHeading(kOrderCaption);
+					Theme::ListHeading(kOrderCaption, Theme::HeadingIcon::kNone, true);  // a plain rule: no situation's heading
 					const float  captionBottom = ImGui::GetCursorScreenPos().y;
 					const float  left = ImGui::GetWindowPos().x;
 					const ImRect caption(ImVec2(left, captionTop), ImVec2(left + ImGui::GetWindowWidth(), captionBottom));
@@ -726,8 +726,8 @@ namespace CaptureWindow::Internal
 		//
 		// Each condition has a heading, its kind's name with (?) and a × at the line's right end,
 		// and under it reads as a sentence (docs/custom-situations.md §7): a kind reading an actor's
-		// state starts with whose, the wearer or the player (a dropdown, hidden while the actor is
-		// the player), then "is" / "is not" and its phrase, or for Weapon a dropdown of its two
+		// state starts with whose, the wearer or the player (a dropdown), then "is" / "is not" and
+		// its phrase, or for Weapon a dropdown of its two
 		// states, as Indoors is; the others an operator dropdown ("is" / "is not", "is any of" /
 		// "is none of" with several selected, "between" / "not between") and their values: a
 		// multi-choice dropdown, the two times, or the places or spells listed under, each with a ×.
@@ -774,7 +774,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// Whose state the row reads (SituationRules::Target): the wearer, named as the actor, or
-		// the player. Returns true when switched.
+		// the player. In the player's own window both name them, so the help tells the wearer
+		// (whoever wears the outfit) from the player (always you). Returns true when switched.
 		bool DrawTargetDropdown(const CaptureWindow::Request& a_request, SituationRules::Row& a_row)
 		{
 			constexpr const char* kPlayer = "Player";
@@ -796,7 +797,9 @@ namespace CaptureWindow::Internal
 			}
 			Theme::EndCombo(open, a_row.target == SituationRules::Target::kPlayer ? kPlayer : wearer, style);
 			if (hovered) {
-				Theme::Tooltip(std::format("{}: checks this character\nPlayer: checks you", wearer).c_str());
+				Theme::Tooltip((a_request.actorIsPlayer ? std::format("{}: checks each character wearing the outfit\nPlayer: always checks you", wearer) :
+														  std::format("{}: checks this character\nPlayer: checks you", wearer))
+						.c_str());
 			}
 			return changed;
 		}
@@ -1003,7 +1006,7 @@ namespace CaptureWindow::Internal
 			const bool time = a_row.kind == SituationRules::Kind::kTimeOfDay;
 			bool       changed = false;
 			bool       ignored = false;
-			if (info.targetable && !a_request.actorIsPlayer) {
+			if (info.targetable) {
 				changed = DrawTargetDropdown(a_request, a_row);
 				ImGui::SameLine();
 			}
@@ -1060,8 +1063,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// A two-state kind the situation has every row it can take of: one, or with a target to
-		// choose (the actor not the player), one per target. A second adds nothing.
-		bool KindExhausted(const CaptureWindow::Request& a_request, const SituationRules::Rules& a_rules, SituationRules::Kind a_kind)
+		// choose, one per target. A second adds nothing.
+		bool KindExhausted(const SituationRules::Rules& a_rules, SituationRules::Kind a_kind)
 		{
 			if (!SituationRules::TwoState(a_kind)) {
 				return false;
@@ -1073,12 +1076,12 @@ namespace CaptureWindow::Internal
 					(row.target == SituationRules::Target::kPlayer ? player : wearer) = true;
 				}
 			}
-			return (wearer || player) && (!SituationRules::Targetable(a_kind) || a_request.actorIsPlayer || (wearer && player));
+			return (wearer || player) && (!SituationRules::Targetable(a_kind) || (wearer && player));
 		}
 
 		// Add Condition...: a dropdown of the kinds, closed by a choice; returns the one chosen. A
 		// two-state kind the situation has every row it can take of is greyed (KindExhausted).
-		std::optional<SituationRules::Kind> DrawAddCondition(const CaptureWindow::Request& a_request, const SituationRules::Rules& a_rules)
+		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
 		{
 			constexpr const char* kAddCondition = "Add Condition...";
 
@@ -1089,7 +1092,7 @@ namespace CaptureWindow::Internal
 			if (open) {
 				for (const auto& info : SituationRules::kKinds) {
 					bool chosen = false;
-					ImGui::BeginDisabled(KindExhausted(a_request, a_rules, info.kind));
+					ImGui::BeginDisabled(KindExhausted(a_rules, info.kind));
 					if (Theme::DropdownRow(info.label, &chosen, false)) {
 						added = info.kind;
 						ImGui::CloseCurrentPopup();
@@ -1154,7 +1157,7 @@ namespace CaptureWindow::Internal
 			if (!a_rules.rows.empty()) {
 				Theme::SectionGap();
 			}
-			if (const auto kind = DrawAddCondition(a_state.request, a_rules)) {
+			if (const auto kind = DrawAddCondition(a_rules)) {
 				a_rules.rows.push_back({ .kind = *kind });
 				changed = true;
 				// A Place or Spell row starts empty, so its Add link is pressed for the user.
@@ -1786,16 +1789,23 @@ namespace CaptureWindow::Internal
 		{
 			constexpr float kWidthInFonts = 22.0f;  // the popup's content width, in font sizes
 
+			auto&       form = a_state.situationForm;
+			const auto& name = a_state.request.actorName;
+			const auto  lead = std::format("Add a spell to look for on {}.", name);
+			// The width is set before the popup begins, the line above widening it: the list runs
+			// past the content into the window's padding in Vanilla and Nordic (Theme::BeginList),
+			// which a popup fitted to its content would take in and grow by at every frame.
+			const float width = (std::max)(ImGui::CalcTextSize(lead.c_str()).x, ImGui::GetFontSize() * kWidthInFonts);
+			Theme::PushPopupPadding();
+			const float windowWidth = width + ImGui::GetStyle().WindowPadding.x * 2.0f;
+			Theme::PopPopupPadding();
+			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
 			if (!BeginModal(kAddSpellPopup)) {
 				return std::nullopt;
 			}
-			auto&       form = a_state.situationForm;
-			const auto& name = a_state.request.actorName;
-			ImGui::TextUnformatted(std::format("Add a spell to look for on {}.", name).c_str());
-			// The field sets the popup's width, the list fills it; a long name above widens both.
-			const float width = (std::max)(ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * kWidthInFonts);
-			bool        escapeTaken = false;
-			bool        changed = DrawSpellSearch(a_state, width, escapeTaken);
+			ImGui::TextUnformatted(lead.c_str());
+			bool escapeTaken = false;
+			bool changed = DrawSpellSearch(a_state, width, escapeTaken);
 			if (Theme::Checkbox("Show all spells", &form.spellShowAll)) {
 				QueueMenuSound(kFocusSound);
 				changed = true;

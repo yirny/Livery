@@ -225,7 +225,8 @@ keeps its installed rules. Shape:
 Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order (§8).
 
 - The Situation List: the Default's heading first, pinned, then the caption `The lowest that
-  applies is worn.` as a list heading (`Theme::ListHeading`, its rule after it), then one
+  applies is worn.` as a list heading (`Theme::ListHeading`) with a plain 1px rule after it in
+  every skin, so it does not read as a situation's heading, then one
   heading per situation not removed in the order (`SituationForm::order`, request.situations'
   until a drag), each dragged from anywhere on its heading (`kSituationPayload`, apart from the
   outfits') to another place among them, with `Request::customSituations`: over a heading's
@@ -249,8 +250,9 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   right end; the label's gap sets the conditions apart. Under it the row reads as a sentence.
   No `Not` checkbox: the row's `not` is a dropdown of two choices. A kind that reads an actor's
   state (`Targetable`) starts with whose, a dropdown of the actor's name and `Player`
-  (`Row::target`; its help `<name>: checks this character` and `Player: checks you`), left out
-  while the actor is the player (`Request::actorIsPlayer`). A two-state kind
+  (`Row::target`; its help `<name>: checks this character` and `Player: checks you`; in the
+  player's own window, `Request::actorIsPlayer`, `<name>: checks each character wearing the
+  outfit` and `Player: always checks you`). A two-state kind
   (`SituationRules::TwoState`) then reads `is` / `is not` and its phrase, `[Lydia] [is] in
   water`, or is a dropdown of its two states where it has them (`KindInfo::state`, `negState`):
   `Indoors` / `Outdoors`, `Weapon drawn` / `Weapon sheathed`. The others have the operator
@@ -266,7 +268,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   greyed, saying so on hover), then `Add Place...` or `Add Spell...`. Then `Add Condition...`,
   a dropdown of the kinds, closed by the choice, which adds a row with nothing selected (a
   Place or Spell row opens its Add popup at once); a two-state kind the situation has every row
-  it can take of (one; one per target with a target to choose) is greyed there, a second adding
+  it can take of (one; one per target for a kind with a target) is greyed there, a second adding
   nothing. The label's help: `Applies while every condition holds.` and `A condition with
   several values holds for any of them.`
 - `Add Place...` opens the `Add place` popup, its choices read as the window opens
@@ -279,7 +281,10 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   (?) saying what it covers. The game's own terms, as "room" or "area" would blur the two. It
   opens on the location, or on the cell when they are outside any. Add is greyed for a place
   the row has already.
-- `Add Spell...` opens the `Add spell` popup: `Add a spell to look for on <name>.`, a search
+- `Add Spell...` opens the `Add spell` popup, its width set before it begins (22 font sizes,
+  or the first line's when wider), since its list runs into the window's padding in Vanilla and
+  Nordic and a popup fitted to its content would grow by that at every frame:
+  `Add a spell to look for on <name>.`, a search
   field (`Search by name`, ASCII case ignored, as the outfit search), `Show all spells`, and a
   list ten rows tall of the spells whose name holds the search, a click picking one. Hovering a
   spell there or on the row shows its plugin and FormID, then its visible effects a line each,
