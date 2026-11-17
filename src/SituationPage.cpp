@@ -13,24 +13,24 @@
 //                     has hovered it a while; a situation dropped between two others (the order)
 //   Never worn      - which situations one lower in the list covers (SituationRules::CoveredBy)
 //   Situation List  - the left pane: the Default's heading, the order's caption, then a heading
-//                     per situation in the order (a click or Edit selects, its chevron folds, the
-//                     die of the row worn puts on another of its outfits) over the outfits it
-//                     shows; a click on an outfit row of either pane shows its details and puts
-//                     it on the preview
+//                     per situation in the order (Edit opens the Edit situation popup, its chevron
+//                     folds, the die of the row worn puts on another of its outfits) over the
+//                     outfits it shows; a click on an outfit row of either pane shows its details
+//                     and puts it on the preview
 //   Condition editor - a situation's conditions (docs/custom-situations.md §7): per condition a
 //                     heading with its × and a row that reads as a sentence (whose state, "is" or
 //                     a two-state dropdown, an operator dropdown and its values), places or spells
-//                     under it with a × each, the one it opened on lit; Add Condition..., Allow during
-//                     combat, the Applies line
-//   Right pane      - the outfit list with what a drag does under it; the selected situation's
-//                     details: name, never worn, the Applies text with a link per condition and Edit
-//                     Conditions..., Random Outfit (for #{Name}), Show
-//                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
-//                     pieces ticked as the row it was clicked under wears them
+//                     under it with a × each, the one clicked in the Applies text lit; Add
+//                     Condition..., Allow during combat
+//   Right pane      - the outfit list with what a drag does under it; or an outfit's details with
+//                     Open in Wardrobe and Back, its pieces ticked as the row it was clicked under
+//                     wears them
 //   Buttons, popups - New Situation..., Exit, Restore Presets (?); the New situation, Remove's and
 //                     Restore Presets' popups, each handing its write to the Request's handler;
-//                     the Edit conditions popup (the editor, Done) with the Add place and Add spell
-//                     popups over it, edits of the selected situation's Place or Spell row
+//                     the Edit situation popup (name, never worn, the Applies text with a link per
+//                     condition, Random Outfit (for #{Name}); the editor beside them; Done with
+//                     Remove) with the Add place and Add spell popups over it, edits of the
+//                     selected situation's Place or Spell row
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
@@ -70,9 +70,8 @@ namespace CaptureWindow::Internal
 		constexpr const char* kNewSituationPopup = "New situation";
 		constexpr const char* kAddPlacePopup = "Add location";
 		constexpr const char* kAddSpellPopup = "Add spell";
-		constexpr const char* kEditConditionsPopup = "Edit conditions";
+		constexpr const char* kEditSituationPopup = "Edit situation";
 		constexpr const char* kNewSituation = "New Situation...";
-		constexpr const char* kEditConditions = "Edit Conditions...";
 		// Over a condition in the Applies text while the settings page does not offer the editor.
 		constexpr const char* kTurnOnCustom = "Turn on custom situations in the settings to edit.";
 		// A condition's box in the editor, in every skin (pixels at 1080p): its padding inside,
@@ -584,25 +583,27 @@ namespace CaptureWindow::Internal
 			return { .button = true, .tip = std::format("{}\nClick to pick another now.", kRandomLine) };
 		}
 
-		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
-		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
-		// details show; Edit always selects it and shows them; the chevron folds it. Every heading
+		// Situation `a_entry`'s heading, then, unless folded, what it shows. Edit asks for its Edit
+		// situation popup, the chevron folds it, and a click elsewhere on it does nothing; it is
+		// drawn selected while the popup is open on it. Every heading
 		// but the Default's drags from anywhere on it to another place in the order while the page
 		// offers that (Request::customSituations). A heading that is never worn carries a warning
 		// mark after its name, saying why on hover (DrawNeverWornText); one whose situation makes
-		// the selected one, or the one whose mark is hovered, never worn has its name in the error
+		// the one the popup is open on, or the one whose mark is hovered, never worn has its name in the error
 		// colour (Overrides): those are lower in the list, drawn after the mark. Its die and
 		// count show with random on alone; the die is a button as DiceOf says. Only random on
 		// with something to show has the chevron; else it is never folded (random off shows its
 		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
 		// on the heading, its rule included, adds at the front. `a_dragHovered` becomes the entry
 		// while a drag hovers its folded heading, which opens once DrawSituationList has seen
-		// that for kDragExpandDelay. Returns whether its die was clicked.
-		bool DrawSituationEntry(State& a_state, std::size_t a_entry, int& a_dragHovered)
+		// that for kDragExpandDelay. Returns HeadingClick::kDice or kEdit when its die or Edit was
+		// clicked, else kNone.
+		Theme::HeadingClick DrawSituationEntry(State& a_state, std::size_t a_entry, int& a_dragHovered)
 		{
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
 			const int  index = static_cast<int>(a_entry);
+			const int  editedNow = form.editing ? form.selected : -1;
 			const bool shows = ShowsAnything(form, a_entry);
 			const bool foldable = shows && entry.row.random;
 			if (!foldable) {
@@ -620,11 +621,11 @@ namespace CaptureWindow::Internal
 					.diceTip = dice.tip.empty() ? nullptr : dice.tip.c_str(),
 					.open = !entry.folded,
 					.foldable = foldable,
-					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
+					.selected = editedNow == index,
 					.dim = !shows,
 					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
 					.grip = grip,
-					.alert = Overrides(form, form.selected, a_entry) || Overrides(form, form.warningHovered, a_entry),
+					.alert = Overrides(form, editedNow, a_entry) || Overrides(form, form.warningHovered, a_entry),
 					.warning = neverWornBy.has_value(),
 					.warningHovered = &warningHovered });
 			if (warningHovered) {
@@ -644,15 +645,6 @@ namespace CaptureWindow::Internal
 			if (click == Theme::HeadingClick::kFold) {
 				QueueMenuSound(kFocusSound);
 				entry.folded = !entry.folded;
-			} else if (click == Theme::HeadingClick::kSelect || click == Theme::HeadingClick::kEdit) {
-				QueueMenuSound(kFocusSound);
-				const bool viewing = form.viewedOutfit != 0;
-				const bool unselect = click == Theme::HeadingClick::kSelect && form.selected == index && form.details && !viewing;
-				if (viewing) {
-					CloseOutfitView(a_state);
-				}
-				form.selected = unselect ? -1 : index;
-				form.details = !unselect;
 			}
 			const float  left = ImGui::GetWindowPos().x;
 			const ImRect heading(ImVec2(left, top), ImVec2(left + ImGui::GetWindowWidth(), bottom));
@@ -670,7 +662,7 @@ namespace CaptureWindow::Internal
 			if (!entry.folded) {
 				DrawShownOutfits(a_state, a_entry);
 			}
-			return click == Theme::HeadingClick::kDice;
+			return click == Theme::HeadingClick::kDice || click == Theme::HeadingClick::kEdit ? click : Theme::HeadingClick::kNone;
 		}
 
 		// The help of the Situation List's label: what the list is, which situation is worn; the
@@ -691,13 +683,13 @@ namespace CaptureWindow::Internal
 
 		// The situation at place `a_place` of the order, its heading and what it shows: a drop of
 		// a situation over its heading's upper half goes before it, anywhere lower in its block
-		// after it. Returns whether its die was clicked.
-		bool DrawOrderedEntry(State& a_state, std::size_t a_place, int& a_dragHovered)
+		// after it. Returns what DrawSituationEntry returns.
+		Theme::HeadingClick DrawOrderedEntry(State& a_state, std::size_t a_place, int& a_dragHovered)
 		{
 			const auto  entry = a_state.situationForm.order[a_place];
 			const float top = ImGui::GetCursorScreenPos().y;
 			ImGui::PushID(static_cast<int>(entry));
-			const bool   dice = DrawSituationEntry(a_state, entry, a_dragHovered);
+			const auto   click = DrawSituationEntry(a_state, entry, a_dragHovered);
 			const float  bottom = ImGui::GetCursorScreenPos().y;
 			const float  left = ImGui::GetWindowPos().x;
 			const ImRect block(ImVec2(left, top), ImVec2(left + ImGui::GetWindowWidth(), bottom));
@@ -708,13 +700,19 @@ namespace CaptureWindow::Internal
 				}
 			}
 			ImGui::PopID();
-			return dice;
+			return click;
 		}
 
+		// What a click in the Situation List asks of the page.
+		struct ListClick
+		{
+			bool dice = false;  // a heading's die: another outfit of the row worn
+			int  edit = -1;     // a heading's Edit: the entry to open the Edit situation popup on; -1 for none
+		};
+
 		// The left pane: the Situation List (?) label over the Default's heading, the order's
-		// caption, then a heading per situation in the order. Returns whether a heading's die
-		// was clicked.
-		bool DrawSituationList(State& a_state)
+		// caption, then a heading per situation in the order.
+		ListClick DrawSituationList(State& a_state)
 		{
 			auto& form = a_state.situationForm;
 			if (form.neverWornStale) {
@@ -731,11 +729,18 @@ namespace CaptureWindow::Internal
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
 			// Popped before EndList, as the outfit list's spacing is.
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			int  dragHovered = -1;
-			bool diceClicked = false;
+			int        dragHovered = -1;
+			ListClick  result;
+			const auto take = [&result](Theme::HeadingClick a_click, std::size_t a_entry) {
+				if (a_click == Theme::HeadingClick::kDice) {
+					result.dice = true;
+				} else if (a_click == Theme::HeadingClick::kEdit) {
+					result.edit = static_cast<int>(a_entry);
+				}
+			};
 			if (Theme::BeginList("situations", SituationListHeight(a_state, top)) && !form.entries.empty()) {
 				ImGui::PushID(0);
-				diceClicked = DrawSituationEntry(a_state, 0, dragHovered);
+				take(DrawSituationEntry(a_state, 0, dragHovered), 0);
 				ImGui::PopID();
 				if (!form.order.empty()) {
 					// The caption takes a situation dropped on it first in the order.
@@ -751,7 +756,7 @@ namespace CaptureWindow::Internal
 					}
 				}
 				for (std::size_t p = 0; p < form.order.size(); ++p) {
-					diceClicked = DrawOrderedEntry(a_state, p, dragHovered) || diceClicked;
+					take(DrawOrderedEntry(a_state, p, dragHovered), form.order[p]);
 				}
 			}
 			ImGui::PopStyleVar();
@@ -760,7 +765,7 @@ namespace CaptureWindow::Internal
 				form.dragHover = dragHovered;
 				form.dragHoverSince = ImGui::GetTime();
 			}
-			return diceClicked;
+			return result;
 		}
 
 		// --- Condition editor -------------------------------------------------
@@ -1263,7 +1268,7 @@ namespace CaptureWindow::Internal
 			return changed;
 		}
 
-		// The fill inside the box of the condition the editor was opened on
+		// The fill inside the box of the condition clicked in the Applies text
 		// (SituationForm::editorFocus), its top left `a_topLeft`, as tall as the box was last
 		// drawn, fading out; scrolls the editor to it while SituationForm::editorScroll frames
 		// remain.
@@ -1298,7 +1303,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// A user's situation's conditions as edited: a row each (DrawConditionRow) in a box of a
-		// 1px rule-coloured line with round corners, the one the editor was opened on lit
+		// 1px rule-coloured line with round corners, the one clicked in the Applies text lit
 		// (LightFocusedCondition), then Add Condition... and Allow during combat. Returns true on
 		// a change; sets `a_addForm` when a Place or Spell row's Add link was pressed, that row in
 		// SituationForm::formRow.
@@ -1370,30 +1375,15 @@ namespace CaptureWindow::Internal
 			return changed;
 		}
 
-		// --- Right pane -------------------------------------------------------
+		// --- Right pane: the outfit list --------------------------------------
 
-		enum class RightPane
+		// The right pane shows the details of the outfit clicked last (`a_viewed`, its index into
+		// request.existingOutfits, -1 for none) until Back; else, and while a drag from the
+		// Situation List is on, the outfit list.
+		bool ShowsOutfitView(int a_viewed)
 		{
-			kOutfitList,
-			kSituation,  // the selected situation's details
-			kOutfit      // the details of the outfit clicked last
-		};
-
-		// What the right pane shows: the outfit list while a drag from the Situation List is on;
-		// else the outfit clicked last (`a_viewed`, its index into request.existingOutfits, -1
-		// for none), until Back; else the selected situation, until Show Outfit List; else the
-		// outfit list.
-		RightPane ShownPane(const State& a_state, int a_viewed)
-		{
-			const auto& form = a_state.situationForm;
 			const auto* dragged = DraggedOutfit();
-			if (dragged && dragged->from >= 0) {
-				return RightPane::kOutfitList;
-			}
-			if (a_viewed >= 0) {
-				return RightPane::kOutfit;
-			}
-			return form.selected >= 0 && form.details ? RightPane::kSituation : RightPane::kOutfitList;
+			return a_viewed >= 0 && !(dragged && dragged->from >= 0);
 		}
 
 		// The Outfit List (?) label over the outfit list with its own search and sort, its rows
@@ -1434,6 +1424,8 @@ namespace CaptureWindow::Internal
 			}
 			return controls.escapeTaken;
 		}
+
+		// --- Edit situation: settings -----------------------------------------
 
 		// What the Default is, under its name.
 		void DrawDefaultNote(const State& a_state)
@@ -1510,17 +1502,18 @@ namespace CaptureWindow::Internal
 			return editable && clicked >= 0 ? clicked / 2 : -1;
 		}
 
-		// The settings every actor shares: the name, its label with the situation star (none for
-		// the Default, which says what it is under it), why it is never worn, and the conditions:
-		// the Default's read only; another's Applies text (DrawAppliesLinks), greyed and read only
-		// unless the page offers the editor (Request::customSituations), then with Edit
-		// Conditions... under it. Returns true when the editor is to open, on the condition in
-		// SituationForm::editorFocus (-1 for none).
-		bool DrawGlobalSettings(State& a_state, std::size_t a_entry)
+		// The Edit situation popup's settings, its left column: the name, its label with the
+		// situation star (none for the Default, which says what it is under it), why it is never
+		// worn, `Applies` over the conditions, the Default's read only, another's Applies text
+		// (DrawAppliesLinks) with the label's help, greyed and read only unless the page offers the
+		// editor (Request::customSituations); then Random Outfit (for #{Name}). Returns the condition
+		// clicked in the Applies text (index into rules.rows), or -1.
+		int DrawSituationSettings(State& a_state, std::size_t a_entry)
 		{
-			auto&      form = a_state.situationForm;
-			auto&      entry = form.entries[a_entry];
-			const bool isDefault = a_entry == 0;
+			auto&       form = a_state.situationForm;
+			auto&       entry = form.entries[a_entry];
+			const auto& name = a_state.request.actorName;
+			const bool  isDefault = a_entry == 0;
 			Theme::LabelText("Name", isDefault ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar);
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
@@ -1533,50 +1526,23 @@ namespace CaptureWindow::Internal
 				DrawDefaultNote(a_state);
 			}
 			DrawNeverWorn(form, a_entry);
-			Theme::LabelText("Conditions");
+			Theme::LabelText("Applies");
+			int        clicked = -1;
 			const bool editable = !isDefault && a_state.request.customSituations;
+			if (!isDefault && Theme::LabelHelpMark()) {
+				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
+			}
 			if (!editable) {
 				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			}
-			const int clicked = isDefault ? -1 : DrawAppliesLinks(a_state, entry.rules);
 			if (isDefault) {
 				DrawDefaultConditions();
+			} else {
+				clicked = DrawAppliesLinks(a_state, entry.rules);
 			}
 			if (!editable) {
 				ImGui::PopStyleColor();
-				return false;
 			}
-			const float paneWidth = ImGui::GetContentRegionAvail().x;
-			const bool  pressed = Theme::Button(kEditConditions);
-			if (clicked < 0 && !pressed) {
-				return false;
-			}
-			form.editorWidth = (std::max)(paneWidth, EditorContentWidth(a_state.request));
-			form.editorFocus = clicked;
-			return true;
-		}
-
-		enum class DetailsAction
-		{
-			kNone,
-			kShowList,
-			kRemove,
-			kEditConditions
-		};
-
-		// The selected situation's details as edited: its name and conditions,
-		// Random Outfit (for #{Name}), then Show Outfit List centred with Remove at the row's
-		// right end (not for the Default).
-		DetailsAction DrawSituationDetails(State& a_state)
-		{
-			constexpr const char* kShowList = "Show Outfit List";
-
-			auto&       form = a_state.situationForm;
-			const auto  selected = static_cast<std::size_t>(form.selected);
-			auto&       entry = form.entries[selected];
-			const auto& name = a_state.request.actorName;
-			ImGui::PushID(form.selected);
-			const bool editConditions = DrawGlobalSettings(a_state, selected);
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
@@ -1586,7 +1552,7 @@ namespace CaptureWindow::Internal
 				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
 				ScheduleAutosave(a_state);
 				// An outfit the Default wears with random off drops its pieces, as a drop does.
-				if (selected == 0 && !random && entry.row.chosen != 0) {
+				if (isDefault && !random && entry.row.chosen != 0) {
 					form.defaultPieces = false;
 				}
 			}
@@ -1599,15 +1565,10 @@ namespace CaptureWindow::Internal
 					"Off: {0} wears the last picked outfit. The others stay in the list but are hidden.",
 					name));
 			}
-
-			BeginButtonRow({ kShowList });
-			auto action = Theme::Button(kShowList) ? DetailsAction::kShowList : DetailsAction::kNone;
-			if (selected > 0 && Theme::LineLink("Remove")) {
-				action = DetailsAction::kRemove;
-			}
-			ImGui::PopID();
-			return editConditions ? DetailsAction::kEditConditions : action;
+			return clicked;
 		}
+
+		// --- Right pane: an outfit's details ----------------------------------
 
 		enum class OutfitViewAction
 		{
@@ -1638,7 +1599,7 @@ namespace CaptureWindow::Internal
 		// It grows with the pieces, moving the page's buttons when taller than the Situation
 		// List; its pieces' list scrolls only to keep the window within kMaxWindowHeightRatio of
 		// the screen, as every list does (ListBottom). Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
-		// Contract: ShownPane is RightPane::kOutfit; called at the top of the right pane.
+		// Contract: ShowsOutfitView is true; called at the top of the right pane.
 		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, bool& a_escapeTaken)
 		{
 			const float     spacing = ImGui::GetStyle().ItemSpacing.x;
@@ -1691,7 +1652,7 @@ namespace CaptureWindow::Internal
 
 		// New Situation... (while the page offers it, Request::customSituations) and Exit, centred
 		// as the other pages' buttons, then Restore Presets (?) at the row's right end, a link as
-		// the details' Remove and Restore are, greyed while every preset is as installed.
+		// the Edit situation popup's Remove is, greyed while every preset is as installed.
 		// a_escapeTaken: the browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
@@ -1864,7 +1825,7 @@ namespace CaptureWindow::Internal
 		// Opens the popup of the row SituationForm::formRow names: Add place on its first choice
 		// (This Location, or This Cell outside any location), or Add spell on the actor's spells
 		// with nothing typed or picked.
-		// Contract: inside the Edit conditions popup, as the popups are drawn there
+		// Contract: inside the Edit situation popup, as the popups are drawn there
 		// (DrawAddFormPopups).
 		void OpenAddFormPopup(State& a_state)
 		{
@@ -2183,9 +2144,9 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// The Add place and Add spell popups over the Edit conditions popup, and what they add.
+		// The Add place and Add spell popups over the Edit situation popup, and what they add.
 		// An edit, saved as the others are (the autosave waits while a popup is open).
-		// Contract: inside the Edit conditions popup, where OpenAddFormPopup opens them.
+		// Contract: inside the Edit situation popup, where OpenAddFormPopup opens them.
 		void DrawAddFormPopups(State& a_state)
 		{
 			auto& form = a_state.situationForm;
@@ -2205,31 +2166,60 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// The Edit conditions popup (docs/custom-situations.md §7), as wide as the details pane
-		// or its widest row (EditorContentWidth), centred as its height changes until dragged:
-		// the heading `Conditions` over the situation's name, the condition editor
+		// The Edit situation popup's right column: `Conditions` over the condition editor
 		// (DrawConditionEditor) in an area that scrolls to keep the whole popup within
-		// kMaxWindowHeightRatio of the screen, the Applies text with its links, then Done; Escape
-		// is Done unless it closed a dropdown or a popup over it. Its edits are saved once it
-		// closes (TakeAutosaveDue waits for it).
-		void DrawConditionEditorPopup(State& a_state)
+		// kMaxWindowHeightRatio of the screen. Returns the area's height as shown; sets
+		// `a_addForm` as DrawConditionEditor does.
+		float DrawConditionsColumn(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
+		{
+			auto& form = a_state.situationForm;
+			Theme::LabelText("Conditions");
+			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - form.editorOtherHeight;
+			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
+				if (DrawConditionEditor(a_state, a_rules, a_addForm)) {
+					form.neverWornStale = true;
+					ScheduleAutosave(a_state);
+				}
+			}
+			Theme::EndScrollArea();
+			return ImGui::GetItemRectSize().y;
+		}
+
+		// The Edit situation popup (docs/situation-management-ui.md §5, docs/custom-situations.md
+		// §7), centred as its height changes until dragged: `Edit` and the situation's name as its
+		// heading (the name as last entered, not while it is typed); the situation's settings
+		// (DrawSituationSettings) as wide as the page's right pane, and while the page offers the
+		// editor (Request::customSituations), for every situation but the Default, the conditions
+		// (DrawConditionsColumn) in a column of their own beside them, both as wide as that pane
+		// or the editor's widest row (EditorContentWidth); then Done, with Remove at the row's
+		// right end (not for the Default). A condition clicked in the Applies text is lit and
+		// scrolled to in the editor. Escape is Done unless it closed a dropdown or a popup over
+		// it. Its edits are saved once it closes (TakeAutosaveDue waits for it). Returns true on
+		// Remove, which closes it.
+		bool DrawEditSituationPopup(State& a_state)
 		{
 			constexpr const char* kDone = "Done";
 
-			auto&       form = a_state.situationForm;
-			const float windowWidth = form.editorWidth + ImGui::GetStyle().WindowPadding.x * 2.0f;
-			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
-			if (!BeginModal(kEditConditionsPopup, &form.editorCentred)) {
-				return;
+			if (!ImGui::IsPopupOpen(kEditSituationPopup)) {
+				return false;
 			}
-			if (form.selected <= 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
+			auto&       form = a_state.situationForm;
+			const bool  conditions = form.selected > 0 && a_state.request.customSituations;  // the editor's column
+			const float column = conditions ? (std::max)(form.paneWidth, EditorContentWidth(a_state.request)) : form.paneWidth;
+			const float windowWidth = (conditions ? column * 2.0f + form.columnGap : column) + ImGui::GetStyle().WindowPadding.x * 2.0f;
+			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
+			if (!BeginModal(kEditSituationPopup, &form.editorCentred)) {
+				return false;
+			}
+			if (form.selected < 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
 				ImGui::CloseCurrentPopup();
 				ImGui::EndPopup();
-				return;
+				return false;
 			}
 			if (ImGui::IsWindowAppearing()) {
+				form.editorFocus = -1;
 				form.editorFocusFrom = ImGui::GetTime();
-				form.editorScroll = 2;  // the area's height is known from its second frame
+				form.editorScroll = 0;
 				form.editorFocusHeight = 0.0f;
 				form.editorPopupAbove = false;
 				form.editorCentred = true;
@@ -2243,29 +2233,30 @@ namespace CaptureWindow::Internal
 			// Before anything is drawn: a dropdown that Escape closed is gone by now.
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !form.editorPopupAbove && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 
-			auto&                                   entry = form.entries[static_cast<std::size_t>(form.selected)];
-			const std::array<Theme::SubtitleRun, 1> name{ SituationRun(entry.name.data()) };
-			Theme::HeadingText("Conditions", name);
-			bool        addForm = false;
-			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - form.editorOtherHeight;
-			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
-				if (DrawConditionEditor(a_state, entry.rules, addForm)) {
-					form.neverWornStale = true;
-					ScheduleAutosave(a_state);
+			const auto                              selected = static_cast<std::size_t>(form.selected);
+			auto&                                   entry = form.entries[selected];
+			const auto                              title = Trimmed(form.nameEditing == form.selected ? entry.nameBefore.c_str() : entry.name.data());
+			const std::array<Theme::SubtitleRun, 2> heading{ { TextRun("Edit "), SituationRun(title.c_str(), selected == 0) } };
+			Theme::HeadingRunText(heading);
+			ImGui::PushID(form.selected);
+			bool  addForm = false;
+			float areaShown = 0.0f;
+			if (!conditions) {
+				DrawSituationSettings(a_state, selected);  // no link to click: the Default's, or greyed
+			} else if (BeginColumns("edit")) {
+				NextColumn();
+				if (const int clicked = DrawSituationSettings(a_state, selected); clicked >= 0) {
+					QueueMenuSound(kFocusSound);
+					form.editorFocus = clicked;
+					form.editorFocusFrom = ImGui::GetTime();
+					form.editorScroll = 1;
 				}
+				NextColumn();
+				ResetCellBaseline();
+				areaShown = DrawConditionsColumn(a_state, entry.rules, addForm);
+				EndColumns();
 			}
-			Theme::EndScrollArea();
-			const float areaShown = ImGui::GetItemRectSize().y;
-			Theme::LabelText("Applies");
-			if (Theme::LabelHelpMark()) {
-				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
-			}
-			if (const int clicked = DrawAppliesLinks(a_state, entry.rules); clicked >= 0) {
-				QueueMenuSound(kFocusSound);
-				form.editorFocus = clicked;
-				form.editorFocusFrom = ImGui::GetTime();
-				form.editorScroll = 1;
-			}
+			ImGui::PopID();
 			if (addForm) {
 				QueueMenuSound(kOkSound);
 				OpenAddFormPopup(a_state);
@@ -2274,9 +2265,12 @@ namespace CaptureWindow::Internal
 
 			BeginButtonRow({ kDone });
 			const bool done = Theme::Button(kDone);
+			const bool remove = selected > 0 && Theme::LineLink("Remove");
 			EndButtonRow();
 			if (done || escape) {
 				QueueMenuSound(done ? kOkSound : kCancelSound);
+			}
+			if (done || escape || remove) {
 				ImGui::CloseCurrentPopup();
 			}
 			form.editorPopupAbove = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
@@ -2284,10 +2278,12 @@ namespace CaptureWindow::Internal
 			const auto* window = ImGui::GetCurrentWindow();
 			form.editorOtherHeight = window->DC.CursorMaxPos.y - window->Pos.y + ImGui::GetStyle().WindowPadding.y - areaShown;
 			ImGui::EndPopup();
+			return remove;
 		}
 
-		// The page's popups, each opened by the page in its own ID scope.
-		void DrawSituationPopups(State& a_state)
+		// The page's popups, each opened by the page in its own ID scope. Returns true when the
+		// Edit situation popup's Remove was pressed, which the page answers with Remove's popup.
+		bool DrawSituationPopups(State& a_state)
 		{
 			if (DrawRemoveSituationPopup(a_state)) {
 				RequestSituationRemove(a_state);
@@ -2298,7 +2294,7 @@ namespace CaptureWindow::Internal
 			if (DrawNewSituationPopup(a_state)) {
 				RequestSituationCreate(a_state);
 			}
-			DrawConditionEditorPopup(a_state);
+			return DrawEditSituationPopup(a_state);
 		}
 	}
 
@@ -2343,7 +2339,6 @@ namespace CaptureWindow::Internal
 		}
 		form.neverWornStale = true;
 		form.defaultPieces = !request.assigned.empty() && request.assigned[0].pieces;
-		form.details = form.details && form.selected >= 0;
 		form.nameEditing = -1;
 		form.dragHover = -1;
 	}
@@ -2354,12 +2349,9 @@ namespace CaptureWindow::Internal
 		const auto& situations = a_state.request.situations;
 		for (std::size_t i = 0; i < situations.size() && i < form.entries.size(); ++i) {
 			if (situations[i].situation == a_situation) {
-				if (form.viewedOutfit != 0) {
-					CloseOutfitView(a_state);
-				}
 				form.selected = static_cast<int>(i);
-				form.details = true;
 				form.scrollToSelected = true;
+				a_state.popupAfterSave = kEditSituationPopup;  // DrawSituationPage opens it
 				return;
 			}
 		}
@@ -2420,10 +2412,11 @@ namespace CaptureWindow::Internal
 		ImGui::EndDragDropSource();
 	}
 
-	// The Situation List on the left; on the right the outfit list, the selected situation or
-	// an outfit's details (ShownPane). Every change is an edit, saved shortly after the last one
-	// or as the page is left; Remove and Restore Presets save them, then write after their
-	// popups. The preview shows the Dress page's ticks, or the outfit whose details show.
+	// The Situation List on the left; on the right the outfit list or an outfit's details
+	// (ShowsOutfitView); a situation's settings in the Edit situation popup, opened by its
+	// heading's Edit. Every change is an edit, saved shortly after the last one, as the page is
+	// left, or once that popup closes; Remove and Restore Presets save them, then write after
+	// their popups. The preview shows the Dress page's ticks, or the outfit whose details show.
 	void DrawSituationPage(State& a_state)
 	{
 		auto& form = a_state.situationForm;
@@ -2433,28 +2426,25 @@ namespace CaptureWindow::Internal
 			}
 			a_state.popupAfterSave = nullptr;
 		}
+		form.editing = ImGui::IsPopupOpen(kEditSituationPopup);
 		EndInactiveNameEdit(a_state);
 		BeginPageDisabled(a_state);
-		bool escapeTaken = false;
-		bool reroll = false;
-		auto details = DetailsAction::kNone;
-		auto outfitView = OutfitViewAction::kNone;
+		bool       escapeTaken = false;
+		ListClick  list;
+		auto       outfitView = OutfitViewAction::kNone;
+		const auto pageWidth = ImGui::GetContentRegionAvail().x;
 		if (BeginColumns("situations")) {
 			NextColumn();
-			reroll = DrawSituationList(a_state);
+			list = DrawSituationList(a_state);
 			NextColumn();
 			ResetCellBaseline();
+			form.paneWidth = ImGui::GetContentRegionAvail().x;
+			form.columnGap = pageWidth - form.paneWidth * 2.0f;
 			const int viewed = IndexOfOutfit(a_state, form.viewedOutfit);  // after the Situation List, whose clicks change it
-			switch (ShownPane(a_state, viewed)) {
-			case RightPane::kOutfit:
+			if (ShowsOutfitView(viewed)) {
 				outfitView = DrawOutfitView(a_state, viewed, escapeTaken);
-				break;
-			case RightPane::kSituation:
-				details = DrawSituationDetails(a_state);
-				break;
-			case RightPane::kOutfitList:
+			} else {
 				escapeTaken = DrawOutfitPane(a_state, viewed);
-				break;
 			}
 			EndColumns();
 		}
@@ -2471,7 +2461,7 @@ namespace CaptureWindow::Internal
 			return;
 		}
 
-		if (reroll) {
+		if (list.dice) {
 			QueueMenuSound(kOkSound);
 			RequestReroll(a_state);
 			DrawSituationPopups(a_state);
@@ -2484,17 +2474,10 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kOkSound);
 			RequestLeave(a_state, { .page = Page::kManage, .manageOutfit = form.viewedOutfit });
 		}
-		if (details == DetailsAction::kShowList) {
-			QueueMenuSound(kFocusSound);
-			form.details = false;
-			form.entries[static_cast<std::size_t>(form.selected)].folded = false;
-			form.scrollToSelected = true;
-		} else if (details == DetailsAction::kRemove) {
+		if (list.edit >= 0) {
 			QueueMenuSound(kOkSound);
-			OpenAfterSave(a_state, kRemoveSituationPopup);
-		} else if (details == DetailsAction::kEditConditions) {
-			QueueMenuSound(kOkSound);
-			OpenAfterSave(a_state, kEditConditionsPopup);
+			form.selected = list.edit;
+			OpenAfterSave(a_state, kEditSituationPopup);
 		}
 		switch (action) {
 		case SituationAction::kNew:
@@ -2514,7 +2497,10 @@ namespace CaptureWindow::Internal
 		case SituationAction::kNone:
 			break;
 		}
-		DrawSituationPopups(a_state);
+		if (DrawSituationPopups(a_state)) {
+			QueueMenuSound(kOkSound);
+			OpenAfterSave(a_state, kRemoveSituationPopup);  // the edits made in the popup saved first
+		}
 		// Contract: not while a name is typed: a save would write it half typed, and SetOutfits
 		// would replace the field being typed in.
 		if (form.nameEditing < 0 && TakeAutosaveDue(a_state)) {

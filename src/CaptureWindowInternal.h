@@ -239,8 +239,8 @@ namespace CaptureWindow::Internal
 		std::vector<std::vector<std::size_t>> neverWornBy;
 		bool                                  neverWornStale = true;
 		bool                                  defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
-		int                                   selected = -1;             // index into entries; -1 for none
-		bool                                  details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
+		int                                   selected = -1;             // the one the Edit situation popup and Remove's popup are for: index into entries; -1 for none
+		bool                                  editing = false;           // the Edit situation popup is open, as the page's frame began
 		std::uint32_t                         viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
 		int                                   viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
 		bool                                  scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
@@ -254,14 +254,15 @@ namespace CaptureWindow::Internal
 		// The Place or Spell row the Add place or Add spell popup adds to: index into the selected
 		// entry's rules.rows.
 		int formRow = -1;
-		// The Edit conditions popup: its content width (the details pane's, last drawn); the
-		// condition it was opened on (index into the selected entry's rules.rows; -1 for none),
-		// lit from `editorFocusFrom` (ImGui::GetTime() seconds) and scrolled to while
-		// `editorScroll` frames remain, its height as last drawn; whether a popup was open over
-		// it at the end of the last frame (its Escape closed that, not the editor); whether it is
-		// still centred on the screen (BeginModal), not yet dragged; its height besides the
-		// conditions' area, as last drawn.
-		float  editorWidth = 0.0f;
+		// The Edit situation popup: the page's right pane's width and the gap between its
+		// columns, last drawn, which its columns take; the condition clicked in its Applies text
+		// (index into the selected entry's rules.rows; -1 for none), lit from `editorFocusFrom`
+		// (ImGui::GetTime() seconds) and scrolled to while `editorScroll` frames remain, its
+		// height as last drawn; whether a popup was open over it at the end of the last frame (its
+		// Escape closed that, not the editor); whether it is still centred on the screen
+		// (BeginModal), not yet dragged; its height besides the conditions' area, as last drawn.
+		float  paneWidth = 0.0f;
+		float  columnGap = 0.0f;
 		int    editorFocus = -1;
 		double editorFocusFrom = 0.0;
 		int    editorScroll = 0;
@@ -726,8 +727,8 @@ namespace CaptureWindow::Internal
 	// none for a situation gone.
 	void FillSituationForm(State& a_state, const std::vector<CaptureWindow::SituationInfo>& a_before);
 
-	// Selects `a_situation` with its details shown, an outfit's details closed, and scrolls the
-	// Situation List to it (a situation just created); nothing for one the page does not list.
+	// Selects `a_situation` (a situation just created), scrolls the Situation List to it and opens
+	// its Edit situation popup on the page's next frame; nothing for one the page does not list.
 	void SelectSituation(State& a_state, Situations::Situation a_situation);
 
 	// A situation's name or a user's situation's conditions differ from situations.json, or a

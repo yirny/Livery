@@ -24,7 +24,8 @@ Items marked *provisional* are tried in a prototype first and may change.
 - The settings page's `Enable custom situations` (`[Window] CustomSituations`, default off,
   under the `Optional Features` heading with `Enable chests`; `Settings::CustomSituations`, read as the
   window opens, `Request::customSituations`) offers the editing: New Situation..., the order's
-  drag and the condition editor (Edit Conditions... and the Applies text's links, §7). Off, every
+  drag and the condition editor (the Edit situation popup's right column and the Applies text's
+  links, §7). Off, every
   situation made stays in use, and the Situations page still lists them with their outfits,
   their Applies text read only, the never-worn mark, Remove
   and Restore Presets; renaming stays too. The poll does not read the setting.
@@ -240,33 +241,34 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - With `Request::customSituations`, the page's button row gains `New Situation...` (before
   Exit): the `New situation` popup asks
   for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
-  situation, with no conditions, is appended last, where it wins over every other, and
-  selected with its details shown. Every situation but the Default has Remove (a preset's
-  popup with the Restore Presets line, a user's without it) and its conditions below the name.
-- A situation's details, every one's but the Default's, show the `Conditions` label over its
+  situation, with no conditions, is appended last, where it wins over every other, the
+  Situation List scrolls to it and its Edit situation popup opens. Every situation but the
+  Default has Remove in that popup (a preset's Remove popup with the Restore Presets line, a
+  user's without it).
+- The Edit situation popup's left column (docs/situation-management-ui.md §5), for every
+  situation but the Default, shows the `Applies` label, its help `Applies while every
+  condition holds.` and `A condition with several values holds for any of them.`, over the
   Applies text (below), each condition's phrase a link (`Theme::RunLinks`). With
   `Request::customSituations` the text is in the text colour, a hovered phrase is lit and
-  underlined, a click opens the `Edit conditions` popup on that condition, and `Edit
-  Conditions...` under the text opens it on none. Off, the text is greyed and a hovered phrase
-  says `Turn on custom situations in the settings to edit.` The links are for the mouse alone;
-  the button is the way in by controller.
-- The `Edit conditions` popup, a modal (every modal of the window: the main window's padding,
-  Vanilla's frame and Nordic's ornaments over the popup's own background, moved by a drag on it
-  as the main window is, never with ImGui's own scroll bar), as wide as the details pane or the
-  widest row any kind can have (`EditorContentWidth`), so only a Place or Spell row's list goes
-  under its row; centred on the screen at every frame, so it stays centred as conditions come
-  and go, until the user drags it (`BeginModal`'s `a_centred`, again on the next opening): the
-  heading `Conditions` over the situation's name (`Theme::HeadingText`), the editor in an area
-  as tall as it while the whole popup stays within 90% of the screen's height
-  (`kMaxWindowHeightRatio`; the rest of the popup measured the frame before), scrolling past that
-  with the skin's scroll bar in the window's right padding, the boxes as wide with the bar as
-  without (`Theme::BeginScrollArea`), the `Applies` label with the help
-  `Applies while every condition holds.` and `A condition with several values holds for any of
-  them.` over the Applies text with its links, then `Done`; Escape is Done unless it closed a
-  dropdown or a popup over the editor. Opened on a condition, or on one clicked in its own
-  Applies text, it scrolls to it and fills its box in a selected row's colour, fading out over
-  1.5 s. The Add location and Add spell popups open over it. It stays hidden a frame longer
-  than ImGui's own, so its first opening is centred at its full height.
+  underlined, and a click scrolls the editor to that condition and fills its box in a selected
+  row's colour, fading out over 1.5 s. Off, the text is greyed and a hovered phrase says `Turn
+  on custom situations in the settings to edit.` The links are for the mouse alone.
+- The `Edit situation` popup (docs/situation-management-ui.md §5), a modal (every modal of the
+  window: the main window's padding, Vanilla's frame and Nordic's ornaments over the popup's
+  own background, moved by a drag on it as the main window is, never with ImGui's own scroll
+  bar), centred on the screen at every frame, so it stays centred as conditions come and go,
+  until the user drags it (`BeginModal`'s `a_centred`, again on the next opening). With
+  `Request::customSituations`, for every situation but the Default, it has two equal columns as
+  the pages have (`BeginColumns`), each as wide as the page's right pane or the widest row any
+  kind can have (`EditorContentWidth`), whichever is wider, so only a Place or Spell row's list
+  goes under its row: the situation's settings on the left, and on the right `Conditions` (no
+  help) over the editor in an area as tall as it while the whole popup stays within 90% of the
+  screen's height (`kMaxWindowHeightRatio`; the rest of the popup measured the frame before),
+  scrolling past that with the skin's scroll bar in the window's right padding, the boxes as
+  wide with the bar as without (`Theme::BeginScrollArea`). Off, and for the Default, the left
+  column alone, as wide as the right pane. The Add location and Add spell popups open over it.
+  It stays hidden a frame longer than ImGui's own, so its first opening is centred at its full
+  height.
 - The editor: each condition is in a box, in every skin a 1px line of the rule colour with 4px
   round corners, 12x8px inside and 8px apart. Its heading is the kind's name as a field label
   (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the kind's help and a ×
@@ -351,13 +353,13 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - The editor's edits save once its popup closes (the page's autosave waits while a popup is
   open) or as the page is left, the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
-- While a situation is never worn (§8a), its details say so under the name, after a field's
+- While a situation is never worn (§8a), its Edit situation popup says so under the name, after a field's
   gap, in the error colour, each sentence wrapped (`Theme::RunTextWrapped`): `Never worn:
   <name>, lower in the list, applies whenever this does.` / `To change that, add a condition,
   edit <name>, or move one of them in the list.`, naming the nearest after its star, both in the
   emphasis. Its heading carries a warning mark after the name (and its count), a circle with an
   exclamation mark in the error colour (`Theme::SituationHeadingLook::warning`), the same
-  sentences its tooltip, in the text colour. While it is selected or its mark hovered, the
+  sentences its tooltip, in the text colour. While its Edit situation popup is open or its mark hovered, the
   Situation List draws the name of every situation lower in the list that applies whenever it
   does in the error colour (`SituationForm::neverWornBy`, `Theme::SituationHeadingLook::alert`).
 

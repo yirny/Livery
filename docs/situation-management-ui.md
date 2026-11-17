@@ -136,12 +136,13 @@ outfit for Town any more`.
 - The third tab of the tab column (docs/outfit-management-ui.md §3): the star, point down,
   that marks a situational outfit in the outfit list, tooltip `Situations`.
 - Title `Situational Outfits (#{Name})` after the star, no summary line. Two panes as on the Wardrobe page:
-  the Situation List (§4) on the left, the outfit list or the selected situation (§5) on the
-  right.
+  the Situation List (§4) on the left, the outfit list or an outfit's details (§5) on the
+  right. A situation's settings are in its Edit situation popup (§5), opened by its heading's
+  Edit.
 - The preview shows the Dress page's ticks, or the outfit whose details show (§5).
-- Every change on the page is an edit, saved shortly after the last one or as the page is
-  left (§6); the details' Remove and Restore Presets save the edits, then write after their
-  popups.
+- Every change on the page is an edit, saved shortly after the last one, once the Edit
+  situation popup closes, or as the page is left (§6); the popup's Remove and Restore Presets
+  save the edits, then write after their popups.
 
 ## 4. Situation List (left pane)
 
@@ -164,11 +165,12 @@ outfit for Town any more`.
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
 - Click areas: from the chevron (with its padding) to the die (to Edit with no die), rule
-  included, folds; left of it selects (with no chevron, everything left of the die or Edit
-  selects); the die with 4px on each side; Edit with its padding to the right end. A click on the name selects the situation (the single-choice row highlight of the
-  skin) and shows its details on the right; a click on the selected one while its details
-  show unselects it and the right pane shows the outfit list. Edit always selects the
-  situation and shows its details.
+  included, folds; left of it is the name's area (with no chevron, everything left of the die
+  or Edit), hovered as a row is but doing nothing when clicked; the die with 4px on each side;
+  Edit with its padding to the right end. Edit opens the situation's Edit situation popup
+  (§5), the page's edits saved first; its heading is drawn selected (the single-choice row
+  highlight of the skin) while the popup is open. A drag from anywhere on a heading still
+  moves it in the order (docs/custom-situations.md §7).
 - The die's area (random on) is a button while the actor wears an outfit of the row's list
   (as edited) for it and another is on the list: lit as the chevron while hovered, with `One of these
   outfits is picked at random each time this situation begins. Click to pick another now.` on
@@ -218,11 +220,10 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
   ends, the right pane follows the rule in §5.
 - The outfit list's drags add copies: the right pane keeps every outfit.
 
-## 5. Right pane
+## 5. Right pane and the Edit situation popup
 
 It shows the outfit list while a drag from the left pane is on; else the details of the
-outfit clicked last, until Back; else the selected situation's details, until Show Outfit
-List; else the outfit list.
+outfit clicked last, until Back; else the outfit list.
 
 The outfit list: the label `Outfit List (?)`, level with `Situation List (?)`, its help `Drag
 an outfit onto a situation to add it, or between outfits to set its position.` / `Drag it to
@@ -230,42 +231,7 @@ another situation to move it, or back here to remove it.` / `Click an outfit to 
 items.`, a line each; under it the shared outfit list (docs/outfit-management-ui.md §1) with
 its own search and sort, each row with the drag grip, and nothing under the list. Its star and
 Default marks (and the star's `For Town, Cold`) follow the page's edits, saved or not, at
-once; in the Situation List too, the Default mark does. While
-an outfit's details show, the
-selected situation's heading is drawn unselected (no fill, no mark); closing them brings it
-back.
-
-The situation's details, its fields evenly spaced with no headings:
-
-- `Name`, an underlined field (as the Save page's), its label starting with the star of the
-  Situations tab (none for the Default), a square of the label's line height in its grey, and 6px
-  (`Theme::LabelText` with a `HeadingIcon`). Ending the edit with it empty, or with a
-  name another situation has (ASCII case ignored), puts the previous name back; with that
-  empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
-  is saved as any edit is; no save starts while it is being typed. Under the Default's, after
-  `SectionGap`, `This is #{Name}'s default outfit.` (`Theme::RunText`).
-- `Conditions`: every situation's but the Default's is the condition editor and the Applies
-  line of docs/custom-situations.md §7; the Default's, read only, is two lines `Worn where no ★situation applies,` and `and in
-  combat.`, the star the Situations tab's in the text's grey (`Theme::RunText`'s
-  `plainNames`), the lines as close as a wrapped text's. The text sits a field's
-  frame padding below the label, where a field's text would (`DrawFieldText`).
-- `Random Outfit (for #{Name}) (?)`, a checkbox: `On: Each time this situation begins, #{Name}
-  wears a random outfit from the list until it ends.` then a blank line and `Off: #{Name} wears
-  the last picked outfit. The others stay in the list but are hidden.` Unticking it keeps
-  the last pick on (§1).
-- The room above every button row (`ButtonRowGap`), then `Show Outfit List`, a button centred in the pane. A click shows
-  the outfit list, keeps the situation selected, opens its heading if folded and scrolls the
-  left pane to it when the pane can scroll.
-- `Remove` at the right end of Show Outfit List's row, drawn as Restore Presets is, without
-  the `(?)` (`Theme::LineLink`); not on the Default. Its popup: `Remove Town?`, then under `Used by:` the
-  actors in this save with outfits on their Town row's list, hidden ones included
-  (`Lydia: 2 outfits`, the length of `outfits`; a FormID when not in memory), `Restore
-  Presets can bring it back, but not their outfits.` (`... can bring it back.` when nobody has any); `Remove` /
-  `Cancel`. The page's edits are saved first, and a refused save opens no popup. Remove writes `situations.json` first; a refused or
-  failed write changes nothing and shows the error. Then `Assignments::ForgetSituation`
-  clears the row for every actor in this save, and those wearing it are redressed by
-  docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
-  Nothing is selected and the right pane shows the outfit list.
+once; in the Situation List too, the Default mark does.
 
 An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its name with no
 label, as a list of one outfit row drawn as the outfit list's (grip, icon, the worn and Default
@@ -273,7 +239,7 @@ marks, no situation star), its name cut short with an ellipsis; the grip drags a
 outfit as the outfit list's rows do (§4: as from the outfit list, so the right pane stays), and a
 click on it does nothing. Then `SITUATIONS (#{Name})`, its label starting with the
 star as the Name label's does, with the rows the page's edits
-give it (`Default, Town`, or `None`), placed as the Conditions text is, then its pieces, with the Dress page's icons, under the
+give it (`Default, Town`, or `None`), placed as the Applies text is, then its pieces, with the Dress page's icons, under the
 `Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
@@ -288,13 +254,54 @@ pieces' list scrolls only to keep the window within 90% of the screen's height, 
 list does (`ListBottom`). Back, and Escape, show
 what the right pane showed before and the Dress page's ticks on the preview. Open in Wardrobe goes to
 the Wardrobe page with the outfit selected and on the preview, once the page's edits are saved
-(§6). A click on a situation's heading closes the details and
-shows the situation's.
+(§6).
+
+The Edit situation popup, a modal dressed and placed as docs/custom-situations.md §7 says:
+the heading `Edit` and the situation's name after its star (the Default's form for the
+Default; `Theme::HeadingRunText`), the name as last entered, not while it is typed; no
+subtitle. Its left column holds the situation's settings, its fields evenly spaced with no
+headings; with `Enable custom situations`, every situation but the Default has a right column,
+`Conditions` (no help) over the condition editor of docs/custom-situations.md §7. Off, and for
+the Default, the left column alone. The popup's edits (the name, Random Outfit, the
+conditions) are saved once it closes (§6). The left column:
+
+- `Name`, an underlined field (as the Save page's), its label starting with the star of the
+  Situations tab (none for the Default), a square of the label's line height in its grey, and 6px
+  (`Theme::LabelText` with a `HeadingIcon`). Ending the edit with it empty, or with a
+  name another situation has (ASCII case ignored), puts the previous name back; with that
+  empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
+  is saved as any edit is; no save starts while it is being typed. Under the Default's, after
+  `SectionGap`, `This is #{Name}'s default outfit.` (`Theme::RunText`).
+- `Applies`: every situation's but the Default's is the Applies text with its links and the
+  label's help of docs/custom-situations.md §7; the Default's, read only and greyed, with no
+  help, is two lines `Worn where no ★situation applies,` and `and in
+  combat.`, the star the Situations tab's in the text's grey (`Theme::RunText`'s
+  `plainNames`), the lines as close as a wrapped text's. The text sits a field's
+  frame padding below the label, where a field's text would (`DrawFieldText`).
+- `Random Outfit (for #{Name}) (?)`, a checkbox: `On: Each time this situation begins, #{Name}
+  wears a random outfit from the list until it ends.` then a blank line and `Off: #{Name} wears
+  the last picked outfit. The others stay in the list but are hidden.` Unticking it keeps
+  the last pick on (§1).
+
+Under the columns, the room above every button row (`ButtonRowGap`), then `Done` centred;
+Escape is Done unless it closed a dropdown or a popup over the popup.
+
+- `Remove` at the right end of Done's row, drawn as Restore Presets is, without
+  the `(?)` (`Theme::LineLink`); not on the Default. It closes the Edit situation popup;
+  Remove's popup opens once the edits made in it are saved. Its popup: `Remove Town?`, then under `Used by:` the
+  actors in this save with outfits on their Town row's list, hidden ones included
+  (`Lydia: 2 outfits`, the length of `outfits`; a FormID when not in memory), `Restore
+  Presets can bring it back, but not their outfits.` (`... can bring it back.` when nobody has any); `Remove` /
+  `Cancel`. The page's edits are saved first, and a refused save opens no popup. Remove writes `situations.json` first; a refused or
+  failed write changes nothing and shows the error. Then `Assignments::ForgetSituation`
+  clears the row for every actor in this save, and those wearing it are redressed by
+  docs/outfit-management-ui.md §6 (the others in memory at close, the rest when they load).
+  Nothing is selected.
 
 ## 6. Buttons and leaving
 
 - `Exit` where the other pages put their buttons, and at the row's right
-  end `Restore Presets (?)`, a link drawn as the details' Remove and Restore are, its
+  end `Restore Presets (?)`, a link drawn as the Edit situation popup's Remove is, its
   `(?)` inside its click area, its text centred on the buttons' height
   (`Theme::LineHelpLink`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
@@ -306,8 +313,8 @@ shows the situation's.
   or failed write changes nothing and shows the error) and keeps the selection.
 - Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a name entered)
   starts the wait of `kAutosaveDelay` (0.5 s) again, so a burst of edits writes and redresses
-  once (`ScheduleAutosave`, `TakeAutosaveDue`). A drag, an open popup or a name being typed
-  holds the save until it ends. The page takes no input while a save runs but keeps its look
+  once (`ScheduleAutosave`, `TakeAutosaveDue`). A drag, an open popup (the Edit situation
+  popup's edits wait for it to close) or a name being typed holds the save until it ends. The page takes no input while a save runs but keeps its look
   (`BeginPageDisabled`, `State::quietSave`), and the HUD says nothing
   of a rename (the log does); the redress has its usual HUD message. A save writes the global edits to `situations.json` first, when there are any; a
   refused or failed write changes no row and shows the error. Then, when a row changed, it
@@ -352,7 +359,7 @@ shows the situation's.
   `diceButton` and a tooltip with `diceTip`, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`, `kDice`), the
   drag grip (`Theme::Grip` for `OutfitRow`), the
-  details' Remove link (`LineLink`), Restore Presets' (`LineHelpLink`).
+  Edit situation popup's Remove link (`LineLink`), Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
   `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,
@@ -368,8 +375,10 @@ shows the situation's.
   situation shows at their next change. Unit tests cover the row rules.
 - Situation data: no `situations.json` until something is written; the summary line and the
   HUD read ` for Town`; the summary line `as Default` for the Default.
-- The page: each drop of §4's table; the 1 s open; Show Outfit List's scroll and open; Edit and
-  a click on the selected heading with the outfit list showing; an outfit's details from
+- The page: each drop of §4's table; the 1 s open; Edit opening the Edit situation popup and
+  a click elsewhere on a heading doing nothing; the popup's columns with Enable custom
+  situations on and off and for the Default, its Remove, New Situation... opening it on the
+  new situation; an outfit's details from
   either pane, with Back, Escape and Open in Wardrobe, the labels' sort, both button layouts, and the preview; several drops in a row redressing
   once, about 0.5 s after the last (Live Preview on and off); Random Outfit on, picks at situation changes;
   the die of the row worn lit with its tooltip, a click wearing another outfit (Live Preview on and off),
