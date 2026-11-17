@@ -35,6 +35,7 @@ namespace CaptureWindow::Internal
 
 	constexpr std::size_t kNameCapacity = 64;                // bytes, UTF-8, including the terminator
 	constexpr float       kMaxListHeightRatio = 0.75f;       // of the screen height, for every scrolling list
+	constexpr float       kMaxModalHeightRatio = 0.9f;       // of the screen height, for a whole popup that scrolls inside (Edit conditions)
 	constexpr const char* kConfirmPopup = "Replace items?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kCreateApplyPopup = "Apply outfit?###createAndApply";
 	constexpr const char* kApplyPopup = "Update the outfit?";
@@ -257,13 +258,17 @@ namespace CaptureWindow::Internal
 		// condition it was opened on (index into the selected entry's rules.rows; -1 for none),
 		// lit from `editorFocusFrom` (ImGui::GetTime() seconds) and scrolled to while
 		// `editorScroll` frames remain, its height as last drawn; whether a popup was open over
-		// it at the end of the last frame (its Escape closed that, not the editor).
+		// it at the end of the last frame (its Escape closed that, not the editor); whether it is
+		// still centred on the screen (BeginModal), not yet dragged; its height besides the
+		// conditions' area, as last drawn.
 		float  editorWidth = 0.0f;
 		int    editorFocus = -1;
 		double editorFocusFrom = 0.0;
 		int    editorScroll = 0;
 		float  editorFocusHeight = 0.0f;
 		bool   editorPopupAbove = false;
+		bool   editorCentred = true;
+		float  editorOtherHeight = 0.0f;
 		// The Add place popup's choice, in the order it shows them (request.places.At).
 		int placePick = 0;
 		// The Add spell popup: its search, Show all spells, the spells it lists (indices into
@@ -435,7 +440,7 @@ namespace CaptureWindow::Internal
 	void        RequestCancel();
 	bool        DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
 		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName });
-	bool        BeginModal(const char* a_id);
+	bool        BeginModal(const char* a_id, bool* a_centred = nullptr);
 	void        SetGroupHeadings(State& a_state);
 
 	// Choose icon (OutfitPages.cpp), opened as kIconPopup with State::iconPicker set: returns

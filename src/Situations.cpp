@@ -395,11 +395,9 @@ namespace
 		case Kind::kSleeping:
 			holds = IsSleeping(actor);
 			break;
-		case Kind::kInWater:
-			holds = facts->InWater();
-			break;
-		case Kind::kSwimming:
-			holds = state && state->IsSwimming();
+		case Kind::kWater:
+			// In water takes swimming in (IsInWater), so it settles a row with both.
+			holds = a_row.values & SituationRules::kInWater ? facts->InWater() : state && state->IsSwimming();
 			break;
 		case Kind::kIndoors:
 			{

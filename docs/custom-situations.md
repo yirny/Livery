@@ -34,8 +34,8 @@ Items marked *provisional* are tried in a prototype first and may change.
 
 A situation holds a list of condition rows. The situation applies while every row holds
 (AND). A row is a kind, a `not` flag, for a kind with values a set of values, and for a kind
-that reads an actor's own state (`SituationRules::Targetable`: In Combat, Sleeping, In Water,
-Swimming, Spell Effect, Weapon) whose state it reads (`Row::target`): the character wearing the
+that reads an actor's own state (`SituationRules::Targetable`: In Combat, Sleeping, Swimming,
+Spell Effect, Weapon) whose state it reads (`Row::target`): the character wearing the
 situation's outfit, or the player whoever wears it (a follower who changes when you fight). A
 row with values holds while any of its values holds (OR), and `not` inverts the row. Rows do not
 nest:
@@ -61,8 +61,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 |---|---|---|---|---|
 | In Combat | none | the actor is in combat | `Actor::IsInCombat` | yes (as today's rule) |
 | Sleeping | none | the sleeping rule of docs/design.md §7 | `GetSitSleepState`, CanSleep furniture | not yet |
-| In Water | none | the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only | `IsSwimming`, `GetWaterHeight` | wading yes |
-| Swimming | none | the actor state's swimming flag | `ActorState::IsSwimming` | not yet |
+| Swimming (key `water`) | one of In water (key `inWater`), Swimming | In water = the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only. Swimming = the actor state's swimming flag | `IsSwimming`, `GetWaterHeight` | In water by wading yes; Swimming not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no (`IsExteriorCell` is used by Cold) |
 | Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
 | Place (Specific Location in the editor) | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
@@ -84,9 +83,10 @@ Notes:
   depend on who the actor is: Home no longer holds in any house for an NPC (`LocTypeHouse`),
   and Town holds in any house for the player too. Town and Cold by rain, verified through the
   fixed rules, are checked again through the model (§10).
-- In Water keeps its hysteresis in a per-actor list of those last told in water
+- In water keeps its hysteresis in a per-actor list of those last told in water
   (`g_inWater`, changed only as someone goes in or out). Swimming needs none: the flag is the
-  engine's.
+  engine's. In water takes swimming in, so a row with both (only from the file) reads In water,
+  and the never-worn mark (§7) counts Swimming as In water (`Detail::Implies`).
 - Indoors is the cell's kind. Worldspaces that are underground or elsewhere (Blackreach,
   Sovngarde, the Soul Cairn) count as outdoors; a known quirk, documented, not worked around.
 - Location type reads the location's own keywords only, as the presets do (a room of a city is
@@ -252,11 +252,15 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   the button is the way in by controller.
 - The `Edit conditions` popup, a modal (every modal of the window: the main window's padding,
   Vanilla's frame and Nordic's ornaments over the popup's own background, moved by a drag on it
-  as the main window is), as wide as the details pane or the widest row any kind can have
-  (`EditorContentWidth`), so only a Place or Spell row's list goes under its row: the heading
-  `Conditions` over the situation's name (`Theme::HeadingText`), the editor in an area as tall as
-  it up to 75% of the screen's height (`kMaxListHeightRatio`, every list's), scrolling with the
-  skin's scroll bar past it (`Theme::BeginScrollArea`), the `Applies` label with the help
+  as the main window is, never with ImGui's own scroll bar), as wide as the details pane or the
+  widest row any kind can have (`EditorContentWidth`), so only a Place or Spell row's list goes
+  under its row; centred on the screen at every frame, so it stays centred as conditions come
+  and go, until the user drags it (`BeginModal`'s `a_centred`, again on the next opening): the
+  heading `Conditions` over the situation's name (`Theme::HeadingText`), the editor in an area
+  as tall as it while the whole popup stays within 90% of the screen's height
+  (`kMaxModalHeightRatio`; the rest of the popup measured the frame before), scrolling past that
+  with the skin's scroll bar in the window's right padding, the boxes as wide with the bar as
+  without (`Theme::BeginScrollArea`), the `Applies` label with the help
   `Applies while every condition holds.` and `A condition with several values holds for any of
   them.` over the Applies text with its links, then `Done`; Escape is Done unless it closed a
   dropdown or a popup over the editor. Opened on a condition, or on one clicked in its own
@@ -274,7 +278,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   wearing the outfit` and `Player: always checks you`); the others with their subject in the
   text colour (`KindInfo::subject`): `<name> is`, `The location type`, `The location`, `The
   weather`, `The time is`. A two-state kind (`SituationRules::TwoState`) then reads `is` / `is
-  not` and its phrase, `[Lydia] [is] in water`, or is a dropdown of its two states where it has
+  not` and its phrase, `[Lydia] [is] sleeping`, or is a dropdown of its two states where it has
   them (`KindInfo::state`, `negState`): `Indoors` / `Outdoors`, `Weapon drawn` / `Weapon
   sheathed`. The others have the operator dropdown, as wide as its widest wording so ticking
   more values never widens it: `is` / `is not` with up to one value or form selected, `is any
@@ -283,14 +287,17 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   Location type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying
   open for several ticks; a value with a tip, `Value::tip`, says it while hovered: Cold's `A
   region where it often snows, whatever the sky.`) whose preview lists the ticked values, `Rain,
-  Snow`, or a greyed `Select...` with none; Time of day's are `[time] and [time]`, two dropdowns
+  Snow`, or a greyed `Select...` with none; Swimming's a single choice (`SituationRules::OneValue`,
+  `[Lydia] [is] [In water]`, the operator `is` / `is not` alone), closed by it, its tips `Any
+  water underfoot, however shallow.` / `On a horse, swimming only.` and `Swimming only, not
+  wading.`; Time of day's are `[time] and [time]`, two dropdowns
   in 30-minute steps (a time read from the file off those steps shows as it is). Both sit on the
   row while they fit, else under it, 16px in. Place (`Specific Location` in the editor) and
   Spell list their forms under the row, 16px in, one a line with a × at its right end (`Remove
   this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
   hover), then `Add Location...` or `Add Spell...`. Then `Add Condition...`, a dropdown of the
-  kinds by label, closed by the choice, which adds a row with nothing selected (a Place or Spell
-  row opens its Add popup at once); a two-state kind the situation has every row it can take of
+  kinds by label, closed by the choice, which adds a row with nothing selected, Swimming's with
+  In water (a Place or Spell row opens its Add popup at once); a two-state kind the situation has every row it can take of
   (one; one per target for a kind with a target) is greyed there, a second adding nothing.
 - `Add Location...` opens the `Add location` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
@@ -302,7 +309,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   (?) saying what it covers. The game's own terms, as "room" or "area" would blur the two. It
   opens on the location, or on the cell when they are outside any. Add is greyed for a place
   the row has already.
-- `Add Spell...` opens the `Add spell` popup, its width set before it begins (22 font sizes,
+- `Add Spell...` opens the `Add spell` popup, its width set before it begins (18 font sizes,
   or the first line's when wider), since its list runs into the window's padding in Vanilla and
   Nordic and a popup fitted to its content would grow by that at every frame:
   `Add a spell to look for on <name>.`, a search
@@ -393,7 +400,7 @@ mark proves nothing; the tooltip names what was found. The mark does not read th
 ## 9. Implementation order
 
 1. 2a: the condition model, situations.json version 2, the mutable registry, the editor, and
-   the kinds that need no form picker: In Combat, Sleeping, In Water, Swimming, Indoors,
+   the kinds that need no form picker: In Combat, Sleeping, Swimming, Indoors,
    Location type, Weather, Time of day. Usable on its own; the prototype of §7 is checked here.
    Built on `feat/cs-model`, checked in game.
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).

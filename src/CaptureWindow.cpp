@@ -53,7 +53,7 @@
 #include "sarrai/Theme.h"
 
 #include <imgui.h>
-#include <imgui_internal.h>  // ClosePopupsExceptModals
+#include <imgui_internal.h>  // ClosePopupsExceptModals, ImGuiContext::MovingWindow
 
 #include <algorithm>
 #include <array>
@@ -1066,20 +1066,30 @@ namespace CaptureWindow::Internal
 	}
 
 	// Opens a modal popup centred on the screen, dressed as the main window (Theme::PushModalStyle,
-	// DecorateWindow) and moved as it is, by a drag on its background; when it returns true, fill it
-	// and call ImGui::EndPopup.
+	// DecorateWindow) and moved as it is, by a drag on its background; never with ImGui's own
+	// scroll bar (one that scrolls keeps within the screen itself). With `a_centred` true it is
+	// centred again at every frame, so a change of height keeps it in the middle, until a drag
+	// moves it, which sets `a_centred` false. When it returns true, fill it and call
+	// ImGui::EndPopup.
 	// Contract: called every frame on the page that opens it: a modal that is open but not
 	// submitted stays invisible and still blocks the window.
-	bool BeginModal(const char* a_id)
+	bool BeginModal(const char* a_id, bool* a_centred)
 	{
 		const auto& io = ImGui::GetIO();
-		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar;
+		const auto  centring = a_centred && *a_centred ? ImGuiCond_Always : ImGuiCond_Appearing;
+		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), centring, ImVec2(0.5f, 0.5f));
+		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar;
 		Theme::PushModalStyle();
 		const bool open = ImGui::BeginPopupModal(a_id, nullptr, flags);
 		Theme::PopModalStyle();
 		if (!open) {
 			return false;
+		}
+		// A press on the background moves the window at once, which the centring undoes until
+		// the press becomes a drag.
+		const auto* moving = ImGui::GetCurrentContext()->MovingWindow;
+		if (a_centred && moving && moving->RootWindow == ImGui::GetCurrentWindow() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+			*a_centred = false;
 		}
 		Theme::DecorateWindow(true);
 		return true;

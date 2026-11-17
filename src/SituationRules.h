@@ -32,8 +32,7 @@ namespace SituationRules
 	{
 		kInCombat,
 		kSleeping,
-		kInWater,
-		kSwimming,
+		kWater,
 		kIndoors,
 		kLocationType,
 		kPlace,
@@ -61,6 +60,9 @@ namespace SituationRules
 	inline constexpr std::uint32_t kRain = 1u << 0;
 	inline constexpr std::uint32_t kSnow = 1u << 1;
 	inline constexpr std::uint32_t kSnowyRegion = 1u << 2;
+	// Water's values, bits of Row::values. In water takes swimming in.
+	inline constexpr std::uint32_t kInWater = 1u << 0;
+	inline constexpr std::uint32_t kSwimming = 1u << 1;
 
 	inline constexpr std::uint16_t kMinutesPerDay = 24 * 60;
 
@@ -233,7 +235,7 @@ namespace SituationRules
 		std::uint32_t bit;
 		const char*   key;       // in situations.json
 		const char*   label;     // the editor's checkbox
-		const char*   phrase;    // in the Applies line, after "in"
+		const char*   phrase;    // in the Applies line, after "in"; Water's whole ("swimming")
 		const char*   tip = "";  // on its row in the editor's dropdown, while hovered; "" for none
 	};
 
@@ -248,6 +250,11 @@ namespace SituationRules
 		{ kRain, "rain", "Rain", "rain" },
 		{ kSnow, "snow", "Snow", "snow" },
 		{ kSnowyRegion, "snowyRegion", "Cold", "a cold region", "A region where it often snows, whatever the sky." },
+	} };
+
+	inline constexpr std::array<Value, 2> kWaterDepths{ {
+		{ kInWater, "inWater", "In water", "in water", "Any water underfoot, however shallow.\nOn a horse, swimming only." },
+		{ kSwimming, "swimming", "Swimming", "swimming", "Swimming only, not wading." },
 	} };
 
 	struct KindInfo
@@ -268,11 +275,11 @@ namespace SituationRules
 	};
 
 	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them by label.
-	inline constexpr std::array<KindInfo, 11> kKinds{ {
+	inline constexpr std::array<KindInfo, 10> kKinds{ {
 		{ Kind::kInCombat, "inCombat", "In combat", "", "", "Fighting.\nWith this condition the situation applies in combat.", "in combat", "", "", "", {}, true },
 		{ Kind::kSleeping, "sleeping", "Sleeping", "", "", "Going to bed, in it or getting up.", "sleeping", "", "", "", {}, true },
-		{ Kind::kInWater, "inWater", "In water", "", "", "Swimming, or wading.\nOn a horse, swimming only.", "in water", "", "", "", {}, true },
-		{ Kind::kSwimming, "swimming", "Swimming", "", "", "Swimming only, not wading.", "swimming", "", "", "", {}, true },
+		{ Kind::kWater, "water", "Swimming", "", "", "In water: any water underfoot, however shallow.\nSwimming: swimming only, not wading.", "", "", "", "",
+			kWaterDepths, true },
 		{ Kind::kIndoors, "indoors", "Indoors", "Indoors", "Outdoors", "Inside a building, cave or other interior.", "indoors", "outdoors", "", "", {}, false, "{} is" },
 		{ Kind::kLocationType, "locationType", "Location type", "", "",
 			"Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.",
@@ -307,6 +314,12 @@ namespace SituationRules
 	inline bool HasValues(Kind a_kind)
 	{
 		return !InfoOf(a_kind).values.empty();
+	}
+
+	// A kind with values of which a row takes one, each a whole phrase: Water.
+	inline bool OneValue(Kind a_kind)
+	{
+		return a_kind == Kind::kWater;
 	}
 
 	// A kind whose row lists forms: Place, Spell.
@@ -398,10 +411,10 @@ namespace SituationRules
 	}
 
 	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not in rain",
-	// "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on", "with a weapon drawn";
-	// negated as KindInfo::negPhrase words it ("outdoors", "with weapons sheathed") or with
-	// "not"; reading the player (Target::kPlayer), "while you are in combat", "while Stoneflesh
-	// is on you", "while your weapon is drawn".
+	// "swimming", "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on", "with a
+	// weapon drawn"; negated as KindInfo::negPhrase words it ("outdoors", "with weapons
+	// sheathed") or with "not"; reading the player (Target::kPlayer), "while you are in combat",
+	// "while you are not in water", "while Stoneflesh is on you", "while your weapon is drawn".
 	inline std::string RowText(const Row& a_row)
 	{
 		const auto& info = InfoOf(a_row.kind);
@@ -426,7 +439,10 @@ namespace SituationRules
 					ticked.emplace_back(value.phrase);
 				}
 			}
-			phrase = "in " + JoinWithOr(ticked);
+			phrase = OneValue(a_row.kind) ? JoinWithOr(ticked) : "in " + JoinWithOr(ticked);
+			if (you) {
+				return std::format("while you are {}{}", a_row.negated ? "not " : "", phrase);
+			}
 		} else if (HasForms(a_row.kind)) {
 			std::vector<std::string> names;
 			for (const auto& form : FormsOf(a_row)) {
@@ -566,6 +582,12 @@ namespace SituationRules
 			case Kind::kLocationType:
 			case Kind::kWeather:
 				return (inner.values & ~outer.values) == 0;
+			case Kind::kWater:
+				{
+					// Swimming is in water: a row that takes In water takes Swimming too.
+					const auto taken = outer.values & kInWater ? outer.values | kSwimming : outer.values;
+					return (inner.values & ~taken) == 0;
+				}
 			case Kind::kTimeOfDay:
 				return TimeWithin(inner, outer);
 			case Kind::kPlace:

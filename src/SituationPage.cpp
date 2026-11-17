@@ -741,7 +741,8 @@ namespace CaptureWindow::Internal
 		// its phrase, or for Weapon a dropdown of its two
 		// states, as Indoors is; the others an operator dropdown ("is" / "is not", "is any of" /
 		// "is none of" with several selected, "between" / "not between") and their values: a
-		// multi-choice dropdown, the two times, or the places or spells listed under, each with a ×.
+		// multi-choice dropdown (Swimming's a single choice), the two times, or the places or
+		// spells listed under, each with a ×.
 
 		// The operator a row with values or forms reads with: "is" / "is not" up to one
 		// selected, "is any of" / "is none of" with more; a Spell Effect row "has" / "has not",
@@ -783,7 +784,7 @@ namespace CaptureWindow::Internal
 			if (a_kind == Kind::kSpell) {
 				return WidestDropdown({ "has", "has not", "has any of", "has none of" });
 			}
-			if (SituationRules::HasValues(a_kind) || SituationRules::HasForms(a_kind)) {
+			if ((SituationRules::HasValues(a_kind) && !SituationRules::OneValue(a_kind)) || SituationRules::HasForms(a_kind)) {
 				return WidestDropdown({ "is", "is not", "is any of", "is none of" });
 			}
 			return WidestDropdown({ "is", "is not" });
@@ -845,12 +846,14 @@ namespace CaptureWindow::Internal
 		}
 
 		// The values of `a_row`'s kind as a multi-choice dropdown, the ticked ones its preview
-		// ("Rain, Snow"), a greyed Select... with none; `a_width` is the room it takes. Returns
-		// true when one was ticked or unticked.
+		// ("Rain, Snow"), a greyed Select... with none; a single choice, closed by it, for a kind
+		// whose rows take one (SituationRules::OneValue). `a_width` is the room it takes. Returns
+		// true when one was ticked, unticked or chosen.
 		bool DrawValuesDropdown(SituationRules::Row& a_row, float a_width)
 		{
 			constexpr const char* kSelect = "Select...";
 
+			const bool  one = SituationRules::OneValue(a_row.kind);
 			const auto  values = SituationRules::InfoOf(a_row.kind).values;
 			std::string preview;
 			for (const auto& value : values) {
@@ -865,9 +868,9 @@ namespace CaptureWindow::Internal
 			if (open) {
 				for (const auto& value : values) {
 					bool ticked = (a_row.values & value.bit) != 0;
-					if (Theme::DropdownRow(value.label, &ticked, true)) {  // stays open for several ticks
-						a_row.values ^= value.bit;
-						changed = true;
+					if (Theme::DropdownRow(value.label, &ticked, !one)) {  // ticks keep it open for more
+						changed = one ? a_row.values != value.bit : true;
+						a_row.values = one ? value.bit : a_row.values ^ value.bit;
 					}
 					if (*value.tip && ImGui::IsItemHovered()) {
 						Theme::Tooltip(value.tip);
@@ -879,7 +882,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// The widths a values dropdown asks for: the least that shows its widest value, and the
-		// most it needs, every value ticked.
+		// most it needs, every value ticked (the least for a single choice).
 		struct ValuesWidth
 		{
 			float least;
@@ -895,7 +898,7 @@ namespace CaptureWindow::Internal
 				least = (std::max)(least, Theme::DropdownWidth(value.label, style));
 				all += (all.empty() ? "" : ", ") + std::string(value.label);
 			}
-			return { least, Theme::ComboWidth(all.c_str(), style) };
+			return { least, SituationRules::OneValue(a_kind) ? least : Theme::ComboWidth(all.c_str(), style) };
 		}
 
 		// A dropdown of the times of day, `a_minutes` (after midnight) its choice. Returns true
@@ -1243,14 +1246,15 @@ namespace CaptureWindow::Internal
 		}
 
 		// The editor's content width: the widest row any kind can have (ConditionRowWidth) in its
-		// box, and room for the scroll bar, so only a Place or Spell row's list goes under its row.
+		// box, so only a Place or Spell row's list goes under its row. The scroll bar goes past it
+		// (Theme::BeginScrollArea).
 		float EditorContentWidth(const CaptureWindow::Request& a_request)
 		{
 			float widest = 0.0f;
 			for (const auto& info : SituationRules::kKinds) {
 				widest = (std::max)(widest, ConditionRowWidth(a_request, info.kind));
 			}
-			return widest + std::round(kConditionBoxPadding.x * Theme::Scale()) * 2.0f + ImGui::GetStyle().ScrollbarSize;
+			return widest + std::round(kConditionBoxPadding.x * Theme::Scale()) * 2.0f;
 		}
 
 		// A user's situation's conditions as edited: a row each (DrawConditionRow) in a box of a
@@ -1301,7 +1305,8 @@ namespace CaptureWindow::Internal
 				form.editorFocus = -1;  // its index may now name another
 			}
 			if (const auto kind = DrawAddCondition(a_rules)) {
-				a_rules.rows.push_back({ .kind = *kind });
+				// A kind whose rows take one value starts with its first, never with none.
+				a_rules.rows.push_back({ .kind = *kind, .values = SituationRules::OneValue(*kind) ? SituationRules::InfoOf(*kind).values.front().bit : 0u });
 				changed = true;
 				// A Place or Spell row starts empty, so its Add link is pressed for the user.
 				if (SituationRules::HasForms(*kind)) {
@@ -1972,7 +1977,7 @@ namespace CaptureWindow::Internal
 		// (Escape, unless it clears the search). Returns the spell to add on Add.
 		std::optional<SituationRules::Spell> DrawAddSpellPopup(State& a_state)
 		{
-			constexpr float kWidthInFonts = 22.0f;  // the popup's content width, in font sizes
+			constexpr float kWidthInFonts = 18.0f;  // the popup's content width, in font sizes
 
 			auto&       form = a_state.situationForm;
 			const auto& name = a_state.request.actorName;
@@ -2149,11 +2154,12 @@ namespace CaptureWindow::Internal
 		}
 
 		// The Edit conditions popup (docs/custom-situations.md §7), as wide as the details pane
-		// or its widest row (EditorContentWidth): the heading `Conditions` over the situation's
-		// name, the condition editor (DrawConditionEditor) in an area scrolling past
-		// kMaxListHeightRatio of the screen, the Applies text with its links, then Done; Escape is
-		// Done unless it closed a dropdown or a popup over it. Its edits are saved once it closes
-		// (TakeAutosaveDue waits for it).
+		// or its widest row (EditorContentWidth), centred as its height changes until dragged:
+		// the heading `Conditions` over the situation's name, the condition editor
+		// (DrawConditionEditor) in an area that scrolls to keep the whole popup within
+		// kMaxModalHeightRatio of the screen, the Applies text with its links, then Done; Escape
+		// is Done unless it closed a dropdown or a popup over it. Its edits are saved once it
+		// closes (TakeAutosaveDue waits for it).
 		void DrawConditionEditorPopup(State& a_state)
 		{
 			constexpr const char* kDone = "Done";
@@ -2161,7 +2167,7 @@ namespace CaptureWindow::Internal
 			auto&       form = a_state.situationForm;
 			const float windowWidth = form.editorWidth + ImGui::GetStyle().WindowPadding.x * 2.0f;
 			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
-			if (!BeginModal(kEditConditionsPopup)) {
+			if (!BeginModal(kEditConditionsPopup, &form.editorCentred)) {
 				return;
 			}
 			if (form.selected <= 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
@@ -2174,6 +2180,8 @@ namespace CaptureWindow::Internal
 				form.editorScroll = 2;  // the area's height is known from its second frame
 				form.editorFocusHeight = 0.0f;
 				form.editorPopupAbove = false;
+				form.editorCentred = true;
+				form.editorOtherHeight = 0.0f;
 				// Contract: ImGui 1.92.7 centres the popup (BeginModal's pivot) at the first frame
 				// it is shown, at the size its content had the frame before. The scroll area learns
 				// its height a frame after it is made, so the popup stays hidden one frame more
@@ -2186,14 +2194,16 @@ namespace CaptureWindow::Internal
 			auto&                                   entry = form.entries[static_cast<std::size_t>(form.selected)];
 			const std::array<Theme::SubtitleRun, 1> name{ SituationRun(entry.name.data()) };
 			Theme::HeadingText("Conditions", name);
-			bool addForm = false;
-			if (Theme::BeginScrollArea("conditions", ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio)) {
+			bool        addForm = false;
+			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxModalHeightRatio - form.editorOtherHeight;
+			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
 				if (DrawConditionEditor(a_state, entry.rules, addForm)) {
 					form.neverWornStale = true;
 					ScheduleAutosave(a_state);
 				}
 			}
 			Theme::EndScrollArea();
+			const float areaShown = ImGui::GetItemRectSize().y;
 			Theme::LabelText("Applies");
 			if (Theme::LabelHelpMark()) {
 				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
@@ -2218,6 +2228,9 @@ namespace CaptureWindow::Internal
 				ImGui::CloseCurrentPopup();
 			}
 			form.editorPopupAbove = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+			// The popup fits its content: its height is the content's bottom and the padding under it.
+			const auto* window = ImGui::GetCurrentWindow();
+			form.editorOtherHeight = window->DC.CursorMaxPos.y - window->Pos.y + ImGui::GetStyle().WindowPadding.y - areaShown;
 			ImGui::EndPopup();
 		}
 

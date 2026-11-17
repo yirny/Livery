@@ -228,7 +228,8 @@ TEST_CASE("The Applies line has a phrase per row, not first", "[situations]")
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather, .negated = true, .values = SituationRules::kRain } } }) == "Not in rain.");
 	CHECK(SituationRules::Text({}) == "Never applies.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather } } }) == "Weather (nothing selected).");
-	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kInCombat, .negated = true }, { .kind = Kind::kSwimming } } }) == "Not in combat, swimming.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kInCombat, .negated = true }, { .kind = Kind::kWater, .values = SituationRules::kSwimming } } }) ==
+		  "Not in combat, swimming.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeapon }, { .kind = Kind::kWeapon, .negated = true } } }) == "With a weapon drawn, with weapons sheathed.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType,
 									 .values = SituationRules::kTown | SituationRules::kPlayerHome | SituationRules::kDungeon } } }) ==
@@ -263,11 +264,13 @@ TEST_CASE("A row reading the player says so in the Applies line", "[situations]"
 	CHECK(SituationRules::Text({ .rows = { yourWeapon, yourSheathed } }) == "While your weapon is drawn, while your weapons are sheathed.");
 	const Row spell{ .kind = Kind::kSpell, .target = Target::kPlayer, .spells = { { .ref = { "Skyrim.esm", 0x059B7A, "Stoneflesh" } } } };
 	CHECK(SituationRules::Text({ .rows = { spell } }) == "While Stoneflesh is on you.");
+	const Row notYourWater{ .kind = Kind::kWater, .negated = true, .target = Target::kPlayer, .values = SituationRules::kInWater };
+	CHECK(SituationRules::Text({ .rows = { notYourWater } }) == "While you are not in water.");
 	// A kind that reads no actor's state ignores the target.
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kIndoors, .target = Target::kPlayer } } }) == "Indoors.");
 	for (const auto& info : SituationRules::kKinds) {
-		const bool reads = info.kind == Kind::kInCombat || info.kind == Kind::kSleeping || info.kind == Kind::kInWater || info.kind == Kind::kSwimming ||
-		                   info.kind == Kind::kSpell || info.kind == Kind::kWeapon;
+		const bool reads = info.kind == Kind::kInCombat || info.kind == Kind::kSleeping || info.kind == Kind::kWater || info.kind == Kind::kSpell ||
+		                   info.kind == Kind::kWeapon;
 		CHECK(SituationRules::Targetable(info.kind) == reads);
 	}
 }
@@ -286,7 +289,7 @@ TEST_CASE("A row's target is written only for the player and refused where a kin
 	CHECK(read == table);
 
 	REQUIRE_FALSE(SituationTable::Parse(
-		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "swimming", "target": "wearer" } ] } ] })", read));
+		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "water", "target": "wearer", "values": ["swimming"] } ] } ] })", read));
 	CHECK(read[Situations::kPresetCount].rules.rows[0].target == Target::kWearer);
 	const auto refuses = [&read](const char* a_text) {
 		const bool refused = SituationTable::Parse(a_text, read).has_value();
@@ -689,6 +692,15 @@ TEST_CASE("A situation is never worn while one lower applies whenever it does", 
 	CHECK(CoveredBy(RulesOf({ notRainOrSnow }), RulesOf({ notRain }), none));
 	CHECK_FALSE(CoveredBy(RulesOf({ notRain }), RulesOf({ notRainOrSnow }), none));
 	CHECK_FALSE(CoveredBy(RulesOf({ notRain }), RulesOf({ rain }), none));
+	// Swimming is in water.
+	const Row inWater{ .kind = Kind::kWater, .values = SituationRules::kInWater };
+	const Row swimming{ .kind = Kind::kWater, .values = SituationRules::kSwimming };
+	const Row notInWater{ .kind = Kind::kWater, .negated = true, .values = SituationRules::kInWater };
+	const Row notSwimming{ .kind = Kind::kWater, .negated = true, .values = SituationRules::kSwimming };
+	CHECK(CoveredBy(RulesOf({ swimming }), RulesOf({ inWater }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ inWater }), RulesOf({ swimming }), none));
+	CHECK(CoveredBy(RulesOf({ notInWater }), RulesOf({ notSwimming }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ notSwimming }), RulesOf({ notInWater }), none));
 	// Combat: the lower one must be allowed during combat when the upper one is.
 	const Row combat{ .kind = Kind::kInCombat };
 	CHECK(CoveredBy(RulesOf({ town }), RulesOf({ town }, true), none));
