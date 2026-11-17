@@ -289,16 +289,21 @@ namespace CaptureWindow::Internal
 	}
 
 	// Both columns' lists are as tall as the taller one's rows (one row at least), capped as
-	// FittedListHeight caps it. With the rows' spacing, none, pushed here: FittedListHeight takes
-	// the current spacing off the rows' height, and the page's own would leave a scroll bar.
+	// FittedListHeight caps it with the two links under the left one, a frame's height each at
+	// most. With the rows' spacing, none, pushed here: FittedListHeight takes the current
+	// spacing off the rows' height, and the page's own would leave a scroll bar.
+	// Contract: called at the left list's top, level with the right one's.
 	float EditorListHeight(const State& a_state)
 	{
+		constexpr float kLinksUnder = 2.0f;
+
 		const float rowHeight = Theme::OutfitRowHeight();
 		const auto  outside = CountOutside(a_state);
 		const float left = static_cast<float>(outside.rows) * rowHeight + static_cast<float>(outside.headings) * Theme::ListHeadingHeight();
 		const float right = static_cast<float>(a_state.chest.pieces.size()) * rowHeight;
+		const float links = kLinksUnder * ImGui::GetFrameHeightWithSpacing();
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-		const float height = FittedListHeight((std::max)({ left, right, rowHeight }), rowHeight);
+		const float height = FittedListHeight((std::max)({ left, right, rowHeight }), rowHeight, links);
 		ImGui::PopStyleVar();
 		return height;
 	}
@@ -525,12 +530,12 @@ namespace CaptureWindow::Internal
 		std::optional<std::size_t> takeOut;
 		CountLinks                 links;
 		if (BeginColumns("chest")) {
-			const float height = EditorListHeight(a_state);
 			NextColumn();
 			ResetCellBaseline();
 			Theme::LabelText(Strings::Get(Text::kChestItems), Theme::HeadingIcon::kBackpack);
 			Theme::AfterFieldGap();
 			Theme::CountText(Strings::Format(Text::kItemsCount, CountOutside(a_state).rows).c_str());
+			const float height = EditorListHeight(a_state);
 			putIn = DrawItemsOutside(a_state, height);
 			const auto* noOutfits = ReasonIf(a_state.request.existingOutfits.empty(), kNoOutfits);
 			links.wardrobe = DrawCountLink(a_state, Strings::Get(Text::kAddFromWardrobe), noOutfits, Theme::HeadingIcon::kWardrobe, Theme::LinkLine::kNext);

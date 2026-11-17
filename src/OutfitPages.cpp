@@ -160,12 +160,13 @@ namespace CaptureWindow::Internal
 
 	// Search over Filter (while kShowFilter), in the small font, with no labels, at the top
 	// of the outfit list's column; refreshes the list only when one of them changed.
-	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser)
+	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser, bool a_underLabel)
 	{
 		constexpr float kGapBelowRow = 4.0f;  // pixels at 1080p, under the row on top of the item spacing
 
-		const float top = ImGui::GetCursorPosY();
-		Theme::SectionGap();  // the heading leaves its last gap to the page's first field (Theme::HeadingText)
+		if (!a_underLabel) {
+			Theme::SectionGap();  // the heading leaves its last gap to the page's first field (Theme::HeadingText)
+		}
 		BrowserInput input;
 		ImGui::PushID("browser");
 		Theme::PushSmallFont();
@@ -179,7 +180,7 @@ namespace CaptureWindow::Internal
 		if (input.changed) {
 			OutfitBrowser::Refresh(a_browser, a_state.request);
 		}
-		return { input.escapeTaken, ImGui::GetCursorPosY() - top };
+		return { input.escapeTaken };
 	}
 
 	// --- Outfit lists ---------------------------------------------------------
@@ -188,14 +189,14 @@ namespace CaptureWindow::Internal
 	// it with the count line below it kept in view too, so narrowing the list does not move
 	// the buttons.
 	// Contract: called with the list's row spacing pushed.
-	float OutfitListHeight(const State& a_state, float a_reserved)
+	float OutfitListHeight(const State& a_state)
 	{
 		Theme::PushSmallFont();
 		const float countLine = ImGui::GetTextLineHeightWithSpacing();
 		Theme::PopSmallFont();
 		const float rowHeight = Theme::OutfitRowHeight();
 		const float rows = static_cast<float>(a_state.request.existingOutfits.size()) * rowHeight;
-		return FittedListHeight((std::max)(rows, rowHeight), rowHeight, a_reserved + countLine);
+		return FittedListHeight((std::max)(rows, rowHeight), rowHeight, countLine);
 	}
 
 	// One outfit of the list: its name, and at its right end the marks of the outfit the actor
@@ -239,7 +240,7 @@ namespace CaptureWindow::Internal
 	// a click plays the focus sound. `a_draggable` (the Situations page): each row has a grip
 	// and drags a copy of its outfit.
 	// Names are shown as they are (Theme::SelectRow).
-	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable)
+	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, bool a_draggable)
 	{
 		const std::array<const char*, 2> labels{ "##iconColumn", Strings::Get(Text::kColumnName) };  // in OutfitBrowser::SortKey's order
 
@@ -261,7 +262,7 @@ namespace CaptureWindow::Internal
 		// No gap between rows, so every other row's stripe meets the next; the rows hold the gap
 		// themselves (Theme::OutfitRow). Popped before EndList, as the piece list's spacing is.
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-		const float listHeight = OutfitListHeight(a_state, a_reserved);
+		const float listHeight = OutfitListHeight(a_state);
 		int         clicked = -1;
 		if (Theme::BeginList("outfits", listHeight)) {
 			if (visible.empty()) {
@@ -650,7 +651,7 @@ namespace CaptureWindow::Internal
 				clicked = DrawChestList(a_state, a_state.previewedChest, except, 0.0f, Theme::Grip::kNone);
 			} else {
 				controls = DrawBrowserControls(a_state, a_state.loadBrowser);
-				clicked = DrawOutfitList(a_state, a_state.loadBrowser, a_state.previewedOutfit, controls.height);
+				clicked = DrawOutfitList(a_state, a_state.loadBrowser, a_state.previewedOutfit);
 			}
 			NextColumn();
 			ResetCellBaseline();
@@ -833,7 +834,11 @@ namespace CaptureWindow::Internal
 		bool icon = false;
 		DrawNameField(a_state, form.name, &form.icon, &icon);
 		Theme::AfterFieldGap();
-		if (DrawPieceChoices(a_state, form.pieces, &form.excluded)) {
+		// Under the list, its count line and Save's button row.
+		Theme::PushSmallFont();
+		const float under = ImGui::GetTextLineHeightWithSpacing() + ButtonRowGap() + Theme::ButtonHeight() + ImGui::GetStyle().ItemSpacing.y;
+		Theme::PopSmallFont();
+		if (DrawPieceChoices(a_state, form.pieces, &form.excluded, ListBottom() - under)) {
 			QueuePreview(a_state, ManagedWorn(a_state));
 		}
 		const auto selected = ManagedWorn(a_state).size();
@@ -1609,7 +1614,7 @@ namespace CaptureWindow::Internal
 		if (BeginColumns("manage")) {
 			NextColumn();
 			controls = DrawBrowserControls(a_state, a_state.manageBrowser);
-			clicked = DrawOutfitList(a_state, a_state.manageBrowser, a_state.manage.outfit, controls.height);
+			clicked = DrawOutfitList(a_state, a_state.manageBrowser, a_state.manage.outfit);
 			NextColumn();
 			ResetCellBaseline();
 			formClick = DrawManageForm(a_state);

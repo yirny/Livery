@@ -77,7 +77,11 @@ namespace CaptureWindow::Internal
 		return { Strings::Get(Text::kCreateNewOutfit), Strings::Get(Text::kUpdateExistingOutfit) };
 	}
 
+	constexpr float kBottomGap = 12.0f;  // pixels at 1080p, under the last button row on top of the window padding (EndButtonRow)
+
 	// --- State ----------------------------------------------------------------
+
+	float g_pageSpacingY = 0.0f;  // the style's item spacing as the window begins, before any push (ListBottom)
 
 	State& GetState()
 	{
@@ -565,18 +569,30 @@ namespace CaptureWindow::Internal
 		QueuePreview(a_state, a_outfit >= 0 ? OutfitAt(a_state, a_outfit).pieces : TickedPieces(a_state));
 	}
 
+	// The lowest screen Y a list may reach: the window (or the popup) it is in kept within
+	// kMaxWindowHeightRatio of the screen's height, with a button row under the list
+	// (BeginButtonRow, EndButtonRow) and the window's padding.
+	// Contract: in the window that begins as DrawWindow's, or a popup of it.
+	float ListBottom()
+	{
+		const auto* window = ImGui::GetCurrentWindow()->RootWindow;
+		const float buttons = g_pageSpacingY + ButtonRowGap() + Theme::ButtonHeight() + (std::max)(g_pageSpacingY, kBottomGap * Theme::Scale());
+		return window->Pos.y + ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - buttons - window->WindowPadding.y;
+	}
+
 	// Height of a Theme::BeginList list exactly as tall as its rows, which take
 	// `a_rowsHeight` pixels with the spacing under each, so it does not scroll,
-	// capped so a long list cannot push the window off screen; the cap also covers
-	// `a_reserved` pixels of other content stacked above it. It is at least
-	// `a_minHeight`: a child of height zero would fill the window. Whole pixels, rounded up:
-	// ImGui truncates the child's inner height but not its padding, so a fractional height
-	// (Modern's row gap above 1080p) a third of a pixel short of the rows shows a scroll bar.
-	// Contract: called with the item spacing the rows will be laid out with.
+	// capped to end by ListBottom less `a_reserved` pixels of other content under it. It is
+	// at least `a_minHeight`: a child of height zero would fill the window. Whole pixels,
+	// rounded up: ImGui truncates the child's inner height but not its padding, so a fractional
+	// height (Modern's row gap above 1080p) a third of a pixel short of the rows shows a scroll
+	// bar.
+	// Contract: called with the cursor at the list's top and the item spacing the rows will be
+	// laid out with.
 	float FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved)
 	{
 		const float fullHeight = a_rowsHeight - ImGui::GetStyle().ItemSpacing.y + Theme::ListPaddingY() * 2.0f;
-		const float cap = ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio - a_reserved;
+		const float cap = ListBottom() - ImGui::GetCursorScreenPos().y - a_reserved;
 		return std::ceil((std::max)(a_minHeight, (std::min)(fullHeight, cap)));
 	}
 
@@ -686,8 +702,6 @@ namespace CaptureWindow::Internal
 	// below the last item already counts toward it.
 	void EndButtonRow()
 	{
-		constexpr float kBottomGap = 12.0f;  // pixels at 1080p
-
 		ImGui::Dummy(ImVec2(0.0f, (std::max)(0.0f, kBottomGap * Theme::Scale() - ImGui::GetStyle().ItemSpacing.y)));
 	}
 
@@ -1056,11 +1070,21 @@ namespace CaptureWindow::Internal
 	// A help text in a tooltip, wrapped to a readable width.
 	void DrawHelpTooltip(const std::string& a_text)
 	{
+		BeginHelpTooltip();
+		ImGui::TextUnformatted(a_text.c_str());
+		EndHelpTooltip();
+	}
+
+	void BeginHelpTooltip()
+	{
 		constexpr float kWrapEms = 28.0f;  // the tooltip's text width, in font sizes
 
 		Theme::BeginTooltip();
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * kWrapEms);
-		ImGui::TextUnformatted(a_text.c_str());
+	}
+
+	void EndHelpTooltip()
+	{
 		ImGui::PopTextWrapPos();
 		Theme::EndTooltip();
 	}
@@ -1360,13 +1384,17 @@ namespace CaptureWindow::Internal
 	}
 
 	// Height of the piece list with every listed piece and heading in view, capped as
-	// ListHeight caps it. Contract: called with the list's row spacing pushed.
+	// ListHeight caps it with what the Dress and Edit pages have under it: the count line, the
+	// Add from Chest... line and the Live Preview line, a frame's height each at most.
+	// Contract: called with the list's row spacing pushed.
 	float PieceListHeight(const State& a_state, const PieceList& a_list)
 	{
+		constexpr float kLinesUnder = 3.0f;
+
 		const float spacing = ImGui::GetStyle().ItemSpacing.y;
 		const float rowsHeight = static_cast<float>(CountListedPieces(a_state, a_list)) * (ImGui::GetFrameHeight() + spacing) +
 		                         static_cast<float>(CountListedGroups(a_state, a_list)) * (Theme::ListHeadingHeight() + spacing);
-		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing());
+		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing(), kLinesUnder * (ImGui::GetFrameHeight() + g_pageSpacingY));
 	}
 
 	// The column labels, then the listed pieces under their groups' headings, a tick row
@@ -2191,7 +2219,7 @@ namespace CaptureWindow::Internal
 			NextColumn();
 			const auto controls = DrawBrowserControls(a_state, a_state.updateBrowser);
 			input.escapeTaken = controls.escapeTaken;
-			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit, controls.height);
+			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit);
 			if (chosen) {
 				const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
 				DrawPieceColumn(a_state, Strings::Get(Text::kCurrentItems), outfit.pieces, outfit.unloadedPieces);
@@ -2924,6 +2952,7 @@ namespace CaptureWindow
 		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
 		constexpr auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize |
 		                       ImGuiWindowFlags_NoTitleBar;
+		g_pageSpacingY = ImGui::GetStyle().ItemSpacing.y;
 		if (!ImGui::Begin("Livery", nullptr, flags)) {
 			ImGui::End();
 			return;

@@ -253,7 +253,7 @@ namespace SituationRules
 	} };
 
 	inline constexpr std::array<Value, 2> kWaterDepths{ {
-		{ kInWater, "inWater", "In water", "in water", "Any water underfoot, however shallow.\nOn a horse, swimming only." },
+		{ kInWater, "inWater", "In water", "in water", "Any water underfoot, however shallow." },
 		{ kSwimming, "swimming", "Swimming", "swimming", "Swimming only, not wading." },
 	} };
 

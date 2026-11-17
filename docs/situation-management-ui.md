@@ -146,12 +146,10 @@ outfit for Town any more`.
 ## 4. Situation List (left pane)
 
 - Label `Situation List (?)` above the list (`Theme::LabelText` + `LabelHelpMark`):
-  `Each situation lists the outfits #{Name} can wear there. The lowest situation that applies
-  is worn; otherwise, and in combat, the default outfit. Drag a situation by its grip to change
-  the order, an outfit onto a situation to add it, between its outfits to place it, onto another
-  situation to move it, or back to the outfit list to take it off.`, each sentence a line, the
-  order's only with `Enable custom situations` (docs/custom-situations.md §1). (The order:
-  docs/custom-situations.md §8.)
+  `Each situation lists the outfits #{Name} can wear in it.` / `The lowest applicable situation
+  takes priority. Otherwise, the default outfit is worn.` / `Drag a situation by its grip to
+  reorder it.`, a line each, the last only with `Enable custom situations`
+  (docs/custom-situations.md §1). (The order: docs/custom-situations.md §8.)
 - The Default's heading first, pinned, under it the rule and caption of
   docs/custom-situations.md §7, then one heading per situation not removed in
   `Situations::Order()`, each with a grip that drags it with `Enable custom situations` (§7 there). Each: the star of the Situations tab (none for the Default, whose name starts in its place), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
@@ -226,8 +224,11 @@ It shows the outfit list while a drag from the left pane is on; else the details
 outfit clicked last, until Back; else the selected situation's details, until Show Outfit
 List; else the outfit list.
 
-The outfit list: the shared outfit list (docs/outfit-management-ui.md §1) with its own
-search and sort, each row with the drag grip, and nothing under the list. Its star and
+The outfit list: the label `Outfit List (?)`, level with `Situation List (?)`, its help `Drag
+an outfit onto a situation to add it, or between outfits to set its position.` / `Drag it to
+another situation to move it, or back here to remove it.` / `Click an outfit to see its
+items.`, a line each; under it the shared outfit list (docs/outfit-management-ui.md §1) with
+its own search and sort, each row with the drag grip, and nothing under the list. Its star and
 Default marks (and the star's `For Town, Cold`) follow the page's edits, saved or not, at
 once; in the Situation List too, the Default mark does. While
 an outfit's details show, the
@@ -283,8 +284,8 @@ unticked pieces. The room above every button row, then `Open in Wardrobe` (wardr
 would leave less than one item spacing on either side (`ItemSpacing.x`), they go one over the
 other, as far apart as buttons side by side are. The details grow with the pieces, moving the page's
 buttons down when taller than the Situation List, as the Wardrobe page's selection does; the
-pieces' list scrolls only when the whole details would pass 60% of the screen (the cap every
-list keeps to, `kMaxListHeightRatio`), so the window stays on screen. Back, and Escape, show
+pieces' list scrolls only to keep the window within 90% of the screen's height, as every
+list does (`ListBottom`). Back, and Escape, show
 what the right pane showed before and the Dress page's ticks on the preview. Open in Wardrobe goes to
 the Wardrobe page with the outfit selected and on the preview, once the page's edits are saved
 (§6). A click on a situation's heading closes the details and

@@ -258,7 +258,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   and go, until the user drags it (`BeginModal`'s `a_centred`, again on the next opening): the
   heading `Conditions` over the situation's name (`Theme::HeadingText`), the editor in an area
   as tall as it while the whole popup stays within 90% of the screen's height
-  (`kMaxModalHeightRatio`; the rest of the popup measured the frame before), scrolling past that
+  (`kMaxWindowHeightRatio`; the rest of the popup measured the frame before), scrolling past that
   with the skin's scroll bar in the window's right padding, the boxes as wide with the bar as
   without (`Theme::BeginScrollArea`), the `Applies` label with the help
   `Applies while every condition holds.` and `A condition with several values holds for any of
@@ -289,8 +289,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   region where it often snows, whatever the sky.`) whose preview lists the ticked values, `Rain,
   Snow`, or a greyed `Select...` with none; Swimming's a single choice (`SituationRules::OneValue`,
   `[Lydia] [is] [In water]`, the operator `is` / `is not` alone), closed by it, its tips `Any
-  water underfoot, however shallow.` / `On a horse, swimming only.` and `Swimming only, not
-  wading.`; Time of day's are `[time] and [time]`, two dropdowns
+  water underfoot, however shallow.` and `Swimming only, not wading.`; Time of day's are
+  `[time] and [time]`, two dropdowns
   in 30-minute steps (a time read from the file off those steps shows as it is). Both sit on the
   row while they fit, else under it, 16px in. Place (`Specific Location` in the editor) and
   Spell list their forms under the row, 16px in, one a line with a × at its right end (`Remove
@@ -352,13 +352,14 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   open) or as the page is left, the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
 - While a situation is never worn (§8a), its details say so under the name, after a field's
-  gap, in the error colour, wrapped: `Never worn: <name>, lower in the list, applies whenever
-  this does.`, naming the nearest. Its heading carries a warning mark after the name (and its
-  count), a circle with an exclamation mark in the error colour
-  (`Theme::SituationHeadingLook::warning`), the same sentence its tooltip. While it is
-  selected, the Situation List draws the name of every situation lower in the list that applies
-  whenever it does in the error colour (`SituationForm::neverWornBy`,
-  `Theme::SituationHeadingLook::alert`).
+  gap, in the error colour, each sentence wrapped (`Theme::RunTextWrapped`): `Never worn:
+  <name>, lower in the list, applies whenever this does.` / `To change that, add a condition,
+  edit <name>, or move one of them in the list.`, naming the nearest after its star, both in the
+  emphasis. Its heading carries a warning mark after the name (and its count), a circle with an
+  exclamation mark in the error colour (`Theme::SituationHeadingLook::warning`), the same
+  sentences its tooltip, in the text colour. While it is selected or its mark hovered, the
+  Situation List draws the name of every situation lower in the list that applies whenever it
+  does in the error colour (`SituationForm::neverWornBy`, `Theme::SituationHeadingLook::alert`).
 
 ## 8. Priority
 

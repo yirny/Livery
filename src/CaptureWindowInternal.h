@@ -34,8 +34,7 @@ namespace CaptureWindow::Internal
 	using Text = Strings::Text;  // the player-facing texts, in the chosen language (Strings::Get)
 
 	constexpr std::size_t kNameCapacity = 64;                // bytes, UTF-8, including the terminator
-	constexpr float       kMaxListHeightRatio = 0.75f;       // of the screen height, for every scrolling list
-	constexpr float       kMaxModalHeightRatio = 0.9f;       // of the screen height, for a whole popup that scrolls inside (Edit conditions)
+	constexpr float       kMaxWindowHeightRatio = 0.9f;      // of the screen height: the window, or a popup, its lists scroll to keep within
 	constexpr const char* kConfirmPopup = "Replace items?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kCreateApplyPopup = "Apply outfit?###createAndApply";
 	constexpr const char* kApplyPopup = "Update the outfit?";
@@ -248,6 +247,7 @@ namespace CaptureWindow::Internal
 		int                                   nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
 		ImGuiID                               nameField = 0;             // that field's ImGui ID
 		int                                   dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
+		int                                   warningHovered = -1;       // the heading whose never-worn mark is hovered, this frame so far: index into entries; -1 for none
 		double                                dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
 		float                                 outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
 		std::array<char, kNameCapacity>       newName{};                 // the New situation popup's field
@@ -457,6 +457,7 @@ namespace CaptureWindow::Internal
 	void                                 PreviewOutfitOrTicks(const State& a_state, int a_outfit);
 	float                                FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved = 0.0f);
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
+	float                                ListBottom();
 	void                                 PushListRowSpacing();
 	bool                                 FocusStandIn(const char* a_id);  // a keyboard focus stop over the last item, for a greyed one or text
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone);
@@ -478,6 +479,8 @@ namespace CaptureWindow::Internal
 	const std::string*                   HoveredMarkText(const PieceMarks& a_marks);  // of the mark the mouse is over (Theme::RowMarkHovered); nullptr for none
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
 	void                                 DrawHelpTooltip(const std::string& a_text);
+	void                                 BeginHelpTooltip();  // DrawHelpTooltip's tooltip, for other content; EndHelpTooltip after it
+	void                                 EndHelpTooltip();
 	std::size_t                          RowCount(const State& a_state);
 	const char*                          RowName(const State& a_state, std::size_t a_row);
 	bool                                 HoldsOutfit(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
@@ -623,17 +626,17 @@ namespace CaptureWindow::Internal
 
 	struct BrowserControls
 	{
-		bool  escapeTaken = false;  // Escape cleared the search, so it is not also Back
-		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
+		bool escapeTaken = false;  // Escape cleared the search, so it is not also Back
 	};
 
-	// The outfit list's search (and Filter, while kShowFilter) at the top of its column.
-	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser);
+	// The outfit list's search (and Filter, while kShowFilter) at the top of its column; with
+	// `a_underLabel`, under a label that opened the column's field (Theme::LabelText).
+	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser, bool a_underLabel = false);
 
-	// The outfit list under the browser (`a_reserved` is its height). Returns the index into
-	// request.existingOutfits of the outfit clicked, or -1. `a_draggable`: the Situations page's
-	// list, whose rows have a grip and drag a copy of their outfit.
-	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable = false);
+	// The outfit list under the browser. Returns the index into request.existingOutfits of the
+	// outfit clicked, or -1. `a_draggable`: the Situations page's list, whose rows have a grip
+	// and drag a copy of their outfit.
+	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, bool a_draggable = false);
 
 	// One outfit of a list, `a_index` into request.existingOutfits, with its marks (the star of
 	// one chosen for a situation only with `a_situationMark`); `a_grip` places the drag grip.

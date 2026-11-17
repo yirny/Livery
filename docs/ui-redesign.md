@@ -129,8 +129,8 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   outfit list (docs/outfit-management-ui.md §1, with its own search and sort), `CURRENT
   ITEMS` (the chosen outfit's pieces as the library has them, its count line counting those
   of unloaded plugins; `Select an outfit to update` while none is chosen) and `NEW ITEMS`
-  (the ticked pieces), each piece with the Dress page's icon. Each column's list grows with its rows up to `kMaxListHeightRatio`,
-  then scrolls. The tab opens with its outfit, or else the one last loaded, or else the
+  (the ticked pieces), each piece with the Dress page's icon. Each column's list grows with its rows until the window would pass 90% of the screen's
+  height (`kMaxWindowHeightRatio`, `ListBottom`), then scrolls. The tab opens with its outfit, or else the one last loaded, or else the
   library outfit Livery has on the actor, chosen. A click on an outfit chooses it, fills the
   name from it and shows it on the preview; a second click unchooses it, which greys the name
   and shows the ticks. Choosing the outfit already chosen keeps the name typed. Create and

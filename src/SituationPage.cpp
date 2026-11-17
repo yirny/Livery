@@ -378,25 +378,41 @@ namespace CaptureWindow::Internal
 			form.neverWornStale = false;
 		}
 
-		// "Never worn: Rainy town, lower in the list, applies whenever this does." for entry
-		// `a_entry`, naming the nearest of those that do; "" while it may be worn.
-		std::string NeverWornText(const SituationForm& a_form, std::size_t a_entry)
+		// The nearest entry lower in the list that applies whenever entry `a_entry` does, so that
+		// one is never worn; none while it may be worn.
+		std::optional<std::size_t> NeverWornBy(const SituationForm& a_form, std::size_t a_entry)
 		{
 			if (a_entry >= a_form.neverWornBy.size() || a_form.neverWornBy[a_entry].empty()) {
-				return {};
+				return std::nullopt;
 			}
-			const auto by = a_form.neverWornBy[a_entry].front();
-			return std::format("Never worn: {}, lower in the list, applies whenever this does.", Trimmed(a_form.entries[by].name.data()));
+			return a_form.neverWornBy[a_entry].front();
 		}
 
-		// Entry `a_entry` applies whenever the selected situation does, so the selected one is never
-		// worn: its heading's name shows in the error colour.
-		bool OverridesSelected(const SituationForm& a_form, std::size_t a_entry)
+		// "Never worn: Rainy town, lower in the list, applies whenever this does." and how to
+		// change that, naming entry `a_by` (NeverWornBy) after its star in the emphasis, each
+		// sentence wrapped (Theme::RunTextWrapped) in the text colour pushed now; its lines as
+		// close as a wrapped text's.
+		void DrawNeverWornText(const SituationForm& a_form, std::size_t a_by)
 		{
-			if (a_form.selected <= 0 || static_cast<std::size_t>(a_form.selected) >= a_form.neverWornBy.size()) {
+			const auto                              name = Trimmed(a_form.entries[a_by].name.data());
+			const std::array<Theme::SubtitleRun, 3> why{ { TextRun("Never worn: "), SituationRun(name.c_str()), TextRun(", lower in the list, applies whenever this does.") } };
+			const std::array<Theme::SubtitleRun, 3> fix{ { TextRun("To change that, add a condition, edit "), SituationRun(name.c_str()),
+				TextRun(", or move one of them in the list.") } };
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+			Theme::RunTextWrapped(why);
+			ImGui::PopStyleVar();
+			Theme::RunTextWrapped(fix);
+		}
+
+		// Entry `a_entry` applies whenever entry `a_of` (-1 for none) does, so `a_of` is never
+		// worn: its heading's name shows in the error colour while `a_of` is selected or its
+		// never-worn mark hovered.
+		bool Overrides(const SituationForm& a_form, int a_of, std::size_t a_entry)
+		{
+			if (a_of <= 0 || static_cast<std::size_t>(a_of) >= a_form.neverWornBy.size()) {
 				return false;
 			}
-			const auto& by = a_form.neverWornBy[static_cast<std::size_t>(a_form.selected)];
+			const auto& by = a_form.neverWornBy[static_cast<std::size_t>(a_of)];
 			return std::ranges::find(by, a_entry) != by.end();
 		}
 
@@ -573,8 +589,9 @@ namespace CaptureWindow::Internal
 		// details show; Edit always selects it and shows them; the chevron folds it. Every heading
 		// but the Default's drags from anywhere on it to another place in the order while the page
 		// offers that (Request::customSituations). A heading that is never worn carries a warning
-		// mark after its name, saying why (NeverWornText); one whose situation makes the selected
-		// one never worn has its name in the error colour (OverridesSelected). Its die and
+		// mark after its name, saying why on hover (DrawNeverWornText); one whose situation makes
+		// the selected one, or the one whose mark is hovered, never worn has its name in the error
+		// colour (Overrides): those are lower in the list, drawn after the mark. Its die and
 		// count show with random on alone; the die is a button as DiceOf says. Only random on
 		// with something to show has the chevron; else it is never folded (random off shows its
 		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
@@ -592,9 +609,10 @@ namespace CaptureWindow::Internal
 				entry.folded = false;
 			}
 			const auto  dice = entry.row.random ? DiceOf(a_state, a_entry) : Dice{};
-			const auto  neverWorn = NeverWornText(form, a_entry);
+			const auto  neverWornBy = NeverWornBy(form, a_entry);
 			const bool  grip = a_entry != 0 && a_state.request.customSituations;
 			const float top = ImGui::GetCursorScreenPos().y;
+			bool        warningHovered = false;
 			const auto  click = Theme::SituationHeading(entry.name.data(),
 				{ .count = entry.row.random ? static_cast<int>(entry.row.outfits.size()) : -1,
 					.random = entry.row.random,
@@ -606,8 +624,15 @@ namespace CaptureWindow::Internal
 					.dim = !shows,
 					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
 					.grip = grip,
-					.alert = OverridesSelected(form, a_entry),
-					.warning = neverWorn.empty() ? nullptr : neverWorn.c_str() });
+					.alert = Overrides(form, form.selected, a_entry) || Overrides(form, form.warningHovered, a_entry),
+					.warning = neverWornBy.has_value(),
+					.warningHovered = &warningHovered });
+			if (warningHovered) {
+				form.warningHovered = index;
+				BeginHelpTooltip();
+				DrawNeverWornText(form, *neverWornBy);
+				EndHelpTooltip();
+			}
 			if (grip) {
 				OfferSituationDrag(a_entry, entry.name.data());
 			}
@@ -648,17 +673,21 @@ namespace CaptureWindow::Internal
 			return click == Theme::HeadingClick::kDice;
 		}
 
-		// The help of the Situation List's label: what the list is, which situation is worn, what
-		// a drag does; the order's drag only while the page offers it.
+		// The help of the Situation List's label: what the list is, which situation is worn; the
+		// order's drag only while the page offers it.
 		std::string SituationListHelp(const State& a_state)
 		{
 			const auto& request = a_state.request;
 			return std::format(
-				"Each situation lists the outfits {} can wear there.\nThe lowest situation that applies is worn; otherwise, and in "
-				"combat, the default outfit.\n{}Drag an outfit onto a situation to add it, between its outfits to place it, onto another "
-				"situation to move it, or back to the outfit list to take it off.",
-				request.actorName, request.customSituations ? "Drag a situation by its grip to change the order.\n" : "");
+				"Each situation lists the outfits {} can wear in it.\nThe lowest applicable situation takes priority. Otherwise, the "
+				"default outfit is worn.{}",
+				request.actorName, request.customSituations ? "\nDrag a situation by its grip to reorder it." : "");
 		}
+
+		// The help of the Outfit List's label: what a drag of an outfit does, and a click.
+		constexpr const char* kOutfitListHelp =
+			"Drag an outfit onto a situation to add it, or between outfits to set its position.\nDrag it to another situation to "
+			"move it, or back here to remove it.\nClick an outfit to see its items.";
 
 		// The situation at place `a_place` of the order, its heading and what it shows: a drop of
 		// a situation over its heading's upper half goes before it, anywhere lower in its block
@@ -691,6 +720,7 @@ namespace CaptureWindow::Internal
 			if (form.neverWornStale) {
 				TellNeverWorn(a_state);
 			}
+			form.warningHovered = -1;  // set again by its heading, before those it names
 			const float paneTop = ImGui::GetCursorPosY();
 			Theme::LabelText("Situation List");
 			const bool helpHovered = Theme::LabelHelpMark();
@@ -925,12 +955,22 @@ namespace CaptureWindow::Internal
 			return changed;
 		}
 
+		// AlignTextToFramePadding for a condition's line: its plain text level with its
+		// dropdowns' text, which sits by the field's own padding (Theme::FieldHeight), not the
+		// skin's frame padding (Vanilla's and Nordic's underlined fields).
+		void AlignTextToField()
+		{
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, (Theme::FieldHeight({}) - ImGui::GetFontSize()) * 0.5f));
+			ImGui::AlignTextToFramePadding();
+			ImGui::PopStyleVar();
+		}
+
 		// `[8 PM] and [6 AM]`, a Time of day row's range. Returns true when a time was changed.
 		bool DrawTimeRange(SituationRules::Row& a_row)
 		{
 			bool changed = DrawTimeDropdown("##from", a_row.from);
 			ImGui::SameLine();
-			ImGui::AlignTextToFramePadding();
+			AlignTextToField();
 			ImGui::TextUnformatted("and");
 			ImGui::SameLine();
 			return DrawTimeDropdown("##to", a_row.to) || changed;
@@ -1087,7 +1127,7 @@ namespace CaptureWindow::Internal
 				changed = DrawTargetDropdown(a_request, a_row);
 				ImGui::SameLine();
 			} else {
-				ImGui::AlignTextToFramePadding();
+				AlignTextToField();
 				ImGui::TextUnformatted(SubjectOf(a_request, info).c_str());
 				ImGui::SameLine();
 			}
@@ -1099,7 +1139,7 @@ namespace CaptureWindow::Internal
 				          changed;
 				if (SituationRules::TwoState(a_row.kind)) {
 					ImGui::SameLine();
-					ImGui::AlignTextToFramePadding();
+					AlignTextToField();
 					ImGui::TextUnformatted(info.phrase);
 				}
 			}
@@ -1280,9 +1320,17 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::SetCursorScreenPos(ImVec2(topLeft.x, topLeft.y + padding.y));
 				ImGui::Indent(padding.x);
+				// The padding on the right too, for what aligns to the content's right edge (the
+				// Add link, Theme::LabelLink). Contract: inside the scroll area, a child window
+				// with no table, whose content region GetContentRegionAvail reads.
+				auto* window = ImGui::GetCurrentWindow();
+				window->ContentRegionRect.Max.x -= padding.x;
+				window->WorkRect.Max.x -= padding.x;
 				ImGui::PushID(static_cast<int>(i));
 				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], boxRight - padding.x);
 				ImGui::PopID();
+				window->WorkRect.Max.x += padding.x;
+				window->ContentRegionRect.Max.x += padding.x;
 				ImGui::Unindent(padding.x);
 				const float bottom = std::round(ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y + padding.y);
 				draw->AddRect(topLeft, ImVec2(boxRight, bottom), ImGui::GetColorU32(ImGuiCol_Border), kConditionBoxRounding * scale, ImDrawFlags_None, 1.0f);
@@ -1348,19 +1396,24 @@ namespace CaptureWindow::Internal
 			return form.selected >= 0 && form.details ? RightPane::kSituation : RightPane::kOutfitList;
 		}
 
-		// The outfit list with its own search and sort, its rows dragged as copies and
-		// a click on one showing its details (`a_viewed`'s row selected). A drag from the Situation
-		// List dropped anywhere on it takes that outfit, or the Default's pieces, off its row.
-		// Returns whether Escape cleared the search.
+		// The Outfit List (?) label over the outfit list with its own search and sort, its rows
+		// dragged as copies and a click on one showing its details (`a_viewed`'s row selected). A
+		// drag from the Situation List dropped anywhere on it takes that outfit, or the Default's
+		// pieces, off its row. Returns whether Escape cleared the search.
 		bool DrawOutfitPane(State& a_state, int a_viewed)
 		{
 			constexpr float kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
 
 			const ImVec2 top = ImGui::GetCursorScreenPos();
 			const float  width = ImGui::GetContentRegionAvail().x;
-			const auto   controls = DrawBrowserControls(a_state, a_state.situationBrowser);
-			const int    clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, controls.height, true);
-			const float  bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
+			Theme::LabelText("Outfit List");
+			const bool helpHovered = Theme::LabelHelpMark();
+			if (FocusStandIn("##outfitListHelp") || helpHovered) {
+				DrawHelpTooltip(kOutfitListHelp);
+			}
+			const auto  controls = DrawBrowserControls(a_state, a_state.situationBrowser, true);
+			const int   clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, true);
+			const float bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 			a_state.situationForm.outfitPaneHeight = bottom - top.y;
 			const ImRect pane(top, ImVec2(top.x + width, bottom));
 			if (ImGui::BeginDragDropTargetCustom(pane, ImGui::GetID("outfitListDrop"))) {
@@ -1404,16 +1457,16 @@ namespace CaptureWindow::Internal
 			Theme::RunText(second, true);
 		}
 
-		// Why a situation is never worn (NeverWornText), in the error colour, wrapped to the pane.
+		// Why a situation is never worn (DrawNeverWornText), in the error colour, wrapped to the pane.
 		void DrawNeverWorn(const SituationForm& a_form, std::size_t a_entry)
 		{
-			const auto text = NeverWornText(a_form, a_entry);
-			if (text.empty()) {
+			const auto by = NeverWornBy(a_form, a_entry);
+			if (!by) {
 				return;
 			}
 			Theme::SectionGap();
 			ImGui::PushStyleColor(ImGuiCol_Text, Theme::ErrorColor());
-			ImGui::TextWrapped("%s", text.c_str());
+			DrawNeverWornText(a_form, *by);
 			ImGui::PopStyleColor();
 		}
 
@@ -1583,9 +1636,8 @@ namespace CaptureWindow::Internal
 		// centred, one over the other when the pane leaves them no item spacing on either side,
 		// as far apart as buttons side by side are.
 		// It grows with the pieces, moving the page's buttons when taller than the Situation
-		// List; its pieces' list scrolls only to keep the whole view
-		// within kMaxListHeightRatio of the screen, as every list's column keeps, so the window
-		// stays on screen. Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
+		// List; its pieces' list scrolls only to keep the window within kMaxWindowHeightRatio of
+		// the screen, as every list does (ListBottom). Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
 		// Contract: ShownPane is RightPane::kOutfit; called at the top of the right pane.
 		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, bool& a_escapeTaken)
 		{
@@ -1593,8 +1645,8 @@ namespace CaptureWindow::Internal
 			const RowButton open{ "Open in Wardrobe", Theme::HeadingIcon::kWardrobe };
 			const bool      stacked = ButtonRowWidth({ open, "Back" }) + spacing * 2.0f > ImGui::GetContentRegionAvail().x;
 			const float     buttonRow = ImGui::GetStyle().ItemSpacing.y + ButtonRowGap() + Theme::ButtonHeight() +
-			                            (stacked ? spacing + Theme::ButtonHeight() : 0.0f);                               // under the pieces' list
-			const float     bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;  // the view's lowest
+			                            (stacked ? spacing + Theme::ButtonHeight() : 0.0f);  // under the pieces' list
+			const float     bottom = ListBottom();                                           // the view's lowest
 			ImGui::PushID("outfitView");
 			auto&      form = a_state.situationForm;
 			const auto edited = EditedRow(form);
@@ -2157,7 +2209,7 @@ namespace CaptureWindow::Internal
 		// or its widest row (EditorContentWidth), centred as its height changes until dragged:
 		// the heading `Conditions` over the situation's name, the condition editor
 		// (DrawConditionEditor) in an area that scrolls to keep the whole popup within
-		// kMaxModalHeightRatio of the screen, the Applies text with its links, then Done; Escape
+		// kMaxWindowHeightRatio of the screen, the Applies text with its links, then Done; Escape
 		// is Done unless it closed a dropdown or a popup over it. Its edits are saved once it
 		// closes (TakeAutosaveDue waits for it).
 		void DrawConditionEditorPopup(State& a_state)
@@ -2195,7 +2247,7 @@ namespace CaptureWindow::Internal
 			const std::array<Theme::SubtitleRun, 1> name{ SituationRun(entry.name.data()) };
 			Theme::HeadingText("Conditions", name);
 			bool        addForm = false;
-			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxModalHeightRatio - form.editorOtherHeight;
+			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - form.editorOtherHeight;
 			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
 				if (DrawConditionEditor(a_state, entry.rules, addForm)) {
 					form.neverWornStale = true;
