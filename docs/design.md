@@ -609,7 +609,7 @@ default outfit unless one does. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
 (§6) through the first release's fixed rules: Town, Cold by weather (while cloudy weather
 counted), combat, in water by wading; through the model: pending. Not yet: Castle, Home,
-Sleep, Cold by a snowy region. The presets as installed, and what each condition reads:
+Sleep, Cold by region. The presets as installed, and what each condition reads:
 
 - In water (no preset uses it; a user's situation's In water condition): the actor state's
   swimming flag, or the engine reports a water height
@@ -620,10 +620,13 @@ Sleep, Cold by a snowy region. The presets as installed, and what each condition
 - Sleeping (Sleep = Sleeping): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
   and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
   bed (Tailor's note in `SituationHandler.cpp`), so the player's Sleep needs a mod that does.
-- Cold (Weather {Rain, Snow, Snowy region} and not Indoors): in an exterior cell and the weather is rainy or snowy, not cloudy alone (while the sky
-  blends weathers, the last one decides until the new one is halfway in), or the sky's
-  weather region, the one around the player, has snow weathers for at least a quarter
-  of its weather chance (its clear days are its own).
+- Cold (Weather {Snow, Cold region}): read around the player, whoever wears it. The player is
+  in an exterior cell and the weather is snowy (while the sky blends weathers, the last one
+  decides until the new one is halfway in), or the climate where they stand is cold
+  (`RegionClimate`, docs/custom-situations.md §3): Survival Mode's freezing areas by the
+  cell's regions and the player's height, Windhelm's city too; a place it does not class when
+  a region of its cell has snow weathers for at least 40% of its weather chance; its ice
+  caves. Indoors otherwise never.
 - Home (Location type {Player home}): the current location has `LocTypePlayerHouse`, for
   every actor. Town is under it as installed, so a home without a Home outfit wears the Town
   one.
@@ -669,8 +672,7 @@ setting, off by default). Open:
    conditions without a form picker, Place and Spell built and checked in game; one order for
    the presets and the user's, the presets' rules editable, behind `Enable custom situations`
    (§1, §8 there), built, not checked in game; layer outfits (docs/memo-layer-outfits.md).
-2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
-   snowy region (§7); quickload with the window open, then New Game; the player's left-hand
+2. The open in-game checks: Castle, Home, Sleep, Cold by snow and by region (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit.
 

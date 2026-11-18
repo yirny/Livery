@@ -95,8 +95,7 @@ namespace SituationTable
 		case Situation::kSleep:
 			return { .rows = { { .kind = Kind::kSleeping } } };
 		case Situation::kCold:
-			return { .rows = { { .kind = Kind::kWeather, .values = SituationRules::kRain | SituationRules::kSnow | SituationRules::kSnowyRegion },
-						 { .kind = Kind::kIndoors, .negated = true } } };
+			return { .rows = { { .kind = Kind::kWeather, .values = SituationRules::kSnow | SituationRules::kColdRegion } } };
 		default:
 			return {};
 		}

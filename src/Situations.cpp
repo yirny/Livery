@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // FILE MAP
-//   Constants - the poll interval and redress hold, the water reach and leave, the snow share,
-//               the location depth
+//   Constants - the poll interval and redress hold, the water reach and leave, the snowy
+//               percent, the location depth
+//   Climate   - RegionClimate's climate of the place the player stands in, and the snowy
+//               regions
 //   Detection - the rows of every situation's rules (SituationRules): sleep, location types,
 //               weather, places, spells and the rest, in water with its hysteresis, and the
 //               player's beast form
-//   Places    - what the Add place popup offers: the actor's location and its parents, their
+//   Places   - what the Add place popup offers: the actor's location and its parents, their
 //               cell; what the never-worn mark knows of a place (PlaceFacts)
 //   Spells    - what the Add spell popup offers: the spells the actor casts on themselves and
 //               those behind the visible effects on them, or every spell, potion, scroll and
@@ -28,10 +30,12 @@
 #include "CaptureWindow.h"
 #include "OutfitPreview.h"
 #include "OutfitRows.h"
+#include "RegionClimate.h"
 #include "SituationRules.h"
 #include "SituationStore.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -40,6 +44,7 @@
 #include <functional>
 #include <optional>
 #include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -60,10 +65,146 @@ namespace
 	// Once they were told in water, they stay in it until the water is this far under their
 	// feet, so walking along a shore does not flip a situation in water on and off.
 	constexpr float kWaterLeave = 60.0f;  // game units
-	// A snowy region: snow weathers hold at least one part in this many of its weather chance.
-	constexpr std::uint64_t kSnowShare = 4;
+	// A snowy region: snow weathers hold at least this percent of its weather chance (Windhelm's
+	// city region has 40). Read only for a place Survival Mode does not class (RegionClimate).
+	constexpr std::uint64_t kSnowyPercent = 40;
 	// The most parents a Place row walks up from a location; a mod's loop of parents ends there.
 	constexpr int kMaxLocationDepth = 32;
+
+	// --- Climate --------------------------------------------------------------
+	//
+	// Weather reads around the player whoever wears the situation, as the sky is theirs: the
+	// actors the poll dresses are loaded, so near them. Contract: game thread, all.
+
+	// Worked out once per region: its weather list does not change while the game runs.
+	bool IsSnowyRegion(RE::TESRegion& a_region)
+	{
+		static std::unordered_map<RE::FormID, bool> snowy;
+
+		const auto id = a_region.GetFormID();
+		if (const auto known = snowy.find(id); known != snowy.end()) {
+			return known->second;
+		}
+		std::uint64_t snow = 0;
+		std::uint64_t total = 0;
+		if (a_region.dataList) {
+			for (auto* data : a_region.dataList->regionDataList) {
+				if (!data || data->GetType() != RE::TESRegionData::Type::kWeather) {
+					continue;
+				}
+				for (const auto* entry : static_cast<RE::TESRegionDataWeather*>(data)->weatherTypes) {
+					if (!entry || !entry->weather) {
+						continue;
+					}
+					total += entry->chance;
+					if (entry->weather->data.flags.any(RE::TESWeather::WeatherDataFlag::kSnow)) {
+						snow += entry->chance;
+					}
+				}
+			}
+		}
+		const bool result = total > 0 && snow * 100 >= total * kSnowyPercent;
+		if (total > 0) {
+			logger::info("Weather region {:08X}: snow {} of {}, {}", id, snow, total, result ? "snowy" : "not snowy");
+		}
+		snowy.emplace(id, result);
+		return result;
+	}
+
+	// RegionClimate's forms as FormIDs of this game's load order; 0 for one whose plugin is not
+	// loaded, which matches nothing.
+	template <class T, std::size_t N>
+	std::array<RE::FormID, N> FormIDsOf(const std::array<RegionClimate::PluginForm, N>& a_forms)
+	{
+		std::array<RE::FormID, N> ids{};
+		if (auto* data = RE::TESDataHandler::GetSingleton()) {
+			for (std::size_t i = 0; i < N; ++i) {
+				if (const auto* form = data->LookupForm<T>(a_forms[i].id, a_forms[i].plugin)) {
+					ids[i] = form->GetFormID();
+				}
+			}
+		}
+		return ids;
+	}
+
+	struct ClimateForms
+	{
+		std::array<RE::FormID, RegionClimate::kRegionCount>             regions = FormIDsOf<RE::TESRegion>(RegionClimate::kRegionForms);
+		std::array<RE::FormID, RegionClimate::kInteriorWorlds.size()>   interiorWorlds = FormIDsOf<RE::TESWorldSpace>(RegionClimate::kInteriorWorlds);
+		std::array<RE::FormID, RegionClimate::kOtherworlds.size()>      otherworlds = FormIDsOf<RE::TESWorldSpace>(RegionClimate::kOtherworlds);
+		std::array<RE::FormID, RegionClimate::kIceCaveLocations.size()> iceCaveLocations = FormIDsOf<RE::BGSLocation>(RegionClimate::kIceCaveLocations);
+		std::array<RE::FormID, RegionClimate::kIceCaveCells.size()>     iceCaveCells = FormIDsOf<RE::TESObjectCELL>(RegionClimate::kIceCaveCells);
+	};
+
+	// Contract: first called in game, once the plugins are loaded (the poll and the window
+	// evaluate only then), and kept until the game closes, as the loaded plugins are.
+	const ClimateForms& Forms()
+	{
+		static const ClimateForms forms;
+		return forms;
+	}
+
+	bool Listed(std::span<const RE::FormID> a_ids, RE::FormID a_id)
+	{
+		return a_id != 0 && std::ranges::find(a_ids, a_id) != a_ids.end();
+	}
+
+	// What RegionClimate reads of a place, all but its height.
+	struct ClimatePlace
+	{
+		RE::FormID             cell = 0;
+		RE::FormID             location = 0;
+		RegionClimate::Setting setting = RegionClimate::Setting::kIndoors;
+		RegionClimate::Regions regions;
+		bool                   snowy = false;  // a region of the cell is snowy (IsSnowyRegion)
+	};
+
+	ClimatePlace ReadClimatePlace(RE::Actor& a_player, RE::TESObjectCELL& a_cell, const RE::BGSLocation* a_location)
+	{
+		using Setting = RegionClimate::Setting;
+		const auto&  forms = Forms();
+		ClimatePlace place{ .cell = a_cell.GetFormID(), .location = a_location ? a_location->GetFormID() : 0 };
+		const auto*  world = a_cell.IsExteriorCell() ? a_player.GetWorldspace() : nullptr;
+		const auto   worldID = world ? world->GetFormID() : 0;
+		if (Listed(forms.otherworlds, worldID)) {
+			place.setting = Setting::kOtherworld;
+		} else if (a_cell.IsExteriorCell() && !Listed(forms.interiorWorlds, worldID)) {
+			place.setting = Setting::kOutdoors;
+		} else if (Listed(forms.iceCaveLocations, place.location) || Listed(forms.iceCaveCells, place.cell)) {
+			place.setting = Setting::kIceCave;
+		}
+		auto* list = place.setting == Setting::kOutdoors ? a_cell.GetRegionList(false) : nullptr;  // not const: the library's const walk does not compile
+		if (!list) {
+			return place;
+		}
+		for (auto* region : *list) {
+			if (!region) {
+				continue;
+			}
+			if (const auto known = std::ranges::find(forms.regions, region->GetFormID()); known != forms.regions.end()) {
+				place.regions.set(static_cast<std::size_t>(known - forms.regions.begin()));
+			}
+			place.snowy = place.snowy || IsSnowyRegion(*region);
+		}
+		return place;
+	}
+
+	// The climate where the player stands, in `a_location` (their current location). Their place
+	// is read again only as their cell or location changes; the height, which moves within a
+	// cell, every time.
+	RegionClimate::Climate ClimateAround(RE::Actor& a_player, const RE::BGSLocation* a_location)
+	{
+		static ClimatePlace place;  // Contract: game thread only.
+
+		auto* cell = a_player.GetParentCell();
+		if (!cell) {
+			return RegionClimate::Climate::kNone;
+		}
+		if (cell->GetFormID() != place.cell || (a_location ? a_location->GetFormID() : 0) != place.location) {
+			place = ReadClimatePlace(a_player, *cell, a_location);
+		}
+		return RegionClimate::ClimateOf(place.setting, place.regions, a_player.GetPositionZ(), place.snowy);
+	}
 
 	// --- Detection ------------------------------------------------------------
 	//
@@ -128,39 +269,6 @@ namespace
 		return bed && bed->furnFlags.all(RE::TESFurniture::ActiveMarker::kCanSleep);
 	}
 
-	// Worked out once per region: its weather list does not change while the game runs.
-	bool IsSnowyRegion(RE::TESRegion& a_region)
-	{
-		static std::unordered_map<RE::FormID, bool> snowy;
-
-		const auto id = a_region.GetFormID();
-		if (const auto known = snowy.find(id); known != snowy.end()) {
-			return known->second;
-		}
-		std::uint64_t snow = 0;
-		std::uint64_t total = 0;
-		if (a_region.dataList) {
-			for (auto* data : a_region.dataList->regionDataList) {
-				if (!data || data->GetType() != RE::TESRegionData::Type::kWeather) {
-					continue;
-				}
-				for (const auto* entry : static_cast<RE::TESRegionDataWeather*>(data)->weatherTypes) {
-					if (!entry || !entry->weather) {
-						continue;
-					}
-					total += entry->chance;
-					if (entry->weather->data.flags.any(RE::TESWeather::WeatherDataFlag::kSnow)) {
-						snow += entry->chance;
-					}
-				}
-			}
-		}
-		const bool result = total > 0 && snow * kSnowShare >= total;
-		logger::info("Weather region {:08X}: snow {} of {}, {}", id, snow, total, result ? "snowy" : "not snowy");
-		snowy.emplace(id, result);
-		return result;
-	}
-
 	// The weather that decides: while the sky blends from the last weather to the current one,
 	// the last one until the new one is halfway in, so nobody takes a cloak off while the snow
 	// still falls. nullptr for none.
@@ -177,13 +285,6 @@ namespace
 		const auto* sky = RE::Sky::GetSingleton();
 		const auto* weather = sky ? DecidingWeather(*sky) : nullptr;
 		return weather && weather->data.flags.any(a_flags...);
-	}
-
-	// The sky's region, the one around the player, is snowy (IsSnowyRegion).
-	bool InSnowyRegion()
-	{
-		auto* sky = RE::Sky::GetSingleton();
-		return sky && sky->region && IsSnowyRegion(*sky->region);
 	}
 
 	// Location keywords keep their editor IDs at runtime, so they are named rather than
@@ -206,15 +307,6 @@ namespace
 		       ((a_values & SituationRules::kCastle) && has("LocTypeCastle"sv)) ||
 		       ((a_values & SituationRules::kPlayerHome) && has("LocTypePlayerHouse"sv)) ||
 		       ((a_values & SituationRules::kDungeon) && has("LocTypeDungeon"sv));
-	}
-
-	// Weather's values (SituationRules) that hold now; no cell test, so indoors too.
-	bool HasWeather(std::uint32_t a_values)
-	{
-		using Flag = RE::TESWeather::WeatherDataFlag;
-		return ((a_values & SituationRules::kRain) && WeatherHas(Flag::kRainy)) ||
-		       ((a_values & SituationRules::kSnow) && WeatherHas(Flag::kSnow)) ||
-		       ((a_values & SituationRules::kSnowyRegion) && InSnowyRegion());
 	}
 
 	// The game clock in minutes after midnight; noon without a calendar.
@@ -282,6 +374,32 @@ namespace
 			return &*player;
 		}
 	};
+
+	// Weather's values (SituationRules) that hold now around the player (Climate): Rain and Snow
+	// by the sky while they are in an exterior cell, a region by the climate where they stand.
+	bool HasWeather(std::uint32_t a_values, Facts& a_player)
+	{
+		using Flag = RE::TESWeather::WeatherDataFlag;
+		using Climate = RegionClimate::Climate;
+		const auto* cell = a_player.Cell();
+		if (cell && cell->IsExteriorCell() &&
+			(((a_values & SituationRules::kRain) && WeatherHas(Flag::kRainy)) || ((a_values & SituationRules::kSnow) && WeatherHas(Flag::kSnow)))) {
+			return true;
+		}
+		if ((a_values & (SituationRules::kWarmRegion | SituationRules::kCoolRegion | SituationRules::kColdRegion)) == 0) {
+			return false;
+		}
+		switch (ClimateAround(a_player.actor, a_player.Location())) {
+		case Climate::kWarm:
+			return (a_values & SituationRules::kWarmRegion) != 0;
+		case Climate::kCool:
+			return (a_values & SituationRules::kCoolRegion) != 0;
+		case Climate::kCold:
+			return (a_values & SituationRules::kColdRegion) != 0;
+		default:
+			return false;
+		}
+	}
 
 	// Their cell, or their location or a location it is in (parentLoc), is one of `a_places`
 	// (SituationRules::Place::formID; 0, a place not loaded, matches nothing).
@@ -415,7 +533,10 @@ namespace
 			holds = InPlaces(a_row.places, *facts);
 			break;
 		case Kind::kWeather:
-			holds = HasWeather(a_row.values);
+			{
+				auto* player = a_evaluation.Of(SituationRules::Target::kPlayer);  // the sky is theirs (Climate)
+				holds = player && HasWeather(a_row.values, *player);
+			}
 			break;
 		case Kind::kTimeOfDay:
 			holds = SituationRules::InTimeRange(a_row.from, a_row.to, MinuteOfDay());

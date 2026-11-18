@@ -167,11 +167,10 @@ TEST_CASE("The presets are installed with their rules, Allow during combat off",
 {
 	using SituationRules::Kind;
 	const auto cold = SituationTable::PresetRules(Situation::kCold);
-	REQUIRE(cold.rows.size() == 2);
+	REQUIRE(cold.rows.size() == 1);
 	CHECK(cold.rows[0].kind == Kind::kWeather);
-	CHECK(cold.rows[0].values == (SituationRules::kRain | SituationRules::kSnow | SituationRules::kSnowyRegion));
-	CHECK(cold.rows[1] == SituationRules::Row{ .kind = Kind::kIndoors, .negated = true });
-	CHECK(SituationRules::Text(cold) == "In rain, snow or a cold region, outdoors.");
+	CHECK(cold.rows[0].values == (SituationRules::kSnow | SituationRules::kColdRegion));
+	CHECK(SituationRules::Text(cold) == "In snow or a cold region.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kTown)) == "In a town.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kHome)) == "In a player home.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kSleep)) == "Sleeping.");
@@ -355,7 +354,7 @@ TEST_CASE("Parse reads version 2's user's situations after the presets, in the f
 		{ "key": "user:5", "name": "Night", "conditions": [ { "kind": "timeOfDay", "from": "8:00", "to": "06:00" } ] },
 		{ "key": "Town", "name": "City" },
 		{ "key": "user:2", "name": "Wet", "applyInCombat": true, "comment": "ignored",
-		  "conditions": [ { "kind": "weather", "values": ["rain"] }, { "kind": "indoors", "not": true } ] } ] })",
+		  "conditions": [ { "kind": "weather", "values": ["rain", "coolRegion"] }, { "kind": "indoors", "not": true } ] } ] })",
 		table));
 	REQUIRE(table.size() == Situations::kPresetCount + 2);
 	CHECK(table.nextKey == 6);
@@ -368,7 +367,9 @@ TEST_CASE("Parse reads version 2's user's situations after the presets, in the f
 		  std::vector{ Situation::kCastle, Situation::kHome, Situation::kCold, Situation::kSleep, night, Situation::kTown, wet });
 	CHECK(table[Situations::kPresetCount] == User(5, "Night", { .rows = { { .kind = Kind::kTimeOfDay, .from = 8 * 60, .to = 6 * 60 } } }));
 	CHECK(table[Situations::kPresetCount + 1] ==
-		  User(2, "Wet", { .rows = { { .kind = Kind::kWeather, .values = SituationRules::kRain }, { .kind = Kind::kIndoors, .negated = true } }, .applyInCombat = true }));
+		  User(2, "Wet",
+			  { .rows = { { .kind = Kind::kWeather, .values = SituationRules::kRain | SituationRules::kCoolRegion }, { .kind = Kind::kIndoors, .negated = true } },
+				  .applyInCombat = true }));
 }
 
 TEST_CASE("Parse refuses the whole file for a user's situation it cannot read", "[situations]")
