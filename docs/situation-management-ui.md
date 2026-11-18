@@ -237,8 +237,9 @@ An outfit's details, in the Wardrobe page's order (`DrawOutfitSummary`): its nam
 label, as a list of one outfit row drawn as the outfit list's (grip, icon, the worn and Default
 marks, no situation star), its name cut short with an ellipsis; the grip drags a copy of the
 outfit as the outfit list's rows do (§4: as from the outfit list, so the right pane stays), and a
-click on it does nothing. Then `SITUATIONS (#{Name})`, its label starting with the
-star as the Name label's does, with the rows the page's edits
+click on it does nothing. Then `SITUATIONS (#{Name})`, its label starting with the star of the
+Situations tab, a square of the label's line height in its grey, and 6px (`Theme::LabelText`),
+with the rows the page's edits
 give it (`Default, Town`, or `None`), placed as the Applies text is, then its pieces, with the Dress page's icons, under the
 `Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
@@ -265,9 +266,7 @@ headings; with `Enable custom situations`, every situation but the Default has a
 the Default, the left column alone. The popup's edits (the name, Random Outfit, the
 conditions) are saved once it closes (§6). The left column:
 
-- `Name`, an underlined field (as the Save page's), its label starting with the star of the
-  Situations tab (none for the Default), a square of the label's line height in its grey, and 6px
-  (`Theme::LabelText` with a `HeadingIcon`). Ending the edit with it empty, or with a
+- `Name`, an underlined field (as the Save page's), its label with no icon. Ending the edit with it empty, or with a
   name another situation has (ASCII case ignored), puts the previous name back; with that
   empty too, `Unnamed Situation`. Enter or the field losing focus ends the edit, and the name
   is saved as any edit is; no save starts while it is being typed. Under the Default's, after
@@ -286,7 +285,7 @@ conditions) are saved once it closes (§6). The left column:
 Under the columns, the room above every button row (`ButtonRowGap`), then `Done` centred;
 Escape is Done unless it closed a dropdown or a popup over the popup.
 
-- `Remove` at the right end of Done's row, drawn as Restore Presets is, without
+- `Remove Situation` at the right end of Done's row, drawn as Restore Presets is, without
   the `(?)` (`Theme::LineLink`); not on the Default. It closes the Edit situation popup;
   Remove's popup opens once the edits made in it are saved. Its popup: `Remove Town?`, then under `Used by:` the
   actors in this save with outfits on their Town row's list, hidden ones included
@@ -301,7 +300,7 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
 ## 6. Buttons and leaving
 
 - `Exit` where the other pages put their buttons, and at the row's right
-  end `Restore Presets (?)`, a link drawn as the Edit situation popup's Remove is, its
+  end `Restore Presets (?)`, a link drawn as the Edit situation popup's Remove Situation is, its
   `(?)` inside its click area, its text centred on the buttons' height
   (`Theme::LineHelpLink`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
@@ -359,7 +358,8 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   `diceButton` and a tooltip with `diceTip`, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`, `kDice`), the
   drag grip (`Theme::Grip` for `OutfitRow`), the
-  Edit situation popup's Remove link (`LineLink`), Restore Presets' (`LineHelpLink`).
+  Edit situation popup's Remove Situation link and each condition's Remove (`LineLink`),
+  Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
   `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,

@@ -335,7 +335,9 @@ takes it (`FocusStandIn`), so the tooltip shows and the list scrolls to the row;
 does nothing. A greyed item with no tooltip, and the page while a write runs, stay out.
 Navigation never claims the keyboard (`ConfigNavCaptureKeyboard` off), so W/A/S/D still move
 the camera. An Escape that ImGui spent closing a combo is not also the page's Back, Exit or
-Cancel (`HoldNavEscape`). The right stick's return to the centre is handed over too, or the
+Cancel (`HoldNavEscape`). A field that takes the focus itself (a name field, the spell search)
+shows no focus frame unless one was shown already (`KeepFocusFrameHidden`), so a popup it sits
+in leaves none on the item under it. The right stick's return to the centre is handed over too, or the
 Cursor Menu keeps moving the cursor at the last tilt. sarrai-common's overlay drops the
 controller keys ImGui's Win32 backend reads from XInput itself: a button change there made
 ImGui hold back the game's cursor for a frame, the OS cursor standing in its place (the focus

@@ -391,6 +391,20 @@ namespace CaptureWindow::Internal
 		}
 	}
 
+	// A field that takes the focus itself (SetKeyboardFocusHere: a name field, the spell search)
+	// activates in the frame after it asks, and ImGui then shows the focus frame as for an arrow
+	// key; a popup closing would leave it on the item under the popup. Unless the frame was
+	// shown already, ImGui does not show it for that activation; FeedInput turns that back on.
+	// Contract: render thread, after ImGui::NewFrame and before the page draws; FeedInput read
+	// the focus frame before NewFrame.
+	void KeepFocusFrameHidden(const State& a_state)
+	{
+		const auto& g = *ImGui::GetCurrentContext();
+		if (!a_state.navShown && g.NavActivateId != 0 && (g.NavActivateFlags & ImGuiActivateFlags_FromFocusApi)) {
+			ImGui::GetIO().ConfigNavCursorVisibleAuto = false;
+		}
+	}
+
 	// ImGui reaches with Left or Right only an item level with the focus: one above or below
 	// counts as Up or Down. So a Left or Right move in this window that found nothing goes again
 	// in the next frame (NavMoveRequestForward), scored from just past the focus's edge with the
@@ -2937,7 +2951,9 @@ namespace CaptureWindow
 		// the focused item. Navigation must not claim the keyboard: W/A/S/D still move the camera.
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigNavCaptureKeyboard = false;
+		io.ConfigNavCursorVisibleAuto = true;  // KeepFocusFrameHidden turns it off for one frame
 		state.popupsBefore = ImGui::GetCurrentContext()->OpenPopupStack.Size;
+		state.navShown = ImGui::GetCurrentContext()->NavCursorVisible;
 
 		if (auto* cursor = RE::MenuCursor::GetSingleton()) {
 			const auto& position = cursor->GetRuntimeData();
@@ -2960,6 +2976,7 @@ namespace CaptureWindow
 			state.resetImGui = false;
 		}
 		HoldNavEscape(state);
+		KeepFocusFrameHidden(state);
 		WidenNavMove(state);
 		FinishLeave(state);  // before the page's width, which a switch changes
 

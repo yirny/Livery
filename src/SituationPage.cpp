@@ -18,7 +18,7 @@
 //                     outfits it shows; a click on an outfit row of either pane shows its details
 //                     and puts it on the preview
 //   Condition editor - a situation's conditions (docs/custom-situations.md §7): per condition a
-//                     heading with its × and a row that reads as a sentence (whose state, "is" or
+//                     heading with its Remove and a row that reads as a sentence (whose state, "is" or
 //                     a two-state dropdown, an operator dropdown and its values), places or spells
 //                     under it with a × each, the one clicked in the Applies text lit; Add
 //                     Condition..., Allow during combat
@@ -29,7 +29,7 @@
 //                     Restore Presets' popups, each handing its write to the Request's handler;
 //                     the Edit situation popup (name, never worn, the Applies text with a link per
 //                     condition, Random Outfit (for #{Name}); the editor beside them; Done with
-//                     Remove) with the Add place and Add spell popups over it, edits of the
+//                     Remove Situation) with the Add place and Add spell popups over it, edits of the
 //                     selected situation's Place or Spell row
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
@@ -770,7 +770,7 @@ namespace CaptureWindow::Internal
 
 		// --- Condition editor -------------------------------------------------
 		//
-		// Each condition has a heading, its kind's name with (?) and a × at the line's right end,
+		// Each condition has a heading, its kind's name with (?) and Remove at the line's right end,
 		// and under it reads as a sentence (docs/custom-situations.md §7): a kind reading an actor's
 		// state starts with whose, the wearer or the player (a dropdown), then "is" / "is not" and
 		// its phrase, or for Weapon a dropdown of its two
@@ -1109,9 +1109,10 @@ namespace CaptureWindow::Internal
 			return width;
 		}
 
-		// One condition: its heading (the kind's name, its help on the (?), a × at the line's right
-		// end, `a_lineRight`), then the row under it as the section says; a Place or Spell row lists
-		// its forms under that, each with a ×; values or times that do not fit the row go under it.
+		// One condition: its heading (the kind's name, its help on the (?), a Remove link at the
+		// line's right end, `a_lineRight`), then the row under it as the section says; a Place or
+		// Spell row lists its forms under that, each with a ×; values or times that do not fit the
+		// row go under it.
 		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_lineRight)
 		{
 			constexpr float kListIndent = 16.0f;  // pixels at 1080p, what sits under the row in from its left
@@ -1123,7 +1124,7 @@ namespace CaptureWindow::Internal
 			if (Theme::LabelHelpMark()) {
 				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
-			const bool removed = DrawRemoveCross("##removeRow", crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y, "Remove this condition.");
+			const bool removed = Theme::LineLink("Remove");  // a word, not a ×, apart from the forms' ×s under it
 
 			const bool time = a_row.kind == SituationRules::Kind::kTimeOfDay;
 			bool       changed = false;
@@ -1502,8 +1503,8 @@ namespace CaptureWindow::Internal
 			return editable && clicked >= 0 ? clicked / 2 : -1;
 		}
 
-		// The Edit situation popup's settings, its left column: the name, its label with the
-		// situation star (none for the Default, which says what it is under it), why it is never
+		// The Edit situation popup's settings, its left column: the name (the Default says what it
+		// is under it), why it is never
 		// worn, `Applies` over the conditions, the Default's read only, another's Applies text
 		// (DrawAppliesLinks) with the label's help, greyed and read only unless the page offers the
 		// editor (Request::customSituations); then Random Outfit (for #{Name}). Returns the condition
@@ -1514,7 +1515,7 @@ namespace CaptureWindow::Internal
 			auto&       entry = form.entries[a_entry];
 			const auto& name = a_state.request.actorName;
 			const bool  isDefault = a_entry == 0;
-			Theme::LabelText("Name", isDefault ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar);
+			Theme::LabelText("Name");
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
 			if (ImGui::IsItemActivated()) {
@@ -1652,7 +1653,7 @@ namespace CaptureWindow::Internal
 
 		// New Situation... (while the page offers it, Request::customSituations) and Exit, centred
 		// as the other pages' buttons, then Restore Presets (?) at the row's right end, a link as
-		// the Edit situation popup's Remove is, greyed while every preset is as installed.
+		// the Edit situation popup's Remove Situation is, greyed while every preset is as installed.
 		// a_escapeTaken: the browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
@@ -2191,7 +2192,7 @@ namespace CaptureWindow::Internal
 		// (DrawSituationSettings) as wide as the page's right pane, and while the page offers the
 		// editor (Request::customSituations), for every situation but the Default, the conditions
 		// (DrawConditionsColumn) in a column of their own beside them, as wide as the editor's
-		// widest row (EditorContentWidth); then Done, with Remove at the row's
+		// widest row (EditorContentWidth); then Done, with Remove Situation at the row's
 		// right end (not for the Default). A condition clicked in the Applies text is lit and
 		// scrolled to in the editor. Escape is Done unless it closed a dropdown or a popup over
 		// it. Its edits are saved once it closes (TakeAutosaveDue waits for it). Returns true on
@@ -2265,7 +2266,7 @@ namespace CaptureWindow::Internal
 
 			BeginButtonRow({ kDone });
 			const bool done = Theme::Button(kDone);
-			const bool remove = selected > 0 && Theme::LineLink("Remove");
+			const bool remove = selected > 0 && Theme::LineLink("Remove Situation");
 			EndButtonRow();
 			if (done || escape) {
 				QueueMenuSound(done ? kOkSound : kCancelSound);
@@ -2282,7 +2283,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// The page's popups, each opened by the page in its own ID scope. Returns true when the
-		// Edit situation popup's Remove was pressed, which the page answers with Remove's popup.
+		// Edit situation popup's Remove Situation was pressed, which the page answers with Remove's popup.
 		bool DrawSituationPopups(State& a_state)
 		{
 			if (DrawRemoveSituationPopup(a_state)) {

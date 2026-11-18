@@ -27,7 +27,7 @@ Items marked *provisional* are tried in a prototype first and may change.
   drag and the condition editor (the Edit situation popup's right column and the Applies text's
   links, §7). Off, every
   situation made stays in use, and the Situations page still lists them with their outfits,
-  their Applies text read only, the never-worn mark, Remove
+  their Applies text read only, the never-worn mark, Remove Situation
   and Restore Presets; renaming stays too. The poll does not read the setting.
 - The first version ships the kinds of §3; §4 lists the kinds held back.
 
@@ -243,7 +243,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   for a name (Create / Cancel, as the New chest popup), saving the page's edits first; the new
   situation, with no conditions, is appended last, where it wins over every other, the
   Situation List scrolls to it and its Edit situation popup opens. Every situation but the
-  Default has Remove in that popup (a preset's Remove popup with the Restore Presets line, a
+  Default has Remove Situation in that popup (a preset's Remove popup with the Restore Presets line, a
   user's without it).
 - The Edit situation popup's left column (docs/situation-management-ui.md §5), for every
   situation but the Default, shows the `Applies` label, its help `Applies while every
@@ -273,8 +273,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   height.
 - The editor: each condition is in a box, in every skin a 1px line of the rule colour with 4px
   round corners, 12x8px inside and 8px apart. Its heading is the kind's name as a field label
-  (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the kind's help and a ×
-  (`Theme::ClearButton`, `Remove this condition.` on hover) at the line's right end. Under it the
+  (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the kind's help and a `Remove`
+  link (`Theme::LineLink`; a word, not the forms' ×) at the line's right end. Under it the
   row reads as a sentence. No `Not` checkbox: the row's `not` is a dropdown of two choices. A
   kind that reads an actor's state (`Targetable`) starts with whose, a dropdown of the actor's
   name and `Player` (`Row::target`; its help `<name>: checks this character` and `Player: checks
