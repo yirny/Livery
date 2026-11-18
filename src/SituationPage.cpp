@@ -800,7 +800,7 @@ namespace CaptureWindow::Internal
 		// The widest of `a_labels` as a dropdown's preview and row (Theme::DropdownWidth).
 		float WidestDropdown(std::initializer_list<const char*> a_labels)
 		{
-			const Theme::FieldStyle style{};
+			const Theme::FieldStyle style{ .filled = true };
 			float                   widest = 0.0f;
 			for (const char* label : a_labels) {
 				widest = (std::max)(widest, Theme::DropdownWidth(label, style));
@@ -926,7 +926,7 @@ namespace CaptureWindow::Internal
 
 		ValuesWidth ValuesDropdownWidth(SituationRules::Kind a_kind)
 		{
-			const Theme::FieldStyle style{};
+			const Theme::FieldStyle style{ .filled = true };
 			std::string             all;
 			float                   least = 0.0f;
 			for (const auto& value : SituationRules::InfoOf(a_kind).values) {
@@ -984,7 +984,7 @@ namespace CaptureWindow::Internal
 		float TimeRangeWidth()
 		{
 			const float spacing = ImGui::GetStyle().ItemSpacing.x;
-			return Theme::DropdownWidth(kWidestTime, Theme::FieldStyle{}) * 2.0f + ImGui::CalcTextSize("and").x + spacing * 2.0f;
+			return Theme::DropdownWidth(kWidestTime, Theme::FieldStyle{ .filled = true }) * 2.0f + ImGui::CalcTextSize("and").x + spacing * 2.0f;
 		}
 
 		// Whether `a_width` more fits on the line just laid out, before `a_right`.
@@ -1230,7 +1230,7 @@ namespace CaptureWindow::Internal
 		{
 			constexpr const char* kAddCondition = "Add Condition...";
 
-			const Theme::FieldStyle style{ .previewIsHint = true };
+			const Theme::FieldStyle style{ .icon = Theme::FieldIcon::kAdd, .previewIsHint = true };
 			ImGui::SetNextItemWidth(Theme::DropdownWidth(kAddCondition, style));
 			const bool                          open = Theme::BeginCombo("##addCondition", ImGuiComboFlags_HeightLargest, style);
 			std::optional<SituationRules::Kind> added;

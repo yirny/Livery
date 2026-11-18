@@ -301,7 +301,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   Spell list their forms under the row, 16px in, one a line with a × at its right end (`Remove
   this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
   hover), then `Add Location...` or `Add Spell...` at the list's left. In Vanilla and Nordic a
-  row's dropdowns have the palette's stripe colour behind them (`FieldStyle::filled`). Then `Add Condition...`, a dropdown of the
+  row's dropdowns have the palette's stripe colour behind them, the frame padding at both ends (`FieldStyle::filled`). Then `Add Condition...`, a dropdown with the Add links' plus mark before its text (`FieldIcon::kAdd`), of the
   kinds by label, closed by the choice, which adds a row with nothing selected, Swimming's with
   In water (a Place or Spell row opens its Add popup at once); a two-state kind the situation has every row it can take of
   (one; one per target for a kind with a target) is greyed there, a second adding nothing.
