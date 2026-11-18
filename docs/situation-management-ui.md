@@ -358,7 +358,8 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   `diceButton` and a tooltip with `diceTip`, right-hand chevron and Edit with their
   own click areas, `HeadingClick::kEdit`, `kDice`), the
   drag grip (`Theme::Grip` for `OutfitRow`), the
-  Edit situation popup's Remove Situation link and each condition's Remove (`LineLink`),
+  Edit situation popup's Remove Situation link (`LineLink`), each condition's Remove
+  (`LabelLineLink`),
   Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
   conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,

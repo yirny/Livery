@@ -274,7 +274,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - The editor: each condition is in a box, in every skin a 1px line of the rule colour with 4px
   round corners, 12x8px inside and 8px apart. Its heading is the kind's name as a field label
   (`Theme::LabelText`, `KindInfo::label`) with a (?) carrying the kind's help and a `Remove`
-  link (`Theme::LineLink`; a word, not the forms' ×) at the line's right end. Under it the
+  link (`Theme::LabelLineLink`; a word, not the forms' ×) at the line's right end, its capitals
+  level with the label's. Under it the
   row reads as a sentence. No `Not` checkbox: the row's `not` is a dropdown of two choices. A
   kind that reads an actor's state (`Targetable`) starts with whose, a dropdown of the actor's
   name and `Player` (`Row::target`; its help `<name>: checks this character` and `Player: checks
@@ -299,7 +300,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   row while they fit, else under it, 16px in. Place (`Specific Location` in the editor) and
   Spell list their forms under the row, 16px in, one a line with a × at its right end (`Remove
   this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
-  hover), then `Add Location...` or `Add Spell...`. Then `Add Condition...`, a dropdown of the
+  hover), then `Add Location...` or `Add Spell...` at the list's left. In Vanilla and Nordic a
+  row's dropdowns have the palette's stripe colour behind them (`FieldStyle::filled`). Then `Add Condition...`, a dropdown of the
   kinds by label, closed by the choice, which adds a row with nothing selected, Swimming's with
   In water (a Place or Spell row opens its Add popup at once); a two-state kind the situation has every row it can take of
   (one; one per target for a kind with a target) is greyed there, a second adding nothing.

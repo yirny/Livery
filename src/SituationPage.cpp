@@ -831,7 +831,7 @@ namespace CaptureWindow::Internal
 		// caller to show the kind's help (never while open).
 		bool DrawNegationDropdown(const char* a_id, const char* a_positive, const char* a_negative, float a_width, bool& a_negated, bool& a_hovered)
 		{
-			const Theme::FieldStyle style{};
+			const Theme::FieldStyle style{ .filled = true };
 			ImGui::SetNextItemWidth(a_width > 0.0f ? a_width : WidestDropdown({ a_positive, a_negative }));
 			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_None, style);
 			a_hovered = !open && ImGui::IsItemHovered();
@@ -857,7 +857,7 @@ namespace CaptureWindow::Internal
 			constexpr const char* kPlayer = "Player";
 
 			const char*             wearer = a_request.actorName.c_str();
-			const Theme::FieldStyle style{};
+			const Theme::FieldStyle style{ .filled = true };
 			ImGui::SetNextItemWidth(WidestDropdown({ wearer, kPlayer }));
 			const bool open = Theme::BeginCombo("##target", ImGuiComboFlags_None, style);
 			const bool hovered = !open && ImGui::IsItemHovered();
@@ -896,7 +896,7 @@ namespace CaptureWindow::Internal
 					preview += (preview.empty() ? "" : ", ") + std::string(value.label);
 				}
 			}
-			const Theme::FieldStyle style{ .previewIsHint = preview.empty() };
+			const Theme::FieldStyle style{ .previewIsHint = preview.empty(), .filled = true };
 			ImGui::SetNextItemWidth(a_width);
 			const bool open = Theme::BeginCombo("##values", ImGuiComboFlags_HeightLargest, style);
 			bool       changed = false;
@@ -942,7 +942,7 @@ namespace CaptureWindow::Internal
 		{
 			constexpr std::uint16_t kTimeStep = 30;  // minutes between the times offered
 
-			const Theme::FieldStyle style{};
+			const Theme::FieldStyle style{ .filled = true };
 			const auto              current = SituationRules::TimeText(a_minutes);
 			ImGui::SetNextItemWidth(Theme::DropdownWidth(kWidestTime, style));
 			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_HeightLarge, style);
@@ -1074,7 +1074,7 @@ namespace CaptureWindow::Internal
 			if (removed) {
 				forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(*removed));
 			}
-			a_add = Theme::LabelLink(place ? "Add Location..." : "Add Spell...", Theme::LinkLine::kNext);
+			a_add = Theme::LabelLink(place ? "Add Location..." : "Add Spell...", Theme::LinkLine::kNextLeft);
 			return removed.has_value();
 		}
 
@@ -1124,7 +1124,7 @@ namespace CaptureWindow::Internal
 			if (Theme::LabelHelpMark()) {
 				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
-			const bool removed = Theme::LineLink("Remove");  // a word, not a ×, apart from the forms' ×s under it
+			const bool removed = Theme::LabelLineLink("Remove");  // a word, not a ×, apart from the forms' ×s under it
 
 			const bool time = a_row.kind == SituationRules::Kind::kTimeOfDay;
 			bool       changed = false;
@@ -1327,7 +1327,7 @@ namespace CaptureWindow::Internal
 				ImGui::SetCursorScreenPos(ImVec2(topLeft.x, topLeft.y + padding.y));
 				ImGui::Indent(padding.x);
 				// The padding on the right too, for what aligns to the content's right edge (the
-				// Add link, Theme::LabelLink). Contract: inside the scroll area, a child window
+				// heading's Remove, Theme::LabelLineLink). Contract: inside the scroll area, a child window
 				// with no table, whose content region GetContentRegionAvail reads.
 				auto* window = ImGui::GetCurrentWindow();
 				window->ContentRegionRect.Max.x -= padding.x;
