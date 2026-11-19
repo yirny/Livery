@@ -244,9 +244,12 @@ namespace CaptureWindow
 		// The actor is the player: a condition's target dropdown names both the wearer and the
 		// player after them, so its help says which is which.
 		bool actorIsPlayer = false;
-		// What the Situations page's Add spell popup offers: the actor's spells (read at Open), and
-		// with Show all spells every one (Situations::AllSpells, valid until the game closes).
+		// What the Situations page's Add spell popup offers: the actor's spells (read at Open), the
+		// player's for a row that checks the player in another actor's window (read at Open; empty
+		// in the player's own), and with Show all spells every one (Situations::AllSpells, valid
+		// until the game closes).
 		std::vector<SituationRules::SpellChoice>     spells;
+		std::vector<SituationRules::SpellChoice>     playerSpells;
 		std::span<const SituationRules::SpellChoice> allSpells;
 		// The chests (docs/chest-ui.md), in display order, with `offersChests`: the Chests tab
 		// and Add from Chest... (Settings::ItemChests at Open; never with `saveOnly`).

@@ -1460,6 +1460,9 @@ namespace
 		if (request.customSituations) {
 			request.places = Situations::PlacesAround(actor);
 			request.spells = Situations::SpellsAround(actor);
+			if (auto* player = RE::PlayerCharacter::GetSingleton(); player && !request.actorIsPlayer) {
+				request.playerSpells = Situations::SpellsAround(*player);
+			}
 			request.allSpells = Situations::AllSpells();
 		}
 		request.placeFacts = Situations::PlaceFacts(PlacesToTell(request.places));

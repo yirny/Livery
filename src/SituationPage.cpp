@@ -1039,7 +1039,8 @@ namespace CaptureWindow::Internal
 				return SituationRules::SameForm(spell.ref, a_spell.ref) ||
 				       (!a_spell.effects.empty() && spell.effects == a_spell.effects && ExampleMod::CaseInsensitiveEqual(spell.ref.name, a_spell.ref.name));
 			};
-			for (const std::span<const SituationRules::SpellChoice> list : { std::span<const SituationRules::SpellChoice>(a_request.spells), a_request.allSpells }) {
+			using Choices = std::span<const SituationRules::SpellChoice>;
+			for (const Choices list : { Choices(a_request.spells), Choices(a_request.playerSpells), a_request.allSpells }) {
 				if (const auto found = std::ranges::find_if(list, same); found != list.end()) {
 					return found->effectLines;
 				}
@@ -1878,10 +1879,23 @@ namespace CaptureWindow::Internal
 			return index < rows.size() && rows[index].kind == a_kind ? &rows[index] : nullptr;
 		}
 
-		// What the Add spell popup lists from: the actor's spells, or with Show all spells every one.
-		std::span<const SituationRules::SpellChoice> OfferedSpells(const State& a_state)
+		// The Add spell popup's row checks the player (SituationRules::Target::kPlayer) in another
+		// actor's window, so it lists and speaks of the player's spells, not the actor's.
+		bool SpellsOfPlayer(State& a_state)
 		{
-			return a_state.situationForm.spellShowAll ? a_state.request.allSpells : std::span<const SituationRules::SpellChoice>(a_state.request.spells);
+			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
+			return row && row->target == SituationRules::Target::kPlayer && !a_state.request.actorIsPlayer;
+		}
+
+		// What the Add spell popup lists from: the actor's spells, the player's (SpellsOfPlayer),
+		// or with Show all spells every one.
+		std::span<const SituationRules::SpellChoice> OfferedSpells(State& a_state)
+		{
+			const auto& request = a_state.request;
+			if (a_state.situationForm.spellShowAll) {
+				return request.allSpells;
+			}
+			return SpellsOfPlayer(a_state) ? request.playerSpells : request.spells;
 		}
 
 		// The spells the Add spell popup lists (SituationForm::spellShown): those offered whose name
@@ -1904,7 +1918,7 @@ namespace CaptureWindow::Internal
 
 		// Opens the popup of the row SituationForm::formRow names: Add place on its first choice
 		// (This Location, or This Cell outside any location), or Add spell on the actor's spells
-		// with nothing typed or picked.
+		// (the player's, SpellsOfPlayer) with nothing typed or picked.
 		// Contract: inside the Edit situation popup, as the popups are drawn there
 		// (DrawAddFormPopups).
 		void OpenAddFormPopup(State& a_state)
@@ -2074,7 +2088,8 @@ namespace CaptureWindow::Internal
 
 			auto&       form = a_state.situationForm;
 			const auto& name = a_state.request.actorName;
-			const auto  lead = std::format("Add a spell to look for on {}.", name);
+			const bool  ofPlayer = SpellsOfPlayer(a_state);
+			const auto  lead = ofPlayer ? std::string{ "Add a spell to look for on you." } : std::format("Add a spell to look for on {}.", name);
 			// The width is set before the popup begins, the line above widening it: the list runs
 			// past the content into the window's padding in Vanilla and Nordic (Theme::BeginList),
 			// which a popup fitted to its content would take in and grow by at every frame.
@@ -2092,11 +2107,9 @@ namespace CaptureWindow::Internal
 				changed = true;
 			}
 			if (ImGui::IsItemHovered()) {
-				Theme::Tooltip(std::format(
-					"All spells, powers, potions and scrolls, including those added by mods.\n\n"
-					"Off: Spells known by {} and those currently affecting them.",
-					name)
-						.c_str());
+				const auto off = ofPlayer ? std::string{ "Spells you know and those currently affecting you." } :
+				                            std::format("Spells known by {} and those currently affecting them.", name);
+				Theme::Tooltip(std::format("All spells, powers, potions and scrolls, including those added by mods.\n\nOff: {}", off).c_str());
 			}
 			if (changed) {
 				form.spellPick.reset();

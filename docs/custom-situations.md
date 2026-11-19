@@ -338,7 +338,9 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   spell there or on the row shows its plugin and FormID, then its visible effects a line each,
   `- <name> (<editor ID>)`, the editor ID only when the game keeps one (it does not by itself;
   a mod such as powerofthree's Tweaks loads them). Off, the list is the actor's
-  (`Situations::SpellsAround`, read as the window opens): the spells, powers and shouts they
+  (`Situations::SpellsAround`, read as the window opens), or the player's for a row whose target
+  is `Player` in another actor's window (read as the window opens too; the first line and the
+  checkbox's help then say `you`: `Add a spell to look for on you.`): the spells, powers and shouts they
   cast, learned (`addedSpells`) or of their NPC record and race (`actorEffects`, a shout by its
   words' spells), those with a visible effect delivered to themselves only (Flames or a Conjure
   never puts one on them; diseases, poisons and others' spells, which do, come through `Show all
