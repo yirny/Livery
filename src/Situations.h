@@ -26,6 +26,7 @@ namespace SituationRules
 	struct FormRef;
 	struct PlaceChoices;
 	struct PlaceFact;
+	struct Row;
 	struct SpellChoice;
 }
 
@@ -215,6 +216,12 @@ namespace Situations
 	// for an actor last told in it (hysteresis on a shore).
 	// Contract: game thread; reads Order() as it is, allocating nothing.
 	Applicable Evaluate(RE::Actor& a_actor, const OutfitRows::Rows& a_rows);
+
+	// Whether each of `a_rows` (a situation's conditions as the Edit situation popup holds them)
+	// is met for `a_actor` now, as Evaluate reads it; in combat or not, each row alone. Reading
+	// in water moves the actor's hysteresis record as the poll's reading does.
+	// Contract: game thread.
+	std::vector<bool> RowsHold(RE::Actor& a_actor, std::span<const SituationRules::Row> a_rows);
 
 	// What the never-worn mark needs of each place in `a_places` (FormIDs of locations and
 	// cells; SituationRules::PlaceFact): the locations it is in, and the Location type values its

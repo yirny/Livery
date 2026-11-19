@@ -1442,7 +1442,8 @@ namespace
 		return places;
 	}
 
-	// the Situations page's save, Remove (a situation) and Restore Presets. Each writes
+	// the Situations page's save, Remove (a situation) and Restore Presets, and the check of the
+	// Edit situation popup's conditions. Each but the check, which writes nothing, writes
 	// situations.json first; a refused or failed write changes no row and redresses no one
 	// (CLAUDE.md §2.1). Then the captured actor's rows change and the actors are redressed
 	// (RedressCaptured, QueueRedress), and the window, still open, shows the situations and
@@ -1544,6 +1545,13 @@ namespace
 			}
 			Notify("Livery: restored the preset situations.");
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
+		};
+		// The Edit situation popup's conditions, as edited, read for the actor now: nothing is
+		// written and nobody is redressed.
+		request.onCheckConditions = [handle](std::uint32_t ask, const std::vector<SituationRules::Row>& rows) {
+			if (const auto target = handle.get()) {
+				CaptureWindow::SetConditionsHeld(ask, Situations::RowsHold(*target, rows));
+			}
 		};
 	}
 

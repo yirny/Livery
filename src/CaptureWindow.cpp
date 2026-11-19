@@ -2747,6 +2747,18 @@ namespace CaptureWindow
 		}
 	}
 
+	void SetConditionsHeld(std::uint32_t a_ask, std::vector<bool> a_held)
+	{
+		auto&                  state = GetState();
+		const std::scoped_lock lock(state.mutex);
+		auto&                  form = state.situationForm;
+		if (state.status == Status::kClosed || form.checkAsk != a_ask) {
+			return;  // an answer to an ask made before the rows changed again
+		}
+		form.conditionsHeld = std::move(a_held);
+		form.checkAnswered = true;
+	}
+
 	bool IsOpen()
 	{
 		return g_open;

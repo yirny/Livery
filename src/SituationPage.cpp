@@ -72,8 +72,14 @@ namespace CaptureWindow::Internal
 		constexpr const char* kAddSpellPopup = "Add spell";
 		constexpr const char* kEditSituationPopup = "Edit situation";
 		constexpr const char* kNewSituation = "New Situation...";
-		// Over a condition in the Applies text while the settings page does not offer the editor.
+		// Over a condition in the Applies text: whether it is met now (CheckConditions), and while
+		// the settings page does not offer the editor, how to offer it.
+		constexpr const char* kMetNow = "Met now.";
+		constexpr const char* kNotMetNow = "Not met now.";
 		constexpr const char* kTurnOnCustom = "Turn on custom situations in the settings to edit.";
+		// How often the Edit situation popup asks whether its conditions are met (seconds): the
+		// weather, the time and the actor change under it.
+		constexpr double kHoldsRefresh = 0.5;
 		// A condition's box in the editor, in every skin (pixels at 1080p): its padding inside,
 		// the gap under it, its corners' radius.
 		constexpr ImVec2 kConditionBoxPadding{ 12.0f, 8.0f };
@@ -1463,10 +1469,70 @@ namespace CaptureWindow::Internal
 			ImGui::PopStyleColor();
 		}
 
+		// "Always overrides Rainy town." for each situation higher in the list that entry
+		// `a_entry` applies whenever it does, so that one is never worn (Overrides): in the error
+		// colour, one line each in the list's order, as close as a wrapped text's lines.
+		void DrawOverrides(const SituationForm& a_form, std::size_t a_entry)
+		{
+			std::vector<std::size_t> overridden;
+			for (const auto other : a_form.order) {
+				if (Overrides(a_form, static_cast<int>(other), a_entry)) {
+					overridden.push_back(other);
+				}
+			}
+			if (overridden.empty()) {
+				return;
+			}
+			Theme::SectionGap();
+			ImGui::PushStyleColor(ImGuiCol_Text, Theme::ErrorColor());
+			for (std::size_t i = 0; i < overridden.size(); ++i) {
+				const bool                              last = i + 1 == overridden.size();
+				const auto                              name = Trimmed(a_form.entries[overridden[i]].name.data());
+				const std::array<Theme::SubtitleRun, 3> line{ { TextRun("Always overrides "), SituationRun(name.c_str()), TextRun(".") } };
+				if (!last) {
+					ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+				}
+				Theme::RunTextWrapped(line);
+				if (!last) {
+					ImGui::PopStyleVar();
+				}
+			}
+			ImGui::PopStyleColor();
+		}
+
+		// The number of the last ask handed to Request::onCheckConditions, never reset, so an
+		// answer to an ask of a window closed since matches none.
+		// Contract: under the window state's mutex (the page draws, SetConditionsHeld reads the form).
+		std::uint32_t g_checkAsks = 0;
+
+		// Asks Request::onCheckConditions whether each of `a_rules`' conditions is met now: at once
+		// when they differ from those last asked (another situation, an edit), else every
+		// kHoldsRefresh once the last ask was answered, so a stalled game thread gets no queue of
+		// asks. SetConditionsHeld takes the answer to the latest ask only.
+		void CheckConditions(State& a_state, const SituationRules::Rules& a_rules)
+		{
+			auto&       form = a_state.situationForm;
+			const auto& onCheck = a_state.request.onCheckConditions;
+			if (!onCheck || a_rules.rows.empty()) {
+				return;
+			}
+			const double now = ImGui::GetTime();
+			if (a_rules.rows == form.checkedRows && (!form.checkAnswered || now - form.checkedAt < kHoldsRefresh)) {
+				return;
+			}
+			form.checkedRows = a_rules.rows;
+			form.checkedAt = now;
+			form.checkAnswered = false;
+			form.checkAsk = ++g_checkAsks;
+			SKSE::GetTaskInterface()->AddTask([onCheck, ask = form.checkAsk, rows = a_rules.rows] { onCheck(ask, rows); });
+		}
+
 		// A user's situation's Applies text as SituationRules::Text words it, each condition a link
-		// (Theme::RunLinks), where a field's text sits (DrawFieldText): lit while hovered with the
-		// editor on offer (Request::customSituations), else saying how to offer it. Returns the
-		// condition clicked (index into rules.rows), or -1.
+		// (Theme::RunLinks), where a field's text sits (DrawFieldText), in the text colour pushed
+		// now, a condition met now (CheckConditions) in the palette's positive colour: lit while
+		// hovered with the editor on offer (Request::customSituations); its tooltip says whether it
+		// is met now, and without the editor how to offer it. Returns the condition clicked (index
+		// into rules.rows), or -1.
 		int DrawAppliesLinks(const State& a_state, const SituationRules::Rules& a_rules)
 		{
 			if (a_rules.rows.empty()) {
@@ -1482,6 +1548,11 @@ namespace CaptureWindow::Internal
 			if (!first.empty() && first[0] >= 'a' && first[0] <= 'z') {
 				first[0] = static_cast<char>(first[0] - 'a' + 'A');
 			}
+			// The answer to the latest ask, while it is one per row: an edit's rows are coloured by the
+			// answer before it until its own comes, a frame or so later.
+			const auto& held = a_state.situationForm.conditionsHeld;
+			const bool  known = held.size() == a_rules.rows.size();
+			const auto  positive = Theme::PositiveColor();
 			// A phrase per even index, the commas and the full stop between: run / 2 is the row.
 			std::vector<Theme::LinkRun> runs;
 			runs.reserve(phrases.size() * 2);
@@ -1489,7 +1560,7 @@ namespace CaptureWindow::Internal
 				if (i > 0) {
 					runs.push_back({ ", ", false });
 				}
-				runs.push_back({ phrases[i].c_str() });
+				runs.push_back({ phrases[i].c_str(), true, known && held[i] ? positive : 0u });
 			}
 			runs.push_back({ ".", false });
 
@@ -1497,18 +1568,25 @@ namespace CaptureWindow::Internal
 			int        hovered = -1;
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
 			const int clicked = Theme::RunLinks(runs, editable, &hovered);
-			if (hovered >= 0 && !editable) {
-				Theme::Tooltip(kTurnOnCustom);
+			if (hovered >= 0) {
+				std::string tip = known ? (held[static_cast<std::size_t>(hovered / 2)] ? kMetNow : kNotMetNow) : "";
+				if (!editable) {
+					tip += tip.empty() ? kTurnOnCustom : std::format("\n\n{}", kTurnOnCustom);
+				}
+				if (!tip.empty()) {
+					Theme::Tooltip(tip.c_str());
+				}
 			}
 			return editable && clicked >= 0 ? clicked / 2 : -1;
 		}
 
 		// The Edit situation popup's settings, its left column: the name (the Default says what it
 		// is under it), why it is never
-		// worn, `Applies` over the conditions, the Default's read only, another's Applies text
-		// (DrawAppliesLinks) with the label's help, greyed and read only unless the page offers the
-		// editor (Request::customSituations); then Random Outfit (for #{Name}). Returns the condition
-		// clicked in the Applies text (index into rules.rows), or -1.
+		// worn, the situations it always overrides, `Applies` over the conditions in grey, the
+		// Default's read only, another's Applies text (DrawAppliesLinks) with the label's help, read
+		// only unless the page offers the editor (Request::customSituations); then Random Outfit
+		// (for #{Name}). Returns the condition clicked in the Applies text (index into rules.rows),
+		// or -1.
 		int DrawSituationSettings(State& a_state, std::size_t a_entry)
 		{
 			auto&       form = a_state.situationForm;
@@ -1527,23 +1605,19 @@ namespace CaptureWindow::Internal
 				DrawDefaultNote(a_state);
 			}
 			DrawNeverWorn(form, a_entry);
+			DrawOverrides(form, a_entry);
 			Theme::LabelText("Applies");
-			int        clicked = -1;
-			const bool editable = !isDefault && a_state.request.customSituations;
+			int clicked = -1;
 			if (!isDefault && Theme::LabelHelpMark()) {
-				DrawHelpTooltip("Applies while every condition holds.\nA condition with several values holds for any of them.");
+				DrawHelpTooltip("Applies while every condition is met.\nA condition with several values is met by any of them.");
 			}
-			if (!editable) {
-				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-			}
+			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			if (isDefault) {
 				DrawDefaultConditions();
 			} else {
 				clicked = DrawAppliesLinks(a_state, entry.rules);
 			}
-			if (!editable) {
-				ImGui::PopStyleColor();
-			}
+			ImGui::PopStyleColor();
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
@@ -2225,6 +2299,8 @@ namespace CaptureWindow::Internal
 				form.editorPopupAbove = false;
 				form.editorCentred = true;
 				form.editorOtherHeight = 0.0f;
+				form.checkedRows.clear();  // asked again at once, nothing coloured until answered
+				form.conditionsHeld.clear();
 				// Contract: ImGui 1.92.7 centres the popup (BeginModal's pivot) at the first frame
 				// it is shown, at the size its content had the frame before. The scroll area learns
 				// its height a frame after it is made, so the popup stays hidden one frame more
@@ -2234,8 +2310,11 @@ namespace CaptureWindow::Internal
 			// Before anything is drawn: a dropdown that Escape closed is gone by now.
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !form.editorPopupAbove && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 
-			const auto                              selected = static_cast<std::size_t>(form.selected);
-			auto&                                   entry = form.entries[selected];
+			const auto selected = static_cast<std::size_t>(form.selected);
+			auto&      entry = form.entries[selected];
+			if (selected > 0) {
+				CheckConditions(a_state, entry.rules);
+			}
 			const auto                              title = Trimmed(form.nameEditing == form.selected ? entry.nameBefore.c_str() : entry.name.data());
 			const std::array<Theme::SubtitleRun, 2> heading{ { TextRun("Edit "), SituationRun(title.c_str(), selected == 0) } };
 			Theme::HeadingRunText(heading);
