@@ -171,7 +171,7 @@ namespace
 			L"1 = an NPC's window also lists your armor, under \"<your name>'s Inventory\"." },
 		{ kWindowSection, kShowPlayerWornKey, L"0",
 			L"1 = that list includes your equipped armor. 0 = it leaves it out unless you carry another copy.\n"
-			L"In game this is Exclude equipped items, reversed." },
+			L"In game this is \"Exclude equipped items\", reversed." },
 		{ kWindowSection, kShowSlotColumnKey, L"0",
 			L"1 = the item list shows a Slot column: each item's body slot numbers (32, 34)." },
 		{ kWindowSection, kItemChestsKey, L"0",
