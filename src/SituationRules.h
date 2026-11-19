@@ -235,10 +235,11 @@ namespace SituationRules
 	struct Value
 	{
 		std::uint32_t bit;
-		const char*   key;       // in situations.json
-		const char*   label;     // the editor's checkbox
-		const char*   phrase;    // in the Applies line, after "in"; Water's whole ("swimming")
-		const char*   tip = "";  // on its row in the editor's dropdown, while hovered; "" for none
+		const char*   key;                // in situations.json
+		const char*   label;              // the editor's checkbox
+		const char*   phrase;             // in the Applies line, after "in"; Water's whole ("swimming")
+		const char*   tip = "";           // on its row in the editor's dropdown, while hovered; "" for none
+		bool          ruleAbove = false;  // the editor's dropdown draws a rule above its row, ending a group of values
 	};
 
 	inline constexpr std::array<Value, 4> kLocationTypes{ {
@@ -251,7 +252,7 @@ namespace SituationRules
 	inline constexpr std::array<Value, 5> kWeathers{ {
 		{ kRain, "rain", "Rain", "rain" },
 		{ kSnow, "snow", "Snow", "snow" },
-		{ kWarmRegion, "warmRegion", "Warm region", "a warm region", "Southern forests such as the Rift and Falkreath." },
+		{ kWarmRegion, "warmRegion", "Warm region", "a warm region", "Southern forests such as the Rift and Falkreath.", true },  // the weather above, the climates below
 		{ kCoolRegion, "coolRegion", "Cool region", "a cool region",
 			"Plains and hills such as Whiterun and the Reach.\nA mod's land too, unless it often snows there." },
 		{ kColdRegion, "coldRegion", "Cold region", "a cold region", "Snowy lands, high mountains, the northern coast and ice caves." },
