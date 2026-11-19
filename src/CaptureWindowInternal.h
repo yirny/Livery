@@ -278,6 +278,15 @@ namespace CaptureWindow::Internal
 		bool                                             spellShowAll = false;
 		std::vector<std::size_t>                         spellShown;
 		std::optional<SituationRules::Spell>             spellPick;
+		// The Edit situation popup's conditions as last handed to Request::onCheckConditions, at
+		// `checkedAt` (ImGui::GetTime() seconds), with the ask's number and whether it was
+		// answered (SetConditionsHeld); the last answer taken: whether each condition is met now,
+		// one per row of the rules it was asked for; empty for none yet.
+		std::vector<SituationRules::Row> checkedRows;
+		double                           checkedAt = 0.0;
+		std::uint32_t                    checkAsk = 0;
+		bool                             checkAnswered = false;
+		std::vector<bool>                conditionsHeld;
 	};
 
 	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), saved as they are

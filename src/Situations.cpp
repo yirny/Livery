@@ -16,8 +16,8 @@
 //   Poll      - a thread queues one SKSE task per interval; the task evaluates every
 //               assigned actor with situation outfits, the player included, and
 //               redresses at most one
-//   API       - Evaluate / PlacesAround / PlaceFacts / SpellsAround / AllSpells / VisibleEffectsOf /
-//               Start / Stop
+//   API       - Evaluate / RowsHold / PlacesAround / PlaceFacts / SpellsAround / AllSpells /
+//               VisibleEffectsOf / Start / Stop
 //
 // The rules the presets are installed with (SituationTable::PresetRules) follow Tailor 3.0's
 // src/events/SituationHandler.cpp and its policy headers (SwimmingPolicy, SleepStatePolicy,
@@ -900,6 +900,17 @@ namespace Situations
 			}
 		}
 		return applicable;
+	}
+
+	std::vector<bool> RowsHold(RE::Actor& a_actor, std::span<const SituationRules::Row> a_rows)
+	{
+		Evaluation        evaluation{ .wearer = { .actor = a_actor } };
+		std::vector<bool> met;
+		met.reserve(a_rows.size());
+		for (const auto& row : a_rows) {
+			met.push_back(RowHolds(row, evaluation));
+		}
+		return met;
 	}
 
 	SituationRules::PlaceChoices PlacesAround(RE::Actor& a_actor)

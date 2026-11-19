@@ -21,8 +21,8 @@ namespace RE
 
 // The "name this outfit" window drawn with ImGui (see CaptureWindow.cpp).
 //
-// Contract: Open, Close, SetError, SetOutfits and RefusePreview run on the game
-// thread; FeedInput and Draw run in the overlay menu's PostDisplay (sarrai-common, Overlay.cpp);
+// Contract: Open, Close, SetError, SetOutfits, SetConditionsHeld and RefusePreview run on the
+// game thread; FeedInput and Draw run in the overlay menu's PostDisplay (sarrai-common, Overlay.cpp);
 // QueueInput runs on the game thread from the input dispatch hook. All state is
 // guarded by one mutex. Nothing here touches the outfit library or the
 // assignments: the Save page's Create and Update hand the outfit (and Create and Apply
@@ -30,7 +30,7 @@ namespace RE
 // Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
 // the Situations page's edits as they are saved, New Situation..., Remove (a situation) and
 // Restore Presets go to Request::onSituationsSave, onSituationCreate, onSituationRemove and
-// onRestorePresets,
+// onRestorePresets, the Edit situation popup's conditions to onCheckConditions,
 // Apply and Restore go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
@@ -335,6 +335,12 @@ namespace CaptureWindow
 		std::function<void(const std::string& name)>         onSituationCreate;
 		std::function<void(Situations::Situation situation)> onSituationRemove;
 		std::function<void()>                                onRestorePresets;
+		// Run on the game thread while the Edit situation popup is open on a situation with
+		// conditions, twice a second and after each edit: whether each of `rows` (its conditions
+		// as edited) is met for the actor now (Situations::RowsHold), handed back to
+		// SetConditionsHeld with `ask`; nothing while the actor is gone. Empty leaves the Applies
+		// text uncoloured.
+		std::function<void(std::uint32_t ask, const std::vector<SituationRules::Row>& rows)> onCheckConditions;
 
 		// Run on the game thread from the Chests page and the chest editor (docs/chest-ui.md):
 		// onChestCreate with the New chest popup's name (an empty chest), onChestUpdate with the
@@ -424,6 +430,10 @@ namespace CaptureWindow
 	void Open(Request request);
 	void Close();
 	void SetError(const std::string& message);
+
+	// Request::onCheckConditions' answer to `ask`: whether each condition is met now, one per
+	// row asked. The Applies text colours its conditions by the answer to the latest ask only.
+	void SetConditionsHeld(std::uint32_t ask, std::vector<bool> held);
 	bool IsOpen();
 
 	// Ends an Apply, a Save page save, or a Wardrobe page or Situations page change the library,

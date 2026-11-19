@@ -91,19 +91,6 @@ Stoneflesh is on"). The place condition ships first.
   the presets become editable in the same way or stay fixed.
 - Verify in game: whether `MagicTarget::HasMagicEffect` skips inactive or dispelled effects, or
   the list must be walked by hand.
-- Colouring each condition in the Applies text (requested 2026-11-18): green (`#B7DA7B`) while it
-  holds now, red while it makes a situation higher in the list never worn, grey otherwise;
-  tooltips `Holds now.` / `Makes {situation} never worn.` / `Does not hold now.`
-  - Green: the window has no live values. `RowHolds` (Situations.cpp) is game-thread only, so the
-    page needs a new path that hands the unsaved rules to the game thread and gets a result
-    per row back, refreshed while the popup is open (weather and time change under it).
-  - Red: `CoveredBy` marks a pair only when every row of the lower situation is implied by
-    a row of the upper one, so on the lower situation every row would be red at once. A
-    per-row colour adds nothing; one line over the Applies text (the reverse of the
-    never-worn text) fits what is known.
-  - Which colour wins when a row is both.
-  - Palette: red is the existing `Error` key; add only `Positive` (sarrai-common, a key left out
-    keeps the skin's colour, so no file needs rewriting).
 
 ## Engine facts (Skyrim.esm, read 2026-11-11)
 
