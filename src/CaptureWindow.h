@@ -28,9 +28,9 @@ namespace RE
 // assignments: the Save page's Create and Update hand the outfit (and Create and Apply
 // the row it is worn for) to Request::onSave, the Wardrobe page's Save and Remove the outfit to
 // Request::onManageUpdate and onManageRemove and its Apply the outfit and a row to onManageApply,
-// the Situations page's edits as they are saved, New Situation..., Remove (a situation) and
-// Restore Presets go to Request::onSituationsSave, onSituationCreate, onSituationRemove and
-// onRestorePresets, the Edit situation popup's conditions to onCheckConditions,
+// the Situations page's edits as they are saved, New Situation..., Duplicate, Remove (a situation)
+// and Restore Presets go to Request::onSituationsSave, onSituationCreate, onSituationDuplicate,
+// onSituationRemove and onRestorePresets, the Edit situation popup's conditions to onCheckConditions,
 // Apply and Restore go to
 // Request::onApply and Request::onRestore, each piece tick to
 // Request::onPieceToggled, each outfit selected on the outfit pages to
@@ -329,15 +329,18 @@ namespace CaptureWindow
 		// docs/custom-situations.md §7): onSituationsSave with the page's edits, shortly after
 		// the last one or as the page is left, or with them and `reroll` as a die is clicked,
 		// onSituationCreate with the New situation popup's name (no conditions; OutfitList::
-		// createdSituation names it), onSituationRemove with the situation Remove Situation's
+		// createdSituation names it), onSituationDuplicate with the situation the Edit situation
+		// popup's Duplicate was pressed on and the copy's name (its conditions, right after it;
+		// createdSituation names it too), onSituationRemove with the situation Remove Situation's
 		// popup confirmed, onRestorePresets after Restore Presets' popup. Each writes
 		// situations.json first, when it has anything to write, and a refused or failed write
 		// changes no row; each must end by calling SetOutfits() or SetError(). Empty greys the
 		// button.
-		std::function<void(const SituationSave& save)>       onSituationsSave;
-		std::function<void(const std::string& name)>         onSituationCreate;
-		std::function<void(Situations::Situation situation)> onSituationRemove;
-		std::function<void()>                                onRestorePresets;
+		std::function<void(const SituationSave& save)>                             onSituationsSave;
+		std::function<void(const std::string& name)>                               onSituationCreate;
+		std::function<void(Situations::Situation source, const std::string& name)> onSituationDuplicate;
+		std::function<void(Situations::Situation situation)>                       onSituationRemove;
+		std::function<void()>                                                      onRestorePresets;
 		// Run on the game thread while the Edit situation popup is open on a situation with
 		// conditions, twice a second and after each edit: whether each of `rows` (its conditions
 		// as edited) is met for the actor now (Situations::RowsHold), handed back to
@@ -425,8 +428,8 @@ namespace CaptureWindow
 		// After the Save page's Create: the new outfit's id, which the Dress page then holds as
 		// its loaded outfit, as Load does; 0 otherwise.
 		std::uint32_t created = 0;
-		// After onSituationCreate: the new situation, which the Situations page then selects
-		// with its details shown; nullopt otherwise.
+		// After onSituationCreate or onSituationDuplicate: the new situation, which the Situations
+		// page then selects with its Edit situation popup open; nullopt otherwise.
 		std::optional<Situations::Situation> createdSituation;
 	};
 

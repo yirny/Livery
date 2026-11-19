@@ -238,19 +238,20 @@ namespace CaptureWindow::Internal
 		// order edited.
 		std::vector<std::vector<std::size_t>> neverWornBy;
 		bool                                  neverWornStale = true;
-		bool                                  defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
-		int                                   selected = -1;             // the one the Edit situation popup and Remove's popup are for: index into entries; -1 for none
-		bool                                  editing = false;           // the Edit situation popup is open, as the page's frame began
-		std::uint32_t                         viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
-		int                                   viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
-		bool                                  scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
-		int                                   nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
-		ImGuiID                               nameField = 0;             // that field's ImGui ID
-		int                                   dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
-		int                                   warningHovered = -1;       // the heading whose never-worn mark is hovered, this frame so far: index into entries; -1 for none
-		double                                dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
-		float                                 outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
-		std::array<char, kNameCapacity>       newName{};                 // the New situation popup's field
+		bool                                  defaultPieces = false;       // the Default keeps its pieces not in the wardrobe
+		int                                   selected = -1;               // the one the Edit situation popup and Remove's popup are for: index into entries; -1 for none
+		bool                                  editing = false;             // the Edit situation popup is open, as the page's frame began
+		bool                                  duplicateAfterSave = false;  // the selected one is duplicated once the running save took
+		std::uint32_t                         viewedOutfit = 0;            // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
+		int                                   viewedRow = -1;              // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
+		bool                                  scrollToSelected = false;    // the Situation List scrolls to the selected heading on its next draw
+		int                                   nameEditing = -1;            // the entry whose name field is active: index into entries; -1 for none
+		ImGuiID                               nameField = 0;               // that field's ImGui ID
+		int                                   dragHover = -1;              // the folded heading a drag hovers: index into entries; -1 for none
+		int                                   warningHovered = -1;         // the heading whose never-worn mark is hovered, this frame so far: index into entries; -1 for none
+		double                                dragHoverSince = 0.0;        // since when, ImGui::GetTime() seconds
+		float                                 outfitPaneHeight = 0.0f;     // the right pane's height with the outfit list, last drawn; the Situation List keeps it
+		std::array<char, kNameCapacity>       newName{};                   // the New situation popup's field
 		// The Place or Spell row the Add place or Add spell popup adds to: index into the selected
 		// entry's rules.rows.
 		int formRow = -1;

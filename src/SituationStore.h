@@ -17,8 +17,8 @@
 // Contract: every function runs on the game thread (SKSE task); the capture window never
 // calls here. Load runs once at kDataLoaded, before the co-save is read (Assignments drops
 // the rows of removed situations there) and before any other function. The table keeps the
-// registry's ids (Situations::AddUser): Load and Create alone add to both; Load and Apply give
-// the registry the table's order (Situations::Reorder).
+// registry's ids (Situations::AddUser): Load, Create and Duplicate alone add to both; they and
+// Apply give the registry the table's order (Situations::Reorder).
 namespace SituationStore
 {
 	// Reads the file and adds its user's situations to the registry. A missing or empty file
@@ -27,7 +27,7 @@ namespace SituationStore
 	// user's situation, and refuses every change, so the file is never overwritten.
 	void Load();
 
-	// Contract: the reference goes stale at the next Apply, Remove or RestorePresets.
+	// Contract: the reference goes stale at the next Apply, Create, Duplicate, Remove or RestorePresets.
 	const std::string& Name(Situations::Situation a_situation);
 
 	// " for Town" for the end of a sentence that says what is worn for it; "" for the Default.
@@ -42,7 +42,7 @@ namespace SituationStore
 
 	// A situation's rules, a preset's or a user's; nullptr for the Default. Situations::Evaluate
 	// reads them on the poll.
-	// Contract: the pointer goes stale at the next Apply, Create, Remove or RestorePresets.
+	// Contract: the pointer goes stale at the next Apply, Create, Duplicate, Remove or RestorePresets.
 	const SituationRules::Rules* RulesOf(Situations::Situation a_situation);
 
 	// A situation's name, and its rules, as the user leaves them.
@@ -67,6 +67,13 @@ namespace SituationStore
 	// (Situations::kMaxSituations, removed ones included until the game is closed), or a file
 	// it cannot write.
 	std::optional<std::string> Create(const std::string& a_name, Situations::Situation& a_created);
+
+	// Makes a user's situation named `a_name` with the rules of `a_source` (its conditions and
+	// Allow during combat; no outfit: rows are the co-save's), right after it in the order, so it
+	// wins over it; writes the file, then adds it to the registry as `a_created`. Returns why it
+	// refused, having changed nothing: as Create, or the Default or a removed situation as the
+	// source.
+	std::optional<std::string> Duplicate(Situations::Situation a_source, const std::string& a_name, Situations::Situation& a_created);
 
 	// Removes the situation and writes the file; a user's situation leaves the file for good.
 	// Its rows in this save are the caller's (Assignments::ForgetSituation, after this write

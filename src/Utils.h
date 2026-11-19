@@ -53,6 +53,31 @@ namespace ExampleMod
 		return part.empty() || !std::ranges::search(text, part, equal).empty();
 	}
 
+	// A copy's name as Windows names one: "<name> - Copy", else "<name> - Copy 2", "- Copy 3", ...,
+	// the first for which `taken` is false, in `maxBytes` bytes of UTF-8 at most: a long name is
+	// cut short, at a character's start, to keep the ending whole.
+	// Contract: `taken` is false for some name sooner or later, or this never returns.
+	template <class Taken>
+	[[nodiscard]] std::string CopyName(std::string_view name, std::size_t maxBytes, Taken&& taken)
+	{
+		const auto base = TrimWhitespace(name);
+		for (int number = 1;; ++number) {
+			const auto ending = number == 1 ? std::string(" - Copy") : std::format(" - Copy {}", number);
+			auto       kept = base;
+			if (kept.size() + ending.size() > maxBytes) {
+				auto cut = maxBytes > ending.size() ? maxBytes - ending.size() : 0;
+				while (cut > 0 && (static_cast<unsigned char>(kept[cut]) & 0xC0) == 0x80) {  // a UTF-8 continuation byte
+					--cut;
+				}
+				kept = TrimWhitespace(kept.substr(0, cut));
+			}
+			auto copy = std::string(kept) + ending;
+			if (!taken(copy)) {
+				return copy;
+			}
+		}
+	}
+
 	// Sanitises a (typically config-sourced) float: returns `defaultVal` when `value` is
 	// non-finite or below `minVal`, clamps to `maxVal` when above, otherwise returns `value`.
 	// Precondition: minVal <= defaultVal <= maxVal — these are caller-supplied bounds

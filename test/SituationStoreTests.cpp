@@ -317,6 +317,26 @@ TEST_CASE("User keys are user: and a number from 1", "[situations]")
 	CHECK_FALSE(SituationTable::UserKeyNumber("Town"));
 }
 
+TEST_CASE("A user's situation is added under the next key, last or right after its source", "[situations]")
+{
+	auto table = SituationTable::Presets();
+	table.nextKey = 3;
+	const auto first = static_cast<Situation>(Situations::kPresetCount);
+	CHECK(SituationTable::AddUserEntry(table, "Night", {}) == "user:3");
+	CHECK(table.order.back() == first);
+
+	CHECK(SituationTable::AddUserEntry(table, "Town - Copy", SituationTable::PresetRules(Situation::kTown), Situation::kTown) == "user:4");
+	const auto copy = static_cast<Situation>(Situations::kPresetCount + 1);
+	REQUIRE(table.size() == Situations::kPresetCount + 2);
+	CHECK(table[IndexOf(copy)].rules == SituationTable::PresetRules(Situation::kTown));
+	CHECK(table.nextKey == 5);
+	const auto town = std::ranges::find(table.order, Situation::kTown);
+	REQUIRE(town + 1 != table.order.end());
+	CHECK(*(town + 1) == copy);
+	CHECK(table.order.back() == first);
+	CHECK(table.order.size() + 1 == table.size());
+}
+
 TEST_CASE("Serialize writes version 1 until a user's situation is made, then version 2, and Parse reads it back", "[situations]")
 {
 	auto table = SituationTable::Presets();
