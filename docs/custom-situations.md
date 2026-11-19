@@ -330,20 +330,30 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   opens on the location, or on the cell when they are outside any. Add is greyed for a place
   the row has already.
 - `Add Spell...` opens the `Add spell` popup, its width set before it begins (18 font sizes,
-  or the first line's when wider), since its list runs into the window's padding in Vanilla and
-  Nordic and a popup fitted to its content would grow by that at every frame:
-  `Add a spell to look for on <name>.`, a search
-  field (`Search by name`, ASCII case ignored, as the outfit search), `Show all spells`, and a
+  or the first line's or the checkboxes' row's when wider), since its list runs into the window's
+  padding in Vanilla and Nordic and a popup fitted to its content would grow by that at every frame:
+  `Add a spell to look for on <name>.` (`on you.` for a row whose target is `Player` in another
+  actor's window), a search field (`Search by name`, ASCII case ignored, as the outfit search),
+  `Show all spells` and, right of it in another actor's window, `Show player spells` (greyed
+  while Show all spells is ticked; both unticked at each open), and a
   list ten rows tall of the spells whose name holds the search, a click picking one. Hovering a
   spell there or on the row shows its plugin and FormID, then its visible effects a line each,
   `- <name> (<editor ID>)`, the editor ID only when the game keeps one (it does not by itself;
-  a mod such as powerofthree's Tweaks loads them). Off, the list is the actor's
-  (`Situations::SpellsAround`, read as the window opens): the spells, powers and shouts they
+  a mod such as powerofthree's Tweaks loads them). Both off, the list is the actor's
+  (`Situations::SpellsAround`, read as the window opens); with Show player spells, the actor's
+  and the player's together, by name, merged as below (read as the window opens too). An actor's
+  spells are the spells, powers and shouts they
   cast, learned (`addedSpells`) or of their NPC record and race (`actorEffects`, a shout by its
-  words' spells), those with a visible effect delivered to themselves only (Flames or a Conjure
-  never puts one on them; diseases, poisons and others' spells, which do, come through `Show all
-  spells` or while they act), and the items behind the visible effects on them now (an ability, a disease
-  or a potion only while it acts). On, every `SpellItem`, `AlchemyItem`, `ScrollItem` and
+  words' spells), that can leave a visible effect on someone: one delivered to themselves, or
+  one for others whose visible effects are all neither hostile nor detrimental and none of an
+  archetype that stays on the caster or lands on no living target (summon, reanimate, stagger,
+  telekinesis, command summoned, banish, werewolf feed, spawn hazard, spawn scripted ref, grab
+  actor). Of the spell tomes of Skyrim and its DLCs, that adds Calm, Courage, Heal Other, Heal
+  Undead, Healing Hands, Magelight (its light follows the actor it hits, as an effect on them),
+  Necromantic Healing, Pacify and Rally; Flames, Fury, Turn Undead or a Conjure stay out (diseases,
+  poisons and enemies' spells come through `Show all spells` or while they act). Then the items
+  behind the visible effects on them now (an ability, a disease
+  or a potion only while it acts). Show all spells on, every `SpellItem`, `AlchemyItem`, `ScrollItem` and
   `IngredientItem` of the loaded plugins (`Situations::AllSpells`, built at the first open and
   kept until the game closes), listed only once something is typed (`Type to search.`). Both
   leave out what has no name or no visible effect, enchantments, and forms made in game; both

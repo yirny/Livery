@@ -237,8 +237,9 @@ namespace Situations
 	SituationRules::PlaceChoices PlacesAround(RE::Actor& a_actor);
 
 	// The spells the Add spell popup offers for `a_actor`: the spells, powers and shouts they
-	// cast with an effect on themselves (learned, and of their NPC record and race, a shout by
-	// its words) and the items behind the visible effects on them now; each with a name and a
+	// cast with an effect on themselves or a friendly one on others (learned, and of their NPC
+	// record and race, a shout by its words) and the items behind the visible effects on them
+	// now; each with a name and a
 	// visible effect, by name, one of each with the same name and effects
 	// (SituationRules::MergeSameSpells). Read as the window opens.
 	// Contract: game thread.
