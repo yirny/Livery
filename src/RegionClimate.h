@@ -5,7 +5,7 @@
 //   Forms     - the regions its conditions name, the worldspaces it counts as indoors or leaves
 //               out, its ice caves; by plugin and local form ID
 //   Areas     - the five areas of its region spell
-//   Climate   - Weather's Warm, Cool and Cold region (SituationRules) of a place
+//   Climate   - Weather's Warm, Cool and Freezing region (SituationRules) of a place
 //
 // The climate of a place as Survival Mode classes it: the conditions on the effects of
 // Survival_RegionInfoSpell (ccQDRSSE001-SurvivalMode.esl, 00087F), the order of
@@ -231,7 +231,7 @@ namespace RegionClimate
 		kNone,  // indoors, or in another plane
 		kWarm,
 		kCool,
-		kCold
+		kFreezing
 	};
 
 	// Where the place is, as Survival Mode tells it before its regions.
@@ -243,20 +243,20 @@ namespace RegionClimate
 		kOtherworld,  // a worldspace of kOtherworlds
 	};
 
-	// Indoors none but an ice cave, which is cold. Outdoors Survival Mode's order: the two
+	// Indoors none but an ice cave, which is freezing. Outdoors Survival Mode's order: the two
 	// mountain areas, then warm, cool, freezing; a place in none of its areas, as a mod's land
-	// is, cold when `a_snowy` (a region of its cell often has snow) and cool otherwise.
+	// is, freezing when `a_snowy` (a region of its cell often has snow) and cool otherwise.
 	[[nodiscard]] inline Climate ClimateOf(Setting a_setting, const Regions& a_regions, float a_height, bool a_snowy)
 	{
 		if (a_setting == Setting::kIceCave) {
-			return Climate::kCold;
+			return Climate::kFreezing;
 		}
 		if (a_setting != Setting::kOutdoors) {
 			return Climate::kNone;
 		}
 		const auto areas = AreasOf(a_regions, a_height);
 		if (areas.southForestFreezing || areas.fallForestFreezing) {
-			return Climate::kCold;
+			return Climate::kFreezing;
 		}
 		if (areas.warm) {
 			return Climate::kWarm;
@@ -265,8 +265,8 @@ namespace RegionClimate
 			return Climate::kCool;
 		}
 		if (areas.freezing) {
-			return Climate::kCold;
+			return Climate::kFreezing;
 		}
-		return a_snowy ? Climate::kCold : Climate::kCool;
+		return a_snowy ? Climate::kFreezing : Climate::kCool;
 	}
 }

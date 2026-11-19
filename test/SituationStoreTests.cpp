@@ -169,8 +169,8 @@ TEST_CASE("The presets are installed with their rules, Allow during combat off",
 	const auto cold = SituationTable::PresetRules(Situation::kCold);
 	REQUIRE(cold.rows.size() == 1);
 	CHECK(cold.rows[0].kind == Kind::kWeather);
-	CHECK(cold.rows[0].values == (SituationRules::kSnow | SituationRules::kColdRegion));
-	CHECK(SituationRules::Text(cold) == "In snow or a cold region.");
+	CHECK(cold.rows[0].values == (SituationRules::kSnow | SituationRules::kFreezingRegion));
+	CHECK(SituationRules::Text(cold) == "In snow or a freezing region.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kTown)) == "In a town.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kHome)) == "In a player home.");
 	CHECK(SituationRules::Text(SituationTable::PresetRules(Situation::kSleep)) == "Sleeping.");

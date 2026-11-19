@@ -12,7 +12,7 @@ Ticking Rain would untick Snow, and a region the other regions.
 
 - Values in a row are OR-ed, so two values that never hold together never conflict: `Rain,
   Snow` reads "in rain or snow".
-- It removes rows that are useful today: Rain or Snow (a hood in bad weather); Cool or Cold
+- It removes rows that are useful today: Rain or Snow (a hood in bad weather); Cool or Freezing
   region ("not Warm region" is no substitute, it holds indoors too). Rows are AND-ed, so two
   rows cannot stand in; it would take two situations with the same outfit.
 - A saved `["rain", "snow"]` row would need a rule on load.
@@ -23,7 +23,7 @@ Ticking Rain would untick Snow, and a region the other regions.
 A third operator: the row holds when every selected value holds.
 
 - It adds nothing that cannot be written: two rows of the same kind are AND-ed already
-  (`The weather is Rain` + `The weather is Cold region` = rain in a cold region).
+  (`The weather is Rain` + `The weather is Freezing region` = rain in a freezing region).
 - Most combinations never hold:
   - Weather: only one of Rain / Snow with one region; Rain + Snow and two regions never.
   - Location type: Town + Player home at most.
@@ -37,10 +37,10 @@ A third operator: the row holds when every selected value holds.
 ## Weather and Climate as two kinds
 
 Rain / Snow (the sky now, outdoors only) and the regions (the climate, whatever the weather)
-as separate condition kinds, so a row of each is AND-ed and Rain + Cold region cannot be misread
-as "rain in a cold region".
+as separate condition kinds, so a row of each is AND-ed and Rain + Freezing region cannot be misread
+as "rain in a freezing region".
 
-- The Cold preset (`Snow, Cold region`, `SituationTable::PresetRules`) could no longer be one
+- The Cold preset (`Snow, Freezing region`, `SituationTable::PresetRules`) could no longer be one
   situation.
 - situations.json's `weather` rows would need splitting on load.
 - Taken instead: a rule between the two groups in Weather's dropdown (`Value::ruleAbove`).

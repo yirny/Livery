@@ -386,7 +386,7 @@ namespace
 			(((a_values & SituationRules::kRain) && WeatherHas(Flag::kRainy)) || ((a_values & SituationRules::kSnow) && WeatherHas(Flag::kSnow)))) {
 			return true;
 		}
-		if ((a_values & (SituationRules::kWarmRegion | SituationRules::kCoolRegion | SituationRules::kColdRegion)) == 0) {
+		if ((a_values & (SituationRules::kWarmRegion | SituationRules::kCoolRegion | SituationRules::kFreezingRegion)) == 0) {
 			return false;
 		}
 		switch (ClimateAround(a_player.actor, a_player.Location())) {
@@ -394,8 +394,8 @@ namespace
 			return (a_values & SituationRules::kWarmRegion) != 0;
 		case Climate::kCool:
 			return (a_values & SituationRules::kCoolRegion) != 0;
-		case Climate::kCold:
-			return (a_values & SituationRules::kColdRegion) != 0;
+		case Climate::kFreezing:
+			return (a_values & SituationRules::kFreezingRegion) != 0;
 		default:
 			return false;
 		}
