@@ -306,7 +306,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   Location type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying
   open for several ticks; a value with a tip, `Value::tip`, says it while hovered: Cold region's
   `Snowy lands, high mountains, the northern coast and ice caves.`) whose preview lists the ticked values, `Rain,
-  Snow`, or a greyed `Select...` with none; Swimming's a single choice (`SituationRules::OneValue`,
+  Snow`, or a greyed `Select...` with none; Weather's has a rule between Rain / Snow and the
+  regions (`Value::ruleAbove`), the weather now apart from the climate; Swimming's a single choice (`SituationRules::OneValue`,
   `[Lydia] [is] [In water]`, the operator `is` / `is not` alone), closed by it, its tips `Any
   water underfoot, however shallow.` and `Swimming only, not wading.`; Time of day's are
   `[time] and [time]`, two dropdowns

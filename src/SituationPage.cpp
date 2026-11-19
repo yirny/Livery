@@ -888,8 +888,9 @@ namespace CaptureWindow::Internal
 
 		// The values of `a_row`'s kind as a multi-choice dropdown, the ticked ones its preview
 		// ("Rain, Snow"), a greyed Select... with none; a single choice, closed by it, for a kind
-		// whose rows take one (SituationRules::OneValue). `a_width` is the room it takes. Returns
-		// true when one was ticked, unticked or chosen.
+		// whose rows take one (SituationRules::OneValue); a rule between groups of values
+		// (Value::ruleAbove). `a_width` is the room it takes. Returns true when one was ticked,
+		// unticked or chosen.
 		bool DrawValuesDropdown(SituationRules::Row& a_row, float a_width)
 		{
 			constexpr const char* kSelect = "Select...";
@@ -908,6 +909,9 @@ namespace CaptureWindow::Internal
 			bool       changed = false;
 			if (open) {
 				for (const auto& value : values) {
+					if (value.ruleAbove) {
+						ImGui::Separator();
+					}
 					bool ticked = (a_row.values & value.bit) != 0;
 					if (Theme::DropdownRow(value.label, &ticked, !one)) {  // ticks keep it open for more
 						changed = one ? a_row.values != value.bit : true;
