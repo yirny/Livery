@@ -652,10 +652,11 @@ namespace CaptureWindow::Internal
 	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, bool a_draggable = false);
 
 	// One outfit of a list, `a_index` into request.existingOutfits, with its marks (the star of
-	// one chosen for a situation only with `a_situationMark`); `a_grip` places the drag grip.
-	// Returns true when clicked.
+	// one chosen for a situation only with `a_situationMark`; on the Situations page the warning of
+	// items the player would not get, less `a_excluded`, the row's left off); `a_grip` places the
+	// drag grip. Returns true when clicked.
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped,
-		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
+		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true, const std::vector<std::uint32_t>* a_excluded = nullptr);
 
 	// Outfit `a_index` (into request.existingOutfits) in the Wardrobe page's order: its name as
 	// a one-row list whose grip drags a copy of it (OfferOutfitDrag; the Situations page only),

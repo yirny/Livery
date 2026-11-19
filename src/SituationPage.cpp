@@ -548,7 +548,8 @@ namespace CaptureWindow::Internal
 				const float top = ImGui::GetCursorScreenPos().y;
 				// No star: every row here is one chosen for a situation.
 				const bool viewed = form.viewedOutfit == shown[k] && form.viewedRow == static_cast<int>(a_entry);
-				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, viewed, k % 2 == 1, Theme::Grip::kName, false)) {
+				const auto excluded = OutfitRows::ExcludedOf(form.entries[a_entry].row, shown[k]);
+				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, viewed, k % 2 == 1, Theme::Grip::kName, false, &excluded)) {
 					QueueMenuSound(kFocusSound);
 					ViewOutfit(a_state, index, static_cast<int>(a_entry));
 				}

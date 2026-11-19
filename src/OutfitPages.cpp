@@ -199,12 +199,29 @@ namespace CaptureWindow::Internal
 		return FittedListHeight((std::max)(rows, rowHeight), rowHeight, countLine);
 	}
 
+	// Whether the player, dressing from their inventory only, would go without one of the items
+	// `a_pieces` puts on, less `a_excluded` (none for nullptr) as dressing leaves them off
+	// (FadesNotCarried).
+	bool MissesCarried(const State& a_state, const std::vector<std::size_t>& a_pieces, const std::vector<std::uint32_t>* a_excluded)
+	{
+		if (!a_state.request.carriedOnly) {
+			return false;
+		}
+		const auto misses = [&a_state](std::size_t a_piece) { return FadesNotCarried(a_state, a_piece); };
+		return a_excluded && !a_excluded->empty() ? std::ranges::any_of(WornOf(a_state, a_pieces, *a_excluded), misses) : std::ranges::any_of(a_pieces, misses);
+	}
+
 	// One outfit of the list: its name, and at its right end the marks of the outfit the actor
 	// wears now or has as their Default and of one chosen for a situation (Theme::OutfitMarks), the last with `a_situationMark` only;
 	// `a_striped` for every second row; with none of its items loaded, kNoLoadedPiece on hover.
+	// On the Situations page, a warning mark while the player would go without one of its items
+	// (MissesCarried, less `a_excluded`).
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped, Theme::Grip a_grip,
-		bool a_situationMark)
+		bool a_situationMark, const std::vector<std::uint32_t>* a_excluded)
 	{
+		constexpr const char* kNotCarriedMark =
+			"Some items in this outfit aren't in your inventory.\nWith \"Dress yourself from inventory only\" on, they won't be equipped.";
+
 		const auto& outfit = OutfitAt(a_state, a_index);
 		// On the Situations page the Default and situation marks follow the page's unsaved rows
 		// and names; the current mark is what the actor wears, so it stays the request's.
@@ -218,7 +235,8 @@ namespace CaptureWindow::Internal
 		}
 		const Theme::OutfitMarks marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
 			.defaultOutfit = edited ? OutfitRows::Holds(entries[0].row, outfit.id) : HoldsOutfit(a_state, 0, outfit.id),
-			.situations = a_situationMark && !situations->empty() ? situations->c_str() : nullptr };
+			.situations = a_situationMark && !situations->empty() ? situations->c_str() : nullptr,
+			.warning = a_state.page == Page::kSituations && MissesCarried(a_state, outfit.pieces, a_excluded) ? kNotCarriedMark : nullptr };
 		const auto               icon = RowIconOf(outfit.icon);
 		const bool               clicked = Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &icon);
 		// An outfit none of whose items is loaded stays on its rows and drags as any other; its

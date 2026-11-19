@@ -187,6 +187,12 @@ outfit for Town any more`.
   only. A row that wears nothing shows nothing under its heading; the Default wearing its
   `pieces` shows a `Items not in the Wardrobe` line with no grip; an id the library no longer
   has (another save's) shows nothing (§1).
+- While the player dresses from their inventory only (`Request::carriedOnly`), an outfit row
+  here, in the right pane's outfit list or as the name row of its details carries a warning mark
+  nearest the name (`OutfitMarks::warning`, in the error colour) while one of its items is
+  `PieceGroup::kNotCarried`: here only those the row puts on (the items it leaves off out),
+  elsewhere any. Its tooltip: `Some items in this outfit aren't in your inventory.` and `With
+  "Dress yourself from inventory only" on, they won't be equipped.`, a line each.
 - A click on an outfit row, here or in the right pane's outfit list, shows the outfit's
   details in the right pane (§5) and puts it on the preview; a click on the outfit whose
   details show goes back, as Back does. Its rows in both panes show as selected meanwhile
