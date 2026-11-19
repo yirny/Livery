@@ -97,6 +97,8 @@ namespace CaptureWindow::Internal
 		constexpr const char* kSituationPayload = "LiverySituation";
 		// Under the Default's heading, over the order.
 		constexpr const char* kOrderCaption = "The lowest that applies is worn.";
+		// The help of `Applies` and of the editor's `Conditions`: one text, read in either column.
+		constexpr const char* kConditionsHelp = "Applies while every condition is met.\nA condition with several values is met by any of them.";
 
 		// --- Edits ------------------------------------------------------------
 
@@ -1611,7 +1613,7 @@ namespace CaptureWindow::Internal
 			int        clicked = -1;
 			const bool editable = !isDefault && a_state.request.customSituations;
 			if (!isDefault && Theme::LabelHelpMark()) {
-				DrawHelpTooltip("Applies while every condition is met.\nA condition with several values is met by any of them.");
+				DrawHelpTooltip(kConditionsHelp);
 			}
 			if (!editable) {
 				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -2303,14 +2305,17 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// The Edit situation popup's right column: `Conditions` over the condition editor
-		// (DrawConditionEditor) in an area that scrolls to keep the whole popup within
+		// The Edit situation popup's right column: `Conditions` (with the Applies help) over the
+		// condition editor (DrawConditionEditor) in an area that scrolls to keep the whole popup within
 		// kMaxWindowHeightRatio of the screen. Returns the area's height as shown; sets
 		// `a_addForm` as DrawConditionEditor does.
 		float DrawConditionsColumn(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
 		{
 			auto& form = a_state.situationForm;
 			Theme::LabelText("Conditions");
+			if (Theme::LabelHelpMark()) {
+				DrawHelpTooltip(kConditionsHelp);
+			}
 			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - form.editorOtherHeight;
 			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
 				if (DrawConditionEditor(a_state, a_rules, a_addForm)) {

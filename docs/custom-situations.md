@@ -277,11 +277,11 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   for every situation but the Default, it has two columns with the pages' gap and rule
   (`BeginColumns` with a first column's width): the situation's settings on the left, as wide
   as the page's right pane, and on the right, as wide as the widest row any kind can have
-  (`EditorContentWidth`), so only a Place or Spell row's list goes under its row, `Conditions` (no
-  help) over the editor in an area as tall as it while the whole popup stays within 90% of the
-  screen's height (`kMaxWindowHeightRatio`; the rest of the popup measured the frame before),
-  scrolling past that with the skin's scroll bar in the window's right padding, the boxes as
-  wide with the bar as without (`Theme::BeginScrollArea`). Off, and for the Default, the left
+  (`EditorContentWidth`), so only a Place or Spell row's list goes under its row, `Conditions`
+  (with the `Applies` help, `kConditionsHelp`) over the editor in an area as tall as it while
+  the whole popup stays within 90% of the screen's height (`kMaxWindowHeightRatio`; the rest
+  of the popup measured the frame before), scrolling past that with the skin's scroll bar in
+  the window's right padding, the boxes as wide with the bar as without (`Theme::BeginScrollArea`). Off, and for the Default, the left
   column alone, as wide as the right pane. The Add location and Add spell popups open over it.
   It stays hidden a frame longer than ImGui's own, so its first opening is centred at its full
   height.
