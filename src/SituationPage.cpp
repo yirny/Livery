@@ -1040,7 +1040,7 @@ namespace CaptureWindow::Internal
 				       (!a_spell.effects.empty() && spell.effects == a_spell.effects && ExampleMod::CaseInsensitiveEqual(spell.ref.name, a_spell.ref.name));
 			};
 			using Choices = std::span<const SituationRules::SpellChoice>;
-			for (const Choices list : { Choices(a_request.spells), Choices(a_request.playerSpells), a_request.allSpells }) {
+			for (const Choices list : { Choices(a_request.spellsWithPlayer), Choices(a_request.spells), a_request.allSpells }) {
 				if (const auto found = std::ranges::find_if(list, same); found != list.end()) {
 					return found->effectLines;
 				}
@@ -1880,22 +1880,23 @@ namespace CaptureWindow::Internal
 		}
 
 		// The Add spell popup's row checks the player (SituationRules::Target::kPlayer) in another
-		// actor's window, so it lists and speaks of the player's spells, not the actor's.
-		bool SpellsOfPlayer(State& a_state)
+		// actor's window, so its first line speaks of you.
+		bool ChecksPlayer(State& a_state)
 		{
 			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
 			return row && row->target == SituationRules::Target::kPlayer && !a_state.request.actorIsPlayer;
 		}
 
-		// What the Add spell popup lists from: the actor's spells, the player's (SpellsOfPlayer),
-		// or with Show all spells every one.
-		std::span<const SituationRules::SpellChoice> OfferedSpells(State& a_state)
+		// What the Add spell popup lists from: the actor's spells, with Show player spells those and
+		// the player's, or with Show all spells every one.
+		std::span<const SituationRules::SpellChoice> OfferedSpells(const State& a_state)
 		{
+			const auto& form = a_state.situationForm;
 			const auto& request = a_state.request;
-			if (a_state.situationForm.spellShowAll) {
+			if (form.spellShowAll) {
 				return request.allSpells;
 			}
-			return SpellsOfPlayer(a_state) ? request.playerSpells : request.spells;
+			return form.spellShowPlayer && !request.actorIsPlayer ? request.spellsWithPlayer : request.spells;
 		}
 
 		// The spells the Add spell popup lists (SituationForm::spellShown): those offered whose name
@@ -1918,7 +1919,7 @@ namespace CaptureWindow::Internal
 
 		// Opens the popup of the row SituationForm::formRow names: Add place on its first choice
 		// (This Location, or This Cell outside any location), or Add spell on the actor's spells
-		// (the player's, SpellsOfPlayer) with nothing typed or picked.
+		// with nothing typed or picked.
 		// Contract: inside the Edit situation popup, as the popups are drawn there
 		// (DrawAddFormPopups).
 		void OpenAddFormPopup(State& a_state)
@@ -1930,6 +1931,7 @@ namespace CaptureWindow::Internal
 			} else if (FormRow(a_state, SituationRules::Kind::kSpell)) {
 				form.spellSearch.fill('\0');
 				form.spellShowAll = false;
+				form.spellShowPlayer = false;
 				form.spellPick.reset();
 				RefreshSpellList(a_state);
 				a_state.focusNameField = true;  // the search field
@@ -2079,37 +2081,79 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// The Add spell popup (docs/custom-situations.md §7): the search, Show all spells, the
-		// spells that match; Add, greyed with none picked or one the row has already, / Cancel
-		// (Escape, unless it clears the search). Returns the spell to add on Add.
+		// The Add spell popup's Show player spells, right of Show all spells and greyed while it is
+		// ticked; not drawn in the player's own window. Returns true when ticked or unticked.
+		bool DrawShowPlayerSpells(State& a_state, const char* a_label)
+		{
+			auto& form = a_state.situationForm;
+			ImGui::SameLine();
+			ImGui::BeginDisabled(form.spellShowAll);
+			const bool changed = Theme::Checkbox(a_label, &form.spellShowPlayer);
+			bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			ImGui::EndDisabled();
+			if (form.spellShowAll && FocusStandIn(a_label)) {
+				hovered = true;
+			}
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (hovered) {
+				Theme::Tooltip("Also lists spells you know and those currently affecting you.");
+			}
+			return changed;
+		}
+
+		// The Add spell popup (docs/custom-situations.md §7): the search, Show all spells and Show
+		// player spells, the spells that match; Add, greyed with none picked or one the row has
+		// already, / Cancel (Escape, unless it clears the search). Returns the spell to add on Add.
 		std::optional<SituationRules::Spell> DrawAddSpellPopup(State& a_state)
 		{
-			constexpr float kWidthInFonts = 18.0f;  // the popup's content width, in font sizes
+			constexpr float       kWidthInFonts = 18.0f;  // the popup's content width, in font sizes
+			constexpr const char* kShowAll = "Show all spells";
+			constexpr const char* kShowPlayer = "Show player spells";
 
 			auto&       form = a_state.situationForm;
 			const auto& name = a_state.request.actorName;
-			const bool  ofPlayer = SpellsOfPlayer(a_state);
-			const auto  lead = ofPlayer ? std::string{ "Add a spell to look for on you." } : std::format("Add a spell to look for on {}.", name);
-			// The width is set before the popup begins, the line above widening it: the list runs
-			// past the content into the window's padding in Vanilla and Nordic (Theme::BeginList),
-			// which a popup fitted to its content would take in and grow by at every frame.
-			const float width = (std::max)(ImGui::CalcTextSize(lead.c_str()).x, ImGui::GetFontSize() * kWidthInFonts);
-			const float windowWidth = width + ImGui::GetStyle().WindowPadding.x * 2.0f;
+			const bool  showPlayer = !a_state.request.actorIsPlayer;
+			const auto  lead = ChecksPlayer(a_state) ? std::string{ "Add a spell to look for on you." } : std::format("Add a spell to look for on {}.", name);
+			// The width is set before the popup begins, the line above and the checkboxes widening
+			// it: the list runs past the content into the window's padding in Vanilla and Nordic
+			// (Theme::BeginList), which a popup fitted to its content would take in and grow by at
+			// every frame. The checkboxes' row is as last drawn, or before that guessed with each
+			// box a frame height wide (the skins draw it at most about that).
+			const auto& style = ImGui::GetStyle();
+			float       options = form.spellOptionsWidth;
+			if (options <= 0.0f) {
+				for (const char* label : { kShowAll, kShowPlayer }) {
+					options += ImGui::GetFrameHeight() + style.ItemInnerSpacing.x + ImGui::CalcTextSize(label).x;
+				}
+				options += style.ItemSpacing.x;
+			}
+			const float width = (std::max)({ ImGui::CalcTextSize(lead.c_str()).x, ImGui::GetFontSize() * kWidthInFonts, showPlayer ? options : 0.0f });
+			const float windowWidth = width + style.WindowPadding.x * 2.0f;
 			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
 			if (!BeginModal(kAddSpellPopup)) {
 				return std::nullopt;
 			}
 			ImGui::TextUnformatted(lead.c_str());
-			bool escapeTaken = false;
-			bool changed = DrawSpellSearch(a_state, width, escapeTaken);
-			if (Theme::Checkbox("Show all spells", &form.spellShowAll)) {
+			bool        escapeTaken = false;
+			bool        changed = DrawSpellSearch(a_state, width, escapeTaken);
+			const float rowLeft = ImGui::GetCursorScreenPos().x;
+			if (Theme::Checkbox(kShowAll, &form.spellShowAll)) {
 				QueueMenuSound(kFocusSound);
 				changed = true;
 			}
 			if (ImGui::IsItemHovered()) {
-				const auto off = ofPlayer ? std::string{ "Spells you know and those currently affecting you." } :
-				                            std::format("Spells known by {} and those currently affecting them.", name);
-				Theme::Tooltip(std::format("All spells, powers, potions and scrolls, including those added by mods.\n\nOff: {}", off).c_str());
+				Theme::Tooltip(std::format(
+					"All spells, powers, potions and scrolls, including those added by mods.\n\n"
+					"Off: Spells known by {} and those currently affecting them.",
+					name)
+						.c_str());
+			}
+			if (showPlayer) {
+				if (DrawShowPlayerSpells(a_state, kShowPlayer)) {
+					QueueMenuSound(kFocusSound);
+					changed = true;
+				}
+				form.spellOptionsWidth = ImGui::GetItemRectMax().x - rowLeft;
 			}
 			if (changed) {
 				form.spellPick.reset();

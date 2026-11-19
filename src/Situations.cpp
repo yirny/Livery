@@ -737,25 +737,43 @@ namespace
 		}
 	}
 
-	// A spell, power or shout's word the actor can cast or use at will, with a visible effect
-	// delivered to themselves: one that only lands on others (Flames, a Conjure) never puts an
-	// effect on them. Abilities, diseases and the rest are offered only while one of their
+	// A spell, power or shout's word the actor can cast or use at will that can leave a visible
+	// effect on someone: one delivered to themselves, or one for others whose visible effects are
+	// all friendly (Healing Hands, Courage, Magelight), so a Spell Effect row checking whoever it
+	// lands on can use it. Left out: attacks (any hostile or detrimental effect: Flames, Fury),
+	// and those whose effect stays on the caster or lands on no living target (a Conjure, a
+	// Reanimate, a push). Abilities, diseases and the rest are offered only while one of their
 	// effects is on them.
-	bool IsCastOnSelf(const RE::MagicItem& a_item)
+	bool IsOfferedCast(const RE::MagicItem& a_item)
 	{
 		using Type = RE::MagicSystem::SpellType;
+		using Archetype = RE::EffectArchetype;
+		constexpr std::array kNoTargetEffect{ Archetype::kSummonCreature, Archetype::kReanimate, Archetype::kStagger,
+			Archetype::kTelekinesis, Archetype::kCommandSummoned, Archetype::kBanish, Archetype::kWerewolfFeed,
+			Archetype::kSpawnHazard, Archetype::kSpawnScriptedRef, Archetype::kGrabActor };
+
 		const auto type = a_item.GetSpellType();
 		if (type != Type::kSpell && type != Type::kPower && type != Type::kLesserPower && type != Type::kVoicePower) {
 			return false;
 		}
-		return std::ranges::any_of(a_item.effects, [](const RE::Effect* a_effect) {
-			const auto* base = a_effect ? a_effect->baseEffect : nullptr;
-			return IsVisible(base) && base->data.delivery == RE::MagicSystem::Delivery::kSelf;
-		});
+		bool onSelf = false;
+		bool friendly = true;
+		bool anyVisible = false;
+		for (const auto* effect : a_item.effects) {
+			const auto* base = effect ? effect->baseEffect : nullptr;
+			if (!IsVisible(base)) {
+				continue;
+			}
+			anyVisible = true;
+			onSelf = onSelf || base->data.delivery == RE::MagicSystem::Delivery::kSelf;
+			friendly = friendly && !base->IsHostile() && !base->IsDetrimental() &&
+			           std::ranges::find(kNoTargetEffect, base->GetArchetype()) == kNoTargetEffect.end();
+		}
+		return onSelf || (anyVisible && friendly);
 	}
 
-	// The spells of an NPC record's or a race's spell list that are cast on themselves
-	// (IsCastOnSelf), a shout by the spells of its words.
+	// The spells of an NPC record's or a race's spell list that IsOfferedCast takes, a shout by
+	// the spells of its words.
 	void AddCastSpells(const RE::TESSpellList* a_list, std::vector<SituationRules::SpellChoice>& a_choices)
 	{
 		const auto* data = a_list ? a_list->actorEffects : nullptr;
@@ -763,14 +781,14 @@ namespace
 			return;
 		}
 		for (std::uint32_t i = 0; data->spells && i < data->numSpells; ++i) {
-			if (const auto* spell = data->spells[i]; spell && IsCastOnSelf(*spell)) {
+			if (const auto* spell = data->spells[i]; spell && IsOfferedCast(*spell)) {
 				AddChoice(spell, a_choices);
 			}
 		}
 		for (std::uint32_t i = 0; data->shouts && i < data->numShouts; ++i) {
 			if (const auto* shout = data->shouts[i]) {
 				for (const auto& word : shout->variations) {
-					if (word.spell && IsCastOnSelf(*word.spell)) {
+					if (word.spell && IsOfferedCast(*word.spell)) {
 						AddChoice(word.spell, a_choices);
 					}
 				}
@@ -964,7 +982,7 @@ namespace Situations
 	{
 		std::vector<SituationRules::SpellChoice> choices;
 		for (const auto* spell : a_actor.GetActorRuntimeData().addedSpells) {
-			if (spell && IsCastOnSelf(*spell)) {
+			if (spell && IsOfferedCast(*spell)) {
 				AddChoice(spell, choices);
 			}
 		}

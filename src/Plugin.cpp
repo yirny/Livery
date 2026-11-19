@@ -1461,7 +1461,9 @@ namespace
 			request.places = Situations::PlacesAround(actor);
 			request.spells = Situations::SpellsAround(actor);
 			if (auto* player = RE::PlayerCharacter::GetSingleton(); player && !request.actorIsPlayer) {
-				request.playerSpells = Situations::SpellsAround(*player);
+				request.spellsWithPlayer = request.spells;
+				std::ranges::move(Situations::SpellsAround(*player), std::back_inserter(request.spellsWithPlayer));
+				SituationRules::MergeSameSpells(request.spellsWithPlayer);
 			}
 			request.allSpells = Situations::AllSpells();
 		}

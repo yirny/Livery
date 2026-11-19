@@ -272,10 +272,12 @@ namespace CaptureWindow::Internal
 		float  editorOtherHeight = 0.0f;
 		// The Add place popup's choice, in the order it shows them (request.places.At).
 		int placePick = 0;
-		// The Add spell popup: its search, Show all spells, the spells it lists (indices into
-		// request.spells, or request.allSpells with Show all spells) and the one picked.
+		// The Add spell popup: its search, Show all spells, Show player spells, the spells it lists
+		// (indices into the list OfferedSpells picks) and the one picked.
 		std::array<char, OutfitBrowser::kSearchCapacity> spellSearch{};
 		bool                                             spellShowAll = false;
+		bool                                             spellShowPlayer = false;
+		float                                            spellOptionsWidth = 0.0f;  // the two checkboxes' row as last drawn, px; 0 before
 		std::vector<std::size_t>                         spellShown;
 		std::optional<SituationRules::Spell>             spellPick;
 		// The Edit situation popup's conditions as last handed to Request::onCheckConditions, at
