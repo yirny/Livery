@@ -29,8 +29,9 @@
 //                     Restore Presets' popups, each handing its write to the Request's handler;
 //                     the Edit situation popup (name, never worn, the Applies text with a link per
 //                     condition, Random Outfit (for #{Name}); the editor beside them; Done with
-//                     Remove Situation) with the Add place and Add spell popups over it, edits of the
-//                     selected situation's Place or Spell row
+//                     Remove Situation and Duplicate, the copy handed to the Request's handler once
+//                     the edits are saved) with the Add place and Add spell popups over it, edits of
+//                     the selected situation's Place or Spell row
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
@@ -1737,6 +1738,14 @@ namespace CaptureWindow::Internal
 			kExit
 		};
 
+		// What the Edit situation popup's links ask for as they close it.
+		enum class EditAction
+		{
+			kNone,
+			kRemove,
+			kDuplicate
+		};
+
 		// New Situation... (while the page offers it, Request::customSituations) and Exit, centred
 		// as the other pages' buttons, then Restore Presets (?) at the row's right end, a link as
 		// the Edit situation popup's Remove Situation is, greyed while every preset is as installed.
@@ -2267,6 +2276,29 @@ namespace CaptureWindow::Internal
 			SKSE::GetTaskInterface()->AddTask([onCreate, name = Trimmed(a_state.situationForm.newName.data())] { onCreate(name); });
 		}
 
+		// Hands the selected situation and its copy's name (CopyName among the names as saved,
+		// short enough for a name field) to onSituationDuplicate; the page is greyed until the
+		// handler ends with SetOutfits or SetError.
+		// Contract: the handler writes situations.json first and changes nothing for a refused
+		// or failed write (CLAUDE.md §2.1).
+		void RequestSituationDuplicate(State& a_state)
+		{
+			const auto& form = a_state.situationForm;
+			if (form.selected <= 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
+				return;
+			}
+			const auto selected = static_cast<std::size_t>(form.selected);
+			const auto taken = [&form](const std::string& a_name) {
+				return std::ranges::any_of(form.entries, [&a_name](const SituationEntry& a_entry) { return ExampleMod::CaseInsensitiveEqual(Trimmed(a_entry.name.data()), a_name); });
+			};
+			auto name = ExampleMod::CopyName(Trimmed(form.entries[selected].name.data()), kNameCapacity - 1, taken);
+			a_state.status = Status::kSaving;
+			a_state.error.clear();
+			auto onDuplicate = a_state.request.onSituationDuplicate;
+			SKSE::GetTaskInterface()->AddTask(
+				[onDuplicate, source = a_state.request.situations[selected].situation, name = std::move(name)] { onDuplicate(source, name); });
+		}
+
 		void RequestRestorePresets(State& a_state)
 		{
 			a_state.status = Status::kSaving;
@@ -2338,16 +2370,17 @@ namespace CaptureWindow::Internal
 		// editor (Request::customSituations), for every situation but the Default, the conditions
 		// (DrawConditionsColumn) in a column of their own beside them, as wide as the editor's
 		// widest row (EditorContentWidth); then Done, with Remove Situation at the row's
-		// right end (not for the Default). A condition clicked in the Applies text is lit and
-		// scrolled to in the editor. Escape is Done unless it closed a dropdown or a popup over
-		// it. Its edits are saved once it closes (TakeAutosaveDue waits for it). Returns true on
-		// Remove, which closes it.
-		bool DrawEditSituationPopup(State& a_state)
+		// right end (not for the Default) and, beside the conditions, Duplicate at its left end. A
+		// condition clicked in the Applies text is lit and scrolled to in the editor. Escape is
+		// Done unless it closed a dropdown or a popup over it. Its edits are saved once it closes
+		// (TakeAutosaveDue waits for it). Returns kRemove or kDuplicate when that link was
+		// pressed, which closes it.
+		EditAction DrawEditSituationPopup(State& a_state)
 		{
 			constexpr const char* kDone = "Done";
 
 			if (!ImGui::IsPopupOpen(kEditSituationPopup)) {
-				return false;
+				return EditAction::kNone;
 			}
 			auto&       form = a_state.situationForm;
 			const bool  conditions = form.selected > 0 && a_state.request.customSituations;  // the editor's column
@@ -2355,12 +2388,12 @@ namespace CaptureWindow::Internal
 			const float windowWidth = columns + ImGui::GetStyle().WindowPadding.x * 2.0f;
 			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
 			if (!BeginModal(kEditSituationPopup, &form.editorCentred)) {
-				return false;
+				return EditAction::kNone;
 			}
 			if (form.selected < 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
 				ImGui::CloseCurrentPopup();
 				ImGui::EndPopup();
-				return false;
+				return EditAction::kNone;
 			}
 			if (ImGui::IsWindowAppearing()) {
 				form.editorFocus = -1;
@@ -2417,11 +2450,17 @@ namespace CaptureWindow::Internal
 			BeginButtonRow({ kDone });
 			const bool done = Theme::Button(kDone);
 			const bool remove = selected > 0 && Theme::LineLink("Remove Situation");
+			bool       duplicate = false;
+			if (conditions) {
+				BeginItemDisabled(a_state, !a_state.request.onSituationDuplicate);
+				duplicate = Theme::LeftLineLink("Duplicate");
+				EndItemDisabled();
+			}
 			EndButtonRow();
 			if (done || escape) {
 				QueueMenuSound(done ? kOkSound : kCancelSound);
 			}
-			if (done || escape || remove) {
+			if (done || escape || remove || duplicate) {
 				ImGui::CloseCurrentPopup();
 			}
 			form.editorPopupAbove = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
@@ -2429,12 +2468,14 @@ namespace CaptureWindow::Internal
 			const auto* window = ImGui::GetCurrentWindow();
 			form.editorOtherHeight = window->DC.CursorMaxPos.y - window->Pos.y + ImGui::GetStyle().WindowPadding.y - areaShown;
 			ImGui::EndPopup();
-			return remove;
+			return remove ? EditAction::kRemove : duplicate ? EditAction::kDuplicate :
+			                                                  EditAction::kNone;
 		}
 
-		// The page's popups, each opened by the page in its own ID scope. Returns true when the
-		// Edit situation popup's Remove Situation was pressed, which the page answers with Remove's popup.
-		bool DrawSituationPopups(State& a_state)
+		// The page's popups, each opened by the page in its own ID scope. Returns what the Edit
+		// situation popup's links asked for: Remove Situation, which the page answers with Remove's
+		// popup, or Duplicate.
+		EditAction DrawSituationPopups(State& a_state)
 		{
 			if (DrawRemoveSituationPopup(a_state)) {
 				RequestSituationRemove(a_state);
@@ -2577,6 +2618,12 @@ namespace CaptureWindow::Internal
 			}
 			a_state.popupAfterSave = nullptr;
 		}
+		if (form.duplicateAfterSave && a_state.status == Status::kEditing) {
+			form.duplicateAfterSave = false;
+			if (a_state.error.empty()) {
+				RequestSituationDuplicate(a_state);
+			}
+		}
 		form.editing = ImGui::IsPopupOpen(kEditSituationPopup);
 		EndInactiveNameEdit(a_state);
 		BeginPageDisabled(a_state);
@@ -2648,9 +2695,22 @@ namespace CaptureWindow::Internal
 		case SituationAction::kNone:
 			break;
 		}
-		if (DrawSituationPopups(a_state)) {
+		// The edits made in the popup are saved first.
+		switch (DrawSituationPopups(a_state)) {
+		case EditAction::kRemove:
 			QueueMenuSound(kOkSound);
-			OpenAfterSave(a_state, kRemoveSituationPopup);  // the edits made in the popup saved first
+			OpenAfterSave(a_state, kRemoveSituationPopup);
+			break;
+		case EditAction::kDuplicate:
+			QueueMenuSound(kOkSound);
+			if (SaveSituationEdits(a_state)) {
+				form.duplicateAfterSave = true;
+			} else {
+				RequestSituationDuplicate(a_state);
+			}
+			break;
+		case EditAction::kNone:
+			break;
 		}
 		// Contract: not while a name is typed: a save would write it half typed, and SetOutfits
 		// would replace the field being typed in.

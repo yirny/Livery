@@ -141,6 +141,20 @@ namespace SituationTable
 		return number > 0 ? std::optional{ number } : std::nullopt;
 	}
 
+	// Adds a user's situation to `a_table` under the next key (UserKey), named `a_name`, with
+	// `a_rules`: in the order right after `a_after`, or last without it, as Situations::AddUser
+	// puts it. Its id is the table's size before, as AddUser gives it. Returns its key.
+	inline std::string AddUserEntry(Table& a_table, std::string a_name, SituationRules::Rules a_rules,
+		std::optional<Situations::Situation> a_after = std::nullopt)
+	{
+		const auto situation = static_cast<Situations::Situation>(a_table.size());
+		auto       key = UserKey(a_table.nextKey++);
+		const auto after = a_after ? std::ranges::find(a_table.order, *a_after) : a_table.order.end();
+		a_table.order.insert(after == a_table.order.end() ? after : after + 1, situation);
+		a_table.entries.push_back({ .name = std::move(a_name), .key = key, .rules = std::move(a_rules) });
+		return key;
+	}
+
 	// Why the names break the rules, or nullopt: every name has text, the Default is never
 	// removed (it may be renamed), and no two situations not removed share a name (ASCII case
 	// ignored). Sentences, for the window and the log.

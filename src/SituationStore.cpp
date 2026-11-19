@@ -4,9 +4,10 @@
 //   Constants - file location, the refusal for a file that could not be read
 //   State     - the table as read, whether the file may be written
 //   File      - write through a temporary file
+//   Adding    - the checks and the write that Create and Duplicate share
 //   Forms     - the FormIDs of the Place and Spell rows' forms in this game's load order
 //   API       - Load / Name / Suffix / IsRemoved / Offered / RulesOf / Apply / Create /
-//               Remove / RestorePresets / RestoreChanges
+//               Duplicate / Remove / RestorePresets / RestoreChanges
 //
 // The file's format and rules are in SituationTable.h.
 #include "PCH.h"
@@ -67,6 +68,40 @@ namespace
 			return problem;
 		}
 		g_table = std::move(a_table);
+		return std::nullopt;
+	}
+
+	// --- Adding ---------------------------------------------------------------
+
+	// Why a user's situation cannot be added now, or nullopt.
+	std::optional<std::string> CheckRoom()
+	{
+		if (!g_writable) {
+			return kUnreadable;
+		}
+		if (g_table.size() >= Situations::kMaxSituations) {
+			const bool removed = std::ranges::any_of(g_table, [](const SituationTable::Entry& a_entry) { return a_entry.removed && SituationTable::IsUser(a_entry); });
+			return removed ? "Livery cannot hold more situations; removed ones still count until the game is restarted." : "Livery cannot hold more situations.";
+		}
+		return std::nullopt;
+	}
+
+	// Writes `a_table`, which holds one user's situation more under `a_key` (AddUserEntry), then
+	// adds it to the registry as `a_created` and gives the registry the table's order.
+	// Contract: the registry changes only after the write took, and every refusal comes before
+	// the write (CheckRoom, the names), so the table and the registry keep the same ids.
+	std::optional<std::string> CommitAdded(SituationTable::Table a_table, std::string a_key, Situations::Situation& a_created)
+	{
+		if (auto problem = SituationTable::CheckNames(a_table)) {
+			return problem;
+		}
+		if (auto problem = Commit(std::move(a_table))) {
+			return problem;
+		}
+		a_created = Situations::AddUser(std::move(a_key)).value_or(Situations::Situation::kDefault);  // never refuses: CheckRoom checked the size
+		if (!Situations::Reorder(g_table.order)) {                                                    // never: the table and the registry hold the same situations
+			logger::error("The situations' order was written but not taken; it takes effect when the game is restarted");
+		}
 		return std::nullopt;
 	}
 
@@ -226,29 +261,31 @@ namespace SituationStore
 		return std::nullopt;
 	}
 
-	// Contract: the registry adds the situation only after the write took, and every refusal
-	// comes before the write, so the table and the registry keep the same ids.
 	std::optional<std::string> Create(const std::string& a_name, Situations::Situation& a_created)
 	{
-		if (!g_writable) {
-			return kUnreadable;
-		}
-		if (g_table.size() >= Situations::kMaxSituations) {
-			const bool removed = std::ranges::any_of(g_table, [](const SituationTable::Entry& a_entry) { return a_entry.removed && SituationTable::IsUser(a_entry); });
-			return removed ? "Livery cannot hold more situations; removed ones still count until the game is restarted." : "Livery cannot hold more situations.";
-		}
-		auto       table = g_table;
-		const auto key = SituationTable::UserKey(table.nextKey++);
-		table.order.push_back(static_cast<Situations::Situation>(table.size()));  // last, as AddUser puts it
-		table.entries.push_back({ .name = std::string(ExampleMod::TrimWhitespace(a_name)), .key = key });
-		if (auto problem = SituationTable::CheckNames(table)) {
+		if (auto problem = CheckRoom()) {
 			return problem;
 		}
-		if (auto problem = Commit(std::move(table))) {
+		auto table = g_table;
+		auto key = SituationTable::AddUserEntry(table, std::string(ExampleMod::TrimWhitespace(a_name)), {});
+		return CommitAdded(std::move(table), std::move(key), a_created);
+	}
+
+	std::optional<std::string> Duplicate(Situations::Situation a_source, const std::string& a_name, Situations::Situation& a_created)
+	{
+		if (auto problem = CheckRoom()) {
 			return problem;
 		}
-		a_created = Situations::AddUser(key).value_or(Situations::Situation::kDefault);  // never refuses: the size was checked
-		return std::nullopt;
+		if (a_source == Situations::Situation::kDefault) {
+			return "The default outfit cannot be duplicated.";
+		}
+		const auto& source = EntryOf(a_source);
+		if (source.removed) {
+			return std::format("\"{}\" has been removed.", source.name);
+		}
+		auto table = g_table;
+		auto key = SituationTable::AddUserEntry(table, std::string(ExampleMod::TrimWhitespace(a_name)), source.rules, a_source);
+		return CommitAdded(std::move(table), std::move(key), a_created);
 	}
 
 	std::optional<std::string> Remove(Situations::Situation a_situation)

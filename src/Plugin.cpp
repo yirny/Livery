@@ -34,7 +34,8 @@
 //                    (Assignments::SetRows) and redresses them as Update does; Remove
 //                    Situation writes situations.json, clears the situation's rows
 //                    (Assignments::ForgetSituation) and takes those wearing it out of it as
-//                    Remove does; Restore Presets writes situations.json; the settings page's
+//                    Remove does; Restore Presets, New Situation and Duplicate write
+//                    situations.json; the settings page's
 //                    Release everyone goes to Assignments
 //   Event sinks    - crosshair target, the capture hotkey
 //   Messaging      - situation data, outfit library and piece icon rules, settings page, sink and menu registration,
@@ -1509,6 +1510,19 @@ namespace
 		request.onSituationCreate = [actorID, armors](const std::string& name) {
 			auto created = Situations::Situation::kDefault;
 			if (const auto error = SituationStore::Create(name, created)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			Notify(std::format("Livery: created the situation \"{}\".", name));
+			auto list = CurrentOutfitList(actorID, armors);
+			list.createdSituation = created;
+			CaptureWindow::SetOutfits(std::move(list));
+		};
+		// The source's conditions under a new name, right after it; nobody's rows change, and
+		// nobody is redressed: the poll, which waits while the window is open, follows the order.
+		request.onSituationDuplicate = [actorID, armors](Situations::Situation source, const std::string& name) {
+			auto created = Situations::Situation::kDefault;
+			if (const auto error = SituationStore::Duplicate(source, name, created)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
