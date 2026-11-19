@@ -81,7 +81,7 @@ as a link at the row's right end, as the Wardrobe page's:
 - `Dress with Chest...` leaves as `Back` does (`PendingLeave::loadChest`), but for the Dress
   page with the chest as written loaded there, as its `Add from Chest...` and `Load` would. Greyed
   with `None of its items is loaded.` while the chest as edited has no loaded item, and with
-  `Not available while dressing from your inventory only.` while the Dress page hides its links
+  `Not available while "Dress yourself from inventory only" is on.` while the Dress page hides its links
   (`Request::offersWardrobe` off).
 - The editor dresses nobody and changes no tick: the preview keeps showing the Dress page's
   ticks. Dressing from inventory only (`Request::carriedOnly`) does not apply here.

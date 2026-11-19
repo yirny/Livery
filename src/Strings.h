@@ -35,51 +35,51 @@
 // text in the file without its "k".
 
 // Words the window uses on several pages: page names, buttons, reasons a button is greyed.
-#define LIVERY_STRINGS_COMMON(X)                                                                   \
-	X(kPageDress, "Dress")                                                                         \
-	X(kPageWardrobe, "Wardrobe")                                                                   \
-	X(kPageSituations, "Situations")                                                               \
-	X(kPageChests, "Chests")                                                                       \
-	X(kPageAppearance, "Appearance")                                                               \
-	X(kApply, "Apply")                                                                             \
-	X(kBack, "Back")                                                                               \
-	X(kCancel, "Cancel")                                                                           \
-	X(kConfirm, "Confirm")                                                                         \
-	X(kCreate, "Create")                                                                           \
-	X(kExit, "Exit")                                                                               \
-	X(kRestore, "Restore")                                                                         \
-	X(kUpdate, "Update")                                                                           \
-	X(kSaveChanges, "Save Changes")                                                                \
-	X(kDiscardChanges, "Discard Changes")                                                          \
-	X(kApplying, "Applying...")                                                                    \
-	X(kSaving, "Saving...")                                                                        \
-	X(kEditHeading, "Edit {0}")                                                                    \
-	X(kQuotedName, "\"{0}\"")                                                                      \
-	X(kNewName, "New name: {0}")                                                                   \
-	X(kOutfitIcon, "Outfit Icon")                                                                  \
-	X(kOutfitName, "Outfit Name")                                                                  \
-	X(kColumnName, "Name")                                                                         \
-	X(kColumnType, "Type")                                                                         \
-	X(kColumnSlot, "Slot")                                                                         \
-	X(kNeedName, "Enter a name.")                                                                  \
-	X(kNeedPiece, "Select at least one item.")                                                     \
-	X(kNeedOutfit, "Select an outfit.")                                                            \
-	X(kNeedChest, "Select a chest.")                                                               \
-	X(kNoOutfits, "No outfits in the Wardrobe.")                                                   \
-	X(kNoLoadedPiece, "None of its items is loaded.")                                              \
-	X(kNoChests, "No chests yet.")                                                                 \
-	X(kNoChanges, "No changes to save.")                                                           \
-	X(kWornAlready, "Already worn as is.")                                                         \
-	X(kNotCarriedHint, "You don't carry this item.\nDressing from inventory only leaves it off.")  \
-	X(kOutfitGone, "an outfit no longer in the Wardrobe")                                          \
-	X(kItemsNotSaved, "items that are not a saved outfit")                                         \
-	X(kChestsSubtitle, "Items in a chest can be loaded on the {0} page.")                          \
-	X(kAppearanceSubtitle, "Other settings are in Livery.ini or on the SKSE Menu Framework page.") \
-	X(kOk, "OK")                                                                                   \
-	X(kYes, "Yes")                                                                                 \
-	X(kRemove, "Remove")                                                                           \
-	X(kSave, "Save")                                                                               \
-	X(kEdit, "Edit")                                                                               \
+#define LIVERY_STRINGS_COMMON(X)                                                                                                    \
+	X(kPageDress, "Dress")                                                                                                          \
+	X(kPageWardrobe, "Wardrobe")                                                                                                    \
+	X(kPageSituations, "Situations")                                                                                                \
+	X(kPageChests, "Chests")                                                                                                        \
+	X(kPageAppearance, "Appearance")                                                                                                \
+	X(kApply, "Apply")                                                                                                              \
+	X(kBack, "Back")                                                                                                                \
+	X(kCancel, "Cancel")                                                                                                            \
+	X(kConfirm, "Confirm")                                                                                                          \
+	X(kCreate, "Create")                                                                                                            \
+	X(kExit, "Exit")                                                                                                                \
+	X(kRestore, "Restore")                                                                                                          \
+	X(kUpdate, "Update")                                                                                                            \
+	X(kSaveChanges, "Save Changes")                                                                                                 \
+	X(kDiscardChanges, "Discard Changes")                                                                                           \
+	X(kApplying, "Applying...")                                                                                                     \
+	X(kSaving, "Saving...")                                                                                                         \
+	X(kEditHeading, "Edit {0}")                                                                                                     \
+	X(kQuotedName, "\"{0}\"")                                                                                                       \
+	X(kNewName, "New name: {0}")                                                                                                    \
+	X(kOutfitIcon, "Outfit Icon")                                                                                                   \
+	X(kOutfitName, "Outfit Name")                                                                                                   \
+	X(kColumnName, "Name")                                                                                                          \
+	X(kColumnType, "Type")                                                                                                          \
+	X(kColumnSlot, "Slot")                                                                                                          \
+	X(kNeedName, "Enter a name.")                                                                                                   \
+	X(kNeedPiece, "Select at least one item.")                                                                                      \
+	X(kNeedOutfit, "Select an outfit.")                                                                                             \
+	X(kNeedChest, "Select a chest.")                                                                                                \
+	X(kNoOutfits, "No outfits in the Wardrobe.")                                                                                    \
+	X(kNoLoadedPiece, "None of its items is loaded.")                                                                               \
+	X(kNoChests, "No chests yet.")                                                                                                  \
+	X(kNoChanges, "No changes to save.")                                                                                            \
+	X(kWornAlready, "Already worn as is.")                                                                                          \
+	X(kNotCarriedHint, "This item isn't in your inventory.\nWith \"Dress yourself from inventory only\" on, it won't be equipped.") \
+	X(kOutfitGone, "an outfit no longer in the Wardrobe")                                                                           \
+	X(kItemsNotSaved, "items that are not a saved outfit")                                                                          \
+	X(kChestsSubtitle, "Items in a chest can be loaded on the {0} page.")                                                           \
+	X(kAppearanceSubtitle, "Other settings are in Livery.ini or on the SKSE Menu Framework page.")                                  \
+	X(kOk, "OK")                                                                                                                    \
+	X(kYes, "Yes")                                                                                                                  \
+	X(kRemove, "Remove")                                                                                                            \
+	X(kSave, "Save")                                                                                                                \
+	X(kEdit, "Edit")                                                                                                                \
 	X(kListSeparator, ", ")
 
 // The Dress page: its item list, Live Preview and its buttons and popups.
@@ -209,20 +209,20 @@
 	X(kCarryNone, "You carry none of these items.")
 
 // The Chests page, its New chest and Remove popups, and the chest editor.
-#define LIVERY_STRINGS_CHESTS(X)                                                        \
-	X(kNoOtherChests, "No other chests.")                                               \
-	X(kChestsCount, "{0} chests")                                                       \
-	X(kNameNewChest, "Name the new chest.")                                             \
-	X(kChestName, "Chest Name")                                                         \
-	X(kCreateNewChest, "Create New Chest...")                                           \
-	X(kSelectChestToOpen, "Select a chest to open")                                     \
-	X(kTakenOutOfChest, "Taken Out of Chest")                                           \
-	X(kNoItemsToPutIn, "No items to put in.")                                           \
-	X(kEmpty, "Empty.")                                                                 \
-	X(kDressWithChest, "Dress with Chest...")                                           \
-	X(kNotWhileInventoryOnly, "Not available while dressing from your inventory only.") \
-	X(kRemoveChest, "Remove {0}?")                                                      \
-	X(kChestItems, "Items")                                                             \
+#define LIVERY_STRINGS_CHESTS(X)                                                                   \
+	X(kNoOtherChests, "No other chests.")                                                          \
+	X(kChestsCount, "{0} chests")                                                                  \
+	X(kNameNewChest, "Name the new chest.")                                                        \
+	X(kChestName, "Chest Name")                                                                    \
+	X(kCreateNewChest, "Create New Chest...")                                                      \
+	X(kSelectChestToOpen, "Select a chest to open")                                                \
+	X(kTakenOutOfChest, "Taken Out of Chest")                                                      \
+	X(kNoItemsToPutIn, "No items to put in.")                                                      \
+	X(kEmpty, "Empty.")                                                                            \
+	X(kDressWithChest, "Dress with Chest...")                                                      \
+	X(kNotWhileInventoryOnly, "Not available while \"Dress yourself from inventory only\" is on.") \
+	X(kRemoveChest, "Remove {0}?")                                                                 \
+	X(kChestItems, "Items")                                                                        \
 	X(kInChest, "In Chest")
 
 // Why a write to outfits.json or chests.json was refused or failed, shown in the window and

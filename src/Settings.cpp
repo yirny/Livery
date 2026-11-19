@@ -166,7 +166,7 @@ namespace
 		{ kPlayerSection, kAddMissingKey, L"0",
 			L"1 = dressing yourself creates the items you don't carry in your inventory, for free.\n"
 			L"0 = it uses only the items you carry, and a message names the rest.\n"
-			L"In game this is Dress yourself from inventory only, reversed." },
+			L"In game this is \"Dress yourself from inventory only\", reversed." },
 		{ kWindowSection, kShowPlayerInventoryKey, L"1",
 			L"1 = an NPC's window also lists your armor, under \"<your name>'s Inventory\"." },
 		{ kWindowSection, kShowPlayerWornKey, L"0",
@@ -195,7 +195,7 @@ namespace
 			L"1 = a message tells you when a character changes outfit as a situation (Town, Cold, ...) starts or ends." },
 		{ kUninstallSection, kReleaseEveryoneKey, L"0",
 			L"1 = each time you load a save, Livery takes its outfits off everyone and tells you, until you set this back to 0.\n"
-			L"Use it before you uninstall Livery if you don't have SKSE Menu Framework, whose Livery page has a Release everyone button." },
+			L"Use it before you uninstall Livery if you don't have SKSE Menu Framework, whose Livery page has a \"Release everyone\" button." },
 	} };
 
 	// A modifier is named by its left-hand code in the INI and the picker; either side counts.
@@ -1289,7 +1289,7 @@ namespace
 		// Applies at once; the INI is written when the slider is let go. The label comes first and
 		// the slider is a little wider than the Window skin dropdown.
 		constexpr float kSliderWidthEms = 16.0f;  // the slider's width, of the font size
-		float percent = g_speedPercent.load();
+		float           percent = g_speedPercent.load();
 		LabelBefore(PageText(Text::kSetCameraSpeed));
 		ImGuiMCP::SetNextItemWidth(ImGuiMCP::GetFontSize() * kSliderWidthEms);
 		if (ImGuiMCP::SliderFloat("##PreviewCameraSpeed", &percent, kMinSpeedPercent, kMaxSpeedPercent, "%.0f%%")) {
