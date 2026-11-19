@@ -339,7 +339,7 @@ namespace CaptureWindow
 		// conditions, twice a second and after each edit: whether each of `rows` (its conditions
 		// as edited) is met for the actor now (Situations::RowsHold), handed back to
 		// SetConditionsHeld with `ask`; nothing while the actor is gone. Empty leaves the Applies
-		// text grey.
+		// text uncoloured.
 		std::function<void(std::uint32_t ask, const std::vector<SituationRules::Row>& rows)> onCheckConditions;
 
 		// Run on the game thread from the Chests page and the chest editor (docs/chest-ui.md):

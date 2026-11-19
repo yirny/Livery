@@ -253,19 +253,19 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 - The Edit situation popup's left column (docs/situation-management-ui.md §5), for every
   situation but the Default, shows the `Applies` label, its help `Applies while every
   condition is met.` and `A condition with several values is met by any of them.`, over the
-  Applies text (below), each condition's phrase a link (`Theme::RunLinks`). The text is grey, a
-  condition met now in the palette's `Positive` colour (`#B7DA7B` in every shipped palette); a
-  hovered phrase's tooltip says `Met now.` or `Not met now.` With `Request::customSituations` a
-  hovered phrase is lit and underlined, and a click scrolls the editor to that condition and
-  fills its box in a selected row's colour, fading out over 1.5 s. Off, a hovered phrase also
-  says `Turn on custom situations in the settings to edit.` after a blank line. The links are
-  for the mouse alone.
+  Applies text (below), each condition's phrase a link (`Theme::RunLinks`). A condition met
+  now is in the palette's `Positive` colour (`#B7DA7B` in every shipped palette); a hovered
+  phrase's tooltip says `Met now.` or `Not met now.` With `Request::customSituations` the rest
+  is in the text colour, a hovered phrase is lit and underlined, and a click scrolls the editor
+  to that condition and fills its box in a selected row's colour, fading out over 1.5 s. Off,
+  the rest is greyed and a hovered phrase also says `Turn on custom situations in the settings
+  to edit.` after a blank line. The links are for the mouse alone.
 - Met now: while the Edit situation popup is open on a situation with conditions, the window
   hands its rows as edited to `Request::onCheckConditions` in an SKSE task, at once when they
   differ from those last asked and every 0.5 s once the last ask was answered;
   `Situations::RowsHold` reads each row alone for the actor now, as the poll reads it, in
   combat or not, and `CaptureWindow::SetConditionsHeld` hands the answer back, taken for the
-  latest ask only. Until the first answer every condition is grey. `Allow during combat` is no
+  latest ask only. Until the first answer no condition is coloured. `Allow during combat` is no
   row and has no colour. Nothing runs while the popup is closed.
 - The `Edit situation` popup (docs/situation-management-ui.md §5), a modal (every modal of the
   window: the main window's padding, Vanilla's frame and Nordic's ornaments over the popup's

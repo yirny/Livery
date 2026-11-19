@@ -1582,11 +1582,11 @@ namespace CaptureWindow::Internal
 
 		// The Edit situation popup's settings, its left column: the name (the Default says what it
 		// is under it), why it is never
-		// worn, the situations it always overrides, `Applies` over the conditions in grey, the
-		// Default's read only, another's Applies text (DrawAppliesLinks) with the label's help, read
-		// only unless the page offers the editor (Request::customSituations); then Random Outfit
-		// (for #{Name}). Returns the condition clicked in the Applies text (index into rules.rows),
-		// or -1.
+		// worn, the situations it always overrides, `Applies` over the conditions, the Default's
+		// read only, another's Applies text (DrawAppliesLinks) with the label's help, greyed and
+		// read only unless the page offers the editor (Request::customSituations); then Random
+		// Outfit (for #{Name}). Returns the condition clicked in the Applies text (index into
+		// rules.rows), or -1.
 		int DrawSituationSettings(State& a_state, std::size_t a_entry)
 		{
 			auto&       form = a_state.situationForm;
@@ -1607,17 +1607,22 @@ namespace CaptureWindow::Internal
 			DrawNeverWorn(form, a_entry);
 			DrawOverrides(form, a_entry);
 			Theme::LabelText("Applies");
-			int clicked = -1;
+			int        clicked = -1;
+			const bool editable = !isDefault && a_state.request.customSituations;
 			if (!isDefault && Theme::LabelHelpMark()) {
 				DrawHelpTooltip("Applies while every condition is met.\nA condition with several values is met by any of them.");
 			}
-			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			if (!editable) {
+				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			}
 			if (isDefault) {
 				DrawDefaultConditions();
 			} else {
 				clicked = DrawAppliesLinks(a_state, entry.rules);
 			}
-			ImGui::PopStyleColor();
+			if (!editable) {
+				ImGui::PopStyleColor();
+			}
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
