@@ -620,9 +620,9 @@ Sleep, Cold by region. The presets as installed, and what each condition reads:
 - Sleeping (Sleep = Sleeping): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
   and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
   bed (Tailor's note in `SituationHandler.cpp`), so the player's Sleep needs a mod that does.
-- Cold (Weather {Snow, Cold region}): read around the player, whoever wears it. The player is
+- Cold (Weather {Snow, Freezing region}): read around the player, whoever wears it. The player is
   in an exterior cell and the weather is snowy (while the sky blends weathers, the last one
-  decides until the new one is halfway in), or the climate where they stand is cold
+  decides until the new one is halfway in), or the climate where they stand is freezing
   (`RegionClimate`, docs/custom-situations.md §3): Survival Mode's freezing areas by the
   cell's regions and the player's height, Windhelm's city too; a place it does not class when
   a region of its cell has snow weathers for at least 40% of its weather chance; its ice

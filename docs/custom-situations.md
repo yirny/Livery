@@ -42,7 +42,7 @@ row with values holds while any of its values holds (OR), and `not` inverts the 
 nest:
 there are no OR groups (*provisional*: revisited after use; so far every wanted rule
 fits, "night or rain" being two situations). The same kind may appear in several rows
-("Rain" and "not Cold region"). A row with values and none selected never holds, so its
+("Rain" and "not Freezing region"). A row with values and none selected never holds, so its
 situation never applies; the Situations page says so (§7). A situation with no rows never
 applies either.
 
@@ -66,7 +66,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no |
 | Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
 | Place (Specific Location in the editor) | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
-| Weather | Rain, Snow, Warm region, Cool region, Cold region (keys `rain`, `snow`, `warmRegion`, `coolRegion`, `coldRegion`) | read around the player, whoever wears the situation. Rain = the player is in an exterior cell and the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in). A region = the climate of the player's place (`RegionClimate`): outdoors Survival Mode's classes by the cell's regions and the player's height (the conditions of its `Survival_RegionInfoSpell`, in its order: the two mountain areas, warm, cool, then freezing = Cold), Windhelm's city region freezing too; a place it does not class (a mod's land) Cold when a region of its cell has snow weathers for at least 40% of its weather chance, Cool otherwise; indoors (an interior cell, or one of its interior worldspaces such as Blackreach) none, but its ice caves (by location or cell) Cold; its Oblivion planes (Sovngarde, the Soul Cairn, Apocrypha) none. The place is read again only as the player's cell or location changes | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`; `TESObjectCELL::GetRegionList`, `GetPositionZ`, `GetWorldspace`, `GetCurrentLocation` | Rain and Snow by the sky yes, outdoors only not yet; the climate matched Survival Mode's own answer in 17 cells (2026-11-18); the region rows not yet |
+| Weather | Rain, Snow, Warm region, Cool region, Freezing region (keys `rain`, `snow`, `warmRegion`, `coolRegion`, `freezingRegion`) | read around the player, whoever wears the situation. Rain = the player is in an exterior cell and the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in). A region = the climate of the player's place (`RegionClimate`): outdoors Survival Mode's classes by the cell's regions and the player's height (the conditions of its `Survival_RegionInfoSpell`, in its order: the two mountain areas, warm, cool, then freezing), Windhelm's city region freezing too; a place it does not class (a mod's land) Freezing when a region of its cell has snow weathers for at least 40% of its weather chance, Cool otherwise; indoors (an interior cell, or one of its interior worldspaces such as Blackreach) none, but its ice caves (by location or cell) Freezing; its Oblivion planes (Sovngarde, the Soul Cairn, Apocrypha) none. The place is read again only as the player's cell or location changes | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`; `TESObjectCELL::GetRegionList`, `GetPositionZ`, `GetWorldspace`, `GetCurrentLocation` | Rain and Snow by the sky yes, outdoors only not yet; the climate matched Survival Mode's own answer in 17 cells (2026-11-18); the region rows not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell Effect (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
 | Weapon | none | a weapon, spell or fists drawn, or being put away (`kDrawn`, `kWantToSheathe`, `kSheathing`); negated, sheathed | `ActorState::IsWeaponDrawn` | no |
@@ -79,11 +79,11 @@ Notes:
 
 - The presets as installed (`SituationTable::PresetRules`), each with `Allow during combat` off:
   Town = Location type {Town}; Castle = Location type {Castle}; Home = Location type
-  {Player home}; Cold = Weather {Snow, Cold region}; Sleep = Sleeping.
+  {Player home}; Cold = Weather {Snow, Freezing region}; Sleep = Sleeping.
   Two changes from the first release's fixed rules, decided 2026-11-14 since a rule cannot
   depend on who the actor is: Home no longer holds in any house for an NPC (`LocTypeHouse`),
   and Town holds in any house for the player too. Cold changed too (decided 2026-11-18): rain
-  no longer counts, and a cold region follows Survival Mode's classes instead of the sky
+  no longer counts, and a freezing region follows Survival Mode's classes instead of the sky
   region's snow. Town and Cold by weather, verified through the fixed rules, are checked
   again through the model (§10).
 - In water keeps its hysteresis in a per-actor list of those last told in water
@@ -194,7 +194,7 @@ keeps its installed rules. Shape:
       "name": "Cold",
       "removed": true,
       "applyInCombat": false,
-      "conditions": [{ "kind": "weather", "not": false, "values": ["snow", "coldRegion"] }]
+      "conditions": [{ "kind": "weather", "not": false, "values": ["snow", "freezingRegion"] }]
     },
     { "key": "Sleep", "name": "Sleep", "removed": false, "applyInCombat": false, "conditions": [{ "kind": "sleeping", "not": false }] },
     {
@@ -304,7 +304,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   of` / `is none of` with more (as Linear and Airtable word it), Spell Effect `has` / `has not`,
   `has any of` / `has none of`, `between` / `not between` for Time of day; then the values.
   Location type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying
-  open for several ticks; a value with a tip, `Value::tip`, says it while hovered: Cold region's
+  open for several ticks; a value with a tip, `Value::tip`, says it while hovered: Freezing region's
   `Snowy lands, high mountains, the northern coast and ice caves.`) whose preview lists the ticked values, `Rain,
   Snow`, or a greyed `Select...` with none; Weather's has a rule between Rain / Snow and the
   regions (`Value::ruleAbove`), the weather now apart from the climate; Swimming's a single choice (`SituationRules::OneValue`,

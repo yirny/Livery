@@ -61,7 +61,7 @@ namespace SituationRules
 	inline constexpr std::uint32_t kSnow = 1u << 1;
 	inline constexpr std::uint32_t kWarmRegion = 1u << 2;  // the climates of RegionClimate
 	inline constexpr std::uint32_t kCoolRegion = 1u << 3;
-	inline constexpr std::uint32_t kColdRegion = 1u << 4;
+	inline constexpr std::uint32_t kFreezingRegion = 1u << 4;
 	// Water's values, bits of Row::values. In water takes swimming in.
 	inline constexpr std::uint32_t kInWater = 1u << 0;
 	inline constexpr std::uint32_t kSwimming = 1u << 1;
@@ -255,7 +255,7 @@ namespace SituationRules
 		{ kWarmRegion, "warmRegion", "Warm region", "a warm region", "Southern forests such as the Rift and Falkreath.", true },  // the weather above, the climates below
 		{ kCoolRegion, "coolRegion", "Cool region", "a cool region",
 			"Plains and hills such as Whiterun and the Reach.\nA mod's land too, unless it often snows there." },
-		{ kColdRegion, "coldRegion", "Cold region", "a cold region", "Snowy lands, high mountains, the northern coast and ice caves." },
+		{ kFreezingRegion, "freezingRegion", "Freezing region", "a freezing region", "Snowy lands, high mountains, the northern coast and ice caves." },
 	} };
 
 	inline constexpr std::array<Value, 2> kWaterDepths{ {
@@ -293,7 +293,7 @@ namespace SituationRules
 		{ Kind::kPlace, "place", "Specific Location", "", "", "In one of the locations listed.\nA location counts with every room and area in it.", "", "", "", "", {}, false,
 			"The location" },
 		{ Kind::kWeather, "weather", "Weather", "", "",
-			"Rain and Snow: the weather now, outdoors only.\nWarm, Cool and Cold region: the climate of the area, whatever the weather.\n"
+			"Rain and Snow: the weather now, outdoors only.\nWarm, Cool and Freezing region: the climate of the area, whatever the weather.\n"
 			"Indoors is none of them, except ice caves.",
 			"", "", "", "", kWeathers, false, "The weather" },
 		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "", "", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", "", "", "", {}, false, "The time is" },
