@@ -1988,7 +1988,7 @@ namespace CaptureWindow::Internal
 
 		// Opens the popup of the row SituationForm::formRow names: Add place on its first choice
 		// (This Location, or This Cell outside any location), or Add spell on the actor's spells
-		// with nothing typed or picked.
+		// with nothing typed or ticked.
 		// Contract: inside the Edit situation popup, as the popups are drawn there
 		// (DrawAddFormPopups).
 		void OpenAddFormPopup(State& a_state)
@@ -2001,7 +2001,7 @@ namespace CaptureWindow::Internal
 				form.spellSearch.fill('\0');
 				form.spellShowAll = false;
 				form.spellShowPlayer = false;
-				form.spellPick.reset();
+				form.spellPicks.clear();
 				RefreshSpellList(a_state);
 				a_state.focusNameField = true;  // the search field
 				ImGui::OpenPopup(kAddSpellPopup);
@@ -2103,9 +2103,71 @@ namespace CaptureWindow::Internal
 			return changed;
 		}
 
-		// The Add spell popup's list: the spells SituationForm::spellShown names, each after its
-		// icon, a click picking one, its plugin and FormID on hover to tell the same names apart;
-		// past the most it lists, a line saying how many more.
+		// Whether `a_spells` holds `a_spell` (SituationRules::SameForm).
+		bool HoldsSpell(std::span<const SituationRules::Spell> a_spells, const SituationRules::Spell& a_spell)
+		{
+			return std::ranges::any_of(a_spells, [&a_spell](const SituationRules::Spell& a_other) {
+				return SituationRules::SameForm(a_other.ref, a_spell.ref);
+			});
+		}
+
+		// A row of the Add spell popup's list: a tick row of the spell after its icon, a click
+		// ticking or unticking it (SituationForm::spellPicks); one the row `a_row` has already is
+		// ticked, greyed and takes no click. Its plugin and FormID on hover, to tell the same
+		// names apart, then its effects, and for one the row has, that it has it.
+		void DrawSpellRow(State& a_state, const SituationRules::SpellChoice& a_choice, const SituationRules::Row* a_row)
+		{
+			auto&                            picks = a_state.situationForm.spellPicks;
+			const auto&                      spell = a_choice.spell;
+			const bool                       inRow = a_row && HoldsSpell(a_row->spells, spell);
+			const auto                       pick = std::ranges::find_if(picks, [&spell](const SituationRules::Spell& a_pick) {
+				return SituationRules::SameForm(a_pick.ref, spell.ref);
+			});
+			bool                             ticked = inRow || pick != picks.end();
+			const std::array<const char*, 1> cells{ spell.ref.name.c_str() };
+			const std::array<float, 1>       columnX{ Theme::RowIconRoom() };
+			ImGui::BeginDisabled(inRow);
+			const bool toggled = Theme::TickRow(cells, columnX, &ticked, IconOf(a_choice));
+			bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			ImGui::EndDisabled();
+			// The keyboard still reaches a greyed row, so the list scrolls.
+			if (inRow && FocusStandIn("##row")) {
+				hovered = true;
+			}
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (hovered) {
+				const auto tip = SpellTip(spell, a_choice.effectLines);
+				Theme::Tooltip(inRow ? (tip + "\n\nAlready in the list.").c_str() : tip.c_str());
+			}
+			if (toggled) {
+				QueueMenuSound(kFocusSound);
+				if (ticked) {
+					picks.push_back(spell);
+				} else {
+					picks.erase(pick);
+				}
+			}
+		}
+
+		// The count line under the Add spell popup's list: how many spells are ticked, those the
+		// search hides counted too, and Clear All at its right end, greyed with none, which
+		// unticks them all.
+		void DrawSpellCount(State& a_state)
+		{
+			auto&      picks = a_state.situationForm.spellPicks;
+			const auto count = picks.size();
+			Theme::CountText((count == 1 ? std::string{ "1 spell selected" } : std::format("{} spells selected", count)).c_str(), false);
+			ImGui::BeginDisabled(picks.empty());
+			if (Theme::LineLink("Clear All")) {
+				picks.clear();
+				QueueMenuSound(kFocusSound);
+			}
+			ImGui::EndDisabled();
+		}
+
+		// The Add spell popup's list: the spells SituationForm::spellShown names, a tick row each
+		// (DrawSpellRow); under it the count line (DrawSpellCount), then past the most it lists,
+		// a line saying how many more.
 		void DrawSpellList(State& a_state)
 		{
 			constexpr std::size_t kMaxListed = 100;   // rows listed; more need a longer search
@@ -2114,9 +2176,10 @@ namespace CaptureWindow::Internal
 			auto&       form = a_state.situationForm;
 			const auto  spells = OfferedSpells(a_state);
 			const auto  listed = (std::min)(form.spellShown.size(), kMaxListed);
+			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
 			const char* hint = form.spellShowAll && form.spellSearch[0] == '\0' ? "Type to search." : "Nothing found.";
 			PushListRowSpacing();
-			const float rowHeight = Theme::SelectRowHeight() + ImGui::GetStyle().ItemSpacing.y;
+			const float rowHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;  // Theme::TickRow's
 			if (Theme::BeginList("spells", FittedListHeight(rowHeight * kRowsTall, rowHeight))) {
 				if (listed == 0) {
 					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -2129,23 +2192,14 @@ namespace CaptureWindow::Internal
 					if (form.spellShown[i] >= spells.size()) {
 						continue;
 					}
-					const auto& choice = spells[form.spellShown[i]];
-					const auto& spell = choice.spell;
-					const bool  picked = form.spellPick && SituationRules::SameForm(form.spellPick->ref, spell.ref);
 					ImGui::PushID(static_cast<int>(i));
-					const auto icon = IconOf(choice);
-					if (Theme::SelectRow(spell.ref.name.c_str(), picked, &icon)) {
-						form.spellPick = spell;
-						QueueMenuSound(kFocusSound);
-					}
-					if (ImGui::IsItemHovered()) {
-						Theme::Tooltip(SpellTip(spell, choice.effectLines).c_str());
-					}
+					DrawSpellRow(a_state, spells[form.spellShown[i]], row);
 					ImGui::PopID();
 				}
 			}
 			ImGui::PopStyleVar();
 			Theme::EndList();
+			DrawSpellCount(a_state);
 			if (form.spellShown.size() > kMaxListed) {
 				Theme::CountText(std::format("{} more. Type more to narrow.", form.spellShown.size() - kMaxListed).c_str(), false);
 			}
@@ -2172,9 +2226,10 @@ namespace CaptureWindow::Internal
 		}
 
 		// The Add spell popup (docs/custom-situations.md §7): the search, Show all spells and Show
-		// player spells, the spells that match; Add, greyed with none picked or one the row has
-		// already, / Cancel (Escape, unless it clears the search). Returns the spell to add on Add.
-		std::optional<SituationRules::Spell> DrawAddSpellPopup(State& a_state)
+		// player spells, the spells that match, each with a tick, and how many are ticked; Add,
+		// greyed with none ticked, / Cancel (Escape, unless it clears the search). Returns the
+		// ticked spells on Add, in the order they were ticked; none otherwise.
+		std::vector<SituationRules::Spell> DrawAddSpellPopup(State& a_state)
 		{
 			constexpr float       kWidthInFonts = 18.0f;  // the popup's content width, in font sizes
 			constexpr const char* kShowAll = "Show all spells";
@@ -2201,7 +2256,7 @@ namespace CaptureWindow::Internal
 			const float windowWidth = width + style.WindowPadding.x * 2.0f;
 			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
 			if (!BeginModal(kAddSpellPopup)) {
-				return std::nullopt;
+				return {};
 			}
 			ImGui::TextUnformatted(lead.c_str());
 			bool        escapeTaken = false;
@@ -2225,20 +2280,15 @@ namespace CaptureWindow::Internal
 				}
 				form.spellOptionsWidth = ImGui::GetItemRectMax().x - rowLeft;
 			}
+			// Contract: the ticks stay as the list changes, so spells of several searches are added
+			// at once; a ticked spell may not be listed, and only the count line tells of it.
 			if (changed) {
-				form.spellPick.reset();
 				RefreshSpellList(a_state);
 			}
 			DrawSpellList(a_state);
 
-			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
-			const auto& pick = form.spellPick;
-			const bool  listed = pick && row && std::ranges::any_of(row->spells, [&pick](const SituationRules::Spell& a_spell) {
-				return SituationRules::SameForm(a_spell.ref, pick->ref);
-			});
 			BeginButtonRow({ "Add", "Cancel" });
-			const char* reason = !pick ? "Select a spell." : (listed ? "Already in the list." : nullptr);
-			const bool  add = ReasonButton("Add", reason);
+			const bool add = ReasonButton("Add", ReasonIf(form.spellPicks.empty(), "Select at least one spell."));
 			ImGui::SameLine();
 			const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !escapeTaken);
 			EndButtonRow();
@@ -2247,7 +2297,7 @@ namespace CaptureWindow::Internal
 				ImGui::CloseCurrentPopup();
 			}
 			ImGui::EndPopup();
-			return add ? pick : std::nullopt;
+			return add ? std::exchange(form.spellPicks, {}) : std::vector<SituationRules::Spell>{};
 		}
 
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
@@ -2387,9 +2437,11 @@ namespace CaptureWindow::Internal
 					ScheduleAutosave(a_state);
 				}
 			}
-			if (auto spell = DrawAddSpellPopup(a_state)) {
+			if (auto spells = DrawAddSpellPopup(a_state); !spells.empty()) {
 				if (auto* row = FormRow(a_state, SituationRules::Kind::kSpell)) {
-					row->spells.push_back(std::move(*spell));
+					for (auto& spell : spells) {
+						row->spells.push_back(std::move(spell));
+					}
 					form.neverWornStale = true;
 					ScheduleAutosave(a_state);
 				}

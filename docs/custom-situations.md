@@ -346,7 +346,13 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   actor's window), a search field (`Search by name`, ASCII case ignored, as the outfit search),
   `Show all spells` and, right of it in another actor's window, `Show player spells` (greyed
   while Show all spells is ticked; both unticked at each open), and a
-  list ten rows tall of the spells whose name holds the search, a click picking one. A spell
+  list ten rows tall of the spells whose name holds the search, a tick row each (as the item
+  lists'), a click ticking or unticking one. The ticks stay as the search or the checkboxes
+  change what is listed, so spells of several searches are added at once; a spell the row has
+  already is ticked, greyed and takes no click, its hover ending in `Already in the list.`.
+  Under the list a count line, `<n> spells selected` (`1 spell selected`), counts the ticked
+  ones, those not listed now too, with `Clear All` at its right end (greyed with none), which
+  unticks them all. A spell
   there or on the row follows its icon, SkyUI's (design.md §9, Magic icons); a spell of the row
   that no list has, or whose plugin is not loaded, has the icon's room and no icon. Hovering a
   spell there or on the row shows its plugin and FormID, then its visible effects a line each,
@@ -375,8 +381,9 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   by their effects (the player's, the traps', a creature's, a cloak's, J'zargo's), each a
   different effect named "Flames", told apart by the FormID line alone without editor IDs;
   reading the plugins' editor IDs into Livery was judged not worth its load cost for this
-  hover. The first 100 matches are listed, then `<n> more. Type more to narrow.`. Add is greyed with none picked or
-  one the row has already; Escape clears the search, or with none typed is Cancel.
+  hover. The first 100 matches are listed, then `<n> more. Type more to narrow.` under the count line. Add
+  puts every ticked spell on the row, in the order they were ticked, and is greyed with none
+  ticked (`Select at least one spell.`); Escape clears the search, or with none typed is Cancel.
 - `Allow during combat` is a checkbox a field's gap under `Add Condition...`, apart from the
   conditions since it is not one; its tooltip `In combat, the default outfit is normally
   worn.` and `On, this situation can apply in combat too.` With an In Combat row (not
