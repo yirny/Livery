@@ -35,23 +35,25 @@ Items marked *provisional* are tried in a prototype first and may change.
 
 A situation holds a list of condition rows. The situation applies while every row holds
 (AND). A row is a kind, a `not` flag, for a kind with values a set of values, and for a kind
-that reads an actor's own state (`SituationRules::Targetable`: In combat, Sleeping, Swimming,
-Spell Effect, Weapon) whose state it reads (`Row::target`): the character wearing the
-situation's outfit, or the player whoever wears it (a follower who changes when you fight). A
-row with values holds while any of its values holds (OR), and `not` inverts the row. Rows do not
-nest:
-there are no OR groups (*provisional*: revisited after use; so far every wanted rule
-fits, "night or rain" being two situations). The same kind may appear in several rows
-("Rain" and "not Freezing region"). A row with values and none selected never holds, so its
-situation never applies; the Situations page says so (§7). A situation with no rows never
-applies either.
+that reads an actor's own state (`SituationRules::Targetable`: State, Spell Effect) whose state
+it reads (`Row::target`): the character wearing the situation's outfit, or the player whoever
+wears it (a follower who changes when you fight). A row with values holds while any of its
+values holds (OR), and `not` inverts the row. Rows do not nest: there are no OR groups across
+kinds (*provisional*: revisited after use; so far every wanted rule fits, "night or rain" being
+two situations); the actor's states are one kind's values (State) so that one row can join them
+by OR. The same kind may appear in several rows ("Rain" and "not Freezing region"). A row with
+values and none selected never holds, so its situation never applies; the Situations page says
+so (§7). A situation with no rows never applies either.
 
 Combat: every situation but the Default has the flag `Allow during combat`:
 off, the situation does not apply in combat, so a fight is fought in the Default unless another
 one applies (the wearer's combat, whoever the rows read); on, its rows decide. A situation with
-an `In combat` row, reading the wearer or the player, has the flag on and not editable: the row
-would never hold otherwise, or only while the player fights and the wearer does not. Every
-preset has it off as installed.
+a State row of In combat alone, not negated, reading the wearer or the player, has the flag on
+and not editable (`SituationRules::AppliesInCombat`): the row would never hold otherwise, or
+only while the player fights and the wearer does not. A State row with In combat and another
+value holds outside combat too, so it leaves the flag to the user; while the flag is off, its
+In combat never holds, and the value's tooltip says so (§7). Every preset has it off as
+installed.
 
 ## 3. Condition kinds
 
@@ -60,16 +62,12 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 
 | Kind | Values | Holds while | Source | Verified |
 |---|---|---|---|---|
-| In combat | none | the actor is in combat | `Actor::IsInCombat` | yes (as today's rule) |
-| Sleeping | none | the sleeping rule of docs/design.md §7 | `GetSitSleepState`, CanSleep furniture | not yet |
-| Swimming (key `water`) | one of In water (key `inWater`), Swimming | In water = the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only. Swimming = the actor state's swimming flag | `IsSwimming`, `GetWaterHeight` | In water by wading yes; Swimming not yet |
-| Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no |
-| Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
+| State (key `state`) | In combat, Weapon drawn, In water, Swimming, Sleeping (keys `inCombat`, `weaponDrawn`, `inWater`, `swimming`, `sleeping`) | In combat = the actor is in combat. Weapon drawn = a weapon, spell or fists drawn, or being put away (`kDrawn`, `kWantToSheathe`, `kSheathing`). In water = the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only. Swimming = the actor state's swimming flag. Sleeping = the sleeping rule of docs/design.md §7 | `Actor::IsInCombat`, `ActorState::IsWeaponDrawn`, `IsSwimming`, `GetWaterHeight`, `GetSitSleepState`, CanSleep furniture | In combat yes (as the first release's rule); In water by wading yes; the rest not yet |
+| Location type | Town, Castle, Player home, Dungeon, Indoors (keys `town`, `castle`, `playerHome`, `dungeon`, `indoors`) | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon`; Indoors = their cell is an interior cell, with or without a location | `BGSLocation::HasKeywordString`, `TESObjectCELL::IsInteriorCell` | Town yes; Castle, the rest not yet |
 | Place (Specific Location in the editor) | a list of locations and cells | their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Warm region, Cool region, Freezing region (keys `rain`, `snow`, `warmRegion`, `coolRegion`, `freezingRegion`) | read around the player, whoever wears the situation. Rain = the player is in an exterior cell and the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in). A region = the climate of the player's place (`RegionClimate`): outdoors Survival Mode's classes by the cell's regions and the player's height (the conditions of its `Survival_RegionInfoSpell`, in its order: the two mountain areas, warm, cool, then freezing), Windhelm's city region freezing too; a place it does not class (a mod's land) Freezing when a region of its cell has snow weathers for at least 40% of its weather chance, Cool otherwise; indoors (an interior cell, or one of its interior worldspaces such as Blackreach) none, but its ice caves (by location or cell) Freezing; its Oblivion planes (Sovngarde, the Soul Cairn, Apocrypha) none. The place is read again only as the player's cell or location changes | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`; `TESObjectCELL::GetRegionList`, `GetPositionZ`, `GetWorldspace`, `GetCurrentLocation` | Rain and Snow by the sky yes, outdoors only not yet; the climate matched Survival Mode's own answer in 17 cells (2026-11-18); the region rows not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell Effect (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
-| Weapon | none | a weapon, spell or fists drawn, or being put away (`kDrawn`, `kWantToSheathe`, `kSheathing`); negated, sheathed | `ActorState::IsWeaponDrawn` | no |
 
 "The actor" above is the wearer, or with `Row::target` the player (§2); the player's facts are
 read once per evaluation, as the wearer's are, and only when a row asks. The player's in-water
@@ -79,7 +77,7 @@ Notes:
 
 - The presets as installed (`SituationTable::PresetRules`), each with `Allow during combat` off:
   Town = Location type {Town}; Castle = Location type {Castle}; Home = Location type
-  {Player home}; Cold = Weather {Snow, Freezing region}; Sleep = Sleeping.
+  {Player home}; Cold = Weather {Snow, Freezing region}; Sleep = State {Sleeping}.
   Two changes from the first release's fixed rules, decided 2026-11-14 since a rule cannot
   depend on who the actor is: Home no longer holds in any house for an NPC (`LocTypeHouse`),
   and Town holds in any house for the player too. Cold changed too (decided 2026-11-18): rain
@@ -88,10 +86,15 @@ Notes:
   again through the model (§10).
 - In water keeps its hysteresis in a per-actor list of those last told in water
   (`g_inWater`, changed only as someone goes in or out). Swimming needs none: the flag is the
-  engine's. In water takes swimming in, so a row with both (only from the file) reads In water,
-  and the never-worn mark (§7) counts Swimming as In water (`Detail::Implies`).
-- Indoors is the cell's kind. Worldspaces that are underground or elsewhere (Blackreach,
-  Sovngarde, the Soul Cairn) count as outdoors; a known quirk, documented, not worked around.
+  engine's. In water takes swimming in, so a row with both reads In water alone, and the
+  never-worn mark (§7) counts Swimming as In water (`Detail::Implies`). A State row reads its
+  values in the table's order and stops at the first that holds, so In water is read (and its
+  record kept) only while the actor is neither in combat nor with a weapon drawn.
+- Indoors is the cell's kind, not a keyword: its bit lies above the keyword values, so the
+  never-worn mark's type masks (`PlaceFact::typeMasks`) never have it, and a place never implies
+  Indoors (a location may have outdoor cells). Worldspaces that are underground or elsewhere
+  (Blackreach, Sovngarde, the Soul Cairn) count as outdoors; a known quirk, documented, not
+  worked around.
 - Location type reads the location's own keywords only, as the presets do (a room of a city is
   not in it by its parent); Place walks the parents. A hold is not offered as a Place, nor
   Tamriel above the holds (decided 2026-11-13): it would hold in the hold's towns, farms,
@@ -101,7 +104,7 @@ Notes:
   country, if wanted.
 - Weather reads around the player, not the wearer: the sky is theirs, and the actors the poll
   dresses are near them, so all change together. Its indoors is Survival Mode's, which counts
-  worldspaces such as Blackreach as indoors, unlike Indoors.
+  worldspaces such as Blackreach as indoors, unlike Location type's Indoors.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
   its next run. From equal to To is the whole day.
 - Spell Effect: the row lists spells, powers, shouts (by their words' spells), potions,
@@ -201,7 +204,7 @@ keeps its installed rules. Shape:
       "applyInCombat": false,
       "conditions": [{ "kind": "weather", "not": false, "values": ["snow", "freezingRegion"] }]
     },
-    { "key": "Sleep", "name": "Sleep", "removed": false, "applyInCombat": false, "conditions": [{ "kind": "sleeping", "not": false }] },
+    { "key": "Sleep", "name": "Sleep", "removed": false, "applyInCombat": false, "conditions": [{ "kind": "state", "not": false, "values": ["sleeping"] }] },
     {
       "key": "user:2",
       "name": "Rainy town",
@@ -209,7 +212,7 @@ keeps its installed rules. Shape:
       "conditions": [
         { "kind": "locationType", "not": false, "values": ["town", "castle"] },
         { "kind": "weather", "not": false, "values": ["rain", "snow"] },
-        { "kind": "indoors", "not": true },
+        { "kind": "locationType", "not": true, "values": ["indoors"] },
         { "kind": "place", "not": false, "values": [{ "plugin": "Skyrim.esm", "formId": "0x01A26F", "name": "Whiterun" }] },
         { "kind": "timeOfDay", "not": false, "from": "20:00", "to": "06:00" },
         { "kind": "spell", "not": false, "values": [{ "plugin": "Skyrim.esm", "formId": "0x059B7A", "name": "Stoneflesh" }] }
@@ -310,31 +313,31 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   name and `Player` (`Row::target`; its help `<name>: checks this character` and `Player: checks
   you`; in the player's own window, `Request::actorIsPlayer`, `<name>: checks each character
   wearing the outfit` and `Player: always checks you`); the others with their subject in the
-  text colour (`KindInfo::subject`): `<name> is`, `The location type`, `The location`, `The
-  weather`, `The time is`. A two-state kind (`SituationRules::TwoState`) then reads `is` / `is
-  not` and its phrase, `[Lydia] [is] sleeping`, or is a dropdown of its two states where it has
-  them (`KindInfo::state`, `negState`): `Indoors` / `Outdoors`, `Weapon drawn` / `Weapon
-  sheathed`. The others have the operator dropdown, as wide as its widest wording so ticking
-  more values never widens it: `is` / `is not` with up to one value or form selected, `is any
-  of` / `is none of` with more (as Linear and Airtable word it), Spell Effect `has` / `has not`,
-  `has any of` / `has none of`, `between` / `not between` for Time of day; then the values.
-  Location type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying
-  open for several ticks; a value with a tip, `Value::tip`, says it while hovered: Freezing region's
-  `Snowy lands, high mountains, the northern coast and ice caves.`) whose preview lists the ticked values, `Rain,
-  Snow`, or a greyed `Select...` with none; Weather's has a rule between Rain / Snow and the
-  regions (`Value::ruleAbove`), the weather now apart from the climate; Swimming's a single choice (`SituationRules::OneValue`,
-  `[Lydia] [is] [In water]`, the operator `is` / `is not` alone), closed by it, its tips `Any
-  water underfoot, however shallow.` and `Swimming only, not wading.`; Time of day's are
-  `[time] and [time]`, two dropdowns
+  text colour (`KindInfo::subject`): `The location type`, `The location`, `The weather`, `The
+  time is`. Then the operator dropdown, as wide as its widest wording so ticking more values
+  never widens it: `is` / `is not` with up to one value or form selected, `is any of` / `is none
+  of` with more (as Linear and Airtable word it), Spell Effect `has` / `has not`, `has any of` /
+  `has none of`, `between` / `not between` for Time of day; then the values. State's, Location
+  type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying open for
+  several ticks; a value with a tip, `Value::tip`, says it while hovered: Freezing region's
+  `Snowy lands, high mountains, the northern coast and ice caves.`) whose preview lists the
+  ticked values, `Rain, Snow`, or a greyed `Select...` with none. Rules between groups of values
+  (`Value::ruleAbove`): State's In combat, Weapon drawn / In water, Swimming / Sleeping, and its
+  tips `Fighting.`, `A weapon, spell or fists at the ready.`, `Any water underfoot, however
+  shallow.`, `Swimming only, not wading.`, `Going to bed, in it or getting up.`; In combat's tip
+  is `Fighting.` then, after a blank line, `Never holds while Allow during combat is off.` while
+  the situation does not apply in combat and the row is not negated (§2); Location type's
+  Indoors under the keyword types, the cell's kind apart; Weather's Rain / Snow above the
+  regions, the weather now apart from the climate. Time of day's are `[time] and [time]`, two
+  dropdowns
   in 30-minute steps (a time read from the file off those steps shows as it is). Both sit on the
   row while they fit, else under it, 16px in. Place (`Specific Location` in the editor) and
   Spell list their forms under the row, 16px in, one a line with a × at its right end (`Remove
   this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
   hover), then `Add Location...` or `Add Spell...` at the list's left. In Vanilla and Nordic a
   row's dropdowns have the palette's stripe colour behind them, the frame padding at both ends (`FieldStyle::filled`). Then `Add Condition...`, a dropdown with the Add links' plus mark before its text (`FieldIcon::kAdd`), of the
-  kinds by label in the chosen language (`KindsByLabel`, ASCII case ignored), as wide as its widest kind, closed by the choice, which adds a row with nothing selected, Swimming's with
-  In water (a Place or Spell row opens its Add popup at once); a two-state kind the situation has every row it can take of
-  (one; one per target for a kind with a target) is greyed there, a second adding nothing.
+  kinds by label in the chosen language (`KindsByLabel`, ASCII case ignored), as wide as its widest kind, closed by the choice, which adds a row with nothing selected
+  (a Place or Spell row opens its Add popup at once).
 - `Add Location...` opens the `Add location` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a
   `Parent Location (<name>)` for each location it is in, nearest first, up to the first hold
@@ -392,17 +395,17 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   ticked (`Select at least one spell.`); Escape clears the search, or with none typed is Cancel.
 - `Allow during combat` is a checkbox a field's gap under `Add Condition...`, apart from the
   conditions since it is not one; its tooltip `In combat, the default outfit is normally
-  worn.` and `On, this situation can apply in combat too.` With an In combat row (not
-  negated) it is on and disabled, `On while the situation has an In combat condition.`; a
-  preset's is off as installed.
+  worn.` and `On, this situation can apply in combat too.` With a State row of In combat
+  alone (not negated) it is on and disabled, `On while the situation has an In combat
+  condition.`; a preset's is off as installed.
 - The `Applies` line, under its own label, is every situation's but the Default's
   (the Default's is the texts `kDefaultWornWhere` and `kDefaultWornInCombat`) and is built from the rows in order, one clause per row, each a whole text of `LIVERY_STRINGS_CONDITIONS` (`KindInfo::clauses`), joined by `kListSeparator` and ended by `kAppliesEnd`: `In a town
-  or a castle, in rain or snow, outdoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh
-  is on, with a weapon drawn.` Negated, `not in combat`, `outdoors`, `with weapons sheathed`
+  or an interior, in rain or snow, at Whiterun, from 8 PM to 6 AM, while Stoneflesh is on, in
+  combat or at the ready.` Negated, `not in combat`, `not in an interior`, `not at the ready`
   (`Clauses::negated`); reading the player, `while you are in combat`, `while you are not
-  sleeping`, `while Stoneflesh is on you`, `while your weapon is drawn`, `while your weapons are
-  sheathed` (`Clauses::you`, `youNegated`). A row with nothing selected reads `Weather (nothing
-  selected)`; a situation without rows `Never applies.`
+  sleeping`, `while Stoneflesh is on you`, `while you are at the ready` (`Clauses::you`,
+  `youNegated`). A row with nothing selected reads `Weather (nothing selected)`; a situation
+  without rows `Never applies.`
 - The editor's edits save once its popup closes (the page's autosave waits while a popup is
   open) or as the page is left, the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
@@ -460,8 +463,7 @@ mark proves nothing; the tooltip names what was found. The mark does not read th
 ## 9. Implementation order
 
 1. 2a: the condition model, situations.json version 2, the mutable registry, the editor, and
-   the kinds that need no form picker: In combat, Sleeping, Swimming, Indoors,
-   Location type, Weather, Time of day. Usable on its own; the prototype of §7 is checked here.
+   the kinds that need no form picker: State, Location type, Weather, Time of day. Usable on its own; the prototype of §7 is checked here.
    Built on `feat/cs-model`, checked in game.
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).
    Built on `feat/cs-place`, checked in game.

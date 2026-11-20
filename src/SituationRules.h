@@ -33,16 +33,12 @@ namespace SituationRules
 {
 	enum class Kind : std::uint8_t
 	{
-		kInCombat,
-		kSleeping,
-		kWater,
-		kIndoors,
+		kState,
 		kLocationType,
 		kPlace,
 		kWeather,
 		kTimeOfDay,
-		kSpell,
-		kWeapon
+		kSpell
 	};
 
 	// Whose state a row reads (Row::target): the character wearing the situation's outfit, or
@@ -59,15 +55,21 @@ namespace SituationRules
 	inline constexpr std::uint32_t kCastle = 1u << 1;
 	inline constexpr std::uint32_t kPlayerHome = 1u << 2;
 	inline constexpr std::uint32_t kDungeon = 1u << 3;
+	// The cell's kind, not a keyword: above the keyword values, so a type mask (PlaceFact) never
+	// has it.
+	inline constexpr std::uint32_t kIndoors = 1u << 4;
 	// Weather's values, bits of Row::values.
 	inline constexpr std::uint32_t kRain = 1u << 0;
 	inline constexpr std::uint32_t kSnow = 1u << 1;
 	inline constexpr std::uint32_t kWarmRegion = 1u << 2;  // the climates of RegionClimate
 	inline constexpr std::uint32_t kCoolRegion = 1u << 3;
 	inline constexpr std::uint32_t kFreezingRegion = 1u << 4;
-	// Water's values, bits of Row::values. In water takes swimming in.
-	inline constexpr std::uint32_t kInWater = 1u << 0;
-	inline constexpr std::uint32_t kSwimming = 1u << 1;
+	// State's values, bits of Row::values. In water takes swimming in.
+	inline constexpr std::uint32_t kInCombat = 1u << 0;
+	inline constexpr std::uint32_t kWeaponDrawn = 1u << 1;
+	inline constexpr std::uint32_t kInWater = 1u << 2;
+	inline constexpr std::uint32_t kSwimming = 1u << 3;
+	inline constexpr std::uint32_t kSleeping = 1u << 4;
 
 	inline constexpr std::uint16_t kMinutesPerDay = 24 * 60;
 
@@ -216,7 +218,7 @@ namespace SituationRules
 
 	struct Row
 	{
-		Kind               kind = Kind::kInCombat;
+		Kind               kind = Kind::kState;
 		bool               negated = false;           // the row's `not`
 		Target             target = Target::kWearer;  // a Targetable kind: whose state it reads; kWearer for the others
 		std::uint32_t      values = 0;                // a kind with values (KindInfo::values): the bits of those ticked
@@ -242,16 +244,17 @@ namespace SituationRules
 		std::uint32_t                bit;
 		const char*                  key;                // in situations.json
 		Strings::Text                label;              // the editor's checkbox
-		Strings::Text                phrase;             // in the Applies line, the clause's {0} ("a town"; Water's "in water", "swimming")
+		Strings::Text                phrase;             // in the Applies line, the clause's {0} ("a town"; State's "in combat", "swimming")
 		std::optional<Strings::Text> tip;                // on its row in the editor's dropdown, while hovered
 		bool                         ruleAbove = false;  // the editor's dropdown draws a rule above its row, ending a group of values
 	};
 
-	inline constexpr std::array<Value, 4> kLocationTypes{ {
+	inline constexpr std::array<Value, 5> kLocationTypes{ {
 		{ kTown, "town", Strings::Text::kValueTown, Strings::Text::kPhraseTown },
 		{ kCastle, "castle", Strings::Text::kValueCastle, Strings::Text::kPhraseCastle },
 		{ kPlayerHome, "playerHome", Strings::Text::kValuePlayerHome, Strings::Text::kPhrasePlayerHome },
 		{ kDungeon, "dungeon", Strings::Text::kValueDungeon, Strings::Text::kPhraseDungeon },
+		{ kIndoors, "indoors", Strings::Text::kValueIndoors, Strings::Text::kPhraseIndoors, std::nullopt, true },  // the keywords above, the cell below
 	} };
 
 	inline constexpr std::array<Value, 5> kWeathers{ {
@@ -262,9 +265,14 @@ namespace SituationRules
 		{ kFreezingRegion, "freezingRegion", Strings::Text::kValueFreezingRegion, Strings::Text::kPhraseFreezingRegion, Strings::Text::kTipFreezingRegion },
 	} };
 
-	inline constexpr std::array<Value, 2> kWaterDepths{ {
-		{ kInWater, "inWater", Strings::Text::kValueInWater, Strings::Text::kPhraseInWater, Strings::Text::kTipInWater },
+	// In combat's tip is the editor's while the situation applies in combat (AppliesInCombat); it
+	// warns with another while it does not.
+	inline constexpr std::array<Value, 5> kStates{ {
+		{ kInCombat, "inCombat", Strings::Text::kValueInCombat, Strings::Text::kPhraseInCombat, Strings::Text::kTipInCombat },
+		{ kWeaponDrawn, "weaponDrawn", Strings::Text::kValueWeaponDrawn, Strings::Text::kPhraseWeaponDrawn, Strings::Text::kTipWeaponDrawn },
+		{ kInWater, "inWater", Strings::Text::kValueInWater, Strings::Text::kPhraseInWater, Strings::Text::kTipInWater, true },  // fighting above, water below
 		{ kSwimming, "swimming", Strings::Text::kValueSwimming, Strings::Text::kPhraseSwimming, Strings::Text::kTipSwimming },
+		{ kSleeping, "sleeping", Strings::Text::kValueSleeping, Strings::Text::kPhraseSleeping, Strings::Text::kTipSleeping, true },
 	} };
 
 	// A kind's clauses in the Applies line (KindInfo::clauses), each a whole clause: read of the
@@ -287,44 +295,18 @@ namespace SituationRules
 		Clauses                      clauses;     // the row in the Applies line; {0} the values, places or spells (JoinWithOr), Time of day's {0} and {1} its times
 		std::span<const Value>       values;      // empty for a kind without
 		bool                         targetable;  // the row may read the player instead of the wearer (Target)
-		std::optional<Strings::Text> subject;     // the row's first words in the editor for a kind that is not targetable ("The weather"); {0} names the actor
-		std::optional<Strings::Text> state;       // a two-state kind whose row is a dropdown of its states: the state while not negated ("Indoors", "Weapon drawn")
-		std::optional<Strings::Text> negState;    // that dropdown's other state ("Outdoors", "Weapon sheathed")
-		std::optional<Strings::Text> phrase;      // a two-state kind without states: after "is" / "is not" in the editor ("in combat")
+		std::optional<Strings::Text> subject;     // the row's first words in the editor for a kind that is not targetable ("The weather")
 	};
 
 	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them by label.
-	inline constexpr std::array<KindInfo, 10> kKinds{ {
-		{ .kind = Kind::kInCombat,
-			.key = "inCombat",
-			.label = Strings::Text::kKindInCombat,
-			.tip = Strings::Text::kTipInCombat,
-			.clauses = { Strings::Text::kClauseInCombat, Strings::Text::kClauseNotInCombat, Strings::Text::kClauseYouInCombat, Strings::Text::kClauseYouNotInCombat },
-			.targetable = true,
-			.phrase = Strings::Text::kRowInCombat },
-		{ .kind = Kind::kSleeping,
-			.key = "sleeping",
-			.label = Strings::Text::kKindSleeping,
-			.tip = Strings::Text::kTipSleeping,
-			.clauses = { Strings::Text::kClauseSleeping, Strings::Text::kClauseNotSleeping, Strings::Text::kClauseYouSleeping, Strings::Text::kClauseYouNotSleeping },
-			.targetable = true,
-			.phrase = Strings::Text::kRowSleeping },
-		{ .kind = Kind::kWater,
-			.key = "water",
-			.label = Strings::Text::kKindWater,
-			.tip = Strings::Text::kTipWater,
-			.clauses = { Strings::Text::kClauseWater, Strings::Text::kClauseNotWater, Strings::Text::kClauseYouWater, Strings::Text::kClauseYouNotWater },
-			.values = kWaterDepths,
+	inline constexpr std::array<KindInfo, 6> kKinds{ {
+		{ .kind = Kind::kState,
+			.key = "state",
+			.label = Strings::Text::kKindState,
+			.tip = Strings::Text::kTipState,
+			.clauses = { Strings::Text::kClauseState, Strings::Text::kClauseNotState, Strings::Text::kClauseYouState, Strings::Text::kClauseYouNotState },
+			.values = kStates,
 			.targetable = true },
-		{ .kind = Kind::kIndoors,
-			.key = "indoors",
-			.label = Strings::Text::kKindIndoors,
-			.tip = Strings::Text::kTipIndoors,
-			.clauses = { Strings::Text::kClauseIndoors, Strings::Text::kClauseOutdoors },
-			.targetable = false,
-			.subject = Strings::Text::kSubjectActor,
-			.state = Strings::Text::kStateIndoors,
-			.negState = Strings::Text::kStateOutdoors },
 		{ .kind = Kind::kLocationType,
 			.key = "locationType",
 			.label = Strings::Text::kKindLocationType,
@@ -361,14 +343,6 @@ namespace SituationRules
 			.tip = Strings::Text::kTipSpell,
 			.clauses = { Strings::Text::kClauseSpell, Strings::Text::kClauseNotSpell, Strings::Text::kClauseYouSpell, Strings::Text::kClauseYouNotSpell },
 			.targetable = true },
-		{ .kind = Kind::kWeapon,
-			.key = "weapon",
-			.label = Strings::Text::kKindWeapon,
-			.tip = Strings::Text::kTipWeapon,
-			.clauses = { Strings::Text::kClauseWeaponDrawn, Strings::Text::kClauseWeaponSheathed, Strings::Text::kClauseYouWeaponDrawn, Strings::Text::kClauseYouWeaponSheathed },
-			.targetable = true,
-			.state = Strings::Text::kStateWeaponDrawn,
-			.negState = Strings::Text::kStateWeaponSheathed },
 	} };
 
 	static_assert([] {
@@ -390,23 +364,10 @@ namespace SituationRules
 		return !InfoOf(a_kind).values.empty();
 	}
 
-	// A kind with values of which a row takes one, each a whole phrase: Water.
-	inline bool OneValue(Kind a_kind)
-	{
-		return a_kind == Kind::kWater;
-	}
-
 	// A kind whose row lists forms: Place, Spell.
 	inline bool HasForms(Kind a_kind)
 	{
 		return a_kind == Kind::kPlace || a_kind == Kind::kSpell;
-	}
-
-	// A kind that is so or not, with nothing to choose: its row reads "is" / "is not" and its
-	// phrase, or is a dropdown of its two states (KindInfo::state).
-	inline bool TwoState(Kind a_kind)
-	{
-		return !HasValues(a_kind) && !HasForms(a_kind) && a_kind != Kind::kTimeOfDay;
 	}
 
 	// A kind whose row may read the player instead of the wearer (Row::target).
@@ -437,14 +398,16 @@ namespace SituationRules
 		return HasValues(a_row.kind) ? a_row.values == 0 : HasForms(a_row.kind) && FormsOf(a_row).empty();
 	}
 
-	// Whether the situation applies in combat: ticked, or a row that holds only in combat.
+	// Whether the situation applies in combat: ticked, or a row that holds only in combat (State,
+	// In combat alone, not negated). A row with In combat and another state holds outside combat
+	// too, so it leaves the tick to the user; its In combat never holds while unticked.
 	inline bool AppliesInCombat(const Rules& a_rules)
 	{
 		if (a_rules.applyInCombat) {
 			return true;
 		}
 		for (const auto& row : a_rules.rows) {
-			if (row.kind == Kind::kInCombat && !row.negated) {
+			if (row.kind == Kind::kState && !row.negated && row.values == kInCombat) {
 				return true;
 			}
 		}
@@ -488,11 +451,10 @@ namespace SituationRules
 		return text;
 	}
 
-	// The row's clause in the Applies line (KindInfo::clauses): "in a town or a castle", "not in
-	// rain", "swimming", "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on", "with
-	// a weapon drawn", "outdoors"; reading the player (Target::kPlayer), "while you are in
-	// combat", "while you are not in water", "while Stoneflesh is on you", "while your weapon is
-	// drawn".
+	// The row's clause in the Applies line (KindInfo::clauses): "in a town or an interior", "not
+	// in rain", "in combat or at the ready", "at Breezehome or Whiterun", "while Oakflesh or
+	// Stoneflesh is on"; reading the player (Target::kPlayer), "while you are swimming", "while
+	// you are not in water", "while Stoneflesh is on you".
 	inline std::string RowText(const Row& a_row)
 	{
 		const auto& info = InfoOf(a_row.kind);
@@ -526,7 +488,7 @@ namespace SituationRules
 		return Strings::Get(clause);
 	}
 
-	// The Applies line: one clause per row in order, "In a town, in rain or snow, outdoors.", an
+	// The Applies line: one clause per row in order, "In a town, in rain or snow, sleeping.", an
 	// ASCII first letter in upper case; "Never applies." with no rows.
 	inline std::string Text(const Rules& a_rules)
 	{
@@ -558,7 +520,8 @@ namespace SituationRules
 		// parents; a cell's location, then that location's parents.
 		std::vector<std::uint32_t> within;
 		// Bit m set when its own keywords, or those of a location within it, give exactly the
-		// Location type values m (a cell: those of its location); 0 for a cell without one.
+		// Location type values m (a cell: those of its location); 0 for a cell without one. The
+		// keyword values are below kIndoors, so m is below 16.
 		std::uint16_t typeMasks = 0;
 	};
 
@@ -618,7 +581,8 @@ namespace SituationRules
 		}
 
 		// Each place of `a_places` gives one of Location type's `a_values` wherever in it the
-		// actor is: it and every location within it (PlaceFact::typeMasks).
+		// actor is: it and every location within it (PlaceFact::typeMasks). Indoors never counts:
+		// a place may have outdoor cells, and no mask has its bit.
 		inline bool PlacesHaveTypes(const std::vector<Place>& a_places, std::uint32_t a_values, std::span<const PlaceFact> a_facts)
 		{
 			return std::ranges::all_of(a_places, [a_values, a_facts](const Place& a_place) {
@@ -651,7 +615,7 @@ namespace SituationRules
 			case Kind::kLocationType:
 			case Kind::kWeather:
 				return (inner.values & ~outer.values) == 0;
-			case Kind::kWater:
+			case Kind::kState:
 				{
 					// Swimming is in water: a row that takes In water takes Swimming too.
 					const auto taken = outer.values & kInWater ? outer.values | kSwimming : outer.values;
@@ -663,9 +627,8 @@ namespace SituationRules
 				return PlacesWithin(inner.places, outer.places, a_facts);
 			case Kind::kSpell:
 				return SpellsWithin(inner.spells, outer.spells);
-			default:
-				return true;  // a two-state kind
 			}
+			return false;
 		}
 	}
 
