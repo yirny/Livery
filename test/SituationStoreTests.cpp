@@ -300,6 +300,8 @@ TEST_CASE("The Applies line has a phrase per row, not first", "[situations]")
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType,
 									 .values = SituationRules::kTown | SituationRules::kPlayerHome | SituationRules::kDungeon } } }) ==
 		  "In a town, a player home or a dungeon.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType, .values = SituationRules::kCastle | SituationRules::kInn } } }) ==
+		  "In a castle or an inn.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType, .values = SituationRules::kTown }, { .kind = Kind::kIndoors } } }) ==
 		  "In a town, indoors.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kTimeOfDay, .from = 9 * 60 + 30, .to = 12 * 60 } } }) == "From 9:30 AM to 12 PM.");
@@ -901,12 +903,14 @@ TEST_CASE("Never worn: a place within another, and a place whose every location 
 	constexpr std::uint32_t      kBreezehome = 0x11;
 	constexpr std::uint32_t      kCell = 0x12;
 	constexpr std::uint32_t      kRuin = 0x13;
-	const auto                   mask = [](std::uint32_t a_types) { return static_cast<std::uint16_t>(1u << a_types); };
+	constexpr std::uint32_t      kInn = 0x14;
+	const auto                   mask = [](std::uint32_t a_types) { return 1u << a_types; };
 	const std::vector<PlaceFact> facts{
-		{ .formID = kWhiterun, .typeMasks = static_cast<std::uint16_t>(mask(SituationRules::kTown) | mask(SituationRules::kTown | SituationRules::kCastle)) },
+		{ .formID = kWhiterun, .typeMasks = mask(SituationRules::kTown) | mask(SituationRules::kTown | SituationRules::kCastle) },
 		{ .formID = kBreezehome, .within = { kWhiterun }, .typeMasks = mask(SituationRules::kTown | SituationRules::kPlayerHome) },
 		{ .formID = kCell, .within = { kBreezehome, kWhiterun }, .typeMasks = mask(SituationRules::kTown | SituationRules::kPlayerHome) },
-		{ .formID = kRuin, .typeMasks = static_cast<std::uint16_t>(mask(SituationRules::kDungeon) | mask(0)) },
+		{ .formID = kRuin, .typeMasks = mask(SituationRules::kDungeon) | mask(0) },
+		{ .formID = kInn, .within = { kWhiterun }, .typeMasks = mask(SituationRules::kTown | SituationRules::kInn) },
 	};
 	const Row whiterun{ .kind = Kind::kPlace, .places = { place(kWhiterun) } };
 	const Row breezehome{ .kind = Kind::kPlace, .places = { place(kBreezehome) } };
@@ -924,6 +928,11 @@ TEST_CASE("Never worn: a place within another, and a place whose every location 
 	CHECK(CoveredBy(RulesOf({ breezehome }), RulesOf({ home }), facts));
 	CHECK_FALSE(CoveredBy(RulesOf({ whiterun }), RulesOf({ home }), facts));
 	CHECK_FALSE(CoveredBy(RulesOf({ ruin }), RulesOf({ dungeon }), facts));  // a location within it has no type
+	const Row innPlace{ .kind = Kind::kPlace, .places = { place(kInn) } };
+	const Row inn{ .kind = Kind::kLocationType, .values = SituationRules::kInn };
+	CHECK(CoveredBy(RulesOf({ innPlace }), RulesOf({ inn }), facts));
+	CHECK(CoveredBy(RulesOf({ innPlace }), RulesOf({ town }), facts));
+	CHECK_FALSE(CoveredBy(RulesOf({ whiterun }), RulesOf({ inn }), facts));
 	// Indoors is the cell's: no place gives it.
 	const Row indoors{ .kind = Kind::kIndoors };
 	CHECK_FALSE(CoveredBy(RulesOf({ breezehome }), RulesOf({ indoors }), facts));
