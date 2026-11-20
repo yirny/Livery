@@ -4,8 +4,7 @@ Design, decided 2026-11-13. Built and checked in game: 2a to 2d (§9). It turns 
 docs/design.md §7 into one model: the five presets and the situations the user defines, each
 a key, a name, a list of conditions and a place in one order. The registry
 (`Situations::Count`, `Order`, `AddUser`, `kMaxSituations = 64`) is its base; the model is
-`src/SituationRules.h`, the file `src/SituationTable.h`. docs/memo-custom-situations.md keeps the place and spell
-decisions in detail and the Skyrim.esm facts behind them; this file is the specification.
+`src/SituationRules.h`, the file `src/SituationTable.h`.
 Items marked *provisional* are tried in a prototype first and may change.
 
 ## 1. Scope
@@ -66,7 +65,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Swimming (key `water`) | one of In water (key `inWater`), Swimming | In water = the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only. Swimming = the actor state's swimming flag | `IsSwimming`, `GetWaterHeight` | In water by wading yes; Swimming not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no |
 | Location type | Town, Castle, Player home, Dungeon | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
-| Place (Specific Location in the editor) | a list of locations and cells | the memo's place rule: their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
+| Place (Specific Location in the editor) | a list of locations and cells | their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Warm region, Cool region, Freezing region (keys `rain`, `snow`, `warmRegion`, `coolRegion`, `freezingRegion`) | read around the player, whoever wears the situation. Rain = the player is in an exterior cell and the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in). A region = the climate of the player's place (`RegionClimate`): outdoors Survival Mode's classes by the cell's regions and the player's height (the conditions of its `Survival_RegionInfoSpell`, in its order: the two mountain areas, warm, cool, then freezing), Windhelm's city region freezing too; a place it does not class (a mod's land) Freezing when a region of its cell has snow weathers for at least 40% of its weather chance, Cool otherwise; indoors (an interior cell, or one of its interior worldspaces such as Blackreach) none, but its ice caves (by location or cell) Freezing; its Oblivion planes (Sovngarde, the Soul Cairn, Apocrypha) none. The place is read again only as the player's cell or location changes | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`; `TESObjectCELL::GetRegionList`, `GetPositionZ`, `GetWorldspace`, `GetCurrentLocation` | Rain and Snow by the sky yes, outdoors only not yet; the climate matched Survival Mode's own answer in 17 cells (2026-11-18); the region rows not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Spell Effect (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
@@ -107,7 +106,9 @@ Notes:
   its next run. From equal to To is the whole day.
 - Spell Effect: the row lists spells, powers, shouts (by their words' spells), potions,
   scrolls, ingredients and abilities (`MagicItem`), by the names the player knows, not magic
-  effects (the memo's reasons), and holds by their effects. A visible effect is one the game's
+  effects (an effect's name is often not the spell's: Stoneflesh applies "Armor - Stone", and
+  Skyrim.esm has 136 visible effect names shared by several effects), and holds by their
+  effects. A visible effect is one the game's
   menus show: named and not `kHideInUI`. Each listed spell's visible effects are resolved as
   the store reads or saves the rules (`Situations::VisibleEffectsOf`, kept in
   `SituationRules::FormRef::effects`); an effect on the actor counts when it is visible itself
@@ -134,7 +135,10 @@ Not offered in the first version; added on request. The rule each would use:
   Guild (`LocTypeGuild`).
 - Weather values Clear (`kPleasant`), Cloudy (`kCloudy`), Storm (a weather with `kRainy` and
   lightning or a storm sound; the rule is to be decided).
-- Faction, Worn item, Actor keyword: from the memo's open list; each is a FormID comparison.
+- Faction, Worn item, Actor keyword: each is a FormID comparison.
+- Spell kind: any spell sharing a family keyword of the picked spell (`MagicArmorSpell`, `MagicCloak`,
+  `MagicWard`, `MagicBlessing`, ...); keywords have no player-facing names, so the choice is derived
+  from the picked spell.
 
 ## 5. Evaluation
 
