@@ -638,7 +638,8 @@ namespace CaptureWindow::Internal
 					.grip = grip,
 					.alert = Overrides(form, editedNow, a_entry) || Overrides(form, form.warningHovered, a_entry),
 					.warning = neverWornBy.has_value(),
-					.warningHovered = &warningHovered });
+					.warningHovered = &warningHovered,
+					.nameTip = a_state.request.situations[a_entry].conditions.c_str() });
 			if (warningHovered) {
 				form.warningHovered = index;
 				BeginHelpTooltip();

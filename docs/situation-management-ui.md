@@ -164,6 +164,8 @@ outfit for Town any more`.
   and `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
+  Hovering the star or the name shows the situation's `Conditions` text (§5's, the Default's
+  without its star) as a tooltip (`SituationHeadingLook::nameTip`).
 - Click areas: from the chevron (with its padding) to the die (to Edit with no die), rule
   included, folds; left of it is the name's area (with no chevron, everything left of the die
   or Edit), hovered as a row is but doing nothing when clicked; the die with 4px on each side;
