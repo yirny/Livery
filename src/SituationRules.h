@@ -294,6 +294,7 @@ namespace SituationRules
 		std::span<const Value>       values;      // empty for a kind without
 		bool                         targetable;  // the row may read the player instead of the wearer (Target)
 		std::optional<Strings::Text> subject;     // the row's first words in the editor for a kind that is not targetable ("The weather")
+		std::optional<Strings::Text> addTip;      // its row's tooltip in Add Condition...; none where the label says it all
 	};
 
 	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them by label.
@@ -304,7 +305,8 @@ namespace SituationRules
 			.tip = Strings::Text::kTipState,
 			.clauses = { Strings::Text::kClauseState, Strings::Text::kClauseNotState, Strings::Text::kClauseYouState, Strings::Text::kClauseYouNotState },
 			.values = kStates,
-			.targetable = true },
+			.targetable = true,
+			.addTip = Strings::Text::kAddTipState },
 		{ .kind = Kind::kLocationType,
 			.key = "locationType",
 			.label = Strings::Text::kKindLocationType,
@@ -312,7 +314,8 @@ namespace SituationRules
 			.clauses = { Strings::Text::kClauseLocationType, Strings::Text::kClauseNotLocationType },
 			.values = kLocationTypes,
 			.targetable = false,
-			.subject = Strings::Text::kSubjectLocationType },
+			.subject = Strings::Text::kSubjectLocationType,
+			.addTip = Strings::Text::kAddTipLocationType },
 		// The cell's kind, apart from the location's keywords: the row's dropdown chooses Indoors
 		// or Outdoors (`negated`), so its clauses are whole.
 		{ .kind = Kind::kIndoors,
@@ -328,7 +331,8 @@ namespace SituationRules
 			.tip = Strings::Text::kTipPlace,
 			.clauses = { Strings::Text::kClausePlace, Strings::Text::kClauseNotPlace },
 			.targetable = false,
-			.subject = Strings::Text::kSubjectLocation },
+			.subject = Strings::Text::kSubjectLocation,
+			.addTip = Strings::Text::kAddTipPlace },
 		{ .kind = Kind::kWeather,
 			.key = "weather",
 			.label = Strings::Text::kKindWeather,
@@ -336,20 +340,23 @@ namespace SituationRules
 			.clauses = { Strings::Text::kClauseWeather, Strings::Text::kClauseNotWeather },
 			.values = kWeathers,
 			.targetable = false,
-			.subject = Strings::Text::kSubjectWeather },
+			.subject = Strings::Text::kSubjectWeather,
+			.addTip = Strings::Text::kAddTipWeather },
 		{ .kind = Kind::kTimeOfDay,
 			.key = "timeOfDay",
 			.label = Strings::Text::kKindTimeOfDay,
 			.tip = Strings::Text::kTipTimeOfDay,
 			.clauses = { Strings::Text::kClauseTime, Strings::Text::kClauseNotTime },
 			.targetable = false,
-			.subject = Strings::Text::kSubjectTime },
+			.subject = Strings::Text::kSubjectTime,
+			.addTip = Strings::Text::kAddTipTimeOfDay },
 		{ .kind = Kind::kSpell,
 			.key = "spell",
 			.label = Strings::Text::kKindSpell,
 			.tip = Strings::Text::kTipSpell,
 			.clauses = { Strings::Text::kClauseSpell, Strings::Text::kClauseNotSpell, Strings::Text::kClauseYouSpell, Strings::Text::kClauseYouNotSpell },
-			.targetable = true },
+			.targetable = true,
+			.addTip = Strings::Text::kAddTipSpell },
 	} };
 
 	static_assert([] {
