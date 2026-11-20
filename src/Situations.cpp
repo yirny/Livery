@@ -1122,6 +1122,11 @@ namespace Situations
 		}
 	}
 
+	void SeeAnew()
+	{
+		g_lastSeen.clear();
+	}
+
 	void Stop()
 	{
 		g_running = false;

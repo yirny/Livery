@@ -1475,7 +1475,8 @@ namespace
 		// wears the outfit it gained first, or with `reroll` another of its outfits, picked at
 		// random.
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
-			if (!save.edits.empty() || !save.order.empty()) {
+			const bool written = !save.edits.empty() || !save.order.empty();
+			if (written) {
 				std::vector<SituationStore::Edit> edits;
 				for (const auto& [situation, name, rules] : save.edits) {
 					edits.push_back({ .situation = situation, .name = name, .rules = rules });
@@ -1484,9 +1485,9 @@ namespace
 					CaptureWindow::SetError(*error);
 					return;
 				}
-				// No HUD message: the page saves as it is edited. Nobody is redressed for changed
-				// conditions or order here: the poll, which waits while the window is open, follows
-				// them.
+				// No HUD message: the page saves as it is edited. The captured actor is dressed for
+				// the changed conditions or order below; the others when the window closes, by the
+				// poll (Situations::SeeAnew), which waits while it is open.
 				logger::info("Saved the situations' names, conditions and order.");
 			}
 			const auto                                target = handle.get();
@@ -1501,6 +1502,11 @@ namespace
 					redressed = RedressCaptured(*target, { .refresh = true, .pick = *pick }, armors, offered,
 						save.previewPieces ? &shown : nullptr);
 				}
+			}
+			// Changed conditions or order with no row dressed for above: what applies to them now
+			// goes on at once, as the poll would put it on (nothing when it is what they wear).
+			if (written && !redressed && target && !target->IsDead()) {
+				redressed = RedressCaptured(*target, {}, armors, offered, save.previewPieces ? &shown : nullptr);
 			}
 			auto list = CurrentOutfitList(actorID, armors);  // after the rows changed
 			list.actorPieces = std::move(redressed);
@@ -1519,7 +1525,7 @@ namespace
 			CaptureWindow::SetOutfits(std::move(list));
 		};
 		// The source's conditions under a new name, right after it; nobody's rows change, and
-		// nobody is redressed: the poll, which waits while the window is open, follows the order.
+		// nobody is redressed: the poll follows the order once the window closes (Situations::SeeAnew).
 		request.onSituationDuplicate = [actorID, armors](Situations::Situation source, const std::string& name) {
 			auto created = Situations::Situation::kDefault;
 			if (const auto error = SituationStore::Duplicate(source, name, created)) {
@@ -1728,14 +1734,16 @@ namespace
 			};
 		}
 		// Every close, whatever closed the window, ends the camera and the preview, redresses the actors
-		// the Wardrobe page or the Situations page left for it, lets saving back on, lets an NPC
-		// walk again and writes the lists' sorts the player changed.
+		// the Wardrobe page or the Situations page left for it, has the poll see everyone anew
+		// (Situations::SeeAnew), lets saving back on, lets an NPC walk again and writes the lists'
+		// sorts the player changed.
 		request.onClose = [] {
 			g_capturedActor = 0;
 			g_refreshCapturedWorn = nullptr;
 			FreeCamera::End();
 			OutfitPreview::End();
 			RedressAtClose();
+			Situations::SeeAnew();
 			AllowSaving();
 			MovementHold::End();
 			NpcReaction::End();
