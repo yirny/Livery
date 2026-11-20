@@ -2454,7 +2454,7 @@ namespace CaptureWindow::Internal
 			bool       duplicate = false;
 			if (conditions) {
 				BeginItemDisabled(a_state, !a_state.request.onSituationDuplicate);
-				duplicate = Theme::LeftLineLink("Duplicate");
+				duplicate = Theme::LeftLineLink("Duplicate Situation");
 				EndItemDisabled();
 			}
 			EndButtonRow();

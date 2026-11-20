@@ -291,7 +291,7 @@ conditions) are saved once it closes (§6). The left column:
 Under the columns, the room above every button row (`ButtonRowGap`), then `Done` centred;
 Escape is Done unless it closed a dropdown or a popup over the popup.
 
-- `Duplicate` at the left end of Done's row while custom situations are offered
+- `Duplicate Situation` at the left end of Done's row while custom situations are offered
   (docs/custom-situations.md §7).
 - `Remove Situation` at the right end of Done's row, drawn as Restore Presets is, without
   the `(?)` (`Theme::LineLink`); not on the Default. It closes the Edit situation popup;

@@ -23,7 +23,7 @@ Items marked *provisional* are tried in a prototype first and may change.
   removed user's situation is gone. The Default is neither: no rules, no place in the order.
 - The settings page's `Enable custom situations` (`[Window] CustomSituations`, default off,
   under the `Optional Features` heading with `Enable chests`; `Settings::CustomSituations`, read as the
-  window opens, `Request::customSituations`) offers the editing: New Situation..., Duplicate, the order's
+  window opens, `Request::customSituations`) offers the editing: New Situation..., Duplicate Situation, the order's
   drag and the condition editor (the Edit situation popup's right column and the Applies text's
   links, §7). Off, every
   situation made stays in use, and the Situations page still lists them with their outfits,
@@ -251,7 +251,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   Situation List scrolls to it and its Edit situation popup opens. Every situation but the
   Default has Remove Situation in that popup (a preset's Remove popup with the Restore Presets line, a
   user's without it).
-- With `Request::customSituations`, every situation but the Default has `Duplicate` at the left
+- With `Request::customSituations`, every situation but the Default has `Duplicate Situation` at the left
   end of the Edit situation popup's Done row (`Theme::LeftLineLink`). It closes the popup, saves
   its edits, then makes a user's situation with the source's rules (conditions and Allow during
   combat) and no outfit, right after the source in the order, so the copy wins over it until its
