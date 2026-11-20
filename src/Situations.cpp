@@ -355,12 +355,13 @@ namespace
 
 	// Location type's values (SituationRules) the location's own keywords give: Town is any
 	// house, the player's included, or inhabited; Castle a jarl's palace or keep, every one of
-	// which is a dwelling too, so a town as well.
+	// which is a dwelling too, so a town as well; Inn an inn, a town too.
 	bool HasLocationType(const RE::BGSLocation& a_location, std::uint32_t a_values)
 	{
 		const auto has = [&a_location](std::string_view a_keyword) { return a_location.HasKeywordString(a_keyword); };
 		return ((a_values & SituationRules::kTown) && (has("LocTypePlayerHouse"sv) || has("LocTypeHouse"sv) || IsInhabited(a_location))) ||
 		       ((a_values & SituationRules::kCastle) && has("LocTypeCastle"sv)) ||
+		       ((a_values & SituationRules::kInn) && has("LocTypeInn"sv)) ||
 		       ((a_values & SituationRules::kPlayerHome) && has("LocTypePlayerHouse"sv)) ||
 		       ((a_values & SituationRules::kDungeon) && has("LocTypeDungeon"sv));
 	}
@@ -717,7 +718,7 @@ namespace
 	}
 
 	// The Location type values (SituationRules::kLocationTypes) the location's own keywords give,
-	// as bits: below 16.
+	// as bits: below 32.
 	std::uint32_t TypeMaskOf(const RE::BGSLocation& a_location)
 	{
 		std::uint32_t mask = 0;
@@ -747,7 +748,7 @@ namespace
 		if (!location) {
 			return fact;
 		}
-		fact.typeMasks = static_cast<std::uint16_t>(1u << TypeMaskOf(*location));
+		fact.typeMasks = 1u << TypeMaskOf(*location);
 		const auto* parent = location->parentLoc;
 		for (int depth = 0; parent && depth < kMaxLocationDepth; ++depth, parent = parent->parentLoc) {
 			fact.within.push_back(parent->GetFormID());
@@ -1056,11 +1057,11 @@ namespace Situations
 		// Each loaded location adds its type mask to every listed location it is in.
 		for (const auto* location : dataHandler->GetFormArray<RE::BGSLocation>()) {
 			const auto*   parent = location ? location->parentLoc : nullptr;
-			std::uint16_t mask = 0;
+			std::uint32_t mask = 0;
 			for (int depth = 0; parent && depth < kMaxLocationDepth; ++depth, parent = parent->parentLoc) {
 				for (std::size_t i = 0; i < facts.size(); ++i) {
 					if (isLocation[i] && facts[i].formID == parent->GetFormID()) {
-						mask = mask != 0 ? mask : static_cast<std::uint16_t>(1u << TypeMaskOf(*location));
+						mask = mask != 0 ? mask : 1u << TypeMaskOf(*location);
 						facts[i].typeMasks |= mask;
 					}
 				}

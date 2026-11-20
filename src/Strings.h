@@ -347,7 +347,7 @@
 	X(kKindSpell, "Active Effects")                                                                                                                                                                                  \
 	X(kKindCrafting, "Crafting")                                                                                                                                                                                     \
 	X(kTipState, "In combat: fighting.\nWeapon drawn: a weapon, spell or fists at the ready.\nWading: wading in water, not swimming.\nSwimming: deep enough to swim.\nSleeping: going to bed, in it or getting up.") \
-	X(kTipLocationType, "Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.")                             \
+	X(kTipLocationType, "Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nInn: an inn or tavern.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.")     \
 	X(kTipIndoors, "Indoors: inside a building, cave or other interior.\nOutdoors: anywhere else.")                                                                                                                  \
 	X(kTipPlace, "In one of the locations listed.\nA location counts with every room and area in it.")                                                                                                               \
 	X(kTipWeather, "Rain and Snow: the weather now, outdoors only.\nWarm, Cool and Freezing region: the climate of the area, whatever the weather.\nIndoors is none of them, except ice caves.")                     \
@@ -355,7 +355,7 @@
 	X(kTipSpell, "A spell, power, shout, potion, food or other effect currently affecting {0}.\nListed by spell name, not effect name.\nAny spell, scroll or potion with the same effects counts.")                  \
 	X(kTipCrafting, "Cooking: a cooking pot, spit or oven.\nSmithing: a forge, anvil, workbench or grindstone.")                                                                                                     \
 	X(kAddTipState, "In combat, weapon drawn, wading, swimming or sleeping.")                                                                                                                                        \
-	X(kAddTipLocationType, "A town, castle, player home or dungeon.")                                                                                                                                                \
+	X(kAddTipLocationType, "A town, castle, inn, player home or dungeon.")                                                                                                                                           \
 	X(kAddTipPlace, "Locations you choose, such as Whiterun or Bleak Falls Barrow.")                                                                                                                                 \
 	X(kAddTipWeather, "Rain, snow, or the climate of the region.")                                                                                                                                                   \
 	X(kAddTipTimeOfDay, "A range of game time, such as 8 PM to 6 AM.")                                                                                                                                               \
@@ -384,6 +384,7 @@
 	X(kSelectValues, "Select...")                                                                                                                                                                                    \
 	X(kValueTown, "Town")                                                                                                                                                                                            \
 	X(kValueCastle, "Castle")                                                                                                                                                                                        \
+	X(kValueInn, "Inn")                                                                                                                                                                                              \
 	X(kValuePlayerHome, "Player home")                                                                                                                                                                               \
 	X(kValueDungeon, "Dungeon")                                                                                                                                                                                      \
 	X(kValueIndoors, "Indoors")                                                                                                                                                                                      \
@@ -419,6 +420,7 @@
 	X(kTipSmithing, "A forge, anvil, workbench or grindstone.")                                                                                                                                                      \
 	X(kPhraseTown, "a town")                                                                                                                                                                                         \
 	X(kPhraseCastle, "a castle")                                                                                                                                                                                     \
+	X(kPhraseInn, "an inn")                                                                                                                                                                                          \
 	X(kPhrasePlayerHome, "a player home")                                                                                                                                                                            \
 	X(kPhraseDungeon, "a dungeon")                                                                                                                                                                                   \
 	X(kPhraseRain, "rain")                                                                                                                                                                                           \

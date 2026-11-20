@@ -58,6 +58,7 @@ namespace SituationRules
 	inline constexpr std::uint32_t kCastle = 1u << 1;
 	inline constexpr std::uint32_t kPlayerHome = 1u << 2;
 	inline constexpr std::uint32_t kDungeon = 1u << 3;
+	inline constexpr std::uint32_t kInn = 1u << 4;
 	// Weather's values, bits of Row::values.
 	inline constexpr std::uint32_t kRain = 1u << 0;
 	inline constexpr std::uint32_t kSnow = 1u << 1;
@@ -259,9 +260,10 @@ namespace SituationRules
 		bool                         ruleAbove = false;  // the editor's dropdown draws a rule above its row, ending a group of values
 	};
 
-	inline constexpr std::array<Value, 4> kLocationTypes{ {
+	inline constexpr std::array<Value, 5> kLocationTypes{ {
 		{ kTown, "town", Strings::Text::kValueTown, Strings::Text::kPhraseTown },
 		{ kCastle, "castle", Strings::Text::kValueCastle, Strings::Text::kPhraseCastle },
+		{ kInn, "inn", Strings::Text::kValueInn, Strings::Text::kPhraseInn },
 		{ kPlayerHome, "playerHome", Strings::Text::kValuePlayerHome, Strings::Text::kPhrasePlayerHome },
 		{ kDungeon, "dungeon", Strings::Text::kValueDungeon, Strings::Text::kPhraseDungeon },
 	} };
@@ -567,8 +569,8 @@ namespace SituationRules
 		std::vector<std::uint32_t> within;
 		// Bit m set when its own keywords, or those of a location within it, give exactly the
 		// Location type values m (a cell: those of its location); 0 for a cell without one. There
-		// are four values, so m is below 16.
-		std::uint16_t typeMasks = 0;
+		// are five values, so m is below 32.
+		std::uint32_t typeMasks = 0;
 	};
 
 	// A situation that never applies: no rows, or a row with nothing selected (its Applies line
@@ -636,7 +638,7 @@ namespace SituationRules
 				if (!fact || fact->typeMasks == 0) {
 					return false;
 				}
-				for (std::uint32_t mask = 0; mask < 16; ++mask) {
+				for (std::uint32_t mask = 0; mask < 32; ++mask) {
 					if ((fact->typeMasks & (1u << mask)) && (mask & a_values) == 0) {
 						return false;
 					}
