@@ -84,42 +84,45 @@
 	X(kListSeparator, ", ")
 
 // The Dress page: its item list, Live Preview and its buttons and popups.
-#define LIVERY_STRINGS_DRESS(X)                                                                                                                    \
-	X(kGroupWornOutfit, "Outfit (\"{0}\")")                                                                                                        \
-	X(kGroupNotInWardrobe, "Outfit (Not in Wardrobe)")                                                                                             \
-	X(kGroupUnmanaged, "Outfit (Unmanaged)")                                                                                                       \
-	X(kGroupInventory, "Inventory")                                                                                                                \
-	X(kGroupPlayerInventory, "{0}'s Inventory")                                                                                                    \
-	X(kPlayer, "Player")                                                                                                                           \
-	X(kPlayerHelpMove, "\"Apply\" moves the selected items from your inventory to {0}.")                                                           \
-	X(kPlayerHelpCopy, "\"Apply\" gives {0} a new copy of each selected item; yours stay with you.")                                               \
-	X(kPlayerHelpNotListed, "Quest items are not listed.")                                                                                         \
-	X(kPlayerHelpNotListedFavorites, "Quest items and your favorites are not listed.")                                                             \
-	X(kItemsSelected, "{0} of {1} items selected")                                                                                                 \
-	X(kAddFrom, "Add from")                                                                                                                        \
-	X(kAddFromWardrobe, "Wardrobe...")                                                                                                             \
-	X(kAddFromChest, "Chest...")                                                                                                                   \
-	X(kRestoreOutfit, "Restore Outfit")                                                                                                            \
-	X(kRestoreOutfitHelp, "Takes Livery's outfit off {0} and forgets their situational outfits.\nItems moved from your inventory stay with them.") \
-	X(kLivePreview, "Live Preview")                                                                                                                \
-	X(kPreviewSummary, "Keeps the game running and dresses the character in the selected items.")                                                  \
-	X(kPreviewCamera, "Camera, with the cursor over the game:")                                                                                    \
-	X(kPreviewLeftDrag, "Left drag - turns around the character")                                                                                  \
-	X(kPreviewRightDrag, "Right drag - pans")                                                                                                      \
-	X(kPreviewWheel, "Mouse wheel - zooms")                                                                                                        \
-	X(kPreviewMove, "W / A / S / D - moves (hold Shift for half speed)")                                                                           \
-	X(kSaveToWardrobe, "Save to Wardrobe...")                                                                                                      \
-	X(kSaveToWardrobeTooltip, "Save the selected items as a new outfit, or into an existing one.")                                                 \
-	X(kApplyTooltip, "Dress {0} in the selected items.")                                                                                           \
-	X(kApplyTooltipMove, "Dress {0} in the selected items.\nItems from your inventory move to {0}.")                                               \
-	X(kApplyTooltipCopy, "Dress {0} in the selected items.\n{0} gets a new copy of each item from your inventory; yours stay with you.")           \
-	X(kUpdateWithSelected, "Update {0} with the selected items?")                                                                                  \
-	X(kWornForSituation, "This is {0}'s {1} outfit.")                                                                                              \
-	X(kApplyOnly, "Apply Only")                                                                                                                    \
-	X(kApplyOnlyHelp, "Sets the selected items as {0}'s default outfit without adding them to the Wardrobe.")                                      \
-	X(kApplyOnlyHelpSituations, "The new default outfit takes effect when no situational outfit applies.")                                         \
-	X(kRestoreOriginalOutfit, "Restore {0}'s original outfit?")                                                                                    \
-	X(kSituationalOutfitsCleared, "Their situational outfits are cleared too.")                                                                    \
+#define LIVERY_STRINGS_DRESS(X)                                                                                                                          \
+	X(kGroupWornOutfit, "Outfit (\"{0}\")")                                                                                                              \
+	X(kGroupNotInWardrobe, "Outfit (Not in Wardrobe)")                                                                                                   \
+	X(kGroupUnmanaged, "Outfit (Unmanaged)")                                                                                                             \
+	X(kGroupInventory, "Inventory")                                                                                                                      \
+	X(kGroupPlayerInventory, "{0}'s Inventory")                                                                                                          \
+	X(kPlayer, "Player")                                                                                                                                 \
+	X(kPlayerHelpMove, "\"Apply\" moves the selected items from your inventory to {0}.")                                                                 \
+	X(kPlayerHelpCopy, "\"Apply\" gives {0} a new copy of each selected item; yours stay with you.")                                                     \
+	X(kPlayerHelpNotListed, "Quest items are not listed.")                                                                                               \
+	X(kPlayerHelpNotListedFavorites, "Quest items and your favorites are not listed.")                                                                   \
+	X(kItemsSelected, "{0} of {1} items selected")                                                                                                       \
+	X(kAddFrom, "Add from")                                                                                                                              \
+	X(kAddFromWardrobe, "Wardrobe...")                                                                                                                   \
+	X(kAddFromChest, "Chest...")                                                                                                                         \
+	X(kRestoreOutfit, "Restore Outfit")                                                                                                                  \
+	X(kRestoreOutfitHelp, "Takes Livery's outfit off {0} and forgets their situational outfits.\nItems moved from your inventory stay with them.")       \
+	X(kRestoreOutfitHelpYou, "Stops Livery from dressing you and forgets your situational outfits.\nYou keep what you wear, except items Livery added.") \
+	X(kLivePreview, "Live Preview")                                                                                                                      \
+	X(kPreviewSummary, "Keeps the game running and dresses the character in the selected items.")                                                        \
+	X(kPreviewCamera, "Camera, with the cursor over the game:")                                                                                          \
+	X(kPreviewLeftDrag, "Left drag - turns around the character")                                                                                        \
+	X(kPreviewRightDrag, "Right drag - pans")                                                                                                            \
+	X(kPreviewWheel, "Mouse wheel - zooms")                                                                                                              \
+	X(kPreviewMove, "W / A / S / D - moves (hold Shift for half speed)")                                                                                 \
+	X(kSaveToWardrobe, "Save to Wardrobe...")                                                                                                            \
+	X(kSaveToWardrobeTooltip, "Save the selected items as a new outfit, or into an existing one.")                                                       \
+	X(kApplyTooltip, "Dress {0} in the selected items.")                                                                                                 \
+	X(kApplyTooltipMove, "Dress {0} in the selected items.\nItems from your inventory move to {0}.")                                                     \
+	X(kApplyTooltipCopy, "Dress {0} in the selected items.\n{0} gets a new copy of each item from your inventory; yours stay with you.")                 \
+	X(kUpdateWithSelected, "Update {0} with the selected items?")                                                                                        \
+	X(kWornForSituation, "This is {0}'s {1} outfit.")                                                                                                    \
+	X(kApplyOnly, "Apply Only")                                                                                                                          \
+	X(kApplyOnlyHelp, "Sets the selected items as {0}'s default outfit without adding them to the Wardrobe.")                                            \
+	X(kApplyOnlyHelpSituations, "The new default outfit takes effect when no situational outfit applies.")                                               \
+	X(kRestoreOriginalOutfit, "Restore {0}'s original outfit?")                                                                                          \
+	X(kSituationalOutfitsCleared, "Their situational outfits are cleared too.")                                                                          \
+	X(kStopDressingYou, "Stop Livery from dressing you?")                                                                                                \
+	X(kYourSituationalOutfitsCleared, "Your situational outfits are cleared too.")                                                                       \
 	X(kApplyToActor, "Apply to {0}")
 
 // The Save page: its Create and Update tabs and the Update tab's popup.
@@ -601,7 +604,7 @@
 	X(kHudDead, "Livery: {0} is dead.")                                                                              \
 	X(kHudReleased, "Livery: released {0} characters.")                                                              \
 	X(kHudReleasedSome, "Livery: released {0} of {1} characters; the others are out of reach and keep their items.") \
-	X(kHudRestoredYours, "Livery: restored your original outfit.")                                                   \
+	X(kHudNoLongerDressingYou, "Livery: no longer dressing you.")                                                    \
 	X(kHudRestored, "Livery: restored {0}'s original outfit.")                                                       \
 	X(kHudCreatedSituation, "Livery: created the situation \"{0}\".")                                                \
 	X(kHudRemovedSituation, "Livery: removed the situation \"{0}\".")                                                \

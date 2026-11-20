@@ -1577,7 +1577,8 @@ namespace CaptureWindow::Internal
 		bool       hovered = false;
 		const bool restore = Theme::LineHelpLink(Strings::Get(Text::kRestoreOutfit), &hovered);
 		if (hovered) {
-			DrawHelpTooltip(Strings::Format(Text::kRestoreOutfitHelp, a_state.request.actorName));
+			DrawHelpTooltip(a_state.request.actorIsPlayer ? Strings::Get(Text::kRestoreOutfitHelpYou) :
+															Strings::Format(Text::kRestoreOutfitHelp, a_state.request.actorName));
 		}
 		return restore;
 	}
@@ -1898,16 +1899,20 @@ namespace CaptureWindow::Internal
 		SKSE::GetTaskInterface()->AddTask([onRestore] { onRestore(); });
 	}
 
-	// `Restore #{Name}'s original outfit?`, what it forgets, then Restore / Cancel. Returns
-	// true on Restore.
+	// `Restore #{Name}'s original outfit?` (the player: `Stop Livery from dressing you?`), what
+	// it forgets, then Restore / Cancel. Returns true on Restore.
 	bool DrawRestorePopup(const State& a_state)
 	{
 		if (!BeginModal(kRestorePopup)) {
 			return false;
 		}
-		const auto& name = a_state.request.actorName;
-		ImGui::TextUnformatted(Strings::Format(Text::kRestoreOriginalOutfit, name).c_str());
-		ImGui::TextUnformatted(Strings::Get(Text::kSituationalOutfitsCleared));
+		if (a_state.request.actorIsPlayer) {
+			ImGui::TextUnformatted(Strings::Get(Text::kStopDressingYou));
+			ImGui::TextUnformatted(Strings::Get(Text::kYourSituationalOutfitsCleared));
+		} else {
+			ImGui::TextUnformatted(Strings::Format(Text::kRestoreOriginalOutfit, a_state.request.actorName).c_str());
+			ImGui::TextUnformatted(Strings::Get(Text::kSituationalOutfitsCleared));
+		}
 		BeginButtonRow({ Strings::Get(Text::kRestore), Strings::Get(Text::kCancel) });
 		const bool restore = Theme::Button(Strings::Get(Text::kRestore));
 		ImGui::SameLine();

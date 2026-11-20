@@ -214,7 +214,8 @@ says so), so a lock would be needed anyway.
 - Unassign (the window's Restore): release the mod's locks, those on their outfit copies
   included, remove the mod's copies
   still present (by co-save key; never a player-given instance), put the actor's own
-  pieces it took off back on (those still carried, unworn and unlocked, without a lock),
+  pieces it took off back on (those still carried, unworn and unlocked, without a lock;
+  not on the player, below),
   forget the actor. A slot whose own piece is gone is left to the engine's next
   re-evaluation, which can be a cell change or two later.
 - Death: release the mod's locks (`TESDeathEvent`) and forget the actor, so the corpse
@@ -237,7 +238,11 @@ Same dressing path, three differences: no lock (a locked piece cannot be taken o
 the inventory menu, verified); adding pieces the player lacks is OFF by default,
 switchable in the settings (`[Player] AddMissingPieces`) with a warning that it creates
 items; nothing is put back on the player when they load. Situation outfits (§7) switch
-on the player as on an NPC, unlocked like the default, and not in beast form.
+on the player as on an NPC, unlocked like the default, and not in beast form. Restore and
+Release everyone leave the player in what they wear, less the copies Livery added: their
+own pieces Livery took off are not put back on, since what they wore before Livery is no
+look they would know to expect back. A change of outfit still puts them back on first (§2
+step 4).
 
 ### Who the hotkey opens on
 
