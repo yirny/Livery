@@ -326,8 +326,8 @@ on its `InvisibleButton`) and a list's rows are reached directly (`ImGuiChildFla
 Up and Down stay in the part the focus is in: the tab column or the page, and on a page of
 `BeginColumns` the column (`PushNavPart`, `NextColumn`); ImGui alone scores an item beside the
 focus as one pixel further and would jump across. Left and Right cross the parts. ImGui reaches
-with them only an item level with the focus, so a Left or Right that found nothing goes again in
-the next frame, scored from just past the focus's edge with the screen's height in reach
+with them only an item level with the focus, so a Left or Right that found nothing, in the window
+or in a modal popup (a dropdown's list aside), goes again in the next frame, scored from just past the focus's edge with the screen's height in reach
 (`RetryNavMoveWide`, `WidenNavMove`): the nearest part that way, its item nearest in height.
 ImGui gives no focus to a greyed item, to text or to a read-only row; a greyed item with a
 tooltip, a "(?)" drawn as text, and the rows of the read-only item lists get a stand-in that

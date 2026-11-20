@@ -406,17 +406,19 @@ namespace CaptureWindow::Internal
 	}
 
 	// ImGui reaches with Left or Right only an item level with the focus: one above or below
-	// counts as Up or Down. So a Left or Right move in this window that found nothing goes again
-	// in the next frame (NavMoveRequestForward), scored from just past the focus's edge with the
-	// screen's whole height in reach (WidenNavMove): the nearest part that way wins, its item
-	// nearest in height first. Not a move in a popup or combo, which ImGui wraps itself, nor
-	// one already widened.
-	// Contract: render thread, in the window after every item of the frame.
+	// counts as Up or Down. So a Left or Right move in this window, or in a modal popup opened
+	// from it, that found nothing goes again in the next frame (NavMoveRequestForward), scored
+	// from just past the focus's edge with the screen's whole height in reach (WidenNavMove): the
+	// nearest part that way wins, its item nearest in height first. Not a move in a dropdown's
+	// list or another popup that is no modal, nor one already widened.
+	// Contract: render thread, in the window after every item of the frame, its popups' included.
 	void RetryNavMoveWide(State& a_state)
 	{
 		const auto& g = *ImGui::GetCurrentContext();
 		const bool  horizontal = g.NavMoveScoringItems && (g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right);
-		const bool  focusHere = g.NavWindow && g.NavWindow->RootWindowForNav == g.CurrentWindow->RootWindowForNav;
+		const auto* focusRoot = g.NavWindow ? g.NavWindow->RootWindowForNav : nullptr;
+		const bool  focusHere = focusRoot && (focusRoot == g.CurrentWindow->RootWindowForNav ||
+												 ((focusRoot->Flags & ImGuiWindowFlags_Modal) && focusRoot->RootWindowPopupTree == g.CurrentWindow->RootWindowPopupTree));
 		// With no focus yet ImGui focuses the first item instead (NavInitRequestFromMove).
 		if (!horizontal || !focusHere || g.NavId == 0 || (g.NavMoveFlags & ImGuiNavMoveFlags_Forwarded) || g.NavMoveForwardToNextFrame ||
 			g.NavMoveResultLocal.ID != 0 || g.NavMoveResultOther.ID != 0) {
