@@ -13,7 +13,8 @@
 //                 menu, or by the engine's worn-gear pass, taken off at once; pieces taken from
 //                 one in a menu replaced as it closes
 //   Co-save     - save, load (version 6; the rows of situations removed in situations.json
-//                 or unknown to this version dropped),
+//                 or unknown to this version dropped, but a user's situation's kept while
+//                 situations.json cannot be read),
 //                 the items the rows' outfits leave off in a record of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
 //                 inventory), MenuOpenCloseEvent (also logs menus opening or closing while
@@ -31,6 +32,7 @@
 #include "Library.h"
 #include "Settings.h"
 #include "SituationStore.h"
+#include "SituationTable.h"
 
 #include <algorithm>
 #include <atomic>
@@ -62,6 +64,13 @@ namespace
 
 	// --- Records --------------------------------------------------------------
 
+	// A row stored under the key (Situations::Name) of a situation this session does not have.
+	struct KeptRow
+	{
+		std::string     key;
+		OutfitRows::Row row;
+	};
+
 	// An actor Livery dresses: the pieces it has on them, their own pieces it took off, and
 	// their rows, the Default and the situations. NPCs wear the pieces locked, and their
 	// outfit copies carry a lock while they wear pieces (Dressing::LockOutfitCopies); the
@@ -78,6 +87,10 @@ namespace
 		std::vector<RE::FormID> defaultPieces;
 		Situation               worn = Situation::kDefault;  // the row `pieces` are for
 		std::uint32_t           wornOutfit = 0;              // the library outfit `pieces` are from; 0 for none or the Default's pieces
+		// The rows of user's situations this session does not have, as the co-save held them
+		// while situations.json could not be read (SituationTable::KeepsUnknownRow), written
+		// back on save; never worn or shown. Each holds something (HoldsSomething).
+		std::vector<KeptRow> kept;
 	};
 
 	// Contract: game thread only.
@@ -122,16 +135,21 @@ namespace
 		return std::ranges::any_of(Situations::Order(), [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
 	}
 
-	// An assignment with nothing on the actor, no row holding an outfit and no row random is
-	// no assignment: they keep what they wear. A row, the Default's included, keeps the record
-	// while it holds an outfit that puts nothing on (none of its items loaded) or is random
-	// with nothing on its list yet, so the window shows the row as the user left it.
+	// A row keeps the record while it holds an outfit, even one that puts nothing on (none of
+	// its items loaded), or is random with nothing on its list yet, so the window shows the row
+	// as the user left it.
+	bool HoldsSomething(const OutfitRows::Row& a_row)
+	{
+		return a_row.random || OutfitRows::HoldsAny(a_row);
+	}
+
+	// An assignment with nothing on the actor and no row, kept ones included, holding
+	// something is no assignment: they keep what they wear.
 	// Contract: every record dropped as empty goes through this test (DropIfEmpty, the
 	// co-save load, ForgetOutfit, ForgetSituation).
 	bool IsEmpty(const Assignment& a_assignment)
 	{
-		return a_assignment.pieces.empty() &&
-		       std::ranges::none_of(a_assignment.rows, [](const OutfitRows::Row& a_row) { return a_row.random || OutfitRows::HoldsAny(a_row); });
+		return a_assignment.pieces.empty() && a_assignment.kept.empty() && std::ranges::none_of(a_assignment.rows, HoldsSomething);
 	}
 
 	void DropIfEmpty(RE::FormID a_actor)
@@ -733,15 +751,19 @@ namespace
 		return true;
 	}
 
-	bool WriteSituation(const SKSE::SerializationInterface& a_intfc, Situation a_situation)
+	bool WriteSituationKey(const SKSE::SerializationInterface& a_intfc, std::string_view a_key)
 	{
-		const std::string_view key = Situations::Name(a_situation);
-		return Write(a_intfc, static_cast<std::uint8_t>(key.size())) && a_intfc.WriteRecordData(key.data(), static_cast<std::uint32_t>(key.size()));
+		return Write(a_intfc, static_cast<std::uint8_t>(a_key.size())) && a_intfc.WriteRecordData(a_key.data(), static_cast<std::uint32_t>(a_key.size()));
 	}
 
-	bool WriteRow(const SKSE::SerializationInterface& a_intfc, Situation a_situation, const OutfitRows::Row& a_row)
+	bool WriteSituation(const SKSE::SerializationInterface& a_intfc, Situation a_situation)
 	{
-		bool written = WriteSituation(a_intfc, a_situation) && Write(a_intfc, static_cast<std::uint8_t>(a_row.random)) &&
+		return WriteSituationKey(a_intfc, Situations::Name(a_situation));
+	}
+
+	bool WriteRow(const SKSE::SerializationInterface& a_intfc, std::string_view a_key, const OutfitRows::Row& a_row)
+	{
+		bool written = WriteSituationKey(a_intfc, a_key) && Write(a_intfc, static_cast<std::uint8_t>(a_row.random)) &&
 		               Write(a_intfc, a_row.chosen) && Write(a_intfc, static_cast<std::uint32_t>(a_row.outfits.size()));
 		for (const auto outfit : a_row.outfits) {
 			written = written && Write(a_intfc, outfit);
@@ -761,11 +783,18 @@ namespace
 		for (const auto armor : a_assignment.defaultPieces) {
 			written = written && Write(a_intfc, armor);
 		}
-		// Every situation's row, an empty one for a row never stored (OutfitRows::Rows).
+		// Every situation's row, an empty one for a row never stored (OutfitRows::Rows), then the
+		// kept rows.
+		// Contract: rows are kept only while situations.json cannot be read, when Count() is the
+		// presets alone; the record they were read from held the presets' rows too, so the
+		// count still fits in a byte.
 		const auto rows = Situations::Count();
-		written = written && WriteSituation(a_intfc, a_assignment.worn) && Write(a_intfc, static_cast<std::uint8_t>(rows));
+		written = written && WriteSituation(a_intfc, a_assignment.worn) && Write(a_intfc, static_cast<std::uint8_t>(rows + a_assignment.kept.size()));
 		for (std::size_t i = 0; i < rows; ++i) {
-			written = written && WriteRow(a_intfc, static_cast<Situation>(i), a_assignment.rows[i]);
+			written = written && WriteRow(a_intfc, Situations::Name(static_cast<Situation>(i)), a_assignment.rows[i]);
+		}
+		for (const auto& [key, row] : a_assignment.kept) {
+			written = written && WriteRow(a_intfc, key, row);
 		}
 		return written;
 	}
@@ -782,6 +811,9 @@ namespace
 			for (const auto& row : assignment.rows) {
 				count += static_cast<std::uint32_t>(row.excluded.size());
 			}
+			for (const auto& kept : assignment.kept) {
+				count += static_cast<std::uint32_t>(kept.row.excluded.size());
+			}
 		}
 		return count;
 	}
@@ -796,16 +828,22 @@ namespace
 			logger::error("Could not open the co-save record of the items left off");
 			return;
 		}
-		bool written = Write(*a_intfc, count);
+		bool       written = Write(*a_intfc, count);
+		const auto writeRow = [&written, a_intfc](RE::FormID a_actor, std::string_view a_key, const OutfitRows::Row& a_row) {
+			for (const auto& [outfit, armor] : a_row.excluded) {
+				written = written && Write(*a_intfc, a_actor) && WriteSituationKey(*a_intfc, a_key) && Write(*a_intfc, outfit) &&
+				          Write(*a_intfc, static_cast<std::uint32_t>(armor.size()));
+				for (const auto id : armor) {
+					written = written && Write(*a_intfc, id);
+				}
+			}
+		};
 		for (const auto& assignment : g_assignments) {
 			for (std::size_t i = 0; i < assignment.rows.size(); ++i) {
-				for (const auto& [outfit, armor] : assignment.rows[i].excluded) {
-					written = written && Write(*a_intfc, assignment.actor) && WriteSituation(*a_intfc, static_cast<Situation>(i)) && Write(*a_intfc, outfit) &&
-					          Write(*a_intfc, static_cast<std::uint32_t>(armor.size()));
-					for (const auto id : armor) {
-						written = written && Write(*a_intfc, id);
-					}
-				}
+				writeRow(assignment.actor, Situations::Name(static_cast<Situation>(i)), assignment.rows[i]);
+			}
+			for (const auto& [key, row] : assignment.kept) {
+				writeRow(assignment.actor, key, row);
 			}
 		}
 		if (!written) {
@@ -932,8 +970,11 @@ namespace
 		return true;
 	}
 
-	// Reads the Default's pieces, the row worn and the rows. A row for a situation this version
-	// does not have is dropped with a log line. Returns false when the record ends early.
+	// Reads the Default's pieces, the row worn and the rows. A row for a situation this session
+	// does not have is kept for a user's situation while situations.json cannot be read
+	// (SituationTable::KeepsUnknownRow), dropped otherwise, with a log line either way. Returns
+	// false when the record ends early.
+	// Contract: SituationStore is loaded (kDataLoaded, before any co-save load).
 	bool ReadRows(const SKSE::SerializationInterface& a_intfc, Assignment& a_assignment)
 	{
 		std::uint8_t rows = 0;
@@ -948,7 +989,13 @@ namespace
 			}
 			const auto situation = Situations::FromKey(key);
 			if (!situation) {
-				if (row != OutfitRows::Row{}) {
+				if (!HoldsSomething(row)) {
+					continue;
+				}
+				if (SituationTable::KeepsUnknownRow(key, SituationStore::WasLoaded())) {
+					logger::warn("Kept the co-save row of situation {} for {:08X}: situations.json could not be read", key, a_assignment.actor);
+					a_assignment.kept.push_back({ .key = std::move(key), .row = std::move(row) });
+				} else {
 					logger::warn("Dropped the co-save row of situation {}, which this version does not have, for {:08X}", key, a_assignment.actor);
 				}
 				continue;
@@ -1012,7 +1059,8 @@ namespace
 	struct StoredExclusion
 	{
 		RE::FormID               actor = 0;
-		std::optional<Situation> row;  // nullopt for a situation this version does not have
+		std::optional<Situation> row;  // nullopt for a situation this session does not have
+		std::string              key;  // the row's situation as stored, for a kept row (Assignment::kept)
 		std::uint32_t            outfit = 0;
 		std::vector<RE::FormID>  armor;
 	};
@@ -1029,12 +1077,11 @@ namespace
 		}
 		for (; count > 0; --count) {
 			StoredExclusion entry;
-			std::string     key;
-			if (!Read(a_intfc, entry.actor) || !ReadSituationKey(a_intfc, key) || !Read(a_intfc, entry.outfit) || !ReadArmorForms(a_intfc, entry.armor)) {
+			if (!Read(a_intfc, entry.actor) || !ReadSituationKey(a_intfc, entry.key) || !Read(a_intfc, entry.outfit) || !ReadArmorForms(a_intfc, entry.armor)) {
 				logger::error("The co-save record of the items left off is cut short");
 				return entries;
 			}
-			entry.row = Situations::FromKey(key);
+			entry.row = Situations::FromKey(entry.key);
 			if (a_intfc.ResolveFormID(entry.actor, entry.actor)) {
 				entries.push_back(std::move(entry));
 			}
@@ -1042,20 +1089,32 @@ namespace
 		return entries;
 	}
 
-	// Gives the assignments read the items their rows' outfits leave off. An entry for an actor
-	// without an assignment, a row this version does not have, or an outfit no longer on the
-	// row (its situation removed in situations.json, DropRemovedRows) is dropped.
+	// The row an exclusion entry belongs to: a situation's, or a kept row stored under its key;
+	// nullptr for neither.
+	OutfitRows::Row* EntryRow(Assignment& a_assignment, const StoredExclusion& a_entry)
+	{
+		if (a_entry.row) {
+			return &a_assignment.rows[RowOf(*a_entry.row)];
+		}
+		const auto kept = std::ranges::find(a_assignment.kept, a_entry.key, &KeptRow::key);
+		return kept != a_assignment.kept.end() ? &kept->row : nullptr;
+	}
+
+	// Gives the assignments read the items their rows' outfits leave off, kept rows included.
+	// An entry for an actor without an assignment, a row this session neither has nor kept, or
+	// an outfit no longer on the row (its situation removed in situations.json,
+	// DropRemovedRows) is dropped.
 	// Contract: after the ASGN record was read, in whichever order the records came.
 	void AttachExclusions(const std::vector<StoredExclusion>& a_entries)
 	{
 		for (const auto& entry : a_entries) {
 			auto* assignment = FindAssignment(entry.actor);
-			if (!assignment || !entry.row) {
+			auto* row = assignment ? EntryRow(*assignment, entry) : nullptr;
+			if (!row) {
 				continue;
 			}
-			auto& row = assignment->rows[RowOf(*entry.row)];
-			if (std::ranges::find(row.outfits, entry.outfit) != row.outfits.end()) {
-				OutfitRows::SetExcluded(row, entry.outfit, entry.armor);
+			if (std::ranges::find(row->outfits, entry.outfit) != row->outfits.end()) {
+				OutfitRows::SetExcluded(*row, entry.outfit, entry.armor);
 			}
 		}
 	}
@@ -1492,6 +1551,10 @@ namespace Assignments
 			for (auto& row : assignment.rows) {
 				OutfitRows::Take(row, a_outfit);
 			}
+			for (auto& kept : assignment.kept) {
+				OutfitRows::Take(kept.row, a_outfit);
+			}
+			std::erase_if(assignment.kept, [](const KeptRow& a_kept) { return !HoldsSomething(a_kept.row); });
 			if (heldByDefault && !OutfitRows::HoldsAny(defaultRow) && assignment.defaultPieces.empty()) {
 				assignment.defaultPieces = FormIDsOf(a_pieces);
 			}

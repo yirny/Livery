@@ -317,6 +317,14 @@ TEST_CASE("User keys are user: and a number from 1", "[situations]")
 	CHECK_FALSE(SituationTable::UserKeyNumber("Town"));
 }
 
+TEST_CASE("The co-save keeps an unknown user's situation's row only while situations.json cannot be read", "[situations]")
+{
+	CHECK(SituationTable::KeepsUnknownRow("user:3", false));
+	CHECK_FALSE(SituationTable::KeepsUnknownRow("user:3", true));
+	CHECK_FALSE(SituationTable::KeepsUnknownRow("Warm", false));  // a retired preset
+	CHECK_FALSE(SituationTable::KeepsUnknownRow("user:0", false));
+}
+
 TEST_CASE("A user's situation is added under the next key, last or right after its source", "[situations]")
 {
 	auto table = SituationTable::Presets();

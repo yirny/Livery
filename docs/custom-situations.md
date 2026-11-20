@@ -218,7 +218,8 @@ keeps its installed rules. Shape:
   the name only. It cannot collide with a preset key or a retired one (`Warm`, `Swimming`).
   `Situations::FromKey` finds it in the registry. A removed user-defined situation leaves the
   file; another save whose co-save still has rows under its key reads them as it reads a
-  retired key today: dropped.
+  retired key today: dropped. While `situations.json` cannot be read, the co-save keeps the
+  rows of every user's key instead and writes them back (docs/design.md §5).
 - Form values are stored as a piece is (`PieceFile::PieceRef`: plugin file name, local FormID,
   the name for the reader); a value whose plugin is not loaded stays in the file and never
   holds.
