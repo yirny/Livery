@@ -763,8 +763,8 @@ namespace
 
 	// A spell, power or shout's word the actor can cast or use at will that can leave a visible
 	// effect on someone: one delivered to themselves, or one for others whose visible effects are
-	// all friendly (Healing Hands, Courage, Magelight), so a Spell Effect row checking whoever it
-	// lands on can use it. Left out: attacks (any hostile or detrimental effect: Flames, Fury),
+	// all friendly (Healing Hands, Courage, Magelight), so an Active Effects row checking whoever
+	// it lands on can use it. Left out: attacks (any hostile or detrimental effect: Flames, Fury),
 	// and those whose effect stays on the caster or lands on no living target (a Conjure, a
 	// Reanimate, a push). Abilities, diseases and the rest are offered only while one of their
 	// effects is on them.

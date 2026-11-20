@@ -105,9 +105,9 @@ namespace SituationRules
 	}
 
 	// Whether an item whose visible effects are `a_item` (FormIDs in any order, repeats allowed)
-	// has exactly the effects `a_set` (FormRef::effects): a Spell Effect row counts every spell,
-	// scroll or potion with the same effects as the one listed. An empty set matches an item
-	// without visible effects; the poll holds such a spell by its own FormID instead.
+	// has exactly the effects `a_set` (FormRef::effects): an Active Effects row counts every
+	// spell, scroll or potion with the same effects as the one listed. An empty set matches an
+	// item without visible effects; the poll holds such a spell by its own FormID instead.
 	template <class Ids>
 	bool SameEffects(std::span<const std::uint32_t> a_set, Ids&& a_item)
 	{
@@ -145,8 +145,8 @@ namespace SituationRules
 	}
 
 	// Sorts the choices by name (ASCII case ignored), and of those with the same name and the
-	// same visible effects keeps the lowest FormID alone: a Spell Effect row counts them all the
-	// same (Stoneflesh is in Skyrim.esm twice, once for the left hand).
+	// same visible effects keeps the lowest FormID alone: an Active Effects row counts them all
+	// the same (Stoneflesh is in Skyrim.esm twice, once for the left hand).
 	inline void MergeSameSpells(std::vector<SpellChoice>& a_choices)
 	{
 		std::ranges::sort(a_choices, [](const SpellChoice& a_left, const SpellChoice& a_right) {
@@ -567,8 +567,8 @@ namespace SituationRules
 			return true;
 		}
 
-		// The same spell, or one with the same visible effects, which a Spell Effect row counts
-		// the same (SameEffects).
+		// The same spell, or one with the same visible effects, which an Active Effects row
+		// counts the same (SameEffects).
 		inline bool SameSpell(const FormRef& a_left, const FormRef& a_right)
 		{
 			return SameForm(a_left.ref, a_right.ref) || (!a_left.effects.empty() && a_left.effects == a_right.effects);

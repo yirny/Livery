@@ -35,7 +35,7 @@ Items marked *provisional* are tried in a prototype first and may change.
 
 A situation holds a list of condition rows. The situation applies while every row holds
 (AND). A row is a kind, a `not` flag, for a kind with values a set of values, and for a kind
-that reads an actor's own state (`SituationRules::Targetable`: State, Spell Effect) whose state
+that reads an actor's own state (`SituationRules::Targetable`: State, Active Effects) whose state
 it reads (`Row::target`): the character wearing the situation's outfit, or the player whoever
 wears it (a follower who changes when you fight). A row with values holds while any of its
 values holds (OR), and `not` inverts the row. Rows do not nest: there are no OR groups across
@@ -68,7 +68,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Place (Specific Location in the editor) | a list of locations and cells | their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
 | Weather | Rain, Snow, Warm region, Cool region, Freezing region (keys `rain`, `snow`, `warmRegion`, `coolRegion`, `freezingRegion`) | read around the player, whoever wears the situation. Rain = the player is in an exterior cell and the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in). A region = the climate of the player's place (`RegionClimate`): outdoors Survival Mode's classes by the cell's regions and the player's height (the conditions of its `Survival_RegionInfoSpell`, in its order: the two mountain areas, warm, cool, then freezing), Windhelm's city region freezing too; a place it does not class (a mod's land) Freezing when a region of its cell has snow weathers for at least 40% of its weather chance, Cool otherwise; indoors (an interior cell, or one of its interior worldspaces such as Blackreach) none, but its ice caves (by location or cell) Freezing; its Oblivion planes (Sovngarde, the Soul Cairn, Apocrypha) none. The place is read again only as the player's cell or location changes | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`; `TESObjectCELL::GetRegionList`, `GetPositionZ`, `GetWorldspace`, `GetCurrentLocation` | Rain and Snow by the sky yes, outdoors only not yet; the climate matched Survival Mode's own answer in 17 cells (2026-11-18); the region rows not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
-| Spell Effect (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
+| Active Effects (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
 
 "The actor" above is the wearer, or with `Row::target` the player (§2); the player's facts are
 read once per evaluation, as the wearer's are, and only when a row asks. The player's in-water
@@ -109,7 +109,7 @@ Notes:
   worldspaces such as Blackreach as indoors, unlike the Indoors / Outdoors kind.
 - Time of day: game time, so waiting and sleeping jump the clock; the poll sees the new hour at
   its next run. From equal to To is the whole day.
-- Spell Effect: the row lists spells, powers, shouts (by their words' spells), potions,
+- Active Effects: the row lists spells, powers, shouts (by their words' spells), potions,
   scrolls, ingredients and abilities (`MagicItem`), by the names the player knows, not magic
   effects (an effect's name is often not the spell's: Stoneflesh applies "Armor - Stone", and
   Skyrim.esm has 136 visible effect names shared by several effects), and holds by their
@@ -323,7 +323,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   time is`, `The location is`. An Indoors / Outdoors row ends there with one dropdown of
   `Indoors` and `Outdoors` (the row's `not`), no operator. The others have the operator dropdown, as wide as its widest wording so ticking more values
   never widens it: `is` / `is not` with up to one value or form selected, `is any of` / `is none
-  of` with more (as Linear and Airtable word it), Spell Effect `has` / `has not`, `has any of` /
+  of` with more (as Linear and Airtable word it), Active Effects `has` / `has not`, `has any of` /
   `has none of`, `between` / `not between` for Time of day; then the values. State's, Location
   type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying open for
   several ticks; a value with a tip, `Value::tip`, says it while hovered: Freezing region's
@@ -483,7 +483,7 @@ mark proves nothing; the tooltip names what was found. The mark does not read th
 ## 10. Open and in-game checks
 
 - Whether the engine keeps `kInactive` or `kDispelled` effects in the list the walk visits
-  (the Spell Effect rule skips them either way), and whether a cast flesh spell holds for its
+  (the Active Effects rule skips them either way), and whether a cast flesh spell holds for its
   whole duration and ends with it (checked in game for Stoneflesh by its FormID; again by its
   effects, with its scroll).
 - Which Skyrim.esm locations carry `LocTypeDungeon`, and whether the DLC dungeons do.
