@@ -207,14 +207,14 @@ namespace Situations
 
 	// The situations of `a_rows` (the actor's rows) whose row holds an outfit and whose rules
 	// (SituationStore::RulesOf) hold now, read from the end of Order(): a situation they have no
-	// outfit for cannot be worn, so its conditions are not read. A situation in water ends later
-	// for an actor last told in it (hysteresis on a shore).
+	// outfit for cannot be worn, so its conditions are not read. A situation for wading ends later
+	// for an actor last told in water (hysteresis on a shore).
 	// Contract: game thread; reads Order() as it is, allocating nothing.
 	Applicable Evaluate(RE::Actor& a_actor, const OutfitRows::Rows& a_rows);
 
 	// Whether each of `a_rows` (a situation's conditions as the Edit situation popup holds them)
 	// is met for `a_actor` now, as Evaluate reads it; in combat or not, each row alone. Reading
-	// in water moves the actor's hysteresis record as the poll's reading does.
+	// Wading moves the actor's hysteresis record as the poll's reading does.
 	// Contract: game thread.
 	std::vector<bool> RowsHold(RE::Actor& a_actor, std::span<const SituationRules::Row> a_rows);
 

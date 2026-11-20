@@ -62,7 +62,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 
 | Kind | Values | Holds while | Source | Verified |
 |---|---|---|---|---|
-| State (key `state`) | In combat, Weapon drawn, In water, Swimming, Sleeping (keys `inCombat`, `weaponDrawn`, `inWater`, `swimming`, `sleeping`) | In combat = the actor is in combat. Weapon drawn = a weapon, spell or fists drawn, or being put away (`kDrawn`, `kWantToSheathe`, `kSheathing`). In water = the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only. Swimming = the actor state's swimming flag. Sleeping = the sleeping rule of docs/design.md §7 | `Actor::IsInCombat`, `ActorState::IsWeaponDrawn`, `IsSwimming`, `GetWaterHeight`, `GetSitSleepState`, CanSleep furniture | In combat yes (as the first release's rule); In water by wading yes; the rest not yet |
+| State (key `state`) | In combat, Weapon drawn, Wading, Swimming, Sleeping (keys `inCombat`, `weaponDrawn`, `wading`, `swimming`, `sleeping`) | In combat = the actor is in combat. Weapon drawn = a weapon, spell or fists drawn, or being put away (`kDrawn`, `kWantToSheathe`, `kSheathing`). Wading = in water by the in-water rule (swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only) and not swimming. Swimming = the actor state's swimming flag. The two never hold together: in water at all is both ticked. Sleeping = the sleeping rule of docs/design.md §7 | `Actor::IsInCombat`, `ActorState::IsWeaponDrawn`, `IsSwimming`, `GetWaterHeight`, `GetSitSleepState`, CanSleep furniture | In combat yes (as the first release's rule); the in-water rule by wading yes; the rest not yet |
 | Location type | Town, Castle, Player home, Dungeon (keys `town`, `castle`, `playerHome`, `dungeon`) | their current location's own keywords: Town = `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor, Castle = `LocTypeCastle`, Player home = `LocTypePlayerHouse`, Dungeon = `LocTypeDungeon` | `BGSLocation::HasKeywordString` | Town yes; Castle, the rest not yet |
 | Indoors / Outdoors (key `indoors`) | none: the row's `not` chooses, off Indoors, on Outdoors | Indoors = their cell is an interior cell, with or without a location; Outdoors = it is not | `TESObjectCELL::IsInteriorCell` | no |
 | Place (Specific Location in the editor) | a list of locations and cells | their current location or any of its parents (`parentLoc`), or their cell, is in the list. The open country belongs to no place: most of its cells have no location (Skyrim.esm: 930 of Tamriel's 11,187 exterior cells have one, one of them a hold's), so `GetCurrentLocation` is null there | `GetCurrentLocation`, `GetParentCell` | yes (a home, a city; the open country checked null) |
@@ -85,12 +85,12 @@ Notes:
   no longer counts, and a freezing region follows Survival Mode's classes instead of the sky
   region's snow. Town and Cold by weather, verified through the fixed rules, are checked
   again through the model (§10).
-- In water keeps its hysteresis in a per-actor list of those last told in water
+- Wading keeps its hysteresis in a per-actor list of those last told in water
   (`g_inWater`, changed only as someone goes in or out). Swimming needs none: the flag is the
-  engine's. In water takes swimming in, so a row with both reads In water alone, and the
-  never-worn mark (§7) counts Swimming as In water (`Detail::Implies`). A State row reads its
-  values in the table's order and stops at the first that holds, so In water is read (and its
-  record kept) only while the actor is neither in combat nor with a weapon drawn.
+  engine's. The list counts swimming as in water, so one who swims back to the shallows wades
+  at once. A State row reads its values in the table's order and stops at the first that
+  holds, so the in-water rule is read (and its record kept) only while the actor is neither in
+  combat, nor with a weapon drawn, nor swimming with Swimming ticked.
 - Indoors / Outdoors is a kind of its own, the cell's kind and not a keyword, so that it joins
   a Location type row by AND (a town's interiors: a Town row and an Indoors row); as a value of
   Location type it read as one, and joined by OR. For the never-worn mark a place never implies
@@ -329,9 +329,9 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   several ticks; a value with a tip, `Value::tip`, says it while hovered: Freezing region's
   `Snowy lands, high mountains, the northern coast and ice caves.`) whose preview lists the
   ticked values, `Rain, Snow`, or a greyed `Select...` with none. Rules between groups of values
-  (`Value::ruleAbove`): State's In combat, Weapon drawn / In water, Swimming / Sleeping, and its
-  tips `Fighting.`, `A weapon, spell or fists at the ready.`, `Any water underfoot, however
-  shallow.`, `Swimming only, not wading.`, `Going to bed, in it or getting up.`; In combat's tip
+  (`Value::ruleAbove`): State's In combat, Weapon drawn / Wading, Swimming / Sleeping, and its
+  tips `Fighting.`, `A weapon, spell or fists at the ready.`, `Wading in water, not
+  swimming.`, `Deep enough to swim.`, `Going to bed, in it or getting up.`; In combat's tip
   is `Fighting.` then, after a blank line, `Never holds while Allow during combat is off.` while
   the situation does not apply in combat and the row is not negated (§2); Weather's Rain / Snow above the
   regions, the weather now apart from the climate. Time of day's are `[time] and [time]`, two
