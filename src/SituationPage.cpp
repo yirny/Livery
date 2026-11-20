@@ -1341,8 +1341,9 @@ namespace CaptureWindow::Internal
 			const bool changed = Theme::Checkbox(Strings::Get(Text::kAllowDuringCombat), &ticked);
 			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			EndItemDisabled();
+			const bool focused = forced && FocusStandIn("##allowDuringCombat");
 			// After EndDisabled, so the tooltip is not drawn faded.
-			if (hovered) {
+			if (hovered || focused) {
 				Theme::Tooltip(Strings::Get(forced ? Text::kAllowDuringCombatForced : Text::kAllowDuringCombatTip));
 			}
 			if (changed) {
@@ -2038,7 +2039,8 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::SameLine();
 				ImGui::TextDisabled("(?)");
-				if (ImGui::IsItemHovered()) {
+				const bool helpHovered = ImGui::IsItemHovered();
+				if (FocusStandIn("##placeHelp") || helpHovered) {
 					DrawHelpTooltip(a_help);
 				}
 				ImGui::PopID();
