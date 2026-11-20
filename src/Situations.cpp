@@ -300,8 +300,7 @@ namespace
 
 	// Location type's values (SituationRules) the location's own keywords give: Town is any
 	// house, the player's included, or inhabited; Castle a jarl's palace or keep, every one of
-	// which is a dwelling too, so a town as well. Indoors is the cell's (InLocationType), never
-	// a keyword's, so the type masks of the never-worn mark (TypeMaskOf) leave it out.
+	// which is a dwelling too, so a town as well.
 	bool HasLocationType(const RE::BGSLocation& a_location, std::uint32_t a_values)
 	{
 		const auto has = [&a_location](std::string_view a_keyword) { return a_location.HasKeywordString(a_keyword); };
@@ -396,14 +395,18 @@ namespace
 	}
 
 	// Whether the actor's location has one of Location type's `a_values` by its keywords
-	// (HasLocationType), or their cell is an interior with Indoors among them.
+	// (HasLocationType).
 	bool InLocationType(std::uint32_t a_values, Facts& a_facts)
 	{
-		if ((a_values & SituationRules::kIndoors) && a_facts.Cell() && a_facts.Cell()->IsInteriorCell()) {
-			return true;
-		}
 		const auto* location = a_facts.Location();
 		return location && HasLocationType(*location, a_values);
+	}
+
+	// Whether the actor's cell is an interior, with or without a location.
+	bool IsIndoors(Facts& a_facts)
+	{
+		const auto* cell = a_facts.Cell();
+		return cell && cell->IsInteriorCell();
 	}
 
 	// Weather's values (SituationRules) that hold now around the player (Climate): Rain and Snow
@@ -541,6 +544,9 @@ namespace
 			break;
 		case Kind::kLocationType:
 			holds = InLocationType(a_row.values, *facts);
+			break;
+		case Kind::kIndoors:
+			holds = IsIndoors(*facts);
 			break;
 		case Kind::kPlace:
 			holds = InPlaces(a_row.places, *facts);

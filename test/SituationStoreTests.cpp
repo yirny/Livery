@@ -281,13 +281,13 @@ namespace
 
 	const Rules kRainyTown{ .rows = { { .kind = Kind::kLocationType, .values = SituationRules::kTown | SituationRules::kCastle },
 								{ .kind = Kind::kWeather, .values = SituationRules::kRain | SituationRules::kSnow },
-								{ .kind = Kind::kLocationType, .negated = true, .values = SituationRules::kIndoors },
+								{ .kind = Kind::kIndoors, .negated = true },
 								{ .kind = Kind::kTimeOfDay, .from = 20 * 60, .to = 6 * 60 } } };
 }
 
 TEST_CASE("The Applies line has a phrase per row, not first", "[situations]")
 {
-	CHECK(SituationRules::Text(kRainyTown) == "In a town or a castle, in rain or snow, not in an interior, from 8 PM to 6 AM.");
+	CHECK(SituationRules::Text(kRainyTown) == "In a town or a castle, in rain or snow, outdoors, from 8 PM to 6 AM.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather, .negated = true, .values = SituationRules::kRain } } }) == "Not in rain.");
 	CHECK(SituationRules::Text({}) == "-");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather } } }) == "Weather (nothing selected).");
@@ -300,8 +300,8 @@ TEST_CASE("The Applies line has a phrase per row, not first", "[situations]")
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType,
 									 .values = SituationRules::kTown | SituationRules::kPlayerHome | SituationRules::kDungeon } } }) ==
 		  "In a town, a player home or a dungeon.");
-	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType, .values = SituationRules::kTown | SituationRules::kIndoors } } }) ==
-		  "In a town or an interior.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType, .values = SituationRules::kTown }, { .kind = Kind::kIndoors } } }) ==
+		  "In a town, indoors.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kTimeOfDay, .from = 9 * 60 + 30, .to = 12 * 60 } } }) == "From 9:30 AM to 12 PM.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kTimeOfDay, .from = 0, .to = 0 } } }) == "At any hour.");
 }
@@ -334,7 +334,7 @@ TEST_CASE("A row reading the player says so in the Applies line", "[situations]"
 	const Row notYourWater{ .kind = Kind::kState, .negated = true, .target = Target::kPlayer, .values = SituationRules::kInWater };
 	CHECK(SituationRules::Text({ .rows = { notYourWater } }) == "While you are not in water.");
 	// A kind that reads no actor's state ignores the target.
-	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kLocationType, .target = Target::kPlayer, .values = SituationRules::kIndoors } } }) == "In an interior.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kIndoors, .target = Target::kPlayer } } }) == "Indoors.");
 	for (const auto& info : SituationRules::kKinds) {
 		CHECK(SituationRules::Targetable(info.kind) == (info.kind == Kind::kState || info.kind == Kind::kSpell));
 	}
@@ -363,7 +363,7 @@ TEST_CASE("A row's target is written only for the player and refused where a kin
 		return refused && read == SituationTable::Presets();
 	};
 	CHECK(refuses(
-		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "locationType", "target": "player", "values": ["indoors"] } ] } ] })"));
+		R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "indoors", "target": "player" } ] } ] })"));
 	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "state", "target": "horse", "values": ["inCombat"] } ] } ] })"));
 	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "state", "target": 1, "values": ["inCombat"] } ] } ] })"));
 }
@@ -455,7 +455,7 @@ TEST_CASE("Parse reads version 2's user's situations after the presets, in the f
 		{ "key": "user:5", "name": "Night", "conditions": [ { "kind": "timeOfDay", "from": "8:00", "to": "06:00" } ] },
 		{ "key": "Town", "name": "City" },
 		{ "key": "user:2", "name": "Wet", "applyInCombat": true, "comment": "ignored",
-		  "conditions": [ { "kind": "weather", "values": ["rain", "coolRegion"] }, { "kind": "locationType", "not": true, "values": ["indoors"] } ] } ] })",
+		  "conditions": [ { "kind": "weather", "values": ["rain", "coolRegion"] }, { "kind": "indoors", "not": true } ] } ] })",
 		table));
 	REQUIRE(table.size() == Situations::kPresetCount + 2);
 	CHECK(table.nextKey == 6);
@@ -470,7 +470,7 @@ TEST_CASE("Parse reads version 2's user's situations after the presets, in the f
 	CHECK(table[Situations::kPresetCount + 1] ==
 		  User(2, "Wet",
 			  { .rows = { { .kind = Kind::kWeather, .values = SituationRules::kRain | SituationRules::kCoolRegion },
-					{ .kind = Kind::kLocationType, .negated = true, .values = SituationRules::kIndoors } },
+					{ .kind = Kind::kIndoors, .negated = true } },
 				  .applyInCombat = true }));
 }
 
@@ -726,7 +726,7 @@ TEST_CASE("Version 2 keeps the order and the presets' rules; back to version 1 o
 	CHECK(read == table);
 
 	table.order = SituationTable::Presets().order;
-	At(table, Situation::kHome).rules.rows.push_back({ .kind = Kind::kLocationType, .values = SituationRules::kIndoors });
+	At(table, Situation::kHome).rules.rows.push_back({ .kind = Kind::kIndoors });
 	At(table, Situation::kCastle).removed = true;
 	At(table, Situation::kDefault).name = "Everyday";
 	text = SituationTable::Serialize(table);
@@ -783,12 +783,16 @@ TEST_CASE("A situation is never worn while one lower applies whenever it does", 
 	const Row                        town{ .kind = Kind::kLocationType, .values = SituationRules::kTown };
 	const Row                        townOrCastle{ .kind = Kind::kLocationType, .values = SituationRules::kTown | SituationRules::kCastle };
 	const Row                        rain{ .kind = Kind::kWeather, .values = SituationRules::kRain };
-	const Row                        outdoors{ .kind = Kind::kLocationType, .negated = true, .values = SituationRules::kIndoors };
+	const Row                        indoors{ .kind = Kind::kIndoors };
+	const Row                        outdoors{ .kind = Kind::kIndoors, .negated = true };
 	const std::span<const PlaceFact> none;
 
 	// The lower one asks for less.
 	CHECK(CoveredBy(RulesOf({ town, rain }), RulesOf({ townOrCastle }), none));
 	CHECK(CoveredBy(RulesOf({ rain, outdoors }), RulesOf({ outdoors }), none));
+	CHECK(CoveredBy(RulesOf({ town, indoors }), RulesOf({ indoors }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ indoors }), RulesOf({ outdoors }), none));
+	CHECK_FALSE(CoveredBy(RulesOf({ town }), RulesOf({ indoors }), none));
 	CHECK_FALSE(CoveredBy(RulesOf({ townOrCastle }), RulesOf({ town }), none));
 	CHECK_FALSE(CoveredBy(RulesOf({ town }), RulesOf({ town, rain }), none));
 	// Negated, the narrower list is the one implied.
@@ -891,11 +895,9 @@ TEST_CASE("Never worn: a place within another, and a place whose every location 
 	CHECK(CoveredBy(RulesOf({ breezehome }), RulesOf({ home }), facts));
 	CHECK_FALSE(CoveredBy(RulesOf({ whiterun }), RulesOf({ home }), facts));
 	CHECK_FALSE(CoveredBy(RulesOf({ ruin }), RulesOf({ dungeon }), facts));  // a location within it has no type
-	// Indoors is the cell's: no place gives it, but another value of the row may.
-	const Row indoors{ .kind = Kind::kLocationType, .values = SituationRules::kIndoors };
-	const Row homeOrIndoors{ .kind = Kind::kLocationType, .values = SituationRules::kPlayerHome | SituationRules::kIndoors };
+	// Indoors is the cell's: no place gives it.
+	const Row indoors{ .kind = Kind::kIndoors };
 	CHECK_FALSE(CoveredBy(RulesOf({ breezehome }), RulesOf({ indoors }), facts));
-	CHECK(CoveredBy(RulesOf({ breezehome }), RulesOf({ homeOrIndoors }), facts));
 	// Negated, the narrower list is the one implied.
 	const Row notWhiterun{ .kind = Kind::kPlace, .negated = true, .places = { place(kWhiterun) } };
 	const Row notBreezehome{ .kind = Kind::kPlace, .negated = true, .places = { place(kBreezehome) } };

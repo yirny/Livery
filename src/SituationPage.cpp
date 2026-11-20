@@ -983,13 +983,17 @@ namespace CaptureWindow::Internal
 		// subject ("The weather"); then an operator dropdown ("is" / "is not", "is any of" / "is
 		// none of" with several selected, "between" / "not between") and the values: a
 		// multi-choice dropdown, the two times, or the places or spells listed under, each with a
-		// ×.
+		// ×. An Indoors row is its subject and one dropdown of Indoors and Outdoors.
 
 		// The operator a row reads with: "is" / "is not" up to one selected, "is any of" / "is none
 		// of" with more (`a_several`); a Spell Effect row "has" / "has not", "has any of" / "has
-		// none of"; a Time of day row "between" / "not between".
+		// none of"; a Time of day row "between" / "not between". An Indoors row has its two
+		// choices there instead, "Indoors" / "Outdoors".
 		Text OperatorText(SituationRules::Kind a_kind, bool a_several, bool a_negated)
 		{
+			if (a_kind == SituationRules::Kind::kIndoors) {
+				return a_negated ? Text::kValueOutdoors : Text::kValueIndoors;
+			}
 			if (a_kind == SituationRules::Kind::kTimeOfDay) {
 				return a_negated ? Text::kOperatorNotBetween : Text::kOperatorBetween;
 			}
