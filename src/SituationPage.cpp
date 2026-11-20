@@ -1224,20 +1224,6 @@ namespace CaptureWindow::Internal
 			return ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x + a_width <= a_right;
 		}
 
-		// A × (Theme::ClearButton) `a_side` square on the line just laid out, its centre on
-		// `a_centreX` and its top at `a_top`; `a_tip` on hover. Returns true when clicked. The
-		// next item starts under the line, so lay it out before anything that wraps under it.
-		bool DrawRemoveCross(const char* a_id, float a_centreX, float a_top, float a_side, const char* a_tip)
-		{
-			ImGui::SameLine();
-			ImGui::SetCursorScreenPos(ImVec2(a_centreX - a_side * 0.5f, a_top));
-			const bool clicked = Theme::ClearButton(a_id, a_side);
-			if (ImGui::IsItemHovered()) {
-				Theme::Tooltip(a_tip);
-			}
-			return clicked;
-		}
-
 		enum class ConditionEdit
 		{
 			kNone,
@@ -1320,41 +1306,55 @@ namespace CaptureWindow::Internal
 			return { .key = kept.key, .rgb = kept.color.value_or(0), .textColor = !kept.color };
 		}
 
-		// A Place or Spell row's forms, a line each with a × centred on `a_crossX`, a spell after its
-		// icon, one whose
-		// plugin is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
-		// Location... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
-		// link was pressed.
-		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_crossX, bool& a_add)
+		// The hover of a form's row in DrawFormList: over its ×, what the × removes; over the rest,
+		// that its plugin is not loaded, or a spell's effects (none for a place).
+		void ShowFormTip(const CaptureWindow::Request& a_request, const SituationRules::FormRef& a_form, bool a_place, Theme::RemovableRowPart a_hovered)
+		{
+			if (a_hovered == Theme::RemovableRowPart::kRemove) {
+				Theme::Tooltip(Strings::Get(a_place ? Text::kRemoveThisLocation : Text::kRemoveThisSpell));
+			} else if (a_hovered == Theme::RemovableRowPart::kRow) {
+				if (a_form.formID == 0) {
+					Theme::Tooltip(Strings::Format(Text::kPluginNotLoaded, a_form.ref.plugin).c_str());
+				} else if (!a_place) {
+					Theme::Tooltip(SpellTip(a_form, EffectLinesOf(a_request, a_form)).c_str());
+				}
+			}
+		}
+
+		// A Place or Spell row's forms as a list (Theme::BeginList, within the condition's box), a
+		// row each with a × at its right end (Theme::RemovableRow), a spell after its icon, one
+		// whose plugin is not loaded greyed and saying so on hover, a spell's effects on hover; no
+		// list while the row has no form. Then Add Location... or Add Spell.... Returns true when
+		// one was removed; sets `a_add` when the Add link was pressed.
+		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, bool& a_add)
 		{
 			const bool                 place = a_row.kind == SituationRules::Kind::kPlace;
 			auto&                      forms = SituationRules::FormsOf(a_row);
 			std::optional<std::size_t> removed;
-			for (std::size_t i = 0; i < forms.size(); ++i) {
-				const auto& form = forms[i];
-				const bool  loaded = form.formID != 0;
-				ImGui::PushID(static_cast<int>(i));
-				if (!loaded) {
-					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-				}
-				if (place) {
-					ImGui::TextUnformatted(SituationRules::FormName(form).c_str());
-				} else {
-					Theme::IconText(SituationRules::FormName(form).c_str(), RowSpellIcon(a_request, form));
-				}
-				if (!loaded) {
-					ImGui::PopStyleColor();
-					if (ImGui::IsItemHovered()) {
-						Theme::Tooltip(Strings::Format(Text::kPluginNotLoaded, form.ref.plugin).c_str());
+			if (!forms.empty()) {
+				// Contract: as tall as its rows, so it never scrolls and the mouse wheel reaches the
+				// conditions' scroll area around it. The rows are a tick row's height and gap apart,
+				// as the piece list's (Theme::RemovableRow).
+				PushListRowSpacing();  // popped before EndList, so the gap below the list is the normal one
+				const float rows = static_cast<float>(forms.size());
+				const float gap = ImGui::GetStyle().ItemSpacing.y;
+				const float height = std::ceil(rows * ImGui::GetFrameHeight() + (rows - 1.0f) * gap + Theme::ListPaddingY() * 2.0f);
+				if (Theme::BeginList("forms", height, true)) {
+					for (std::size_t i = 0; i < forms.size(); ++i) {
+						const auto& form = forms[i];
+						const auto  icon = place ? Theme::RowIcon{} : RowSpellIcon(a_request, form);
+						auto        hovered = Theme::RemovableRowPart::kNone;
+						ImGui::PushID(static_cast<int>(i));
+						if (Theme::RemovableRow(SituationRules::FormName(form).c_str(),
+								{ .greyed = form.formID == 0, .icon = place ? nullptr : &icon }, &hovered)) {
+							removed = i;
+						}
+						ImGui::PopID();
+						ShowFormTip(a_request, form, place, hovered);
 					}
-				} else if (!place && ImGui::IsItemHovered()) {
-					Theme::Tooltip(SpellTip(form, EffectLinesOf(a_request, form)).c_str());
 				}
-				if (DrawRemoveCross("##remove", a_crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y,
-						Strings::Get(place ? Text::kRemoveThisLocation : Text::kRemoveThisSpell))) {
-					removed = i;
-				}
-				ImGui::PopID();
+				ImGui::PopStyleVar();
+				Theme::EndList();
 			}
 			if (removed) {
 				forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(*removed));
@@ -1397,8 +1397,6 @@ namespace CaptureWindow::Internal
 			constexpr float kListIndent = 16.0f;  // pixels at 1080p, what sits under the row in from its left
 
 			const auto& info = SituationRules::InfoOf(a_row.kind);
-			const float side = ImGui::GetFrameHeight();
-			const float crossX = a_lineRight - side * 0.5f;
 			Theme::LabelText(Strings::Get(info.label), Theme::HeadingIcon::kNone, false);  // the box sets the conditions apart
 			if (Theme::LabelHelpMark()) {
 				Theme::Tooltip(Strings::Format(info.tip, a_request.actorName).c_str());
@@ -1447,7 +1445,7 @@ namespace CaptureWindow::Internal
 				} else if (time) {
 					changed = DrawTimeRange(a_row) || changed;
 				} else {
-					changed = DrawFormList(a_request, a_row, crossX, addForm) || changed;
+					changed = DrawFormList(a_request, a_row, addForm) || changed;
 				}
 				ImGui::Unindent(indent);
 			}
@@ -1851,7 +1849,7 @@ namespace CaptureWindow::Internal
 		};
 
 		// The rows the page's edits give outfit `a_outfit`, named as the Wardrobe page's dropdown
-		// names them (`Default, Town`), or `None`.
+		// names them (`Default, Town`); "" when no row holds it.
 		std::string HeldRowsText(const State& a_state, std::uint32_t a_outfit)
 		{
 			std::string names;
@@ -1860,7 +1858,7 @@ namespace CaptureWindow::Internal
 					names += std::format("{}{}", names.empty() ? "" : Strings::Get(Text::kListSeparator), Trimmed(entry.name.data()));
 				}
 			}
-			return names.empty() ? Strings::Get(Text::kHeldByNone) : names;
+			return names;
 		}
 
 		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits) as Manage

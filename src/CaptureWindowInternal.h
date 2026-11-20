@@ -672,7 +672,7 @@ namespace CaptureWindow::Internal
 
 	// Outfit `a_index` (into request.existingOutfits) in the Wardrobe page's order: its name as
 	// a one-row list whose grip drags a copy of it (OfferOutfitDrag; the Situations page only),
-	// `a_situations` under the "SITUATIONS (#{Name})" label, then its pieces (DrawPieceChoices)
+	// `a_situations` under the "SITUATIONS (#{Name})" label (neither when it is ""), then its pieces (DrawPieceChoices)
 	// over their count line, which ends by screen Y `a_bottom`; the list scrolls when it needs
 	// more (one row shows at least). Returns true when `a_excluded` changed.
 	bool DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom,

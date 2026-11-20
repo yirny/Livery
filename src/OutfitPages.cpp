@@ -511,7 +511,7 @@ namespace CaptureWindow::Internal
 	// The name with no label, as a list of one outfit row whose grip drags a copy of the outfit,
 	// as the Situations page's outfit list does (a click on it does nothing); no situation star,
 	// as the field under it names them. Then the situations' label with that star, as the
-	// Situation List's headings have it.
+	// Situation List's headings have it, and `a_situations`; neither while that is empty.
 	bool DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom, std::vector<std::uint32_t>* a_excluded)
 	{
 		const auto& outfit = OutfitAt(a_state, a_index);
@@ -525,8 +525,10 @@ namespace CaptureWindow::Internal
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
-		Theme::LabelText(a_state.situationsLabel.c_str(), true, true);
-		DrawFieldText(a_situations.c_str());
+		if (!a_situations.empty()) {
+			Theme::LabelText(a_state.situationsLabel.c_str(), true, true);
+			DrawFieldText(a_situations.c_str());
+		}
 		Theme::AfterFieldGap();
 		// A frame's height holds the count line under the list, in every skin's small font.
 		const bool changed = DrawPieceChoices(a_state, outfit.pieces, a_excluded, a_bottom - ImGui::GetFrameHeightWithSpacing());

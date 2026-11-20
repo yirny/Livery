@@ -338,9 +338,13 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   dropdowns
   in 30-minute steps (a time read from the file off those steps shows as it is). Both sit on the
   row while they fit, else under it, 16px in. Place (`Specific Location` in the editor) and
-  Spell list their forms under the row, 16px in, one a line with a × at its right end (`Remove
-  this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
-  hover), then `Add Location...` or `Add Spell...` at the list's left. In Vanilla and Nordic a
+  Spell list their forms under the row, 16px in, as a list within the box (`Theme::BeginList`
+  with `withinContent`: its rules above and below, the skin's list background), as tall as its
+  rows, so it never scrolls; none while the row has no form. A form is a row
+  (`Theme::RemovableRow`), a tick row's height and gap apart as in the piece list: the skin's
+  hover fill, a spell after its icon, a × at its right end (`Remove this location.` / `Remove this spell.`); one whose plugin
+  is not loaded greyed, saying so on hover. Then `Add Location...` or `Add Spell...` at the
+  list's left. In Vanilla and Nordic a
   row's dropdowns have the palette's stripe colour behind them, the frame padding at both ends (`FieldStyle::filled`). Then `Add Condition...`, a dropdown with the Add links' plus mark before its text (`FieldIcon::kAdd`), of the
   kinds in a fixed order, the same in every language (State, Location type, Specific Location, Indoors / Outdoors, Weather, Time of day, Active Effects), as wide as its widest kind, each kind but Indoors / Outdoors with a one-line tooltip of what it covers (`KindInfo::addTip`), closed by the choice, which adds a row with nothing selected
   (a Place or Spell row opens its Add popup at once; an Indoors / Outdoors row starts as Indoors).
@@ -419,7 +423,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   gap, in the error colour, each sentence wrapped (`Theme::RunTextWrapped`): `Never worn:
   <name> takes priority whenever this situation applies.` / `Add a condition, edit <name>, or
   change their order.`, naming the nearest after its star, both in the
-  emphasis. Its heading carries a warning mark after the name (and its count), a circle with an
+  emphasis. Its heading carries a warning mark after the name (and its count), a filled triangle with an
   exclamation mark in the error colour (`Theme::SituationHeadingLook::warning`), the same
   sentences its tooltip, in the text colour. While its Edit situation popup is open or its mark hovered, the
   Situation List draws the name of every situation lower in the list that applies whenever it
