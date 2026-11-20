@@ -16,6 +16,7 @@
 
 #include "PieceFile.h"
 #include "SituationTable.h"
+#include "Strings.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -33,7 +34,13 @@ namespace
 	// --- Constants ------------------------------------------------------------
 
 	constexpr auto        kSituationsFile = L"Data/SKSE/Plugins/Livery/situations.json";
-	constexpr const char* kUnreadable = "Livery could not read situations.json, so it changes nothing (see Livery.log).";
+	constexpr const char* kSituationsName = "situations.json";
+
+	// Why nothing is written while the file could not be used (g_writable).
+	std::string Unreadable()
+	{
+		return Strings::Format(Strings::Text::kFileUnreadable, kSituationsName);
+	}
 
 	// --- State ----------------------------------------------------------------
 
@@ -58,7 +65,7 @@ namespace
 	// old file whole. Returns why it failed, or nullopt.
 	std::optional<std::string> WriteSituations(const SituationTable::Table& a_table)
 	{
-		return PieceFile::WriteText(SituationsPath(), SituationTable::Serialize(a_table), "situations.json");
+		return PieceFile::WriteText(SituationsPath(), SituationTable::Serialize(a_table), kSituationsName);
 	}
 
 	// Writes `a_table`, and only once it took makes it the store's. Returns why it refused.
@@ -77,11 +84,11 @@ namespace
 	std::optional<std::string> CheckRoom()
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return Unreadable();
 		}
 		if (g_table.size() >= Situations::kMaxSituations) {
 			const bool removed = std::ranges::any_of(g_table, [](const SituationTable::Entry& a_entry) { return a_entry.removed && SituationTable::IsUser(a_entry); });
-			return removed ? "Livery cannot hold more situations; removed ones still count until the game is restarted." : "Livery cannot hold more situations.";
+			return Strings::Get(removed ? Strings::Text::kTooManySituationsRestart : Strings::Text::kTooManySituations);
 		}
 		return std::nullopt;
 	}
@@ -229,16 +236,16 @@ namespace SituationStore
 	std::optional<std::string> Apply(const std::vector<Edit>& a_edits, std::span<const Situations::Situation> a_order)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return Unreadable();
 		}
 		auto table = g_table;
 		for (const auto& [situation, name, rules] : a_edits) {
 			auto& entry = table[SituationTable::IndexOf(situation)];
 			if (entry.removed) {
-				return std::format("\"{}\" has been removed.", entry.name);
+				return Strings::Format(Strings::Text::kSituationRemoved, entry.name);
 			}
 			if (rules && situation == Situations::Situation::kDefault) {
-				return "The default outfit has no conditions.";
+				return Strings::Get(Strings::Text::kDefaultNoConditions);
 			}
 			entry.name = name;
 			if (rules) {
@@ -252,7 +259,7 @@ namespace SituationStore
 			const auto removed = [&table](Situations::Situation a_situation) { return table[SituationTable::IndexOf(a_situation)].removed; };
 			auto       order = SituationTable::Reordered(table.order, a_order, removed);
 			if (!order) {
-				return "The situations' order does not match the list. Open the window again.";
+				return Strings::Get(Strings::Text::kSituationOrderMismatch);
 			}
 			table.order = std::move(*order);
 		}
@@ -282,11 +289,11 @@ namespace SituationStore
 			return problem;
 		}
 		if (a_source == Situations::Situation::kDefault) {
-			return "The default outfit cannot be duplicated.";
+			return Strings::Get(Strings::Text::kDefaultNotDuplicated);
 		}
 		const auto& source = EntryOf(a_source);
 		if (source.removed) {
-			return std::format("\"{}\" has been removed.", source.name);
+			return Strings::Format(Strings::Text::kSituationRemoved, source.name);
 		}
 		auto table = g_table;
 		auto key = SituationTable::AddUserEntry(table, std::string(ExampleMod::TrimWhitespace(a_name)), source.rules, a_source);
@@ -296,15 +303,15 @@ namespace SituationStore
 	std::optional<std::string> Remove(Situations::Situation a_situation)
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return Unreadable();
 		}
 		if (a_situation == Situations::Situation::kDefault) {
-			return "The default outfit cannot be removed.";
+			return Strings::Get(Strings::Text::kDefaultNotRemoved);
 		}
 		auto  table = g_table;
 		auto& entry = table[SituationTable::IndexOf(a_situation)];
 		if (entry.removed) {
-			return std::format("\"{}\" has been removed already.", entry.name);
+			return Strings::Format(Strings::Text::kSituationRemovedAlready, entry.name);
 		}
 		entry.removed = true;
 		return Commit(std::move(table));
@@ -313,7 +320,7 @@ namespace SituationStore
 	std::optional<std::string> RestorePresets()
 	{
 		if (!g_writable) {
-			return kUnreadable;
+			return Unreadable();
 		}
 		return Commit(SituationTable::RestorePresets(g_table));
 	}

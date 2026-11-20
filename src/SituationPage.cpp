@@ -66,19 +66,14 @@ namespace CaptureWindow::Internal
 		// --- Constants --------------------------------------------------------
 
 		// How long a drag hovers a folded heading before it opens (seconds).
-		constexpr double      kDragExpandDelay = 1.0;
-		constexpr const char* kRemoveSituationPopup = "Remove situation?";
-		constexpr const char* kRestorePresetsPopup = "Restore presets?";
-		constexpr const char* kNewSituationPopup = "New situation";
-		constexpr const char* kAddPlacePopup = "Add location";
-		constexpr const char* kAddSpellPopup = "Add spell";
-		constexpr const char* kEditSituationPopup = "Edit situation";
-		constexpr const char* kNewSituation = "New Situation...";
-		// Over a condition in the Applies text: whether it is met now (CheckConditions), and while
-		// the settings page does not offer the editor, how to offer it.
-		constexpr const char* kMetNow = "Met now.";
-		constexpr const char* kNotMetNow = "Not met now.";
-		constexpr const char* kTurnOnCustom = "Turn on custom situations in the settings to edit.";
+		constexpr double       kDragExpandDelay = 1.0;
+		constexpr const char*  kRemoveSituationPopup = "Remove situation?";
+		constexpr const char*  kRestorePresetsPopup = "Restore presets?";
+		constexpr const char*  kNewSituationPopup = "New situation";
+		constexpr const char*  kAddPlacePopup = "Add location";
+		constexpr const char*  kAddSpellPopup = "Add spell";
+		constexpr const char*  kEditSituationPopup = "Edit situation";
+		constexpr Strings::Ref kNewSituation{ Text::kNewSituation };
 		// How often the Edit situation popup asks whether its conditions are met (seconds): the
 		// weather, the time and the actor change under it.
 		constexpr double kHoldsRefresh = 0.5;
@@ -88,19 +83,17 @@ namespace CaptureWindow::Internal
 		constexpr float  kConditionBoxGap = 8.0f;
 		constexpr float  kConditionBoxRounding = 4.0f;
 		// Reasons a button is greyed out, shown on hover.
-		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
+		constexpr Strings::Ref kAsInstalled{ Text::kPresetsAsInstalled };
 		// The name a situation gets when neither the one typed nor the one before can be used.
-		constexpr const char* kUnnamed = "Unnamed Situation";
+		constexpr Strings::Ref kUnnamed{ Text::kUnnamedSituation };
 		// A line in an outfit row's place under a heading.
-		constexpr const char* kPiecesLine = "Items not in the Wardrobe";
+		constexpr Strings::Ref kPiecesLine{ Text::kItemsNotInWardrobe };
 		// The widest time a Time of day dropdown shows, for its width.
 		constexpr const char* kWidestTime = "12:30 AM";
 		// A situation dragged by its heading's grip to another place in the order.
 		constexpr const char* kSituationPayload = "LiverySituation";
 		// Under the Default's heading, over the order.
-		constexpr const char* kOrderCaption = "The lowest that applies is worn.";
-		// The help of `Applies` and of the editor's `Conditions`: one text, read in either column.
-		constexpr const char* kConditionsHelp = "Applies while every condition is met.\nA condition with several values is met by any of them.";
+		constexpr Strings::Ref kOrderCaption{ Text::kOrderCaption };
 
 		// --- Edits ------------------------------------------------------------
 
@@ -403,14 +396,13 @@ namespace CaptureWindow::Internal
 		// close as a wrapped text's.
 		void DrawNeverWornText(const SituationForm& a_form, std::size_t a_by)
 		{
-			const auto                              name = Trimmed(a_form.entries[a_by].name.data());
-			const std::array<Theme::SubtitleRun, 3> why{ { TextRun("Never worn: "), SituationRun(name.c_str()), TextRun(", lower in the list, applies whenever this does.") } };
-			const std::array<Theme::SubtitleRun, 3> fix{ { TextRun("To change that, add a condition, edit "), SituationRun(name.c_str()),
-				TextRun(", or move one of them in the list.") } };
+			const auto name = Trimmed(a_form.entries[a_by].name.data());
+			const auto why = RunsOf(Text::kNeverWorn, { SituationRun(name.c_str()) });
+			const auto fix = RunsOf(Text::kNeverWornFix, { SituationRun(name.c_str()) });
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			Theme::RunTextWrapped(why);
+			Theme::RunTextWrapped(why.Parts());
 			ImGui::PopStyleVar();
-			Theme::RunTextWrapped(fix);
+			Theme::RunTextWrapped(fix.Parts());
 		}
 
 		// Entry `a_entry` applies whenever entry `a_of` (-1 for none) does, so `a_of` is never
@@ -579,19 +571,18 @@ namespace CaptureWindow::Internal
 
 		Dice DiceOf(const State& a_state, std::size_t a_entry)
 		{
-			constexpr const char* kRandomLine = "One of these outfits is picked at random each time this situation begins.";
-
 			const auto& request = a_state.request;
 			const auto& outfits = a_state.situationForm.entries[a_entry].row.outfits;
 			const bool  wears = request.wornOutfit != 0 && request.situations[a_entry].situation == request.wornFor &&
 			                    std::ranges::find(outfits, request.wornOutfit) != outfits.end();
+			const char* line = Strings::Get(Text::kRandomLine);
 			if (!wears) {
-				return { .tip = std::format("{}\n{} is not wearing one of them now.", kRandomLine, request.actorName) };
+				return { .tip = std::format("{}\n{}", line, Strings::Format(Text::kRandomNotWearing, request.actorName)) };
 			}
 			if (outfits.size() < 2) {
-				return { .tip = std::format("{}\nAdd another to pick from.", kRandomLine) };
+				return { .tip = std::format("{}\n{}", line, Strings::Get(Text::kRandomAddAnother)) };
 			}
-			return { .button = true, .tip = std::format("{}\nClick to pick another now.", kRandomLine) };
+			return { .button = true, .tip = std::format("{}\n{}", line, Strings::Get(Text::kRandomClick)) };
 		}
 
 		// Situation `a_entry`'s heading, then, unless folded, what it shows. Edit asks for its Edit
@@ -682,16 +673,13 @@ namespace CaptureWindow::Internal
 		std::string SituationListHelp(const State& a_state)
 		{
 			const auto& request = a_state.request;
-			return std::format(
-				"Each situation lists the outfits {} can wear in it.\nThe lowest applicable situation takes priority. Otherwise, the "
-				"default outfit is worn.{}",
-				request.actorName, request.customSituations ? "\nDrag a situation by its grip to reorder it." : "");
+			auto        help = Strings::Format(Text::kSituationListHelp, request.actorName);
+			if (request.customSituations) {
+				help += '\n';
+				help += Strings::Get(Text::kSituationListHelpDrag);
+			}
+			return help;
 		}
-
-		// The help of the Outfit List's label: what a drag of an outfit does, and a click.
-		constexpr const char* kOutfitListHelp =
-			"Drag an outfit onto a situation to add it, or between outfits to set its position.\nDrag it to another situation to "
-			"move it, or back here to remove it.\nClick an outfit to see its items.";
 
 		// The situation at place `a_place` of the order, its heading and what it shows: a drop of
 		// a situation over its heading's upper half goes before it, anywhere lower in its block
@@ -732,7 +720,7 @@ namespace CaptureWindow::Internal
 			}
 			form.warningHovered = -1;  // set again by its heading, before those it names
 			const float paneTop = ImGui::GetCursorPosY();
-			Theme::LabelText("Situation List");
+			Theme::LabelText(Strings::Get(Text::kSituationList));
 			const bool helpHovered = Theme::LabelHelpMark();
 			if (FocusStandIn("##listHelp") || helpHovered) {
 				DrawHelpTooltip(SituationListHelp(a_state));
@@ -885,9 +873,7 @@ namespace CaptureWindow::Internal
 			}
 			Theme::EndCombo(open, a_row.target == SituationRules::Target::kPlayer ? kPlayer : wearer, style);
 			if (hovered) {
-				Theme::Tooltip((a_request.actorIsPlayer ? std::format("{}: checks each character wearing the outfit\nPlayer: always checks you", wearer) :
-														  std::format("{}: checks this character\nPlayer: checks you", wearer))
-						.c_str());
+				Theme::Tooltip(Strings::Format(a_request.actorIsPlayer ? Text::kTargetHelpPlayer : Text::kTargetHelp, wearer).c_str());
 			}
 			return changed;
 		}
@@ -1130,12 +1116,13 @@ namespace CaptureWindow::Internal
 				if (!loaded) {
 					ImGui::PopStyleColor();
 					if (ImGui::IsItemHovered()) {
-						Theme::Tooltip(std::format("{} is not loaded.", form.ref.plugin).c_str());
+						Theme::Tooltip(Strings::Format(Text::kPluginNotLoaded, form.ref.plugin).c_str());
 					}
 				} else if (!place && ImGui::IsItemHovered()) {
 					Theme::Tooltip(SpellTip(form, EffectLinesOf(a_request, form)).c_str());
 				}
-				if (DrawRemoveCross("##remove", a_crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y, place ? "Remove this location." : "Remove this spell.")) {
+				if (DrawRemoveCross("##remove", a_crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y,
+						Strings::Get(place ? Text::kRemoveThisLocation : Text::kRemoveThisSpell))) {
 					removed = i;
 				}
 				ImGui::PopID();
@@ -1143,7 +1130,7 @@ namespace CaptureWindow::Internal
 			if (removed) {
 				forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(*removed));
 			}
-			a_add = Theme::LabelLink(place ? "Add Location..." : "Add Spell...", Theme::LinkLine::kNextLeft);
+			a_add = Theme::LabelLink(Strings::Get(place ? Text::kAddLocation : Text::kAddSpell), Theme::LinkLine::kNextLeft);
 			return removed.has_value();
 		}
 
@@ -1193,7 +1180,7 @@ namespace CaptureWindow::Internal
 			if (Theme::LabelHelpMark()) {
 				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
 			}
-			const bool removed = Theme::LabelLineLink("Remove");  // a word, not a ×, apart from the forms' ×s under it
+			const bool removed = Theme::LabelLineLink(Strings::Get(Text::kRemove));  // a word, not a ×, apart from the forms' ×s under it
 
 			const bool time = a_row.kind == SituationRules::Kind::kTimeOfDay;
 			bool       changed = false;
@@ -1297,10 +1284,9 @@ namespace CaptureWindow::Internal
 		// (KindExhausted).
 		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
 		{
-			constexpr const char* kAddCondition = "Add Condition...";
-
+			const char*             label = Strings::Get(Text::kAddCondition);
 			const Theme::FieldStyle style{ .icon = Theme::FieldIcon::kAdd, .previewIsHint = true };
-			ImGui::SetNextItemWidth(Theme::DropdownWidth(kAddCondition, style));
+			ImGui::SetNextItemWidth(Theme::DropdownWidth(label, style));
 			const bool                          open = Theme::BeginCombo("##addCondition", ImGuiComboFlags_HeightLargest, style);
 			std::optional<SituationRules::Kind> added;
 			if (open) {
@@ -1314,7 +1300,7 @@ namespace CaptureWindow::Internal
 					ImGui::EndDisabled();
 				}
 			}
-			Theme::EndCombo(open, kAddCondition, style);
+			Theme::EndCombo(open, label, style);
 			return added;
 		}
 
@@ -1324,13 +1310,12 @@ namespace CaptureWindow::Internal
 			const bool forced = !a_rules.applyInCombat && SituationRules::AppliesInCombat(a_rules);
 			bool       ticked = forced || a_rules.applyInCombat;
 			BeginItemDisabled(a_state, forced);
-			const bool changed = Theme::Checkbox("Allow during combat", &ticked);
+			const bool changed = Theme::Checkbox(Strings::Get(Text::kAllowDuringCombat), &ticked);
 			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			EndItemDisabled();
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (hovered) {
-				Theme::Tooltip(forced ? "On while the situation has an In combat condition." :
-										"In combat, the default outfit is normally worn.\nOn, this situation can apply in combat too.");
+				Theme::Tooltip(Strings::Get(forced ? Text::kAllowDuringCombatForced : Text::kAllowDuringCombatTip));
 			}
 			if (changed) {
 				a_rules.applyInCombat = ticked;
@@ -1466,10 +1451,10 @@ namespace CaptureWindow::Internal
 
 			const ImVec2 top = ImGui::GetCursorScreenPos();
 			const float  width = ImGui::GetContentRegionAvail().x;
-			Theme::LabelText("Outfit List");
+			Theme::LabelText(Strings::Get(Text::kOutfitList));
 			const bool helpHovered = Theme::LabelHelpMark();
 			if (FocusStandIn("##outfitListHelp") || helpHovered) {
-				DrawHelpTooltip(kOutfitListHelp);
+				DrawHelpTooltip(Strings::Get(Text::kOutfitListHelp));
 			}
 			const auto  controls = DrawBrowserControls(a_state, a_state.situationBrowser, true);
 			const int   clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, true);
@@ -1500,7 +1485,7 @@ namespace CaptureWindow::Internal
 		// What the Default is, under its name.
 		void DrawDefaultNote(const State& a_state)
 		{
-			const auto whose = std::format("This is {}'s default outfit.", a_state.request.actorName);
+			const auto whose = Strings::Format(Text::kDefaultOutfitOf, a_state.request.actorName);
 			Theme::SectionGap();
 			RunLine({ TextRun(whose.c_str()) });
 		}
@@ -1510,11 +1495,11 @@ namespace CaptureWindow::Internal
 		// sits (DrawFieldText); its two lines as close as a wrapped text's.
 		void DrawDefaultConditions()
 		{
-			const std::array<Theme::SubtitleRun, 3> first{ { TextRun("Worn where no "), SituationRun(""), TextRun("situation applies,") } };
-			const std::array<Theme::SubtitleRun, 1> second{ { TextRun("and in combat.") } };
+			const auto                              first = RunsOf(Text::kDefaultWornWhere, { SituationRun("") });
+			const std::array<Theme::SubtitleRun, 1> second{ { TextRun(Strings::Get(Text::kDefaultWornInCombat)) } };
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			Theme::RunText(first, true);
+			Theme::RunText(first.Parts(), true);
 			ImGui::PopStyleVar();
 			Theme::RunText(second, true);
 		}
@@ -1549,13 +1534,13 @@ namespace CaptureWindow::Internal
 			Theme::SectionGap();
 			ImGui::PushStyleColor(ImGuiCol_Text, Theme::ErrorColor());
 			for (std::size_t i = 0; i < overridden.size(); ++i) {
-				const bool                              last = i + 1 == overridden.size();
-				const auto                              name = Trimmed(a_form.entries[overridden[i]].name.data());
-				const std::array<Theme::SubtitleRun, 3> line{ { TextRun("Always overrides "), SituationRun(name.c_str()), TextRun(".") } };
+				const bool last = i + 1 == overridden.size();
+				const auto name = Trimmed(a_form.entries[overridden[i]].name.data());
+				const auto line = RunsOf(Text::kAlwaysOverrides, { SituationRun(name.c_str()) });
 				if (!last) {
 					ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 				}
-				Theme::RunTextWrapped(line);
+				Theme::RunTextWrapped(line.Parts());
 				if (!last) {
 					ImGui::PopStyleVar();
 				}
@@ -1632,9 +1617,10 @@ namespace CaptureWindow::Internal
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
 			const int clicked = Theme::RunLinks(runs, editable, &hovered);
 			if (hovered >= 0) {
-				std::string tip = known ? (held[static_cast<std::size_t>(hovered / 2)] ? kMetNow : kNotMetNow) : "";
+				std::string tip = known ? Strings::Get(held[static_cast<std::size_t>(hovered / 2)] ? Text::kMetNow : Text::kNotMetNow) : "";
 				if (!editable) {
-					tip += tip.empty() ? kTurnOnCustom : std::format("\n\n{}", kTurnOnCustom);
+					tip += tip.empty() ? "" : "\n\n";
+					tip += Strings::Get(Text::kTurnOnCustom);
 				}
 				if (!tip.empty()) {
 					Theme::Tooltip(tip.c_str());
@@ -1656,7 +1642,7 @@ namespace CaptureWindow::Internal
 			auto&       entry = form.entries[a_entry];
 			const auto& name = a_state.request.actorName;
 			const bool  isDefault = a_entry == 0;
-			Theme::LabelText("Name");
+			Theme::LabelText(Strings::Get(Text::kNameLabel));
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
 			if (ImGui::IsItemActivated()) {
@@ -1669,11 +1655,11 @@ namespace CaptureWindow::Internal
 			}
 			DrawNeverWorn(form, a_entry);
 			DrawOverrides(form, a_entry);
-			Theme::LabelText("Applies");
+			Theme::LabelText(Strings::Get(Text::kApplies));
 			int        clicked = -1;
 			const bool editable = !isDefault && a_state.request.customSituations;
 			if (!isDefault && Theme::LabelHelpMark()) {
-				DrawHelpTooltip(kConditionsHelp);
+				DrawHelpTooltip(Strings::Get(Text::kConditionsHelp));
 			}
 			if (!editable) {
 				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -1689,7 +1675,7 @@ namespace CaptureWindow::Internal
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
-			const std::string randomLabel = std::format("Random Outfit (for {})", name);
+			const std::string randomLabel = Strings::Format(Text::kRandomOutfitFor, name);
 			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
 				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
@@ -1703,10 +1689,7 @@ namespace CaptureWindow::Internal
 			ImGui::TextDisabled("(?)");
 			const bool helpHovered = ImGui::IsItemHovered();
 			if (FocusStandIn("##randomHelp") || helpHovered) {
-				DrawHelpTooltip(std::format(
-					"On: Each time this situation begins, {0} wears a random outfit from the list until it ends.\n\n"
-					"Off: {0} wears the last picked outfit. The others stay in the list but are hidden.",
-					name));
+				DrawHelpTooltip(Strings::Format(Text::kRandomOutfitHelp, name));
 			}
 			return clicked;
 		}
@@ -1730,7 +1713,7 @@ namespace CaptureWindow::Internal
 					names += std::format("{}{}", names.empty() ? "" : ", ", Trimmed(entry.name.data()));
 				}
 			}
-			return names.empty() ? "None" : names;
+			return names.empty() ? Strings::Get(Text::kHeldByNone) : names;
 		}
 
 		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits) as Manage
@@ -1746,8 +1729,8 @@ namespace CaptureWindow::Internal
 		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, bool& a_escapeTaken)
 		{
 			const float     spacing = ImGui::GetStyle().ItemSpacing.x;
-			const RowButton open{ "Open in Wardrobe", Theme::HeadingIcon::kWardrobe };
-			const bool      stacked = ButtonRowWidth({ open, "Back" }) + spacing * 2.0f > ImGui::GetContentRegionAvail().x;
+			const RowButton open{ Strings::Get(Text::kOpenInWardrobe), Theme::HeadingIcon::kWardrobe };
+			const bool      stacked = ButtonRowWidth({ open, Strings::Get(Text::kBack) }) + spacing * 2.0f > ImGui::GetContentRegionAvail().x;
 			const float     buttonRow = ImGui::GetStyle().ItemSpacing.y + ButtonRowGap() + Theme::ButtonHeight() +
 			                            (stacked ? spacing + Theme::ButtonHeight() : 0.0f);  // under the pieces' list
 			const float     bottom = ListBottom();                                           // the view's lowest
@@ -1764,17 +1747,17 @@ namespace CaptureWindow::Internal
 			if (stacked) {
 				BeginButtonRow({ open });
 			} else {
-				BeginButtonRow({ open, "Back" });
+				BeginButtonRow({ open, Strings::Get(Text::kBack) });
 			}
 			const bool openWardrobe = Theme::Button(open.icon, open.label);
 			if (stacked) {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + spacing - ImGui::GetStyle().ItemSpacing.y);
-				CentreButtonRow({ "Back" });
+				CentreButtonRow({ Strings::Get(Text::kBack) });
 			} else {
 				ImGui::SameLine();
 			}
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-			const bool back = Theme::Button("Back") || escape;
+			const bool back = Theme::Button(Strings::Get(Text::kBack)) || escape;
 			ImGui::PopID();
 			a_escapeTaken = a_escapeTaken || escape;
 			if (openWardrobe) {
@@ -1807,38 +1790,34 @@ namespace CaptureWindow::Internal
 		// a_escapeTaken: the browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
-			constexpr const char* kRestoreHelp =
-				"Brings the preset situations back as installed: a removed one returns, empty, and a renamed or edited one "
-				"gets its name and conditions back.\nTheir order and nobody's outfits change.";
-
 			const auto& request = a_state.request;
 			bool        create = false;
 			if (request.customSituations) {
-				BeginButtonRow({ { kNewSituation, Theme::HeadingIcon::kStar }, "Exit" });
+				BeginButtonRow({ { kNewSituation, Theme::HeadingIcon::kStar }, Strings::Get(Text::kExit) });
 				BeginItemDisabled(a_state, !request.onSituationCreate);
 				create = Theme::Button(Theme::HeadingIcon::kStar, kNewSituation);
 				EndItemDisabled();
 				ImGui::SameLine();
 			} else {
-				BeginButtonRow({ "Exit" });
+				BeginButtonRow({ Strings::Get(Text::kExit) });
 			}
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-			const bool exit = Theme::Button("Exit") || escape;
+			const bool exit = Theme::Button(Strings::Get(Text::kExit)) || escape;
 
 			const bool installed = request.restoreChanges.empty();
 			BeginItemDisabled(a_state, installed || !request.onRestorePresets);
 			bool       helpHovered = false;
-			const bool restore = Theme::LineHelpLink("Restore Presets", &helpHovered);
+			const bool restore = Theme::LineHelpLink(Strings::Get(Text::kRestorePresets), &helpHovered);
 			bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			EndItemDisabled();
-			if (installed && FocusStandIn("Restore Presets")) {
+			if (installed && FocusStandIn("##restorePresets")) {
 				hovered = true;
 			}
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (installed && hovered) {
 				Theme::Tooltip(kAsInstalled);
 			} else if (helpHovered) {
-				DrawHelpTooltip(kRestoreHelp);
+				DrawHelpTooltip(Strings::Get(Text::kRestorePresetsHelp));
 			}
 
 			if (create) {
@@ -1854,10 +1833,10 @@ namespace CaptureWindow::Internal
 		// Contract: inside a BeginModal popup.
 		bool DrawPopupButtons(const char* a_confirm)
 		{
-			BeginButtonRow({ a_confirm, "Cancel" });
+			BeginButtonRow({ a_confirm, Strings::Get(Text::kCancel) });
 			const bool confirm = Theme::Button(a_confirm);
 			ImGui::SameLine();
-			const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 			EndButtonRow();
 			if (confirm || cancel) {
 				QueueMenuSound(confirm ? kOkSound : kCancelSound);
@@ -1881,17 +1860,17 @@ namespace CaptureWindow::Internal
 			}
 			const auto& saved = a_state.request.situations[static_cast<std::size_t>(selected)];
 			const auto  situation = SituationRun(saved.name.c_str());
-			RunLine({ TextRun("Remove "), situation, TextRun("?") });
+			RunLine(Text::kRemoveSituationQuestion, { situation });
 			if (!saved.holders.empty()) {
-				ImGui::TextUnformatted("Used by:");
+				ImGui::TextUnformatted(Strings::Get(Text::kUsedBy));
 				for (const auto& holder : saved.holders) {
 					ImGui::BulletText("%s", holder.c_str());
 				}
 			}
 			if (!saved.user) {
-				ImGui::TextUnformatted(saved.holders.empty() ? "Restore Presets can bring it back." : "Restore Presets can bring it back, but not their outfits.");
+				ImGui::TextUnformatted(Strings::Get(saved.holders.empty() ? Text::kRestoreBringsBack : Text::kRestoreBringsBackNoOutfits));
 			}
-			const bool remove = DrawPopupButtons("Remove");
+			const bool remove = DrawPopupButtons(Strings::Get(Text::kRemove));
 			ImGui::EndPopup();
 			return remove;
 		}
@@ -1903,11 +1882,11 @@ namespace CaptureWindow::Internal
 			if (!BeginModal(kRestorePresetsPopup)) {
 				return false;
 			}
-			ImGui::TextUnformatted("Restore the preset situations?");
+			ImGui::TextUnformatted(Strings::Get(Text::kRestorePresetsQuestion));
 			for (const auto& line : a_state.request.restoreChanges) {
 				ImGui::BulletText("%s", line.c_str());
 			}
-			const bool restore = DrawPopupButtons("Restore");
+			const bool restore = DrawPopupButtons(Strings::Get(Text::kRestore));
 			ImGui::EndPopup();
 			return restore;
 		}
@@ -1920,13 +1899,13 @@ namespace CaptureWindow::Internal
 				return false;
 			}
 			auto& name = a_state.situationForm.newName;
-			ImGui::TextUnformatted("Name the new situation.");
-			const bool enter = DrawNameField(a_state, name, nullptr, nullptr, "Situation Name");
-			BeginButtonRow({ "Create", "Cancel" });
+			ImGui::TextUnformatted(Strings::Get(Text::kNameNewSituation));
+			const bool enter = DrawNameField(a_state, name, nullptr, nullptr, Strings::Get(Text::kSituationNameHint));
+			BeginButtonRow({ Strings::Get(Text::kCreate), Strings::Get(Text::kCancel) });
 			const bool typed = !Trimmed(name.data()).empty();
-			const bool create = ReasonButton("Create", typed ? nullptr : kNeedName) || enter;
+			const bool create = ReasonButton(Strings::Get(Text::kCreate), typed ? nullptr : kNeedName) || enter;
 			ImGui::SameLine();
-			const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 			EndButtonRow();
 			if (create || cancel) {
 				QueueMenuSound(create ? kOkSound : kCancelSound);
@@ -2023,7 +2002,7 @@ namespace CaptureWindow::Internal
 			int         shown = 0;  // the choices drawn so far, in request.places.At's order
 			const auto  radio = [&form, &shown](const char* a_kind, const SituationRules::Place& a_place, const std::string& a_help) {
 				const int  pick = shown++;
-				const auto label = std::format("{} ({})", a_kind, SituationRules::FormName(a_place));
+				const auto label = Strings::Format(Text::kPlaceChoice, a_kind, SituationRules::FormName(a_place));
 				ImGui::PushID(pick);
 				if (Theme::RadioButton(label.c_str(), form.placePick == pick)) {
 					form.placePick = pick;
@@ -2036,28 +2015,27 @@ namespace CaptureWindow::Internal
 				}
 				ImGui::PopID();
 			};
-			ImGui::TextUnformatted(std::format("Add the place {} is in.", name).c_str());
+			ImGui::TextUnformatted(Strings::Format(Text::kAddPlaceLead, name).c_str());
 			if (places.location) {
-				radio("This Location", *places.location, std::format("The named place {} is in.\nMay include multiple rooms or outdoor areas.", name));
+				radio(Strings::Get(Text::kThisLocation), *places.location, Strings::Format(Text::kThisLocationTip, name));
 				const auto here = SituationRules::FormName(*places.location);
 				for (const auto& parent : places.parents) {
-					radio("Parent Location", parent, std::format("Includes {} and every place in it.", here));
+					radio(Strings::Get(Text::kParentLocation), parent, Strings::Format(Text::kParentLocationTip, here));
 				}
 			}
 			if (places.cell) {
-				radio("This Cell", *places.cell,
-					std::format("The individual area {} is in.\nTypically an entire building interior or a section of the outdoors.", name));
+				radio(Strings::Get(Text::kThisCell), *places.cell, Strings::Format(Text::kThisCellTip, name));
 			}
 			const auto* picked = places.At(form.placePick);
 			const auto* row = FormRow(a_state, SituationRules::Kind::kPlace);
 			const bool  listed = picked && row && std::ranges::any_of(row->places, [&picked](const SituationRules::Place& a_place) {
 				return SituationRules::SameForm(a_place.ref, picked->ref);
 			});
-			BeginButtonRow({ "Add", "Cancel" });
-			const char* reason = !picked ? "Nothing to add here." : (listed ? "Already in the list." : nullptr);
-			const bool  add = ReasonButton("Add", reason);
+			BeginButtonRow({ Strings::Get(Text::kAdd), Strings::Get(Text::kCancel) });
+			const char* reason = !picked ? Strings::Get(Text::kNothingToAdd) : ReasonIf(listed, Strings::Get(Text::kAlreadyListed));
+			const bool  add = ReasonButton(Strings::Get(Text::kAdd), reason);
 			ImGui::SameLine();
-			const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 			EndButtonRow();
 			if (add || cancel) {
 				QueueMenuSound(add ? kOkSound : kCancelSound);
@@ -2085,7 +2063,7 @@ namespace CaptureWindow::Internal
 			}
 			ImGui::SetNextItemWidth(a_width);
 			ImGui::SetNextItemAllowOverlap();  // the clear button sits on its right end
-			bool changed = Theme::InputText("##search", search.data(), search.size(), ImGuiInputTextFlags_EscapeClearsAll, "Search by name", style);
+			bool changed = Theme::InputText("##search", search.data(), search.size(), ImGuiInputTextFlags_EscapeClearsAll, Strings::Get(Text::kSearchByName), style);
 			bool clear = a_escapeTaken;
 			if (search[0] != '\0') {
 				const ImVec2 fieldMin = ImGui::GetItemRectMin();
@@ -2138,7 +2116,7 @@ namespace CaptureWindow::Internal
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (hovered) {
 				const auto tip = SpellTip(spell, a_choice.effectLines);
-				Theme::Tooltip(inRow ? (tip + "\n\nAlready in the list.").c_str() : tip.c_str());
+				Theme::Tooltip(inRow ? (tip + "\n\n" + Strings::Get(Text::kAlreadyListed)).c_str() : tip.c_str());
 			}
 			if (toggled) {
 				QueueMenuSound(kFocusSound);
@@ -2157,9 +2135,9 @@ namespace CaptureWindow::Internal
 		{
 			auto&      picks = a_state.situationForm.spellPicks;
 			const auto count = picks.size();
-			Theme::CountText((count == 1 ? std::string{ "1 spell selected" } : std::format("{} spells selected", count)).c_str(), false);
+			Theme::CountText((count == 1 ? std::string{ Strings::Get(Text::kOneSpellSelected) } : Strings::Format(Text::kSpellsSelected, count)).c_str(), false);
 			ImGui::BeginDisabled(picks.empty());
-			if (Theme::LineLink("Clear All")) {
+			if (Theme::LineLink(Strings::Get(Text::kClearAll))) {
 				picks.clear();
 				QueueMenuSound(kFocusSound);
 			}
@@ -2178,7 +2156,7 @@ namespace CaptureWindow::Internal
 			const auto  spells = OfferedSpells(a_state);
 			const auto  listed = (std::min)(form.spellShown.size(), kMaxListed);
 			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
-			const char* hint = form.spellShowAll && form.spellSearch[0] == '\0' ? "Type to search." : "Nothing found.";
+			const char* hint = form.spellShowAll && form.spellSearch[0] == '\0' ? Strings::Get(Text::kTypeToSearch) : Strings::Get(Text::kNothingFound);
 			PushListRowSpacing();
 			const float rowHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;  // Theme::TickRow's
 			if (Theme::BeginList("spells", FittedListHeight(rowHeight * kRowsTall, rowHeight))) {
@@ -2202,7 +2180,7 @@ namespace CaptureWindow::Internal
 			Theme::EndList();
 			DrawSpellCount(a_state);
 			if (form.spellShown.size() > kMaxListed) {
-				Theme::CountText(std::format("{} more. Type more to narrow.", form.spellShown.size() - kMaxListed).c_str(), false);
+				Theme::CountText(Strings::Format(Text::kMoreSpells, form.spellShown.size() - kMaxListed).c_str(), false);
 			}
 		}
 
@@ -2221,7 +2199,7 @@ namespace CaptureWindow::Internal
 			}
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (hovered) {
-				Theme::Tooltip("Also lists spells you know and those currently affecting you.");
+				Theme::Tooltip(Strings::Get(Text::kShowPlayerSpellsTip));
 			}
 			return changed;
 		}
@@ -2232,14 +2210,14 @@ namespace CaptureWindow::Internal
 		// ticked spells on Add, in the order they were ticked; none otherwise.
 		std::vector<SituationRules::Spell> DrawAddSpellPopup(State& a_state)
 		{
-			constexpr float       kWidthInFonts = 18.0f;  // the popup's content width, in font sizes
-			constexpr const char* kShowAll = "Show all spells";
-			constexpr const char* kShowPlayer = "Show player spells";
+			constexpr float kWidthInFonts = 18.0f;  // the popup's content width, in font sizes
 
+			const char* showAllLabel = Strings::Get(Text::kShowAllSpells);
+			const char* showPlayerLabel = Strings::Get(Text::kShowPlayerSpells);
 			auto&       form = a_state.situationForm;
 			const auto& name = a_state.request.actorName;
 			const bool  showPlayer = !a_state.request.actorIsPlayer;
-			const auto  lead = ChecksPlayer(a_state) ? std::string{ "Add a spell to look for on you." } : std::format("Add a spell to look for on {}.", name);
+			const auto  lead = ChecksPlayer(a_state) ? std::string{ Strings::Get(Text::kAddSpellLeadYou) } : Strings::Format(Text::kAddSpellLead, name);
 			// The width is set before the popup begins, the line above and the checkboxes widening
 			// it: the list runs past the content into the window's padding in Vanilla and Nordic
 			// (Theme::BeginList), which a popup fitted to its content would take in and grow by at
@@ -2248,7 +2226,7 @@ namespace CaptureWindow::Internal
 			const auto& style = ImGui::GetStyle();
 			float       options = form.spellOptionsWidth;
 			if (options <= 0.0f) {
-				for (const char* label : { kShowAll, kShowPlayer }) {
+				for (const char* label : { showAllLabel, showPlayerLabel }) {
 					options += ImGui::GetFrameHeight() + style.ItemInnerSpacing.x + ImGui::CalcTextSize(label).x;
 				}
 				options += style.ItemSpacing.x;
@@ -2263,19 +2241,15 @@ namespace CaptureWindow::Internal
 			bool        escapeTaken = false;
 			bool        changed = DrawSpellSearch(a_state, width, escapeTaken);
 			const float rowLeft = ImGui::GetCursorScreenPos().x;
-			if (Theme::Checkbox(kShowAll, &form.spellShowAll)) {
+			if (Theme::Checkbox(showAllLabel, &form.spellShowAll)) {
 				QueueMenuSound(kFocusSound);
 				changed = true;
 			}
 			if (ImGui::IsItemHovered()) {
-				Theme::Tooltip(std::format(
-					"All spells, powers, potions and scrolls, including those added by mods.\n\n"
-					"Off: Spells known by {} and those currently affecting them.",
-					name)
-						.c_str());
+				Theme::Tooltip(Strings::Format(Text::kShowAllSpellsTip, name).c_str());
 			}
 			if (showPlayer) {
-				if (DrawShowPlayerSpells(a_state, kShowPlayer)) {
+				if (DrawShowPlayerSpells(a_state, showPlayerLabel)) {
 					QueueMenuSound(kFocusSound);
 					changed = true;
 				}
@@ -2288,10 +2262,10 @@ namespace CaptureWindow::Internal
 			}
 			DrawSpellList(a_state);
 
-			BeginButtonRow({ "Add", "Cancel" });
-			const bool add = ReasonButton("Add", ReasonIf(form.spellPicks.empty(), "Select at least one spell."));
+			BeginButtonRow({ Strings::Get(Text::kAdd), Strings::Get(Text::kCancel) });
+			const bool add = ReasonButton(Strings::Get(Text::kAdd), ReasonIf(form.spellPicks.empty(), Strings::Get(Text::kSelectSpell)));
 			ImGui::SameLine();
-			const bool cancel = Theme::Button("Cancel") || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !escapeTaken);
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !escapeTaken);
 			EndButtonRow();
 			if (add || cancel) {
 				QueueMenuSound(add ? kOkSound : kCancelSound);
@@ -2456,9 +2430,9 @@ namespace CaptureWindow::Internal
 		float DrawConditionsColumn(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
 		{
 			auto& form = a_state.situationForm;
-			Theme::LabelText("Conditions");
+			Theme::LabelText(Strings::Get(Text::kConditions));
 			if (Theme::LabelHelpMark()) {
-				DrawHelpTooltip(kConditionsHelp);
+				DrawHelpTooltip(Strings::Get(Text::kConditionsHelp));
 			}
 			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - form.editorOtherHeight;
 			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
@@ -2485,8 +2459,6 @@ namespace CaptureWindow::Internal
 		// pressed, which closes it.
 		EditAction DrawEditSituationPopup(State& a_state)
 		{
-			constexpr const char* kDone = "Done";
-
 			if (!ImGui::IsPopupOpen(kEditSituationPopup)) {
 				return EditAction::kNone;
 			}
@@ -2527,9 +2499,8 @@ namespace CaptureWindow::Internal
 			if (selected > 0) {
 				CheckConditions(a_state, entry.rules);
 			}
-			const auto                              title = Trimmed(form.nameEditing == form.selected ? entry.nameBefore.c_str() : entry.name.data());
-			const std::array<Theme::SubtitleRun, 2> heading{ { TextRun("Edit "), SituationRun(title.c_str(), selected == 0) } };
-			Theme::HeadingRunText(heading);
+			const auto title = Trimmed(form.nameEditing == form.selected ? entry.nameBefore.c_str() : entry.name.data());
+			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { SituationRun(title.c_str(), selected == 0) }).Parts());
 			ImGui::PushID(form.selected);
 			bool  addForm = false;
 			float areaShown = 0.0f;
@@ -2555,13 +2526,13 @@ namespace CaptureWindow::Internal
 			}
 			DrawAddFormPopups(a_state);
 
-			BeginButtonRow({ kDone });
-			const bool done = Theme::Button(kDone);
-			const bool remove = selected > 0 && Theme::LineLink("Remove Situation");
+			BeginButtonRow({ Strings::Get(Text::kDone) });
+			const bool done = Theme::Button(Strings::Get(Text::kDone));
+			const bool remove = selected > 0 && Theme::LineLink(Strings::Get(Text::kRemoveSituation));
 			bool       duplicate = false;
 			if (conditions) {
 				BeginItemDisabled(a_state, !a_state.request.onSituationDuplicate);
-				duplicate = Theme::LeftLineLink("Duplicate Situation");
+				duplicate = Theme::LeftLineLink(Strings::Get(Text::kDuplicateSituation));
 				EndItemDisabled();
 			}
 			EndButtonRow();

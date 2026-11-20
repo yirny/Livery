@@ -188,11 +188,6 @@ namespace Situations
 		return std::nullopt;
 	}
 
-	// Where the Default is worn; the Situations page draws it with the situations' star
-	// (DrawDefaultConditions). Every other situation's Applies line SituationRules::Text words
-	// from its rules.
-	inline constexpr const char* kDefaultConditions = "Worn where no situation applies,\nand in combat.";
-
 	// The situations an actor is in now, the lowest in Order() first: the first one they have
 	// an outfit for is the one worn (Assignments). Anywhere none applies, empty; in combat,
 	// only those allowed during combat.

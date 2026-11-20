@@ -219,9 +219,6 @@ namespace CaptureWindow::Internal
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped, Theme::Grip a_grip,
 		bool a_situationMark, const std::vector<std::uint32_t>* a_excluded)
 	{
-		constexpr const char* kNotCarriedMark =
-			"Some items in this outfit aren't in your inventory.\nWith \"Dress yourself from inventory only\" on, they won't be equipped.";
-
 		const auto& outfit = OutfitAt(a_state, a_index);
 		// On the Situations page the Default and situation marks follow the page's unsaved rows
 		// and names; the current mark is what the actor wears, so it stays the request's.
@@ -236,7 +233,7 @@ namespace CaptureWindow::Internal
 		const Theme::OutfitMarks marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
 			.defaultOutfit = edited ? OutfitRows::Holds(entries[0].row, outfit.id) : HoldsOutfit(a_state, 0, outfit.id),
 			.situations = a_situationMark && !situations->empty() ? situations->c_str() : nullptr,
-			.warning = a_state.page == Page::kSituations && MissesCarried(a_state, outfit.pieces, a_excluded) ? kNotCarriedMark : nullptr };
+			.warning = ReasonIf(a_state.page == Page::kSituations && MissesCarried(a_state, outfit.pieces, a_excluded), Strings::Get(Text::kOutfitNotCarriedHint)) };
 		const auto               icon = RowIconOf(outfit.icon);
 		const bool               clicked = Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &icon);
 		// An outfit none of whose items is loaded stays on its rows and drags as any other; its
