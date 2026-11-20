@@ -264,8 +264,8 @@
 	X(kSituationNameHint, "Situation Name")                                                                                                                                                                          \
 	X(kUnnamedSituation, "Unnamed Situation")                                                                                                                                                                        \
 	X(kNameLabel, "Name")                                                                                                                                                                                            \
-	X(kNeverWorn, "Never worn: {0}, lower in the list, applies whenever this does.")                                                                                                                                 \
-	X(kNeverWornFix, "To change that, add a condition, edit {0}, or move one of them in the list.")                                                                                                                  \
+	X(kNeverWorn, "Never worn: {0} takes priority whenever this situation applies.")                                                                                                                                 \
+	X(kNeverWornFix, "Add a condition, edit {0}, or change their order.")                                                                                                                                            \
 	X(kApplies, "Applies")                                                                                                                                                                                           \
 	X(kConditions, "Conditions")                                                                                                                                                                                     \
 	X(kConditionsHelp, "Applies when all conditions are met.\nIf a condition has multiple values, meeting any one of them satisfies that condition.")                                                                \
@@ -273,7 +273,7 @@
 	X(kNotMetNow, "Not met now.")                                                                                                                                                                                    \
 	X(kTurnOnCustom, "Turn on custom situations in the settings to edit.")                                                                                                                                           \
 	X(kRandomOutfitFor, "Random Outfit (for {0})")                                                                                                                                                                   \
-	X(kRandomOutfitHelp, "On: Each time this situation begins, {0} wears a random outfit from the list until it ends.\n\nOff: {0} wears the last picked outfit.")                                                    \
+	X(kRandomOutfitHelp, "On: Each time this situation begins, {0} wears a random outfit from the list until it ends.")                                                                                              \
 	X(kDone, "Done")                                                                                                                                                                                                 \
 	X(kRemoveSituation, "Remove Situation")                                                                                                                                                                          \
 	X(kDuplicateSituation, "Duplicate Situation")                                                                                                                                                                    \
@@ -519,7 +519,7 @@
 	LIVERY_STRINGS_HUD(X)        \
 	LIVERY_STRINGS_SETTINGS(X)
 
-	namespace Strings
+namespace Strings
 {
 	enum class Text : std::uint16_t
 	{
