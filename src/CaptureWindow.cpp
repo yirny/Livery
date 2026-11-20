@@ -2617,7 +2617,7 @@ namespace CaptureWindow
 			state.updateName.fill('\0');
 			state.updateTab = false;
 			state.chosenOutfit = -1;
-			state.situationsLabel = std::format("SITUATIONS ({})", state.request.actorName);
+			state.situationsLabel = Strings::Format(Text::kSituationsLabel, state.request.actorName);
 			state.error.clear();
 			state.pending.clear();
 			state.charByteCount = 0;
@@ -2660,7 +2660,7 @@ namespace CaptureWindow
 			state.popupAfterSave = nullptr;
 			state.situationForm = {};
 			FillSituationForm(state, state.request.situations);
-			state.situationsTitle = std::format("Situational Outfits ({})", state.request.actorName);
+			state.situationsTitle = Strings::Format(Text::kSituationalOutfits, state.request.actorName);
 			state.manageApplyLabel = Strings::Format(Text::kApplyToActor, state.request.actorName);
 			state.manageApplyTip.clear();
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());

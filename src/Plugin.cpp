@@ -712,14 +712,15 @@ namespace
 	{
 		std::vector<std::string> lines;
 		for (const auto& holder : Assignments::HoldersOf(situation)) {
-			lines.push_back(std::format("{}: {} outfits", ActorLabel(holder.actor), holder.outfits));
+			lines.push_back(Strings::Format(Strings::Text::kHolderLine, ActorLabel(holder.actor), holder.outfits));
 		}
 		return lines;
 	}
 
 	// The window's rows (Request::situations): the Default, then the situations not removed
 	// (SituationStore::Offered), each with its name, conditions (its rules and their Applies
-	// line; the Default's words) and who has outfits on it.
+	// line; the Default's words, which the Situations page draws with the situations' star,
+	// DrawDefaultConditions) and who has outfits on it.
 	// Contract: game thread.
 	std::vector<CaptureWindow::SituationInfo> SituationInfos()
 	{
@@ -728,7 +729,7 @@ namespace
 			const auto* rules = SituationStore::RulesOf(situation);
 			infos.push_back({ .situation = situation,
 				.name = SituationStore::Name(situation),
-				.conditions = rules ? SituationRules::Text(*rules) : Situations::kDefaultConditions,
+				.conditions = rules ? SituationRules::Text(*rules) : Strings::Get(Strings::Text::kDefaultConditions),
 				.user = Situations::IsUser(situation),
 				.rules = rules ? *rules : SituationRules::Rules{},
 				.holders = std::move(holders) });

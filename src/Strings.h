@@ -225,6 +225,102 @@
 	X(kChestItems, "Items")                                                                        \
 	X(kInChest, "In Chest")
 
+// The Situations page: its list and outfit list, the Edit situation popup with its conditions,
+// the New situation, Add location, Add spell, Remove and Restore presets popups, and why a
+// change to situations.json was refused. The words of a condition and of the Applies line are
+// not here yet.
+#define LIVERY_STRINGS_SITUATIONS(X)                                                                                                                                                                                 \
+	X(kSituationsLabel, "SITUATIONS ({0})")                                                                                                                                                                          \
+	X(kSituationalOutfits, "Situational Outfits ({0})")                                                                                                                                                              \
+	X(kNewSituation, "New Situation...")                                                                                                                                                                             \
+	X(kSituationList, "Situation List")                                                                                                                                                                              \
+	X(kSituationListHelp, "Each situation lists the outfits {0} can wear in it.\nThe lowest applicable situation takes priority. Otherwise, the default outfit is worn.")                                            \
+	X(kSituationListHelpDrag, "Drag a situation by its grip to reorder it.")                                                                                                                                         \
+	X(kOrderCaption, "The lowest that applies is worn.")                                                                                                                                                             \
+	X(kDefaultConditions, "Worn where no situation applies,\nand in combat.")                                                                                                                                        \
+	X(kItemsNotInWardrobe, "Items not in the Wardrobe")                                                                                                                                                              \
+	X(kOutfitNotCarriedHint, "Some items in this outfit aren't in your inventory.\nWith \"Dress yourself from inventory only\" on, they won't be equipped.")                                                         \
+	X(kRandomLine, "One of these outfits is picked at random each time this situation begins.")                                                                                                                      \
+	X(kRandomNotWearing, "{0} is not wearing one of them now.")                                                                                                                                                      \
+	X(kRandomAddAnother, "Add another to pick from.")                                                                                                                                                                \
+	X(kRandomClick, "Click to pick another now.")                                                                                                                                                                    \
+	X(kOutfitList, "Outfit List")                                                                                                                                                                                    \
+	X(kOutfitListHelp, "Drag an outfit onto a situation to add it, or between outfits to set its position.\nDrag it to another situation to move it, or back here to remove it.\nClick an outfit to see its items.") \
+	X(kDefaultOutfitOf, "This is {0}'s default outfit.")                                                                                                                                                             \
+	X(kDefaultWornWhere, "Worn where no {0}situation applies,")                                                                                                                                                      \
+	X(kDefaultWornInCombat, "and in combat.")                                                                                                                                                                        \
+	X(kAlwaysOverrides, "Always overrides {0}.")                                                                                                                                                                     \
+	X(kHeldByNone, "None")                                                                                                                                                                                           \
+	X(kOpenInWardrobe, "Open in Wardrobe")                                                                                                                                                                           \
+	X(kRestorePresets, "Restore Presets")                                                                                                                                                                            \
+	X(kRestorePresetsHelp, "Brings the preset situations back as installed: a removed one returns, empty, and a renamed or edited one gets its name and conditions back.\nTheir order and nobody's outfits change.") \
+	X(kPresetsAsInstalled, "Every preset situation is as installed.")                                                                                                                                                \
+	X(kRestorePresetsQuestion, "Restore the preset situations?")                                                                                                                                                     \
+	X(kRemoveSituationQuestion, "Remove {0}?")                                                                                                                                                                       \
+	X(kHolderLine, "{0}: {1} outfits")                                                                                                                                                                               \
+	X(kRestoreBringsBack, "Restore Presets can bring it back.")                                                                                                                                                      \
+	X(kRestoreBringsBackNoOutfits, "Restore Presets can bring it back, but not their outfits.")                                                                                                                      \
+	X(kNameNewSituation, "Name the new situation.")                                                                                                                                                                  \
+	X(kSituationNameHint, "Situation Name")                                                                                                                                                                          \
+	X(kUnnamedSituation, "Unnamed Situation")                                                                                                                                                                        \
+	X(kNameLabel, "Name")                                                                                                                                                                                            \
+	X(kNeverWorn, "Never worn: {0} takes priority whenever this situation applies.")                                                                                                                                 \
+	X(kNeverWornFix, "Add a condition, edit {0}, or change their order.")                                                                                                                                            \
+	X(kApplies, "Applies")                                                                                                                                                                                           \
+	X(kConditions, "Conditions")                                                                                                                                                                                     \
+	X(kConditionsHelp, "Applies when all conditions are met.\nIf a condition has multiple values, meeting any one of them satisfies that condition.")                                                                \
+	X(kMetNow, "Met now.")                                                                                                                                                                                           \
+	X(kNotMetNow, "Not met now.")                                                                                                                                                                                    \
+	X(kTurnOnCustom, "Turn on custom situations in the settings to edit.")                                                                                                                                           \
+	X(kRandomOutfitFor, "Random Outfit (for {0})")                                                                                                                                                                   \
+	X(kRandomOutfitHelp, "On: Each time this situation begins, {0} wears a random outfit from the list until it ends.")                                                                                              \
+	X(kDone, "Done")                                                                                                                                                                                                 \
+	X(kRemoveSituation, "Remove Situation")                                                                                                                                                                          \
+	X(kDuplicateSituation, "Duplicate Situation")                                                                                                                                                                    \
+	X(kAddCondition, "Add Condition...")                                                                                                                                                                             \
+	X(kTargetHelp, "{0}: checks this character\nPlayer: checks you")                                                                                                                                                 \
+	X(kTargetHelpPlayer, "{0}: checks each character wearing the outfit\nPlayer: always checks you")                                                                                                                 \
+	X(kAllowDuringCombat, "Allow during combat")                                                                                                                                                                     \
+	X(kAllowDuringCombatTip, "In combat, the default outfit is normally worn.\nOn, this situation can apply in combat too.")                                                                                         \
+	X(kAllowDuringCombatForced, "On while the situation has an In combat condition.")                                                                                                                                \
+	X(kAddLocation, "Add Location...")                                                                                                                                                                               \
+	X(kAddSpell, "Add Spell...")                                                                                                                                                                                     \
+	X(kRemoveThisLocation, "Remove this location.")                                                                                                                                                                  \
+	X(kRemoveThisSpell, "Remove this spell.")                                                                                                                                                                        \
+	X(kPluginNotLoaded, "{0} is not loaded.")                                                                                                                                                                        \
+	X(kAddPlaceLead, "Add the place {0} is in.")                                                                                                                                                                     \
+	X(kThisLocation, "This Location")                                                                                                                                                                                \
+	X(kThisLocationTip, "The named place {0} is in.\nMay include multiple rooms or outdoor areas.")                                                                                                                  \
+	X(kParentLocation, "Parent Location")                                                                                                                                                                            \
+	X(kParentLocationTip, "Includes {0} and every place in it.")                                                                                                                                                     \
+	X(kThisCell, "This Cell")                                                                                                                                                                                        \
+	X(kThisCellTip, "The individual area {0} is in.\nTypically an entire building interior or a section of the outdoors.")                                                                                           \
+	X(kPlaceChoice, "{0} ({1})")                                                                                                                                                                                     \
+	X(kNothingToAdd, "Nothing to add here.")                                                                                                                                                                         \
+	X(kAlreadyListed, "Already in the list.")                                                                                                                                                                        \
+	X(kAddSpellLead, "Add a spell to look for on {0}.")                                                                                                                                                              \
+	X(kAddSpellLeadYou, "Add a spell to look for on you.")                                                                                                                                                           \
+	X(kSearchByName, "Search by name")                                                                                                                                                                               \
+	X(kShowAllSpells, "Show all spells")                                                                                                                                                                             \
+	X(kShowAllSpellsTip, "All spells, powers, potions and scrolls, including those added by mods.\n\nOff: Only spells known by {0} and those currently affecting them.")                                             \
+	X(kShowPlayerSpells, "Show player spells")                                                                                                                                                                       \
+	X(kShowPlayerSpellsTip, "Also lists spells you know and those currently affecting you.")                                                                                                                         \
+	X(kOneSpellSelected, "1 spell selected")                                                                                                                                                                         \
+	X(kSpellsSelected, "{0} spells selected")                                                                                                                                                                        \
+	X(kClearAll, "Clear All")                                                                                                                                                                                        \
+	X(kTypeToSearch, "Type to search.")                                                                                                                                                                              \
+	X(kNothingFound, "Nothing found.")                                                                                                                                                                               \
+	X(kMoreSpells, "{0} more. Type more to narrow.")                                                                                                                                                                 \
+	X(kSelectSpell, "Select at least one spell.")                                                                                                                                                                    \
+	X(kTooManySituations, "Livery cannot hold more situations.")                                                                                                                                                     \
+	X(kTooManySituationsRestart, "Livery cannot hold more situations; removed ones still count until the game is restarted.")                                                                                        \
+	X(kSituationRemoved, "\"{0}\" has been removed.")                                                                                                                                                                \
+	X(kSituationRemovedAlready, "\"{0}\" has been removed already.")                                                                                                                                                 \
+	X(kDefaultNoConditions, "The default outfit has no conditions.")                                                                                                                                                 \
+	X(kSituationOrderMismatch, "The situations' order does not match the list. Open the window again.")                                                                                                              \
+	X(kDefaultNotDuplicated, "The default outfit cannot be duplicated.")                                                                                                                                             \
+	X(kDefaultNotRemoved, "The default outfit cannot be removed.")
+
 // Why a write to outfits.json or chests.json was refused or failed, shown in the window and
 // logged.
 #define LIVERY_STRINGS_FILES(X)                                                              \
@@ -416,6 +512,7 @@
 	LIVERY_STRINGS_OUTFITS(X)    \
 	LIVERY_STRINGS_WARDROBE(X)   \
 	LIVERY_STRINGS_CHESTS(X)     \
+	LIVERY_STRINGS_SITUATIONS(X) \
 	LIVERY_STRINGS_FILES(X)      \
 	LIVERY_STRINGS_ITEMS(X)      \
 	LIVERY_STRINGS_CHARACTER(X)  \
