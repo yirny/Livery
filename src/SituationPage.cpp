@@ -986,8 +986,8 @@ namespace CaptureWindow::Internal
 		// ×. An Indoors row is its subject and one dropdown of Indoors and Outdoors.
 
 		// The operator a row reads with: "is" / "is not" up to one selected, "is any of" / "is none
-		// of" with more (`a_several`); a Spell Effect row "has" / "has not", "has any of" / "has
-		// none of"; a Time of day row "between" / "not between". An Indoors row has its two
+		// of" with more (`a_several`); an Active Effects row "has" / "has not", "has any of" /
+		// "has none of"; a Time of day row "between" / "not between". An Indoors row has its two
 		// choices there instead, "Indoors" / "Outdoors".
 		Text OperatorText(SituationRules::Kind a_kind, bool a_several, bool a_negated)
 		{

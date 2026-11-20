@@ -642,7 +642,7 @@ TEST_CASE("A Spell row reads while its spells are on, and never holds with none"
 	negated.negated = true;
 	negated.spells.erase(negated.spells.begin());
 	CHECK(SituationRules::Text({ .rows = { negated } }) == "Not while Stoneflesh is on.");
-	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kSpell } } }) == "Spell Effect (nothing selected).");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kSpell } } }) == "Active Effects (nothing selected).");
 	CHECK(SituationRules::NothingSelected({ .kind = Kind::kSpell }));
 	CHECK_FALSE(SituationRules::NothingSelected(flesh));
 	// A Spell row's forms are its spells, a Place row's its places.
