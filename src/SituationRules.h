@@ -2,6 +2,7 @@
 #pragma once
 
 #include "PieceFile.h"
+#include "Strings.h"
 #include "Utils.h"
 
 #include <nlohmann/json.hpp>
@@ -21,7 +22,9 @@
 // The conditions of a situation the user defines (docs/custom-situations.md §2, §3): its rows,
 // what each kind offers, the Applies line, and the rows as situations.json keeps them. The rules
 // here need no game, so the unit tests reach them; Situations::Evaluate tells whether a row
-// holds for an actor.
+// holds for an actor. Every word shown is a text of LIVERY_STRINGS_CONDITIONS, read in the
+// chosen language where it is shown; the file's keys and the reasons a file cannot be read
+// stay English.
 //
 // A situation applies while every row holds; a row with values holds while any of its values
 // does (a Place or Spell row while any of its forms does), `negated` inverts it, and a row with
@@ -236,75 +239,136 @@ namespace SituationRules
 	// A value of a kind with a fixed set of them.
 	struct Value
 	{
-		std::uint32_t bit;
-		const char*   key;                // in situations.json
-		const char*   label;              // the editor's checkbox
-		const char*   phrase;             // in the Applies line, after "in"; Water's whole ("swimming")
-		const char*   tip = "";           // on its row in the editor's dropdown, while hovered; "" for none
-		bool          ruleAbove = false;  // the editor's dropdown draws a rule above its row, ending a group of values
+		std::uint32_t                bit;
+		const char*                  key;                // in situations.json
+		Strings::Text                label;              // the editor's checkbox
+		Strings::Text                phrase;             // in the Applies line, the clause's {0} ("a town"; Water's "in water", "swimming")
+		std::optional<Strings::Text> tip;                // on its row in the editor's dropdown, while hovered
+		bool                         ruleAbove = false;  // the editor's dropdown draws a rule above its row, ending a group of values
 	};
 
 	inline constexpr std::array<Value, 4> kLocationTypes{ {
-		{ kTown, "town", "Town", "a town" },
-		{ kCastle, "castle", "Castle", "a castle" },
-		{ kPlayerHome, "playerHome", "Player home", "a player home" },
-		{ kDungeon, "dungeon", "Dungeon", "a dungeon" },
+		{ kTown, "town", Strings::Text::kValueTown, Strings::Text::kPhraseTown },
+		{ kCastle, "castle", Strings::Text::kValueCastle, Strings::Text::kPhraseCastle },
+		{ kPlayerHome, "playerHome", Strings::Text::kValuePlayerHome, Strings::Text::kPhrasePlayerHome },
+		{ kDungeon, "dungeon", Strings::Text::kValueDungeon, Strings::Text::kPhraseDungeon },
 	} };
 
 	inline constexpr std::array<Value, 5> kWeathers{ {
-		{ kRain, "rain", "Rain", "rain" },
-		{ kSnow, "snow", "Snow", "snow" },
-		{ kWarmRegion, "warmRegion", "Warm region", "a warm region", "Southern forests such as the Rift and Falkreath.", true },  // the weather above, the climates below
-		{ kCoolRegion, "coolRegion", "Cool region", "a cool region",
-			"Plains and hills such as Whiterun and the Reach.\nA mod's land too, unless it often snows there." },
-		{ kFreezingRegion, "freezingRegion", "Freezing region", "a freezing region", "Snowy lands, high mountains, the northern coast and ice caves." },
+		{ kRain, "rain", Strings::Text::kValueRain, Strings::Text::kPhraseRain },
+		{ kSnow, "snow", Strings::Text::kValueSnow, Strings::Text::kPhraseSnow },
+		{ kWarmRegion, "warmRegion", Strings::Text::kValueWarmRegion, Strings::Text::kPhraseWarmRegion, Strings::Text::kTipWarmRegion, true },  // the weather above, the climates below
+		{ kCoolRegion, "coolRegion", Strings::Text::kValueCoolRegion, Strings::Text::kPhraseCoolRegion, Strings::Text::kTipCoolRegion },
+		{ kFreezingRegion, "freezingRegion", Strings::Text::kValueFreezingRegion, Strings::Text::kPhraseFreezingRegion, Strings::Text::kTipFreezingRegion },
 	} };
 
 	inline constexpr std::array<Value, 2> kWaterDepths{ {
-		{ kInWater, "inWater", "In water", "in water", "Any water underfoot, however shallow." },
-		{ kSwimming, "swimming", "Swimming", "swimming", "Swimming only, not wading." },
+		{ kInWater, "inWater", Strings::Text::kValueInWater, Strings::Text::kPhraseInWater, Strings::Text::kTipInWater },
+		{ kSwimming, "swimming", Strings::Text::kValueSwimming, Strings::Text::kPhraseSwimming, Strings::Text::kTipSwimming },
 	} };
+
+	// A kind's clauses in the Applies line (KindInfo::clauses), each a whole clause: read of the
+	// wearer, that negated, read of the player (Target::kPlayer), and that negated. A kind that
+	// is not targetable has the first two alone.
+	struct Clauses
+	{
+		Strings::Text wearer;
+		Strings::Text negated;
+		Strings::Text you = wearer;
+		Strings::Text youNegated = negated;
+	};
 
 	struct KindInfo
 	{
-		Kind                   kind;
-		const char*            key;           // in situations.json
-		const char*            label;         // the condition's heading in the editor, and its name in Add Condition...
-		const char*            state;         // a two-state kind whose row is a dropdown of its states: the state while not negated ("Indoors", "Weapon drawn"); "" for a row that reads "is" + phrase
-		const char*            negState;      // that dropdown's other state ("Outdoors", "Weapon sheathed")
-		const char*            tip;           // the heading's help; the editor formats it, `{}` naming the actor
-		const char*            phrase;        // in the Applies line, and after "is" in the editor; unused for a kind with values or Time of day
-		const char*            negPhrase;     // in the Applies line negated; "" for "not " + phrase
-		const char*            youPhrase;     // in the Applies line with Target::kPlayer; "" for "while you are " + phrase
-		const char*            youNegPhrase;  // negated; "" for "while you are not " + phrase
-		std::span<const Value> values;        // empty for a kind without
-		bool                   targetable;    // the row may read the player instead of the wearer (Target)
-		const char*            subject = "";  // the row's first words in the editor for a kind that is not targetable ("The weather"); `{}` names the actor
+		Kind                         kind;
+		const char*                  key;         // in situations.json
+		Strings::Text                label;       // the condition's heading in the editor, and its name in Add Condition...
+		Strings::Text                tip;         // the heading's help; {0} names the actor
+		Clauses                      clauses;     // the row in the Applies line; {0} the values, places or spells (JoinWithOr), Time of day's {0} and {1} its times
+		std::span<const Value>       values;      // empty for a kind without
+		bool                         targetable;  // the row may read the player instead of the wearer (Target)
+		std::optional<Strings::Text> subject;     // the row's first words in the editor for a kind that is not targetable ("The weather"); {0} names the actor
+		std::optional<Strings::Text> state;       // a two-state kind whose row is a dropdown of its states: the state while not negated ("Indoors", "Weapon drawn")
+		std::optional<Strings::Text> negState;    // that dropdown's other state ("Outdoors", "Weapon sheathed")
+		std::optional<Strings::Text> phrase;      // a two-state kind without states: after "is" / "is not" in the editor ("in combat")
 	};
 
 	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them by label.
 	inline constexpr std::array<KindInfo, 10> kKinds{ {
-		{ Kind::kInCombat, "inCombat", "In combat", "", "", "Fighting.\nWith this condition the situation applies in combat.", "in combat", "", "", "", {}, true },
-		{ Kind::kSleeping, "sleeping", "Sleeping", "", "", "Going to bed, in it or getting up.", "sleeping", "", "", "", {}, true },
-		{ Kind::kWater, "water", "Swimming", "", "", "In water: any water underfoot, however shallow.\nSwimming: swimming only, not wading.", "", "", "", "",
-			kWaterDepths, true },
-		{ Kind::kIndoors, "indoors", "Indoors", "Indoors", "Outdoors", "Inside a building, cave or other interior.", "indoors", "outdoors", "", "", {}, false, "{} is" },
-		{ Kind::kLocationType, "locationType", "Location type", "", "",
-			"Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.",
-			"", "", "", "", kLocationTypes, false, "The location type" },
-		{ Kind::kPlace, "place", "Specific Location", "", "", "In one of the locations listed.\nA location counts with every room and area in it.", "", "", "", "", {}, false,
-			"The location" },
-		{ Kind::kWeather, "weather", "Weather", "", "",
-			"Rain and Snow: the weather now, outdoors only.\nWarm, Cool and Freezing region: the climate of the area, whatever the weather.\n"
-			"Indoors is none of them, except ice caves.",
-			"", "", "", "", kWeathers, false, "The weather" },
-		{ Kind::kTimeOfDay, "timeOfDay", "Time of day", "", "", "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.", "", "", "", "", {}, false, "The time is" },
-		{ Kind::kSpell, "spell", "Spell Effect", "", "",
-			"A spell, power, shout, potion or other effect currently affecting {}.\nListed by spell name, not effect name.\n"
-			"Any spell, scroll or potion with the same effects counts.",
-			"", "", "", "", {}, true },
-		{ Kind::kWeapon, "weapon", "Weapon", "Weapon drawn", "Weapon sheathed", "Drawn: a weapon, spell or fists at the ready.\nSheathed: put away.",
-			"with a weapon drawn", "with weapons sheathed", "while your weapon is drawn", "while your weapons are sheathed", {}, true },
+		{ .kind = Kind::kInCombat,
+			.key = "inCombat",
+			.label = Strings::Text::kKindInCombat,
+			.tip = Strings::Text::kTipInCombat,
+			.clauses = { Strings::Text::kClauseInCombat, Strings::Text::kClauseNotInCombat, Strings::Text::kClauseYouInCombat, Strings::Text::kClauseYouNotInCombat },
+			.targetable = true,
+			.phrase = Strings::Text::kRowInCombat },
+		{ .kind = Kind::kSleeping,
+			.key = "sleeping",
+			.label = Strings::Text::kKindSleeping,
+			.tip = Strings::Text::kTipSleeping,
+			.clauses = { Strings::Text::kClauseSleeping, Strings::Text::kClauseNotSleeping, Strings::Text::kClauseYouSleeping, Strings::Text::kClauseYouNotSleeping },
+			.targetable = true,
+			.phrase = Strings::Text::kRowSleeping },
+		{ .kind = Kind::kWater,
+			.key = "water",
+			.label = Strings::Text::kKindWater,
+			.tip = Strings::Text::kTipWater,
+			.clauses = { Strings::Text::kClauseWater, Strings::Text::kClauseNotWater, Strings::Text::kClauseYouWater, Strings::Text::kClauseYouNotWater },
+			.values = kWaterDepths,
+			.targetable = true },
+		{ .kind = Kind::kIndoors,
+			.key = "indoors",
+			.label = Strings::Text::kKindIndoors,
+			.tip = Strings::Text::kTipIndoors,
+			.clauses = { Strings::Text::kClauseIndoors, Strings::Text::kClauseOutdoors },
+			.targetable = false,
+			.subject = Strings::Text::kSubjectActor,
+			.state = Strings::Text::kStateIndoors,
+			.negState = Strings::Text::kStateOutdoors },
+		{ .kind = Kind::kLocationType,
+			.key = "locationType",
+			.label = Strings::Text::kKindLocationType,
+			.tip = Strings::Text::kTipLocationType,
+			.clauses = { Strings::Text::kClauseLocationType, Strings::Text::kClauseNotLocationType },
+			.values = kLocationTypes,
+			.targetable = false,
+			.subject = Strings::Text::kSubjectLocationType },
+		{ .kind = Kind::kPlace,
+			.key = "place",
+			.label = Strings::Text::kKindPlace,
+			.tip = Strings::Text::kTipPlace,
+			.clauses = { Strings::Text::kClausePlace, Strings::Text::kClauseNotPlace },
+			.targetable = false,
+			.subject = Strings::Text::kSubjectLocation },
+		{ .kind = Kind::kWeather,
+			.key = "weather",
+			.label = Strings::Text::kKindWeather,
+			.tip = Strings::Text::kTipWeather,
+			.clauses = { Strings::Text::kClauseWeather, Strings::Text::kClauseNotWeather },
+			.values = kWeathers,
+			.targetable = false,
+			.subject = Strings::Text::kSubjectWeather },
+		{ .kind = Kind::kTimeOfDay,
+			.key = "timeOfDay",
+			.label = Strings::Text::kKindTimeOfDay,
+			.tip = Strings::Text::kTipTimeOfDay,
+			.clauses = { Strings::Text::kClauseTime, Strings::Text::kClauseNotTime },
+			.targetable = false,
+			.subject = Strings::Text::kSubjectTime },
+		{ .kind = Kind::kSpell,
+			.key = "spell",
+			.label = Strings::Text::kKindSpell,
+			.tip = Strings::Text::kTipSpell,
+			.clauses = { Strings::Text::kClauseSpell, Strings::Text::kClauseNotSpell, Strings::Text::kClauseYouSpell, Strings::Text::kClauseYouNotSpell },
+			.targetable = true },
+		{ .kind = Kind::kWeapon,
+			.key = "weapon",
+			.label = Strings::Text::kKindWeapon,
+			.tip = Strings::Text::kTipWeapon,
+			.clauses = { Strings::Text::kClauseWeaponDrawn, Strings::Text::kClauseWeaponSheathed, Strings::Text::kClauseYouWeaponDrawn, Strings::Text::kClauseYouWeaponSheathed },
+			.targetable = true,
+			.state = Strings::Text::kStateWeaponDrawn,
+			.negState = Strings::Text::kStateWeaponSheathed },
 	} };
 
 	static_assert([] {
@@ -397,14 +461,18 @@ namespace SituationRules
 		return a_from < a_to ? a_minute >= a_from && a_minute < a_to : a_minute >= a_from || a_minute < a_to;
 	}
 
-	// "8 PM", "8:30 PM", "12 AM" for midnight.
+	// "8 PM", "8:30 PM", "12 AM" for midnight; as the chosen language writes a time, which may be
+	// by the hour of 24 ("20:30"): the time texts take the hour of 12, the minutes and the hour
+	// of 24.
 	inline std::string TimeText(std::uint16_t a_minutes)
 	{
 		const int  hour = a_minutes / 60;
-		const int  minute = a_minutes % 60;
 		const int  shown = hour % 12 == 0 ? 12 : hour % 12;
-		const auto half = hour < 12 ? "AM" : "PM";
-		return minute == 0 ? std::format("{} {}", shown, half) : std::format("{}:{:02} {}", shown, minute, half);
+		const auto minutes = std::format("{:02}", a_minutes % 60);
+		const bool morning = hour < 12;
+		const auto text = a_minutes % 60 == 0 ? (morning ? Strings::Text::kTimeAm : Strings::Text::kTimePm) :
+		                                        (morning ? Strings::Text::kTimeAmMinutes : Strings::Text::kTimePmMinutes);
+		return Strings::Format(text, shown, minutes, hour);
 	}
 
 	// "a", "a or b", "a, b or c".
@@ -413,75 +481,66 @@ namespace SituationRules
 		std::string text;
 		for (std::size_t i = 0; i < a_parts.size(); ++i) {
 			if (i > 0) {
-				text += i + 1 == a_parts.size() ? " or " : ", ";
+				text += Strings::Get(i + 1 == a_parts.size() ? Strings::Text::kAppliesOr : Strings::Text::kListSeparator);
 			}
 			text += a_parts[i];
 		}
 		return text;
 	}
 
-	// The row's phrase in the Applies line, `not` first: "in a town or castle", "not in rain",
-	// "swimming", "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on", "with a
-	// weapon drawn"; negated as KindInfo::negPhrase words it ("outdoors", "with weapons
-	// sheathed") or with "not"; reading the player (Target::kPlayer), "while you are in combat",
-	// "while you are not in water", "while Stoneflesh is on you", "while your weapon is drawn".
+	// The row's clause in the Applies line (KindInfo::clauses): "in a town or a castle", "not in
+	// rain", "swimming", "at Breezehome or Whiterun", "while Oakflesh or Stoneflesh is on", "with
+	// a weapon drawn", "outdoors"; reading the player (Target::kPlayer), "while you are in
+	// combat", "while you are not in water", "while Stoneflesh is on you", "while your weapon is
+	// drawn".
 	inline std::string RowText(const Row& a_row)
 	{
 		const auto& info = InfoOf(a_row.kind);
 		if (NothingSelected(a_row)) {
-			return std::format("{} (nothing selected)", info.label);
+			return Strings::Format(Strings::Text::kNothingSelected, Strings::Get(info.label));
 		}
 		const bool you = a_row.target == Target::kPlayer && Targetable(a_row.kind);
-		if (TwoState(a_row.kind)) {
-			if (you) {
-				const char* phrase = a_row.negated ? info.youNegPhrase : info.youPhrase;
-				return *phrase ? phrase : std::format("while you are {}{}", a_row.negated ? "not " : "", info.phrase);
-			}
-			if (a_row.negated && *info.negPhrase) {
-				return info.negPhrase;
-			}
-		}
-		std::string phrase;
+		const auto clause = you ? (a_row.negated ? info.clauses.youNegated : info.clauses.you) : (a_row.negated ? info.clauses.negated : info.clauses.wearer);
 		if (!info.values.empty()) {
 			std::vector<std::string> ticked;
 			for (const auto& value : info.values) {
 				if (a_row.values & value.bit) {
-					ticked.emplace_back(value.phrase);
+					ticked.emplace_back(Strings::Get(value.phrase));
 				}
 			}
-			phrase = OneValue(a_row.kind) ? JoinWithOr(ticked) : "in " + JoinWithOr(ticked);
-			if (you) {
-				return std::format("while you are {}{}", a_row.negated ? "not " : "", phrase);
-			}
-		} else if (HasForms(a_row.kind)) {
+			return Strings::Format(clause, JoinWithOr(ticked));
+		}
+		if (HasForms(a_row.kind)) {
 			std::vector<std::string> names;
 			for (const auto& form : FormsOf(a_row)) {
 				names.push_back(FormName(form));
 			}
-			phrase = a_row.kind == Kind::kPlace ? "at " + JoinWithOr(names) : "while " + JoinWithOr(names) + (you ? " is on you" : " is on");
-		} else if (a_row.kind == Kind::kTimeOfDay) {
-			phrase = a_row.from == a_row.to ? "at any hour" : std::format("from {} to {}", TimeText(a_row.from), TimeText(a_row.to));
-		} else {
-			phrase = info.phrase;
+			return Strings::Format(clause, JoinWithOr(names));
 		}
-		return a_row.negated ? "not " + phrase : phrase;
+		if (a_row.kind == Kind::kTimeOfDay) {
+			if (a_row.from == a_row.to) {
+				return Strings::Get(a_row.negated ? Strings::Text::kClauseNotAnyHour : Strings::Text::kClauseAnyHour);
+			}
+			return Strings::Format(clause, TimeText(a_row.from), TimeText(a_row.to));
+		}
+		return Strings::Get(clause);
 	}
 
-	// The Applies line: one phrase per row in order, "In a town, in rain or snow, not indoors.";
-	// "Never applies." with no rows.
+	// The Applies line: one clause per row in order, "In a town, in rain or snow, outdoors.", an
+	// ASCII first letter in upper case; "Never applies." with no rows.
 	inline std::string Text(const Rules& a_rules)
 	{
 		if (a_rules.rows.empty()) {
-			return "Never applies.";
+			return Strings::Get(Strings::Text::kNeverApplies);
 		}
 		std::string text;
 		for (const auto& row : a_rules.rows) {
-			text += (text.empty() ? "" : ", ") + RowText(row);
+			text += (text.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + RowText(row);
 		}
 		if (text[0] >= 'a' && text[0] <= 'z') {
 			text[0] = static_cast<char>(text[0] - 'a' + 'A');
 		}
-		return text + ".";
+		return text + Strings::Get(Strings::Text::kAppliesEnd);
 	}
 
 	// --- Never worn -----------------------------------------------------------
@@ -698,7 +757,7 @@ namespace SituationRules
 			if (const auto target = a_json.find("target"); target != a_json.end()) {
 				const auto key = target->is_string() ? target->get<std::string>() : std::string{};
 				if (!info.targetable) {
-					return std::format("has a target, which {} cannot have.", info.label);
+					return std::format("has a target, which {} cannot have.", Strings::English(info.label));
 				}
 				if (key != kPlayerTargetKey && key != kWearerTargetKey) {
 					return std::format("has a target that is neither \"{}\" nor \"{}\".", kWearerTargetKey, kPlayerTargetKey);
@@ -719,7 +778,7 @@ namespace SituationRules
 						}
 					}
 					if (!found) {
-						return std::format("has a value {} cannot have.", info.label);
+						return std::format("has a value {} cannot have.", Strings::English(info.label));
 					}
 					a_row.values |= found->bit;
 				}

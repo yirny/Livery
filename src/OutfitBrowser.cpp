@@ -6,6 +6,7 @@
 //   Browser   - Reset / Rebuild / Refresh / SetSort, and the search and filter accessors
 #include "OutfitBrowser.h"
 
+#include "Strings.h"
 #include "Utils.h"
 
 #include <algorithm>
@@ -63,13 +64,13 @@ namespace
 	// the outfit for; "" for none.
 	std::string SituationsText(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
 	{
-		std::string text;
+		std::string names;
 		for (std::size_t row = 1; row < a_request.assigned.size() && row < a_request.situations.size(); ++row) {
 			if (HoldsRow(a_request, row, a_outfit.id)) {
-				text += (text.empty() ? "For " : ", ") + a_request.situations[row].name;
+				names += (names.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + a_request.situations[row].name;
 			}
 		}
-		return text;
+		return names.empty() ? names : Strings::Format(Strings::Text::kForSituations, names);
 	}
 
 	// The outfit's categories in one group: indices into Request::categories, ascending.

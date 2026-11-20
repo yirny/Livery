@@ -59,7 +59,9 @@ TEST_CASE("TrimWhitespace removes leading and trailing whitespace", "[utils]")
 
 TEST_CASE("CopyName names a copy as Windows does, within the bytes given", "[utils]")
 {
-	using ExampleMod::CopyName;
+	const auto CopyName = [](std::string_view a_name, std::size_t a_maxBytes, const auto& a_taken) {
+		return ExampleMod::CopyName(a_name, a_maxBytes, "{0} - Copy", "{0} - Copy {1}", a_taken);
+	};
 
 	const auto none = [](const std::string&) { return false; };
 	CHECK(CopyName(" Rain ", 63, none) == "Rain - Copy");
@@ -75,6 +77,11 @@ TEST_CASE("CopyName names a copy as Windows does, within the bytes given", "[uti
 	CHECK(CopyName("Abcdefgh", 12, none) == "Abcde - Copy");
 	CHECK(CopyName("Ab cdefgh", 10, none) == "Ab - Copy");
 	CHECK(CopyName("A\xC3\xA9\xC3\xA9", 11, none) == "A\xC3\xA9 - Copy");
+
+	// Worded another way, the number before the name.
+	const auto once = [](const std::string& a_name) { return a_name == "Kopie von Rain"; };
+	CHECK(ExampleMod::CopyName("Rain", 63, "Kopie von {0}", "Kopie {1} von {0}", once) == "Kopie 2 von Rain");
+	CHECK(ExampleMod::CopyName("Abcdefgh", 12, "Kopie von {0}", "Kopie {1} von {0}", none) == "Kopie von Ab");
 }
 
 TEST_CASE("ClampOrDefault clamps and validates values", "[utils]")

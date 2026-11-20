@@ -199,14 +199,14 @@ namespace SituationStore
 		return g_writable;
 	}
 
-	const std::string& Name(Situations::Situation a_situation)
+	std::string Name(Situations::Situation a_situation)
 	{
-		return EntryOf(a_situation).name;
+		return SituationTable::DisplayName(EntryOf(a_situation), SituationTable::IndexOf(a_situation));
 	}
 
 	std::string Suffix(Situations::Situation a_situation)
 	{
-		return a_situation == Situations::Situation::kDefault ? std::string{} : " for " + EntryOf(a_situation).name;
+		return a_situation == Situations::Situation::kDefault ? std::string{} : " for " + SituationStore::Name(a_situation);
 	}
 
 	bool IsRemoved(Situations::Situation a_situation)
@@ -240,14 +240,15 @@ namespace SituationStore
 		}
 		auto table = g_table;
 		for (const auto& [situation, name, rules] : a_edits) {
-			auto& entry = table[SituationTable::IndexOf(situation)];
+			const auto index = SituationTable::IndexOf(situation);
+			auto&      entry = table[index];
 			if (entry.removed) {
-				return Strings::Format(Strings::Text::kSituationRemoved, entry.name);
+				return Strings::Format(Strings::Text::kSituationRemoved, SituationTable::DisplayName(entry, index));
 			}
 			if (rules && situation == Situations::Situation::kDefault) {
 				return Strings::Get(Strings::Text::kDefaultNoConditions);
 			}
-			entry.name = name;
+			entry.name = SituationTable::StoredName(index, name);
 			if (rules) {
 				entry.rules = *rules;
 			}
@@ -293,7 +294,7 @@ namespace SituationStore
 		}
 		const auto& source = EntryOf(a_source);
 		if (source.removed) {
-			return Strings::Format(Strings::Text::kSituationRemoved, source.name);
+			return Strings::Format(Strings::Text::kSituationRemoved, SituationStore::Name(a_source));
 		}
 		auto table = g_table;
 		auto key = SituationTable::AddUserEntry(table, std::string(ExampleMod::TrimWhitespace(a_name)), source.rules, a_source);
@@ -311,7 +312,7 @@ namespace SituationStore
 		auto  table = g_table;
 		auto& entry = table[SituationTable::IndexOf(a_situation)];
 		if (entry.removed) {
-			return Strings::Format(Strings::Text::kSituationRemovedAlready, entry.name);
+			return Strings::Format(Strings::Text::kSituationRemovedAlready, SituationStore::Name(a_situation));
 		}
 		entry.removed = true;
 		return Commit(std::move(table));

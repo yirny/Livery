@@ -103,11 +103,6 @@ namespace Strings
 		return published ? published->texts[index] : Detail::kEnglish[index];
 	}
 
-	const char* English(Text a_text)
-	{
-		return Detail::kEnglish[static_cast<std::size_t>(a_text)];
-	}
-
 	char32_t Probe()
 	{
 		const auto* published = g_current.load(std::memory_order_acquire);

@@ -88,8 +88,8 @@ namespace CaptureWindow::Internal
 		constexpr Strings::Ref kUnnamed{ Text::kUnnamedSituation };
 		// A line in an outfit row's place under a heading.
 		constexpr Strings::Ref kPiecesLine{ Text::kItemsNotInWardrobe };
-		// The widest time a Time of day dropdown shows, for its width.
-		constexpr const char* kWidestTime = "12:30 AM";
+		// Minutes between the times a Time of day dropdown offers.
+		constexpr std::uint16_t kTimeStep = 30;
 		// A situation dragged by its heading's grip to another place in the order.
 		constexpr const char* kSituationPayload = "LiverySituation";
 		// Under the Default's heading, over the order.
@@ -779,22 +779,31 @@ namespace CaptureWindow::Internal
 		// multi-choice dropdown (Swimming's a single choice), the two times, or the places or
 		// spells listed under, each with a ×.
 
-		// The operator a row with values or forms reads with: "is" / "is not" up to one
-		// selected, "is any of" / "is none of" with more; a Spell Effect row "has" / "has not",
-		// "has any of" / "has none of".
+		// The operator a row reads with: "is" / "is not" up to one selected, "is any of" / "is none
+		// of" with more (`a_several`); a Spell Effect row "has" / "has not", "has any of" / "has
+		// none of"; a Time of day row "between" / "not between".
+		Text OperatorText(SituationRules::Kind a_kind, bool a_several, bool a_negated)
+		{
+			if (a_kind == SituationRules::Kind::kTimeOfDay) {
+				return a_negated ? Text::kOperatorNotBetween : Text::kOperatorBetween;
+			}
+			if (a_kind == SituationRules::Kind::kSpell) {
+				if (a_several) {
+					return a_negated ? Text::kOperatorHasNoneOf : Text::kOperatorHasAnyOf;
+				}
+				return a_negated ? Text::kOperatorHasNot : Text::kOperatorHas;
+			}
+			if (a_several) {
+				return a_negated ? Text::kOperatorIsNoneOf : Text::kOperatorIsAnyOf;
+			}
+			return a_negated ? Text::kOperatorIsNot : Text::kOperatorIs;
+		}
+
+		// The row's operator as it stands, or negated.
 		const char* OperatorLabel(const SituationRules::Row& a_row, bool a_negated)
 		{
 			const auto count = SituationRules::HasValues(a_row.kind) ? static_cast<std::size_t>(std::popcount(a_row.values)) : SituationRules::FormsOf(a_row).size();
-			if (a_row.kind == SituationRules::Kind::kSpell) {
-				if (count > 1) {
-					return a_negated ? "has none of" : "has any of";
-				}
-				return a_negated ? "has not" : "has";
-			}
-			if (count > 1) {
-				return a_negated ? "is none of" : "is any of";
-			}
-			return a_negated ? "is not" : "is";
+			return Strings::Get(OperatorText(a_row.kind, count > 1, a_negated));
 		}
 
 		// The widest of `a_labels` as a dropdown's preview and row (Theme::DropdownWidth).
@@ -808,21 +817,16 @@ namespace CaptureWindow::Internal
 			return widest;
 		}
 
-		// A row's operator dropdown is as wide as its widest wording (OperatorLabel), so a second
+		// A row's operator dropdown is as wide as its widest wording (OperatorText), so a second
 		// value ticked ("is" to "is any of") never widens it.
 		float OperatorWidth(SituationRules::Kind a_kind)
 		{
-			using SituationRules::Kind;
-			if (a_kind == Kind::kTimeOfDay) {
-				return WidestDropdown({ "between", "not between" });
+			const bool takesSeveral = (SituationRules::HasValues(a_kind) && !SituationRules::OneValue(a_kind)) || SituationRules::HasForms(a_kind);
+			float      widest = WidestDropdown({ Strings::Get(OperatorText(a_kind, false, false)), Strings::Get(OperatorText(a_kind, false, true)) });
+			if (takesSeveral) {
+				widest = (std::max)(widest, WidestDropdown({ Strings::Get(OperatorText(a_kind, true, false)), Strings::Get(OperatorText(a_kind, true, true)) }));
 			}
-			if (a_kind == Kind::kSpell) {
-				return WidestDropdown({ "has", "has not", "has any of", "has none of" });
-			}
-			if ((SituationRules::HasValues(a_kind) && !SituationRules::OneValue(a_kind)) || SituationRules::HasForms(a_kind)) {
-				return WidestDropdown({ "is", "is not", "is any of", "is none of" });
-			}
-			return WidestDropdown({ "is", "is not" });
+			return widest;
 		}
 
 		// A dropdown of two choices, `a_positive` while `a_negated` is off and `a_negative` on: a
@@ -854,24 +858,23 @@ namespace CaptureWindow::Internal
 		// (whoever wears the outfit) from the player (always you). Returns true when switched.
 		bool DrawTargetDropdown(const CaptureWindow::Request& a_request, SituationRules::Row& a_row)
 		{
-			constexpr const char* kPlayer = "Player";
-
+			const char*             player = Strings::Get(Text::kPlayer);
 			const char*             wearer = a_request.actorName.c_str();
 			const Theme::FieldStyle style{ .filled = true };
-			ImGui::SetNextItemWidth(WidestDropdown({ wearer, kPlayer }));
+			ImGui::SetNextItemWidth(WidestDropdown({ wearer, player }));
 			const bool open = Theme::BeginCombo("##target", ImGuiComboFlags_None, style);
 			const bool hovered = !open && ImGui::IsItemHovered();
 			bool       changed = false;
 			if (open) {
 				for (const auto target : { SituationRules::Target::kWearer, SituationRules::Target::kPlayer }) {
 					bool chosen = target == a_row.target;
-					if (Theme::DropdownRow(target == SituationRules::Target::kPlayer ? kPlayer : wearer, &chosen, false) && target != a_row.target) {
+					if (Theme::DropdownRow(target == SituationRules::Target::kPlayer ? player : wearer, &chosen, false) && target != a_row.target) {
 						a_row.target = target;
 						changed = true;
 					}
 				}
 			}
-			Theme::EndCombo(open, a_row.target == SituationRules::Target::kPlayer ? kPlayer : wearer, style);
+			Theme::EndCombo(open, a_row.target == SituationRules::Target::kPlayer ? player : wearer, style);
 			if (hovered) {
 				Theme::Tooltip(Strings::Format(a_request.actorIsPlayer ? Text::kTargetHelpPlayer : Text::kTargetHelp, wearer).c_str());
 			}
@@ -885,14 +888,12 @@ namespace CaptureWindow::Internal
 		// unticked or chosen.
 		bool DrawValuesDropdown(SituationRules::Row& a_row, float a_width)
 		{
-			constexpr const char* kSelect = "Select...";
-
 			const bool  one = SituationRules::OneValue(a_row.kind);
 			const auto  values = SituationRules::InfoOf(a_row.kind).values;
 			std::string preview;
 			for (const auto& value : values) {
 				if (a_row.values & value.bit) {
-					preview += (preview.empty() ? "" : ", ") + std::string(value.label);
+					preview += (preview.empty() ? "" : Strings::Get(Text::kListSeparator)) + std::string(Strings::Get(value.label));
 				}
 			}
 			const Theme::FieldStyle style{ .previewIsHint = preview.empty(), .filled = true };
@@ -905,16 +906,16 @@ namespace CaptureWindow::Internal
 						ImGui::Separator();
 					}
 					bool ticked = (a_row.values & value.bit) != 0;
-					if (Theme::DropdownRow(value.label, &ticked, !one)) {  // ticks keep it open for more
+					if (Theme::DropdownRow(Strings::Get(value.label), &ticked, !one)) {  // ticks keep it open for more
 						changed = one ? a_row.values != value.bit : true;
 						a_row.values = one ? value.bit : a_row.values ^ value.bit;
 					}
-					if (*value.tip && ImGui::IsItemHovered()) {
-						Theme::Tooltip(value.tip);
+					if (value.tip && ImGui::IsItemHovered()) {
+						Theme::Tooltip(Strings::Get(*value.tip));
 					}
 				}
 			}
-			Theme::EndCombo(open, preview.empty() ? kSelect : preview.c_str(), style);
+			Theme::EndCombo(open, preview.empty() ? Strings::Get(Text::kSelectValues) : preview.c_str(), style);
 			return changed;
 		}
 
@@ -932,21 +933,38 @@ namespace CaptureWindow::Internal
 			std::string             all;
 			float                   least = 0.0f;
 			for (const auto& value : SituationRules::InfoOf(a_kind).values) {
-				least = (std::max)(least, Theme::DropdownWidth(value.label, style));
-				all += (all.empty() ? "" : ", ") + std::string(value.label);
+				least = (std::max)(least, Theme::DropdownWidth(Strings::Get(value.label), style));
+				all += (all.empty() ? "" : Strings::Get(Text::kListSeparator)) + std::string(Strings::Get(value.label));
 			}
 			return { least, SituationRules::OneValue(a_kind) ? least : Theme::ComboWidth(all.c_str(), style) };
+		}
+
+		// How wide a Time of day dropdown is: as its widest time, as the chosen language writes them.
+		// Contract: the window's thread only. Measured once per font and size, which a skin or the
+		// scale changes; the language is the same for the whole game.
+		float TimeDropdownWidth()
+		{
+			static const ImFont* measuredFont = nullptr;
+			static float         measuredSize = 0.0f;
+			static float         width = 0.0f;
+			if (measuredFont != ImGui::GetFont() || measuredSize != ImGui::GetFontSize()) {
+				measuredFont = ImGui::GetFont();
+				measuredSize = ImGui::GetFontSize();
+				width = 0.0f;
+				for (std::uint16_t minute = 0; minute < SituationRules::kMinutesPerDay; minute += kTimeStep) {
+					width = (std::max)(width, Theme::DropdownWidth(SituationRules::TimeText(minute).c_str(), Theme::FieldStyle{ .filled = true }));
+				}
+			}
+			return width;
 		}
 
 		// A dropdown of the times of day, `a_minutes` (after midnight) its choice. Returns true
 		// when another was chosen.
 		bool DrawTimeDropdown(const char* a_id, std::uint16_t& a_minutes)
 		{
-			constexpr std::uint16_t kTimeStep = 30;  // minutes between the times offered
-
 			const Theme::FieldStyle style{ .filled = true };
 			const auto              current = SituationRules::TimeText(a_minutes);
-			ImGui::SetNextItemWidth(Theme::DropdownWidth(kWidestTime, style));
+			ImGui::SetNextItemWidth(TimeDropdownWidth());
 			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_HeightLarge, style);
 			bool       changed = false;
 			if (open) {
@@ -978,7 +996,7 @@ namespace CaptureWindow::Internal
 			bool changed = DrawTimeDropdown("##from", a_row.from);
 			ImGui::SameLine();
 			AlignTextToField();
-			ImGui::TextUnformatted("and");
+			ImGui::TextUnformatted(Strings::Get(Text::kTimeRangeAnd));
 			ImGui::SameLine();
 			return DrawTimeDropdown("##to", a_row.to) || changed;
 		}
@@ -986,7 +1004,7 @@ namespace CaptureWindow::Internal
 		float TimeRangeWidth()
 		{
 			const float spacing = ImGui::GetStyle().ItemSpacing.x;
-			return Theme::DropdownWidth(kWidestTime, Theme::FieldStyle{ .filled = true }) * 2.0f + ImGui::CalcTextSize("and").x + spacing * 2.0f;
+			return TimeDropdownWidth() * 2.0f + ImGui::CalcTextSize(Strings::Get(Text::kTimeRangeAnd)).x + spacing * 2.0f;
 		}
 
 		// Whether `a_width` more fits on the line just laid out, before `a_right`.
@@ -1138,7 +1156,7 @@ namespace CaptureWindow::Internal
 		// named); "" for a targetable kind, whose row starts with whose state.
 		std::string SubjectOf(const CaptureWindow::Request& a_request, const SituationRules::KindInfo& a_info)
 		{
-			return std::vformat(a_info.subject, std::make_format_args(a_request.actorName));
+			return a_info.subject ? Strings::Format(*a_info.subject, a_request.actorName) : std::string{};
 		}
 
 		// How wide a row of `a_kind` is with every value shown on it: whose state or its subject,
@@ -1148,13 +1166,14 @@ namespace CaptureWindow::Internal
 		{
 			const auto& info = SituationRules::InfoOf(a_kind);
 			const float gap = ImGui::GetStyle().ItemSpacing.x;
-			float       width = info.targetable ? WidestDropdown({ a_request.actorName.c_str(), "Player" }) : ImGui::CalcTextSize(SubjectOf(a_request, info).c_str()).x;
-			if (SituationRules::TwoState(a_kind) && *info.state) {
-				width += gap + WidestDropdown({ info.state, info.negState });
+			float       width = info.targetable ? WidestDropdown({ a_request.actorName.c_str(), Strings::Get(Text::kPlayer) }) :
+			                                      ImGui::CalcTextSize(SubjectOf(a_request, info).c_str()).x;
+			if (info.state && info.negState) {
+				width += gap + WidestDropdown({ Strings::Get(*info.state), Strings::Get(*info.negState) });
 			} else {
 				width += gap + OperatorWidth(a_kind);
-				if (SituationRules::TwoState(a_kind)) {
-					width += gap + ImGui::CalcTextSize(info.phrase).x;
+				if (info.phrase) {
+					width += gap + ImGui::CalcTextSize(Strings::Get(*info.phrase)).x;
 				}
 			}
 			if (!info.values.empty()) {
@@ -1176,9 +1195,9 @@ namespace CaptureWindow::Internal
 			const auto& info = SituationRules::InfoOf(a_row.kind);
 			const float side = ImGui::GetFrameHeight();
 			const float crossX = a_lineRight - side * 0.5f;
-			Theme::LabelText(info.label, Theme::HeadingIcon::kNone, false);  // the box sets the conditions apart
+			Theme::LabelText(Strings::Get(info.label), Theme::HeadingIcon::kNone, false);  // the box sets the conditions apart
 			if (Theme::LabelHelpMark()) {
-				Theme::Tooltip(std::vformat(info.tip, std::make_format_args(a_request.actorName)).c_str());
+				Theme::Tooltip(Strings::Format(info.tip, a_request.actorName).c_str());
 			}
 			const bool removed = Theme::LabelLineLink(Strings::Get(Text::kRemove));  // a word, not a ×, apart from the forms' ×s under it
 
@@ -1193,16 +1212,16 @@ namespace CaptureWindow::Internal
 				ImGui::TextUnformatted(SubjectOf(a_request, info).c_str());
 				ImGui::SameLine();
 			}
-			if (SituationRules::TwoState(a_row.kind) && *info.state) {
-				changed = DrawNegationDropdown("##state", info.state, info.negState, 0.0f, a_row.negated, ignored) || changed;
+			if (info.state && info.negState) {
+				changed = DrawNegationDropdown("##state", Strings::Get(*info.state), Strings::Get(*info.negState), 0.0f, a_row.negated, ignored) || changed;
 			} else {
-				changed = DrawNegationDropdown("##operator", time ? "between" : OperatorLabel(a_row, false), time ? "not between" : OperatorLabel(a_row, true),
-							  OperatorWidth(a_row.kind), a_row.negated, ignored) ||
+				changed = DrawNegationDropdown("##operator", OperatorLabel(a_row, false), OperatorLabel(a_row, true), OperatorWidth(a_row.kind), a_row.negated,
+							  ignored) ||
 				          changed;
-				if (SituationRules::TwoState(a_row.kind)) {
+				if (info.phrase) {
 					ImGui::SameLine();
 					AlignTextToField();
-					ImGui::TextUnformatted(info.phrase);
+					ImGui::TextUnformatted(Strings::Get(*info.phrase));
 				}
 			}
 			// The values on the row while they fit, else under it.
@@ -1262,7 +1281,10 @@ namespace CaptureWindow::Internal
 			return (wearer || player) && (!SituationRules::Targetable(a_kind) || (wearer && player));
 		}
 
-		// The kinds by label, ASCII case ignored, as Add Condition... lists them.
+		// The kinds by label in the chosen language, ASCII case ignored, as Add Condition... lists
+		// them.
+		// Contract: sorted at the first call and kept; the window opens only after Strings::Load, and
+		// the language is the same for the whole game.
 		const std::array<const SituationRules::KindInfo*, SituationRules::kKinds.size()>& KindsByLabel()
 		{
 			static const auto sorted = [] {
@@ -1272,7 +1294,8 @@ namespace CaptureWindow::Internal
 				}
 				const auto lower = [](char a_char) { return a_char >= 'A' && a_char <= 'Z' ? static_cast<char>(a_char - 'A' + 'a') : a_char; };
 				std::ranges::sort(kinds, [&lower](const SituationRules::KindInfo* a_left, const SituationRules::KindInfo* a_right) {
-					return std::ranges::lexicographical_compare(std::string_view(a_left->label), std::string_view(a_right->label), {}, lower, lower);
+					return std::ranges::lexicographical_compare(std::string_view(Strings::Get(a_left->label)), std::string_view(Strings::Get(a_right->label)), {},
+						lower, lower);
 				});
 				return kinds;
 			}();
@@ -1293,7 +1316,7 @@ namespace CaptureWindow::Internal
 				for (const auto* info : KindsByLabel()) {
 					bool chosen = false;
 					ImGui::BeginDisabled(KindExhausted(a_rules, info->kind));
-					if (Theme::DropdownRow(info->label, &chosen, false)) {
+					if (Theme::DropdownRow(Strings::Get(info->label), &chosen, false)) {
 						added = info->kind;
 						ImGui::CloseCurrentPopup();
 					}
@@ -1606,11 +1629,11 @@ namespace CaptureWindow::Internal
 			runs.reserve(phrases.size() * 2);
 			for (std::size_t i = 0; i < phrases.size(); ++i) {
 				if (i > 0) {
-					runs.push_back({ ", ", false });
+					runs.push_back({ Strings::Get(Text::kListSeparator), false });
 				}
 				runs.push_back({ phrases[i].c_str(), true, known && held[i] ? positive : 0u });
 			}
-			runs.push_back({ ".", false });
+			runs.push_back({ Strings::Get(Text::kAppliesEnd), false });
 
 			const bool editable = a_state.request.customSituations;
 			int        hovered = -1;
@@ -1710,7 +1733,7 @@ namespace CaptureWindow::Internal
 			std::string names;
 			for (const auto& entry : a_state.situationForm.entries) {
 				if (OutfitRows::Holds(entry.row, a_outfit)) {
-					names += std::format("{}{}", names.empty() ? "" : ", ", Trimmed(entry.name.data()));
+					names += std::format("{}{}", names.empty() ? "" : Strings::Get(Text::kListSeparator), Trimmed(entry.name.data()));
 				}
 			}
 			return names.empty() ? Strings::Get(Text::kHeldByNone) : names;
@@ -2371,7 +2394,8 @@ namespace CaptureWindow::Internal
 			const auto taken = [&form](const std::string& a_name) {
 				return std::ranges::any_of(form.entries, [&a_name](const SituationEntry& a_entry) { return ExampleMod::CaseInsensitiveEqual(Trimmed(a_entry.name.data()), a_name); });
 			};
-			auto name = ExampleMod::CopyName(Trimmed(form.entries[selected].name.data()), kNameCapacity - 1, taken);
+			auto name = ExampleMod::CopyName(Trimmed(form.entries[selected].name.data()), kNameCapacity - 1, Strings::Get(Text::kCopyName),
+				Strings::Get(Text::kCopyNameNumbered), taken);
 			a_state.status = Status::kSaving;
 			a_state.error.clear();
 			auto onDuplicate = a_state.request.onSituationDuplicate;
@@ -2651,13 +2675,13 @@ namespace CaptureWindow::Internal
 	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit)
 	{
 		const auto& form = a_state.situationForm;
-		std::string text;
+		std::string names;
 		for (const auto i : form.order) {
 			if (OutfitRows::Holds(form.entries[i].row, a_outfit)) {
-				text += std::format("{}{}", text.empty() ? "For " : ", ", Trimmed(form.entries[i].name.data()));
+				names += std::format("{}{}", names.empty() ? "" : Strings::Get(Text::kListSeparator), Trimmed(form.entries[i].name.data()));
 			}
 		}
-		return text;
+		return names.empty() ? names : Strings::Format(Text::kForSituations, names);
 	}
 
 	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state)
