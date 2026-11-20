@@ -1502,6 +1502,9 @@ namespace CaptureWindow::Internal
 						added = info->kind;
 						ImGui::CloseCurrentPopup();
 					}
+					if (info->addTip && ImGui::IsItemHovered()) {
+						Theme::Tooltip(Strings::Get(*info->addTip));
+					}
 				}
 			}
 			Theme::EndCombo(open, label, style);

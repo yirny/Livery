@@ -350,6 +350,12 @@
 	X(kTipWeather, "Rain and Snow: the weather now, outdoors only.\nWarm, Cool and Freezing region: the climate of the area, whatever the weather.\nIndoors is none of them, except ice caves.")                     \
 	X(kTipTimeOfDay, "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.")                                                                                                                                    \
 	X(kTipSpell, "A spell, power, shout, potion or other effect currently affecting {0}.\nListed by spell name, not effect name.\nAny spell, scroll or potion with the same effects counts.")                        \
+	X(kAddTipState, "In combat, weapon drawn, wading, swimming or sleeping.")                                                                                                                                        \
+	X(kAddTipLocationType, "A town, castle, player home or dungeon.")                                                                                                                                                \
+	X(kAddTipPlace, "Locations you choose, such as Whiterun or Bleak Falls Barrow.")                                                                                                                                 \
+	X(kAddTipWeather, "Rain, snow, or the climate of the region.")                                                                                                                                                   \
+	X(kAddTipTimeOfDay, "A range of game time, such as 8 PM to 6 AM.")                                                                                                                                               \
+	X(kAddTipSpell, "A spell, power, shout, potion or other effect.")                                                                                                                                                \
 	X(kSubjectLocationType, "The location type")                                                                                                                                                                     \
 	X(kSubjectIndoors, "The location is")                                                                                                                                                                            \
 	X(kSubjectLocation, "The location")                                                                                                                                                                              \
