@@ -5,7 +5,7 @@
 //               outfit-item mark for the trade-menu filter
 //   Equip     - choose an instance per piece, put it on, take off the rest; choose the
 //               player's copy to give away
-//   API       - RefreshModel / Dress / PutBackOn / TakeOffExtras / CarriesAny / LockOutfitCopies /
+//   API       - GameHalted / RefreshModel / Dress / PutBackOn / TakeOffExtras / CarriesAny / LockOutfitCopies /
 //               UnlockOutfitCopies / PutOnOutfitItems / Replenish / Upgrade / Release / PutBack /
 //               MarkAsOutfitItems / UnmarkOutfitItems / WornArmor / MoveFromPlayer
 //
@@ -405,6 +405,13 @@ namespace
 
 namespace Dressing
 {
+	bool GameHalted()
+	{
+		auto* ui = RE::UI::GetSingleton();
+		auto* main = RE::Main::GetSingleton();
+		return (ui && ui->GameIsPaused()) || (main && main->GetRuntimeData().freezeTime);
+	}
+
 	// Tailor's RefreshPlayerModel, as in OutfitPreview.cpp.
 	void RefreshModel(RE::Actor& actor)
 	{
@@ -414,6 +421,16 @@ namespace Dressing
 		}
 		process->Set3DUpdateFlag(RE::RESET_3D_FLAGS::kModel);
 		process->Update3DModel(&actor);
+	}
+
+	// Contract: only while the game is halted. A rebuild in a running game ends the player's
+	// concentration spell (a situation on its effect then flips back at once), and the running
+	// game shows the player's equip change without it.
+	void RefreshPlayerIfHalted(RE::Actor& actor)
+	{
+		if (actor.IsPlayerRef() && GameHalted()) {
+			RefreshModel(actor);
+		}
 	}
 
 	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing)
@@ -456,9 +473,7 @@ namespace Dressing
 				}
 			}
 		}
-		if (actor.IsPlayerRef()) {
-			RefreshModel(actor);
-		}
+		RefreshPlayerIfHalted(actor);
 		return result;
 	}
 
@@ -693,9 +708,7 @@ namespace Dressing
 				actor.RemoveItem(copy.armor, 1, RE::ITEM_REMOVE_REASON::kRemove, copy.extra, nullptr);
 			}
 		}
-		if (actor.IsPlayerRef()) {
-			RefreshModel(actor);
-		}
+		RefreshPlayerIfHalted(actor);
 	}
 
 	std::size_t PutBack(RE::Actor& actor, const std::vector<InstanceKey>& keys)
@@ -715,9 +728,7 @@ namespace Dressing
 				++count;
 			}
 		}
-		if (actor.IsPlayerRef()) {
-			RefreshModel(actor);
-		}
+		RefreshPlayerIfHalted(actor);
 		return count;
 	}
 

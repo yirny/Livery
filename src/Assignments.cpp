@@ -631,15 +631,6 @@ namespace
 		LockNewOutfitCopies(*assignment, *actor);
 	}
 
-	// Whether the game skips the actor update that shows an NPC's equip change: a menu pauses
-	// it (the trade menu), or the capture window froze it (Live Preview off).
-	bool GameHalted()
-	{
-		auto* ui = RE::UI::GetSingleton();
-		auto* main = RE::Main::GetSingleton();
-		return (ui && ui->GameIsPaused()) || (main && main->GetRuntimeData().freezeTime);
-	}
-
 	// Armor the engine put on them that Livery keeps off comes off at once: given while the
 	// trade, container or pickpocket menu is open (a helmet for a slot the outfit leaves empty),
 	// not as it closes, or put on by the worn-gear pass's best-armor step (their outfit items or
@@ -660,7 +651,7 @@ namespace
 		// Only a halted game needs the rebuild: it costs, and its NiNodeUpdate event makes
 		// body-morph mods refit, for a change a running game's actor update shows anyway.
 		const auto refreshIfHalted = [actor] {
-			if (GameHalted()) {
+			if (Dressing::GameHalted()) {
 				Dressing::RefreshModel(*actor);
 			}
 		};
