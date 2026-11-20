@@ -302,7 +302,7 @@
 	X(kAddSpellLeadYou, "Add a spell to look for on you.")                                                                                                                                                           \
 	X(kSearchByName, "Search by name")                                                                                                                                                                               \
 	X(kShowAllSpells, "Show all spells")                                                                                                                                                                             \
-	X(kShowAllSpellsTip, "All spells, powers, potions and scrolls, including those added by mods.\n\nOff: Spells known by {0} and those currently affecting them.")                                                  \
+	X(kShowAllSpellsTip, "All spells, powers, potions and scrolls, including those added by mods.\n\nOff: Only spells known by {0} and those currently affecting them.")                                             \
 	X(kShowPlayerSpells, "Show player spells")                                                                                                                                                                       \
 	X(kShowPlayerSpellsTip, "Also lists spells you know and those currently affecting you.")                                                                                                                         \
 	X(kOneSpellSelected, "1 spell selected")                                                                                                                                                                         \
