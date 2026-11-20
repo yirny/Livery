@@ -9,7 +9,8 @@
 //                armor against it
 //   Type text  - a rule's subTypeDisplay as the game's translations show it
 //   SkyUI      - the icon label and colour SkyUI gives an armor
-//   PieceIcons - FindFiles / Load / Resolve
+//   Magic      - the icon label and colour SkyUI gives a spell, scroll, potion or ingredient
+//   PieceIcons - FindFiles / Load / Resolve / ResolveMagic
 //
 // Inventory Interface Information Injector (I4; Exit-9B/InventoryInjector on GitHub,
 // src/Data/CustomDataManager.cpp, Config/Rule.cpp, Config/Property.cpp, Config/PropertyParser.cpp)
@@ -56,6 +57,17 @@ namespace
 	constexpr std::uint32_t kArmorColor = 0xEDDA87;
 	constexpr std::uint32_t kLightArmorColor = 0x756000;
 	constexpr std::uint32_t kHeavyArmorColor = 0x6B7585;
+
+	// SkyUI 5's icon colours for magic (MagicIconSetter.as, InventoryIconSetter.as), 0xRRGGBB;
+	// I4's Skyrim.json assigns the same.
+	constexpr std::uint32_t kFireColor = 0xC73636;
+	constexpr std::uint32_t kFrostColor = 0x1FFBFF;
+	constexpr std::uint32_t kShockColor = 0xEAAB00;        // a spell's or a potion's
+	constexpr std::uint32_t kScrollShockColor = 0xFFFF00;  // a scroll's
+	constexpr std::uint32_t kPoisonColor = 0xAD00B3;
+	constexpr std::uint32_t kHealthColor = 0xDB2E73;
+	constexpr std::uint32_t kMagickaColor = 0x2E9FDB;
+	constexpr std::uint32_t kStaminaColor = 0x51DB2E;
 
 	// An I4 rule as Livery uses it. Each inner list is a condition met by any of its values;
 	// every condition must be met.
@@ -508,6 +520,133 @@ namespace
 		}
 		return { label.empty() ? std::string("default_armor") : std::move(label), color };
 	}
+
+	// --- Magic ----------------------------------------------------------------
+	//
+	// SkyUI reads an item's school, resistance and actor value from the entry SKSE extends
+	// (ianpatt/skse64 on GitHub, ScaleformExtendedData.cpp, MagicItemData): those of the base
+	// effect of the item's costliest effect.
+
+	// An icon label under SkyUI's swf and its colour, none where SkyUI sets none.
+	using MagicLook = std::pair<std::string_view, std::optional<std::uint32_t>>;
+
+	// The icon SkyUI's Magic menu gives a spell (MagicIconSetter.as, processSpellIcon): by its
+	// school, a Destruction spell by what resists it.
+	MagicLook SpellLook(const RE::EffectSetting* a_effect)
+	{
+		using AV = RE::ActorValue;
+		switch (a_effect ? a_effect->data.associatedSkill : AV::kNone) {
+		case AV::kAlteration:
+			return { "default_alteration", std::nullopt };
+		case AV::kConjuration:
+			return { "default_conjuration", std::nullopt };
+		case AV::kDestruction:
+			switch (a_effect->data.resistVariable) {
+			case AV::kResistFire:
+				return { "magic_fire", kFireColor };
+			case AV::kResistShock:
+				return { "magic_shock", kShockColor };
+			case AV::kResistFrost:
+				return { "magic_frost", kFrostColor };
+			default:
+				return { "default_destruction", std::nullopt };
+			}
+		case AV::kIllusion:
+			return { "default_illusion", std::nullopt };
+		case AV::kRestoration:
+			return { "default_restoration", std::nullopt };
+		default:
+			return { "default_power", std::nullopt };
+		}
+	}
+
+	// A scroll's colour (InventoryIconSetter.as, processResist): by what resists it.
+	std::optional<std::uint32_t> ScrollColor(const RE::EffectSetting* a_effect)
+	{
+		using AV = RE::ActorValue;
+		switch (a_effect ? a_effect->data.resistVariable : AV::kNone) {
+		case AV::kResistFire:
+			return kFireColor;
+		case AV::kResistShock:
+			return kScrollShockColor;
+		case AV::kResistFrost:
+			return kFrostColor;
+		default:
+			return std::nullopt;
+		}
+	}
+
+	// The icon SkyUI's inventory gives a potion (InventoryDataSetter.as, processPotionType, then
+	// InventoryIconSetter.as, processPotionIcon): food first, a drink being food with the
+	// potion's use sound, then poison, then by the actor value it changes.
+	MagicLook PotionLook(const RE::AlchemyItem& a_potion, const RE::EffectSetting* a_effect)
+	{
+		using AV = RE::ActorValue;
+		using Flag = RE::AlchemyItem::AlchemyFlag;
+		constexpr RE::FormID kPotionUseSound = 0x000B6435;  // ITMPotionUse in Skyrim.esm (SkyUI's Form.as)
+
+		const auto& data = a_potion.data;
+		if (data.flags.any(Flag::kFoodItem)) {
+			const bool drink = data.consumptionSound && data.consumptionSound->GetFormID() == kPotionUseSound;
+			return { drink ? "food_wine" : "default_food", std::nullopt };
+		}
+		if (data.flags.any(Flag::kPoison)) {
+			return { "potion_poison", kPoisonColor };
+		}
+		switch (a_effect ? a_effect->data.primaryAV : AV::kNone) {
+		case AV::kHealth:
+		case AV::kHealRate:
+		case AV::kHealRateMult:
+			return { "potion_health", kHealthColor };
+		case AV::kMagicka:
+		case AV::kMagickaRate:
+		case AV::kMagickaRateMult:
+			return { "potion_magic", kMagickaColor };
+		case AV::kStamina:
+		case AV::kStaminaRate:
+		case AV::kStaminaRateMult:
+			return { "potion_stam", kStaminaColor };
+		case AV::kResistFire:
+			return { "potion_fire", kFireColor };
+		case AV::kResistShock:
+			return { "potion_shock", kShockColor };
+		case AV::kResistFrost:
+			return { "potion_frost", kFrostColor };
+		default:
+			return { "default_potion", std::nullopt };
+		}
+	}
+
+	// SkyUI's icon for a potion, scroll or ingredient as in the inventory and for a spell or
+	// power as in the Magic menu. That menu lists a shout whole and what else acts on the actor
+	// as an active effect, so Livery gives a shout's word the shout's icon and an ability,
+	// disease or the like the active effect's.
+	MagicLook MagicLookOf(const RE::MagicItem& a_item)
+	{
+		using Type = RE::MagicSystem::SpellType;
+		const auto* costliest = a_item.GetCostliestEffectItem();
+		const auto* effect = costliest ? costliest->baseEffect : nullptr;
+		if (const auto* potion = a_item.As<RE::AlchemyItem>()) {
+			return PotionLook(*potion, effect);
+		}
+		if (a_item.Is(RE::FormType::Scroll)) {
+			return { "default_scroll", ScrollColor(effect) };
+		}
+		if (a_item.Is(RE::FormType::Ingredient)) {
+			return { "default_ingredient", std::nullopt };
+		}
+		switch (a_item.GetSpellType()) {
+		case Type::kSpell:
+			return SpellLook(effect);
+		case Type::kPower:
+		case Type::kLesserPower:
+			return { "default_power", std::nullopt };
+		case Type::kVoicePower:
+			return { "default_shout", std::nullopt };
+		default:
+			return { "default_effect", std::nullopt };
+		}
+	}
 }
 
 namespace PieceIcons
@@ -589,5 +728,15 @@ namespace PieceIcons
 			}
 		}
 		return { std::move(key), color, std::move(typeName) };
+	}
+
+	MagicIcon ResolveMagic(const RE::MagicItem& a_item)
+	{
+		const auto [label, color] = MagicLookOf(a_item);
+		auto key = KeyOf(kSkyUISource, label);
+		if (!g_keys.contains(key)) {
+			key.clear();
+		}
+		return { std::move(key), color };
 	}
 }

@@ -732,6 +732,24 @@ setting, off by default). Open:
   would hand over, the best unworn one, the worn one only when it is the only copy. A copy
   without an enchantment of its own, and a piece nobody carries, have the armor's own
   (`formEnchanting`); a piece nobody carries is never tempered.
+- Magic icons: the Situations page's spell lists (the `Add spell` popup's, `Theme::SelectRow`,
+  and a Spell row's lines, `Theme::IconText`) draw before a name the icon SkyUI 5 gives the
+  item (`PieceIcons::ResolveMagic`, read when the window lists the spells), from the base
+  effect of its costliest effect, as SKSE hands the menus an item's school, resistance and
+  actor value. A spell (`processSpellIcon`): `default_alteration`, `default_conjuration`,
+  `default_illusion`, `default_restoration` by school; a Destruction spell `magic_fire`
+  `#C73636`, `magic_shock` `#EAAB00` or `magic_frost` `#1FFBFF` by what resists it, else
+  `default_destruction`; no school, `default_power`. A scroll: `default_scroll`, in the
+  resisting element's colour (shock `#FFFF00`). A potion (`processPotionIcon`): food
+  `default_food`, with the potion's use sound `food_wine`; a poison `potion_poison` `#AD00B3`;
+  else by the actor value, `potion_health` `#DB2E73`, `potion_magic` `#2E9FDB`, `potion_stam`
+  `#51DB2E` (each with its rate and rate multiplier), `potion_fire`, `potion_shock`,
+  `potion_frost` in the spells' colours; else `default_potion`. An ingredient:
+  `default_ingredient`. SkyUI names the rest by the menu's entry, so Livery goes by the spell
+  type: a power or lesser power `default_power`, a shout's word `default_shout`, anything else
+  (an ability, a disease) `default_effect`. An icon SkyUI gives no colour is drawn in the
+  skin's text colour (`RowIcon::textColor`). No I4 rule is read for these: I4's `Skyrim.json`
+  assigns the same.
 - Livery ships a PNG for every label of SkyUI's `icons_item_psychosteve.swf` (PsychoSteve's
   art, and Jelidity's SkyUI 6 additions) and of `I4IconAddon/icons.swf` (Jelidity's art),
   rendered from the swf frames as is, with their permission (`icons/ICON-CREDITS.txt`). Other

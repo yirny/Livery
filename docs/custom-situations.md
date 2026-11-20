@@ -346,7 +346,9 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   actor's window), a search field (`Search by name`, ASCII case ignored, as the outfit search),
   `Show all spells` and, right of it in another actor's window, `Show player spells` (greyed
   while Show all spells is ticked; both unticked at each open), and a
-  list ten rows tall of the spells whose name holds the search, a click picking one. Hovering a
+  list ten rows tall of the spells whose name holds the search, a click picking one. A spell
+  there or on the row follows its icon, SkyUI's (design.md §9, Magic icons); a spell of the row
+  that no list has, or whose plugin is not loaded, has the icon's room and no icon. Hovering a
   spell there or on the row shows its plugin and FormID, then its visible effects a line each,
   `- <name> (<editor ID>)`, the editor ID only when the game keeps one (it does not by itself;
   a mod such as powerofthree's Tweaks loads them). Both off, the list is the actor's
