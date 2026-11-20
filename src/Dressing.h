@@ -116,10 +116,13 @@ namespace Dressing
 	// copies it added. Instances that were the actor's own stay with them.
 	void Release(RE::Actor& actor, const std::vector<Piece>& pieces, bool removeCopies);
 
-	// Rebuilds their model now from what they wear. Equip calls alone leave the player's model
-	// as it was until something else rebuilds it (Dress, Release and PutBack rebuild it), and
-	// an NPC's until their actor update, which a frozen game skips. Nothing while their 3D is
-	// not loaded.
+	// Whether the game skips the actor update that shows an equip change: a menu pauses it
+	// (the trade menu), or the capture window froze it (Live Preview off).
+	bool GameHalted();
+
+	// Rebuilds their model now from what they wear. Equip calls leave their model as it was
+	// until their actor update, which a halted game skips (Dress, Release and PutBack rebuild
+	// the player's then). Nothing while their 3D is not loaded.
 	void RefreshModel(RE::Actor& actor);
 
 	// Puts on again, without a lock, the copies of `keys` they still carry: their own pieces
