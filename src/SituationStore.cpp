@@ -6,7 +6,7 @@
 //   File      - write through a temporary file
 //   Adding    - the checks and the write that Create and Duplicate share
 //   Forms     - the FormIDs of the Place and Spell rows' forms in this game's load order
-//   API       - Load / WasLoaded / Name / Suffix / IsRemoved / Offered / RulesOf / Apply / Create /
+//   API       - Load / WasLoaded / Name / IsRemoved / Offered / RulesOf / Apply / Create /
 //               Duplicate / Remove / RestorePresets / RestoreChanges
 //
 // The file's format and rules are in SituationTable.h.
@@ -202,11 +202,6 @@ namespace SituationStore
 	std::string Name(Situations::Situation a_situation)
 	{
 		return SituationTable::DisplayName(EntryOf(a_situation), SituationTable::IndexOf(a_situation));
-	}
-
-	std::string Suffix(Situations::Situation a_situation)
-	{
-		return a_situation == Situations::Situation::kDefault ? std::string{} : " for " + SituationStore::Name(a_situation);
 	}
 
 	bool IsRemoved(Situations::Situation a_situation)

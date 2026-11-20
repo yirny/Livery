@@ -36,9 +36,6 @@ namespace SituationStore
 	// (SituationTable::DisplayName), any other as the user named it.
 	std::string Name(Situations::Situation a_situation);
 
-	// " for Town" for the end of a sentence that says what is worn for it; "" for the Default.
-	std::string Suffix(Situations::Situation a_situation);
-
 	// A removed situation offers no row anywhere; Situations::Evaluate still reports it and
 	// nothing wears it.
 	bool IsRemoved(Situations::Situation a_situation);
