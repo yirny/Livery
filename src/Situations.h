@@ -255,4 +255,11 @@ namespace Situations
 	// kPostLoadGame and kNewGame, Stop at kPreLoadGame.
 	void Start();
 	void Stop();
+
+	// Forgets what the poll last saw of everyone, so its next passes dress each actor for their
+	// situations as they are now (one redress per poll, as ever). For the window's close: its
+	// dressings and its edits of the situations' conditions and order pass the poll by, so what
+	// it last saw may match now while they wear another row's outfit.
+	// Contract: game thread.
+	void SeeAnew();
 }

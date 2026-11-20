@@ -680,7 +680,10 @@ each such redress shows a HUD message naming what they wear now; after a fallbac
 default it says why instead (they carry none of the outfit's items, none could be put on, or
 none is loaded). The window's messages add the same reason, and the log always has it. Apply and the Save page
 dress for the current situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
-`kNewGame`, forgetting what it last saw. The record's `pieces` describe whatever is worn,
+`kNewGame`, forgetting what it last saw; the window's close forgets it too
+(`Situations::SeeAnew`), so everyone is dressed for the situations as edited and as the
+window's dressings left them. The Situations page's save of changed conditions or order
+dresses the captured actor for what applies now at once. The record's `pieces` describe whatever is worn,
 so a situation outfit is kept on, locked and put back at 3D load like the default.
 
 ## 8. Plan

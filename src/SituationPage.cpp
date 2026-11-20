@@ -309,8 +309,8 @@ namespace CaptureWindow::Internal
 		}
 
 		// Situation `a_entry` dropped before the one at `a_place` in the order (its end with
-		// order.size()). Nobody is redressed for it: the poll follows the order once the window
-		// closes.
+		// order.size()). The page's save dresses the captured actor for it; the poll follows
+		// the order for the others once the window closes.
 		void DropSituation(State& a_state, std::size_t a_entry, std::size_t a_place)
 		{
 			auto&      order = a_state.situationForm.order;
