@@ -336,7 +336,7 @@ TEST_CASE("A row reading the player says so in the Applies line", "[situations]"
 	// A kind that reads no actor's state ignores the target.
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kIndoors, .target = Target::kPlayer } } }) == "Indoors.");
 	for (const auto& info : SituationRules::kKinds) {
-		CHECK(SituationRules::Targetable(info.kind) == (info.kind == Kind::kState || info.kind == Kind::kSpell));
+		CHECK(SituationRules::Targetable(info.kind) == (info.kind == Kind::kState || info.kind == Kind::kSpell || info.kind == Kind::kCrafting));
 	}
 }
 
@@ -672,6 +672,35 @@ TEST_CASE("A Spell row is written and read as pieces, and the whole file refused
 	};
 	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "spell" } ] } ] })"));
 	CHECK(refuses(R"({ "version": 2, "nextKey": 2, "situations": [ { "key": "user:1", "name": "A", "conditions": [ { "kind": "spell", "values": ["Stoneflesh"] } ] } ] })"));
+}
+
+TEST_CASE("A Crafting row reads as State's does, is written by its values' keys and covers a wider one", "[situations]")
+{
+	using SituationRules::Kind;
+	using SituationRules::Row;
+	using SituationRules::Target;
+	const Row smithing{ .kind = Kind::kCrafting, .values = SituationRules::kSmithing };
+	const Row smithOrTan{ .kind = Kind::kCrafting, .values = SituationRules::kSmithing | SituationRules::kTanning };
+	const Row youMine{ .kind = Kind::kCrafting, .negated = true, .target = Target::kPlayer, .values = SituationRules::kMining | SituationRules::kWoodcutting };
+	CHECK(SituationRules::Text({ .rows = { smithOrTan } }) == "Smithing or tanning.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kCrafting, .negated = true, .values = SituationRules::kAlchemy } } }) == "Not at an alchemy lab.");
+	CHECK(SituationRules::Text({ .rows = { youMine } }) == "While you are not mining or chopping wood.");
+	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kCrafting } } }) == "Crafting (nothing selected).");
+
+	const std::vector<Row> rows{ smithOrTan, youMine };
+	const auto             json = SituationRules::ToJson(rows);
+	CHECK(json[0].dump() == R"({"kind":"crafting","not":false,"values":["smithing","tanning"]})");
+	CHECK(json[1].dump() == R"({"kind":"crafting","not":true,"target":"player","values":["mining","woodcutting"]})");
+	std::vector<Row> read;
+	CHECK_FALSE(SituationRules::ParseRows(nlohmann::json::parse(json.dump()), read));
+	CHECK(read == rows);
+	CHECK(SituationRules::ParseRows(nlohmann::json::parse(R"([{ "kind": "crafting", "values": ["sleeping"] }])"), read));
+
+	const std::vector<SituationRules::PlaceFact> none;
+	CHECK(SituationRules::CoveredBy({ .rows = { smithing } }, { .rows = { smithOrTan } }, none));
+	CHECK_FALSE(SituationRules::CoveredBy({ .rows = { smithOrTan } }, { .rows = { smithing } }, none));
+	// A State row and a Crafting row share bits, never a meaning.
+	CHECK_FALSE(SituationRules::CoveredBy({ .rows = { { .kind = Kind::kState, .values = SituationRules::kSwimming } } }, { .rows = { smithing } }, none));
 }
 
 TEST_CASE("Every kind's tooltip formats with the actor's name", "[situations]")

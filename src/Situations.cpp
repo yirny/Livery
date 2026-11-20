@@ -5,9 +5,9 @@
 //               percent, the location depth
 //   Climate   - RegionClimate's climate of the place the player stands in, and the snowy
 //               regions
-//   Detection - the rows of every situation's rules (SituationRules): sleep, location types,
-//               weather, places, spells and the rest, in water with its hysteresis, and the
-//               player's beast form
+//   Detection - the rows of every situation's rules (SituationRules): sleep, crafting, location
+//               types, weather, places, spells and the rest, in water with its hysteresis, and
+//               the player's beast form
 //   Places   - what the Add place popup offers: the actor's location and its parents, their
 //               cell; what the never-worn mark knows of a place (PlaceFacts)
 //   Spells    - what the Add spell popup offers: the spells the actor casts on themselves and
@@ -270,6 +270,61 @@ namespace
 		return bed && bed->furnFlags.all(RE::TESFurniture::ActiveMarker::kCanSleep);
 	}
 
+	// Crafting's value (SituationRules) the furniture is for, 0 for none: by its workbench data,
+	// and by the keywords the game's own furniture has (Skyrim.esm and the three DLCs), which
+	// keep their editor IDs at runtime. A smelter, tanning rack, cooking pot and oven are
+	// workbenches of the plain kind, as a forge is, so their keywords are read before the skill;
+	// an ore vein and a chopping block are no workbench at all.
+	std::uint32_t CraftingOf(const RE::TESFurniture& a_furniture)
+	{
+		using Bench = RE::TESFurniture::WorkBenchData::BenchType;
+		const auto has = [&a_furniture](std::string_view a_keyword) { return a_furniture.HasKeywordString(a_keyword); };
+		const auto skill = a_furniture.workBenchData.usesSkill.get();
+		switch (a_furniture.workBenchData.benchType.get()) {
+		case Bench::kAlchemy:
+		case Bench::kAlchemyExperiment:
+			return SituationRules::kAlchemy;
+		case Bench::kEnchanting:
+		case Bench::kEnchantingExperiment:
+			return SituationRules::kEnchanting;
+		case Bench::kSmithingWeapon:  // the grindstone
+		case Bench::kSmithingArmor:   // the workbench
+			return SituationRules::kSmithing;
+		case Bench::kCreateObject:
+			if (has("CraftingSmelter"sv)) {
+				return SituationRules::kSmelting;
+			}
+			if (has("CraftingTanningRack"sv)) {
+				return SituationRules::kTanning;
+			}
+			if (has("CraftingCookpot"sv) || has("BYOHCraftingOven"sv)) {
+				return SituationRules::kCooking;
+			}
+			if (skill == RE::ActorValue::kSmithing) {  // a forge or anvil
+				return SituationRules::kSmithing;
+			}
+			return skill == RE::ActorValue::kEnchanting ? SituationRules::kEnchanting : 0;  // the staff enchanter
+		default:
+			break;
+		}
+		if (has("FurnitureWoodChoppingBlock"sv)) {
+			return SituationRules::kWoodcutting;
+		}
+		const bool vein = has("isPickaxeFloor"sv) || has("isPickaxeTable"sv) || has("isPickaxeWall"sv) || has("DLC2IsPickaxeFloor"sv) ||
+		                  has("DLC2IsPickaxeTable"sv) || has("DLC2IsPickaxeWall"sv);
+		return vein ? SituationRules::kMining : 0;
+	}
+
+	// Crafting's value the furniture the actor uses is for (CraftingOf); 0 on none, read before
+	// any keyword.
+	std::uint32_t CraftingNow(RE::Actor& a_actor)
+	{
+		const auto  furniture = a_actor.GetOccupiedFurniture().get();
+		const auto* base = furniture ? furniture->GetBaseObject() : nullptr;
+		const auto* bench = base ? base->As<RE::TESFurniture>() : nullptr;
+		return bench ? CraftingOf(*bench) : 0;
+	}
+
 	// The weather that decides: while the sky blends from the last weather to the current one,
 	// the last one until the new one is halfway in, so nobody takes a cloak off while the snow
 	// still falls. nullptr for none.
@@ -326,6 +381,7 @@ namespace
 		std::optional<const RE::BGSLocation*>   location;
 		std::optional<const RE::TESObjectCELL*> cell;
 		std::optional<bool>                     inWater;
+		std::optional<std::uint32_t>            crafting;
 
 		const RE::BGSLocation* Location()
 		{
@@ -349,6 +405,14 @@ namespace
 				inWater = InWaterNow(actor);
 			}
 			return *inWater;
+		}
+
+		std::uint32_t Crafting()
+		{
+			if (!crafting) {
+				crafting = CraftingNow(actor);
+			}
+			return *crafting;
 		}
 	};
 
@@ -567,6 +631,9 @@ namespace
 			break;
 		case Kind::kSpell:
 			holds = UnderSpells(a_row.spells, facts->actor);
+			break;
+		case Kind::kCrafting:
+			holds = (a_row.values & facts->Crafting()) != 0;
 			break;
 		}
 		return holds != a_row.negated;

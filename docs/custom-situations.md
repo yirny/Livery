@@ -35,7 +35,7 @@ Items marked *provisional* are tried in a prototype first and may change.
 
 A situation holds a list of condition rows. The situation applies while every row holds
 (AND). A row is a kind, a `not` flag, for a kind with values a set of values, and for a kind
-that reads an actor's own state (`SituationRules::Targetable`: State, Active Effects) whose state
+that reads an actor's own state (`SituationRules::Targetable`: State, Active Effects, Crafting) whose state
 it reads (`Row::target`): the character wearing the situation's outfit, or the player whoever
 wears it (a follower who changes when you fight). A row with values holds while any of its
 values holds (OR), and `not` inverts the row. Rows do not nest: there are no OR groups across
@@ -69,6 +69,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 | Weather | Rain, Snow, Warm region, Cool region, Freezing region (keys `rain`, `snow`, `warmRegion`, `coolRegion`, `freezingRegion`) | read around the player, whoever wears the situation. Rain = the player is in an exterior cell and the deciding weather has `kRainy`, Snow = `kSnow` (while the sky blends, the last weather decides until the new one is halfway in). A region = the climate of the player's place (`RegionClimate`): outdoors Survival Mode's classes by the cell's regions and the player's height (the conditions of its `Survival_RegionInfoSpell`, in its order: the two mountain areas, warm, cool, then freezing), Windhelm's city region freezing too; a place it does not class (a mod's land) Freezing when a region of its cell has snow weathers for at least 40% of its weather chance, Cool otherwise; indoors (an interior cell, or one of its interior worldspaces such as Blackreach) none, but its ice caves (by location or cell) Freezing; its Oblivion planes (Sovngarde, the Soul Cairn, Apocrypha) none. The place is read again only as the player's cell or location changes | `Sky::currentWeather`, `lastWeather`, `currentWeatherPct`; `TESObjectCELL::GetRegionList`, `GetPositionZ`, `GetWorldspace`, `GetCurrentLocation` | Rain and Snow by the sky yes, outdoors only not yet; the climate matched Survival Mode's own answer in 17 cells (2026-11-18); the region rows not yet |
 | Time of day | From, To (game hours, minutes allowed) | the game clock is in the range; a range whose To is before its From wraps midnight; default 20:00 to 6:00 | `Calendar::GetHour` | no |
 | Active Effects (key `spell`) | a list of `MagicItem`s | a visible effect on the actor, neither inactive nor dispelled, comes from an item whose visible effects are exactly those of one of them | `MagicTarget::VisitEffects`, `ActiveEffect::spell`, `ActiveEffect::flags`, `MagicItem::effects` | no |
+| Crafting (key `crafting`) | Alchemy, Cooking, Enchanting, Smithing, Smelting, Tanning, Mining, Woodcutting (keys `alchemy`, `cooking`, `enchanting`, `smithing`, `smelting`, `tanning`, `mining`, `woodcutting`) | the furniture the actor occupies is for one of them, by its workbench data and the keywords the game's own furniture has (Skyrim.esm and the three DLCs). Alchemy = bench type Alchemy; Enchanting = bench type Enchanting, or a plain workbench (Create object) using the Enchanting skill (the staff enchanter); Smithing = bench type Smithing weapon (the grindstone) or Smithing armor (the workbench), or a plain workbench using the Smithing skill (a forge, an anvil); a plain workbench by its keyword first: Smelting = `CraftingSmelter`, Tanning = `CraftingTanningRack`, Cooking = `CraftingCookpot` (pots and the spit) or `BYOHCraftingOven`; Mining = `isPickaxeFloor`, `isPickaxeTable`, `isPickaxeWall` or their `DLC2IsPickaxe...` (Stalhrim); Woodcutting = `FurnitureWoodChoppingBlock`. On no furniture nothing is read further | `Actor::GetOccupiedFurniture`, `TESFurniture::workBenchData`, `BGSKeywordForm::HasKeywordString` | no |
 
 "The actor" above is the wearer, or with `Row::target` the player (§2); the player's facts are
 read once per evaluation, as the wearer's are, and only when a row asks. The player's in-water
@@ -324,7 +325,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   `Indoors` and `Outdoors` (the row's `not`), no operator. The others have the operator dropdown, as wide as its widest wording so ticking more values
   never widens it: `is` / `is not` with up to one value or form selected, `is any of` / `is none
   of` with more (as Linear and Airtable word it), Active Effects `is affected by` / `is not
-  affected by`, `is affected by any of` / `is not affected by any of`, `between` / `not between` for Time of day; then the values. State's, Location
+  affected by`, `is affected by any of` / `is not affected by any of`, Crafting `is doing` / `is not doing`, `is doing any of` / `is doing none of`, `between` / `not between` for Time of day; then the values. State's, Crafting's, Location
   type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying open for
   several ticks; a value with a tip, `Value::tip`, says it while hovered: Freezing region's
   `Snowy lands, high mountains, the northern coast and ice caves.`) whose preview lists the
@@ -333,7 +334,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   tips `Fighting.`, `A weapon, spell or fists at the ready.`, `Wading in water, not
   swimming.`, `Deep enough to swim.`, `Going to bed, in it or getting up.`; In combat's tip
   is `Fighting.` then, after a blank line, `Never holds while Allow during combat is off.` while
-  the situation does not apply in combat and the row is not negated (§2); Weather's Rain / Snow above the
+  the situation does not apply in combat and the row is not negated (§2); Crafting's Alchemy, Cooking, Enchanting / Smithing, Smelting, Tanning / Mining, Woodcutting, with tips on Cooking (`A cooking pot, spit or oven.`) and Smithing (`A forge, anvil, workbench or grindstone.`); Weather's Rain / Snow above the
   regions, the weather now apart from the climate. Time of day's are `[time] and [time]`, two
   dropdowns
   in 30-minute steps (a time read from the file off those steps shows as it is). Both sit on the
@@ -346,7 +347,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   is not loaded greyed, saying so on hover. Then `Add Location...` or `Add Spell...` at the
   list's left. In Vanilla and Nordic a
   row's dropdowns have the palette's stripe colour behind them, the frame padding at both ends (`FieldStyle::filled`). Then `Add Condition...`, a dropdown with the Add links' plus mark before its text (`FieldIcon::kAdd`), of the
-  kinds in a fixed order, the same in every language (State, Location type, Specific Location, Indoors / Outdoors, Weather, Time of day, Active Effects), as wide as its widest kind, each kind but Indoors / Outdoors with a one-line tooltip of what it covers (`KindInfo::addTip`), closed by the choice, which adds a row with nothing selected
+  kinds in a fixed order, the same in every language (State, Crafting, Location type, Specific Location, Indoors / Outdoors, Weather, Time of day, Active Effects), as wide as its widest kind, each kind but Indoors / Outdoors with a one-line tooltip of what it covers (`KindInfo::addTip`), closed by the choice, which adds a row with nothing selected
   (a Place or Spell row opens its Add popup at once; an Indoors / Outdoors row starts as Indoors).
 - `Add Location...` opens the `Add location` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a

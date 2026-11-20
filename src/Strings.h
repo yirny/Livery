@@ -345,6 +345,7 @@
 	X(kKindWeather, "Weather")                                                                                                                                                                                       \
 	X(kKindTimeOfDay, "Time of day")                                                                                                                                                                                 \
 	X(kKindSpell, "Active Effects")                                                                                                                                                                                  \
+	X(kKindCrafting, "Crafting")                                                                                                                                                                                     \
 	X(kTipState, "In combat: fighting.\nWeapon drawn: a weapon, spell or fists at the ready.\nWading: wading in water, not swimming.\nSwimming: deep enough to swim.\nSleeping: going to bed, in it or getting up.") \
 	X(kTipLocationType, "Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.")                             \
 	X(kTipIndoors, "Indoors: inside a building, cave or other interior.\nOutdoors: anywhere else.")                                                                                                                  \
@@ -352,12 +353,14 @@
 	X(kTipWeather, "Rain and Snow: the weather now, outdoors only.\nWarm, Cool and Freezing region: the climate of the area, whatever the weather.\nIndoors is none of them, except ice caves.")                     \
 	X(kTipTimeOfDay, "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.")                                                                                                                                    \
 	X(kTipSpell, "A spell, power, shout, potion, food or other effect currently affecting {0}.\nListed by spell name, not effect name.\nAny spell, scroll or potion with the same effects counts.")                  \
+	X(kTipCrafting, "Cooking: a cooking pot, spit or oven.\nSmithing: a forge, anvil, workbench or grindstone.")                                                                                                     \
 	X(kAddTipState, "In combat, weapon drawn, wading, swimming or sleeping.")                                                                                                                                        \
 	X(kAddTipLocationType, "A town, castle, player home or dungeon.")                                                                                                                                                \
 	X(kAddTipPlace, "Locations you choose, such as Whiterun or Bleak Falls Barrow.")                                                                                                                                 \
 	X(kAddTipWeather, "Rain, snow, or the climate of the region.")                                                                                                                                                   \
 	X(kAddTipTimeOfDay, "A range of game time, such as 8 PM to 6 AM.")                                                                                                                                               \
 	X(kAddTipSpell, "A spell, power, shout, potion, food or other effect.")                                                                                                                                          \
+	X(kAddTipCrafting, "Using a crafting station, mining or chopping wood.")                                                                                                                                         \
 	X(kSubjectLocationType, "The location type")                                                                                                                                                                     \
 	X(kSubjectIndoors, "The location is")                                                                                                                                                                            \
 	X(kSubjectLocation, "The location")                                                                                                                                                                              \
@@ -371,6 +374,10 @@
 	X(kOperatorHasNot, "is not affected by")                                                                                                                                                                         \
 	X(kOperatorHasAnyOf, "is affected by any of")                                                                                                                                                                    \
 	X(kOperatorHasNoneOf, "is not affected by any of")                                                                                                                                                               \
+	X(kOperatorDoing, "is doing")                                                                                                                                                                                    \
+	X(kOperatorNotDoing, "is not doing")                                                                                                                                                                             \
+	X(kOperatorDoingAnyOf, "is doing any of")                                                                                                                                                                        \
+	X(kOperatorDoingNoneOf, "is doing none of")                                                                                                                                                                      \
 	X(kOperatorBetween, "between")                                                                                                                                                                                   \
 	X(kOperatorNotBetween, "not between")                                                                                                                                                                            \
 	X(kTimeRangeAnd, "and")                                                                                                                                                                                          \
@@ -391,6 +398,14 @@
 	X(kValueWading, "Wading")                                                                                                                                                                                        \
 	X(kValueSwimming, "Swimming")                                                                                                                                                                                    \
 	X(kValueSleeping, "Sleeping")                                                                                                                                                                                    \
+	X(kValueAlchemy, "Alchemy")                                                                                                                                                                                      \
+	X(kValueCooking, "Cooking")                                                                                                                                                                                      \
+	X(kValueEnchanting, "Enchanting")                                                                                                                                                                                \
+	X(kValueSmithing, "Smithing")                                                                                                                                                                                    \
+	X(kValueSmelting, "Smelting")                                                                                                                                                                                    \
+	X(kValueTanning, "Tanning")                                                                                                                                                                                      \
+	X(kValueMining, "Mining")                                                                                                                                                                                        \
+	X(kValueWoodcutting, "Woodcutting")                                                                                                                                                                              \
 	X(kTipWarmRegion, "Southern forests such as the Rift and Falkreath.")                                                                                                                                            \
 	X(kTipCoolRegion, "Plains and hills such as Whiterun and the Reach.\nA mod's land too, unless it often snows there.")                                                                                            \
 	X(kTipFreezingRegion, "Snowy lands, high mountains, the northern coast and ice caves.")                                                                                                                          \
@@ -400,6 +415,8 @@
 	X(kTipWading, "Wading in water, not swimming.")                                                                                                                                                                  \
 	X(kTipSwimming, "Deep enough to swim.")                                                                                                                                                                          \
 	X(kTipSleeping, "Going to bed, in it or getting up.")                                                                                                                                                            \
+	X(kTipCooking, "A cooking pot, spit or oven.")                                                                                                                                                                   \
+	X(kTipSmithing, "A forge, anvil, workbench or grindstone.")                                                                                                                                                      \
 	X(kPhraseTown, "a town")                                                                                                                                                                                         \
 	X(kPhraseCastle, "a castle")                                                                                                                                                                                     \
 	X(kPhrasePlayerHome, "a player home")                                                                                                                                                                            \
@@ -414,6 +431,14 @@
 	X(kPhraseWading, "wading")                                                                                                                                                                                       \
 	X(kPhraseSwimming, "swimming")                                                                                                                                                                                   \
 	X(kPhraseSleeping, "sleeping")                                                                                                                                                                                   \
+	X(kPhraseAlchemy, "at an alchemy lab")                                                                                                                                                                           \
+	X(kPhraseCooking, "cooking")                                                                                                                                                                                     \
+	X(kPhraseEnchanting, "enchanting")                                                                                                                                                                               \
+	X(kPhraseSmithing, "smithing")                                                                                                                                                                                   \
+	X(kPhraseSmelting, "smelting")                                                                                                                                                                                   \
+	X(kPhraseTanning, "tanning")                                                                                                                                                                                     \
+	X(kPhraseMining, "mining")                                                                                                                                                                                       \
+	X(kPhraseWoodcutting, "chopping wood")                                                                                                                                                                           \
 	X(kClauseState, "{0}")                                                                                                                                                                                           \
 	X(kClauseNotState, "not {0}")                                                                                                                                                                                    \
 	X(kClauseYouState, "while you are {0}")                                                                                                                                                                          \

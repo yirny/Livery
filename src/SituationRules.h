@@ -40,7 +40,8 @@ namespace SituationRules
 		kPlace,
 		kWeather,
 		kTimeOfDay,
-		kSpell
+		kSpell,
+		kCrafting
 	};
 
 	// Whose state a row reads (Row::target): the character wearing the situation's outfit, or
@@ -69,6 +70,16 @@ namespace SituationRules
 	inline constexpr std::uint32_t kWading = 1u << 2;
 	inline constexpr std::uint32_t kSwimming = 1u << 3;
 	inline constexpr std::uint32_t kSleeping = 1u << 4;
+	// Crafting's values, bits of Row::values: what the furniture the actor uses is for. Smithing
+	// is the forge, anvil, workbench and grindstone.
+	inline constexpr std::uint32_t kAlchemy = 1u << 0;
+	inline constexpr std::uint32_t kCooking = 1u << 1;
+	inline constexpr std::uint32_t kEnchanting = 1u << 2;
+	inline constexpr std::uint32_t kSmithing = 1u << 3;
+	inline constexpr std::uint32_t kSmelting = 1u << 4;
+	inline constexpr std::uint32_t kTanning = 1u << 5;
+	inline constexpr std::uint32_t kMining = 1u << 6;
+	inline constexpr std::uint32_t kWoodcutting = 1u << 7;
 
 	inline constexpr std::uint16_t kMinutesPerDay = 24 * 60;
 
@@ -273,6 +284,17 @@ namespace SituationRules
 		{ kSleeping, "sleeping", Strings::Text::kValueSleeping, Strings::Text::kPhraseSleeping, Strings::Text::kTipSleeping, true },
 	} };
 
+	inline constexpr std::array<Value, 8> kCraftings{ {
+		{ kAlchemy, "alchemy", Strings::Text::kValueAlchemy, Strings::Text::kPhraseAlchemy },
+		{ kCooking, "cooking", Strings::Text::kValueCooking, Strings::Text::kPhraseCooking, Strings::Text::kTipCooking },
+		{ kEnchanting, "enchanting", Strings::Text::kValueEnchanting, Strings::Text::kPhraseEnchanting },
+		{ kSmithing, "smithing", Strings::Text::kValueSmithing, Strings::Text::kPhraseSmithing, Strings::Text::kTipSmithing, true },  // the smith's below
+		{ kSmelting, "smelting", Strings::Text::kValueSmelting, Strings::Text::kPhraseSmelting },
+		{ kTanning, "tanning", Strings::Text::kValueTanning, Strings::Text::kPhraseTanning },
+		{ kMining, "mining", Strings::Text::kValueMining, Strings::Text::kPhraseMining, std::nullopt, true },  // gathering below
+		{ kWoodcutting, "woodcutting", Strings::Text::kValueWoodcutting, Strings::Text::kPhraseWoodcutting },
+	} };
+
 	// A kind's clauses in the Applies line (KindInfo::clauses), each a whole clause: read of the
 	// wearer, that negated, read of the player (Target::kPlayer), and that negated. A kind that
 	// is not targetable has the first two alone.
@@ -298,7 +320,7 @@ namespace SituationRules
 	};
 
 	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them in its own order.
-	inline constexpr std::array<KindInfo, 7> kKinds{ {
+	inline constexpr std::array<KindInfo, 8> kKinds{ {
 		{ .kind = Kind::kState,
 			.key = "state",
 			.label = Strings::Text::kKindState,
@@ -357,6 +379,16 @@ namespace SituationRules
 			.clauses = { Strings::Text::kClauseSpell, Strings::Text::kClauseNotSpell, Strings::Text::kClauseYouSpell, Strings::Text::kClauseYouNotSpell },
 			.targetable = true,
 			.addTip = Strings::Text::kAddTipSpell },
+		// What the actor is doing at a piece of furniture, read as State's values are: its clauses
+		// are State's.
+		{ .kind = Kind::kCrafting,
+			.key = "crafting",
+			.label = Strings::Text::kKindCrafting,
+			.tip = Strings::Text::kTipCrafting,
+			.clauses = { Strings::Text::kClauseState, Strings::Text::kClauseNotState, Strings::Text::kClauseYouState, Strings::Text::kClauseYouNotState },
+			.values = kCraftings,
+			.targetable = true,
+			.addTip = Strings::Text::kAddTipCrafting },
 	} };
 
 	static_assert([] {
@@ -466,8 +498,8 @@ namespace SituationRules
 	}
 
 	// The row's clause in the Applies line (KindInfo::clauses): "in a town or a castle", "not
-	// in rain", "indoors", "in combat or at the ready", "at Breezehome or Whiterun", "while
-	// Oakflesh or Stoneflesh is on"; reading the player (Target::kPlayer), "while you are swimming", "while
+	// in rain", "indoors", "in combat or at the ready", "smithing or tanning", "at Breezehome or
+	// Whiterun", "while Oakflesh or Stoneflesh is on"; reading the player (Target::kPlayer), "while you are swimming", "while
 	// you are not in water", "while Stoneflesh is on you".
 	inline std::string RowText(const Row& a_row)
 	{
@@ -629,6 +661,7 @@ namespace SituationRules
 			case Kind::kLocationType:
 			case Kind::kWeather:
 			case Kind::kState:
+			case Kind::kCrafting:
 				return (inner.values & ~outer.values) == 0;
 			case Kind::kIndoors:
 				return true;  // the same side of the door

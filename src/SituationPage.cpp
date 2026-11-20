@@ -987,7 +987,8 @@ namespace CaptureWindow::Internal
 
 		// The operator a row reads with: "is" / "is not" up to one selected, "is any of" / "is none
 		// of" with more (`a_several`); an Active Effects row "is affected by" / "is not affected by",
-		// "is affected by any of" / "is not affected by any of"; a Time of day row "between" / "not
+		// "is affected by any of" / "is not affected by any of"; a Crafting row "is doing" / "is not
+		// doing", "is doing any of" / "is doing none of"; a Time of day row "between" / "not
 		// between". An Indoors row has its two choices there instead, "Indoors" / "Outdoors".
 		Text OperatorText(SituationRules::Kind a_kind, bool a_several, bool a_negated)
 		{
@@ -1002,6 +1003,12 @@ namespace CaptureWindow::Internal
 					return a_negated ? Text::kOperatorHasNoneOf : Text::kOperatorHasAnyOf;
 				}
 				return a_negated ? Text::kOperatorHasNot : Text::kOperatorHas;
+			}
+			if (a_kind == SituationRules::Kind::kCrafting) {
+				if (a_several) {
+					return a_negated ? Text::kOperatorDoingNoneOf : Text::kOperatorDoingAnyOf;
+				}
+				return a_negated ? Text::kOperatorNotDoing : Text::kOperatorDoing;
 			}
 			if (a_several) {
 				return a_negated ? Text::kOperatorIsNoneOf : Text::kOperatorIsAnyOf;
@@ -1464,9 +1471,9 @@ namespace CaptureWindow::Internal
 		std::optional<SituationRules::Kind> DrawAddCondition()
 		{
 			using Kind = SituationRules::Kind;
-			// The location kinds next to each other.
-			constexpr std::array<Kind, SituationRules::kKinds.size()> kOrder{ Kind::kState, Kind::kLocationType, Kind::kPlace, Kind::kIndoors, Kind::kWeather,
-				Kind::kTimeOfDay, Kind::kSpell };
+			// What the actor does first, then the location kinds next to each other.
+			constexpr std::array<Kind, SituationRules::kKinds.size()> kOrder{ Kind::kState, Kind::kCrafting, Kind::kLocationType, Kind::kPlace, Kind::kIndoors,
+				Kind::kWeather, Kind::kTimeOfDay, Kind::kSpell };
 
 			const char*             label = Strings::Get(Text::kAddCondition);
 			const Theme::FieldStyle style{ .icon = Theme::FieldIcon::kAdd, .previewIsHint = true };
