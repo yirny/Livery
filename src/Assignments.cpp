@@ -1505,6 +1505,19 @@ namespace Assignments
 		return true;
 	}
 
+	// Redress's test without the dressing: on the row they wear, OutfitFor keeps the outfit
+	// worn while the row still has it, so no random pick is drawn for nothing.
+	bool WouldRedress(RE::Actor& a_actor, const Situations::Applicable& a_now)
+	{
+		const auto* assignment = FindAssignment(a_actor.GetFormID());
+		if (!assignment) {
+			return false;
+		}
+		const auto rows = LiveRows(*assignment);
+		const auto row = OutfitRows::Resolve(rows, a_now);
+		return row != assignment->worn || OutfitFor(*assignment, rows, row, {}) != assignment->wornOutfit;
+	}
+
 	Situations::Applicable SituationsNow(RE::Actor& a_actor)
 	{
 		const auto* assignment = FindAssignment(a_actor.GetFormID());

@@ -257,9 +257,9 @@ namespace Situations
 	void Stop();
 
 	// Forgets what the poll last saw of everyone, so its next passes dress each actor for their
-	// situations as they are now (one redress per poll, as ever). For the window's close: its
-	// dressings and its edits of the situations' conditions and order pass the poll by, so what
-	// it last saw may match now while they wear another row's outfit.
+	// situations as they are now (one redress per poll, as ever). For the close of a window that
+	// saved the situations' conditions or order, or restored the presets: those pass the poll
+	// by, so what it last saw may match now while another row's outfit is due.
 	// Contract: game thread.
 	void SeeAnew();
 }

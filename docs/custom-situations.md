@@ -418,7 +418,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   `youNegated`). A row with nothing selected reads `Weather (nothing selected)`; a situation
   without rows `-` (a new situation's first state, no error).
 - The editor's edits save once its popup closes (the page's autosave waits while a popup is
-  open) or as the page is left, the file first. The captured actor is dressed for the changed conditions at once; for the others the poll, which waits
+  open) or as the page is left, the file first. The captured actor is dressed for the changed conditions at once when another row or outfit is due; for the others the poll, which waits
   while the window is open, follows them once it closes.
 - While a situation is never worn (§8a), its Edit situation popup says so under the name, after a field's
   gap, in the error colour, each sentence wrapped (`Theme::RunTextWrapped`): `Never worn:

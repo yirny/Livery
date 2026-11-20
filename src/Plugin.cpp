@@ -1008,6 +1008,11 @@ namespace
 	// before that load closes the window.
 	std::vector<RE::FormID> g_redressAtClose;
 
+	// The open window saved the situations' conditions or order, or restored the presets: at
+	// its close the poll sees everyone anew (Situations::SeeAnew).
+	// Contract: game thread; read and cleared by the close.
+	bool g_situationsEdited = false;
+
 	void QueueRedress(RE::FormID actor)
 	{
 		if (std::ranges::find(g_redressAtClose, actor) == g_redressAtClose.end()) {
@@ -1485,10 +1490,12 @@ namespace
 					CaptureWindow::SetError(*error);
 					return;
 				}
-				// No HUD message: the page saves as it is edited. The captured actor is dressed for
-				// the changed conditions or order below; the others when the window closes, by the
-				// poll (Situations::SeeAnew), which waits while it is open.
+				// No HUD message for the save: the page saves as it is edited. The captured actor is
+				// dressed for the changed conditions or order below, with the poll's message; the
+				// others when the window closes, by the poll (Situations::SeeAnew), which waits
+				// while it is open.
 				logger::info("Saved the situations' names, conditions and order.");
+				g_situationsEdited = true;
 			}
 			const auto                                target = handle.get();
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};
@@ -1504,8 +1511,9 @@ namespace
 				}
 			}
 			// Changed conditions or order with no row dressed for above: what applies to them now
-			// goes on at once, as the poll would put it on (nothing when it is what they wear).
-			if (written && !redressed && target && !target->IsDead()) {
+			// goes on at once, as the poll would put it on. When it is what they wear, nothing
+			// runs, so the preview and the Dress page's ticks stay as they are.
+			if (written && !redressed && target && !target->IsDead() && Assignments::WouldRedress(*target, Assignments::SituationsNow(*target))) {
 				redressed = RedressCaptured(*target, {}, armors, offered, save.previewPieces ? &shown : nullptr);
 			}
 			auto list = CurrentOutfitList(actorID, armors);  // after the rows changed
@@ -1525,7 +1533,7 @@ namespace
 			CaptureWindow::SetOutfits(std::move(list));
 		};
 		// The source's conditions under a new name, right after it; nobody's rows change, and
-		// nobody is redressed: the poll follows the order once the window closes (Situations::SeeAnew).
+		// nobody is redressed, as the new situation holds no outfit on any row.
 		request.onSituationDuplicate = [actorID, armors](Situations::Situation source, const std::string& name) {
 			auto created = Situations::Situation::kDefault;
 			if (const auto error = SituationStore::Duplicate(source, name, created)) {
@@ -1568,6 +1576,7 @@ namespace
 				return;
 			}
 			Notify(Strings::Get(Strings::Text::kHudRestoredPresets));
+			g_situationsEdited = true;
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
 		// The Edit situation popup's conditions, as edited, read for the actor now: nothing is
@@ -1735,15 +1744,17 @@ namespace
 		}
 		// Every close, whatever closed the window, ends the camera and the preview, redresses the actors
 		// the Wardrobe page or the Situations page left for it, has the poll see everyone anew
-		// (Situations::SeeAnew), lets saving back on, lets an NPC walk again and writes the lists'
-		// sorts the player changed.
+		// when the situations' conditions or order changed (Situations::SeeAnew), lets saving
+		// back on, lets an NPC walk again and writes the lists' sorts the player changed.
 		request.onClose = [] {
 			g_capturedActor = 0;
 			g_refreshCapturedWorn = nullptr;
 			FreeCamera::End();
 			OutfitPreview::End();
 			RedressAtClose();
-			Situations::SeeAnew();
+			if (std::exchange(g_situationsEdited, false)) {
+				Situations::SeeAnew();
+			}
 			AllowSaving();
 			MovementHold::End();
 			NpcReaction::End();
