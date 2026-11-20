@@ -237,13 +237,13 @@ keeps its installed rules. Shape:
 
 Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order (§8).
 
-- The Situation List: the Default's heading first, pinned, then the caption `The lowest that
-  applies is worn.` as a list heading (`Theme::ListHeading`) with a plain 1px rule after it in
-  every skin, so it does not read as a situation's heading, then one
+- The Situation List: the Default's heading first, pinned, then a plain 1px rule in every
+  skin (`Theme::ListHeading` with no text), so it does not read as a situation's heading
+  (the order itself is told by the label's help), then one
   heading per situation not removed in the order (`SituationForm::order`, request.situations'
   until a drag), each dragged from anywhere on its heading (`kSituationPayload`, apart from the
   outfits') to another place among them, with `Request::customSituations`: over a heading's
-  upper half before it, anywhere lower in its block after it, on the caption first; the drop
+  upper half before it, anywhere lower in its block after it, on the rule first; the drop
   shows as a line, as an outfit's does between outfits, and a see-through copy of the heading
   follows the mouse (`Theme::SituationDragGhost`), as an outfit row's does. While the heading
   is hovered, grip dots take the star's place, where the rows' dots under it are
@@ -269,7 +269,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   are met.` and `If a condition has multiple values, meeting any one of them satisfies that
   condition.`, over the
   Applies text (below), each condition's phrase a link (`Theme::RunLinks`). A condition met
-  now is in the palette's `Positive` colour (`#B7DA7B` in every shipped palette); a hovered
+  now is in the palette's `Positive` colour (`#B7DA7B` in every shipped palette), one with
+  nothing selected is greyed; a hovered
   phrase's tooltip says `Met now.` or `Not met now.` With `Request::customSituations` the rest
   is in the text colour, a hovered phrase is lit and underlined, and a click scrolls the editor
   to that condition and fills its box in a selected row's colour, fading out over 1.5 s. Off,
@@ -280,8 +281,10 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   differ from those last asked and every 0.5 s once the last ask was answered;
   `Situations::RowsHold` reads each row alone for the actor now, as the poll reads it, in
   combat or not, and `CaptureWindow::SetConditionsHeld` hands the answer back, taken for the
-  latest ask only. Until the first answer no condition is coloured. `Allow during combat` is no
-  row and has no colour. Nothing runs while the popup is closed.
+  latest ask only. Until the answer to the rows shown comes no condition is coloured. `Allow
+  during combat` is no row and has no colour. The Situation List's heading tooltips ask the
+  same way for the hovered situation (docs/situation-management-ui.md §3); nothing runs while
+  the popup is closed and no heading is hovered.
 - The `Edit situation` popup (docs/situation-management-ui.md §5), a modal (every modal of the
   window: the main window's padding, Vanilla's frame and Nordic's ornaments over the popup's
   own background, moved by a drag on it as the main window is, never with ImGui's own scroll
@@ -402,7 +405,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   (`Clauses::negated`); reading the player, `while you are in combat`, `while you are not
   sleeping`, `while Stoneflesh is on you`, `while your weapon is drawn`, `while your weapons are
   sheathed` (`Clauses::you`, `youNegated`). A row with nothing selected reads `Weather (nothing
-  selected)`; a situation without rows `Never applies.`
+  selected)`; a situation without rows `-` (a new situation's first state, no error).
 - The editor's edits save once its popup closes (the page's autosave waits while a popup is
   open) or as the page is left, the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
@@ -453,7 +456,7 @@ the Add place popup offers; one pass over the loaded locations, only when one of
 location); a place whose plugin is not loaded gives none. The page works the mark out
 (`SituationForm::neverWornBy`, the nearest covering situation below) before it draws after the
 form was filled, a condition edited or the order changed. A situation that never applies (no rows, or a row with nothing selected) is
-not marked, as its Applies line says so, and covers nothing. Nothing else is told, so a missing
+not marked, as its Applies line shows (`-`, or the row greyed), and covers nothing. Nothing else is told, so a missing
 mark proves nothing; the tooltip names what was found. The mark does not read the actor's rows
 (whether they have an outfit for B): the file is every save's; revisited after use.
 

@@ -729,7 +729,6 @@ namespace
 			const auto* rules = SituationStore::RulesOf(situation);
 			infos.push_back({ .situation = situation,
 				.name = SituationStore::Name(situation),
-				.conditions = rules ? SituationRules::Text(*rules) : Strings::Get(Strings::Text::kDefaultConditions),
 				.user = Situations::IsUser(situation),
 				.rules = rules ? *rules : SituationRules::Rules{},
 				.holders = std::move(holders) });
@@ -1570,6 +1569,13 @@ namespace
 		request.onCheckConditions = [handle](std::uint32_t ask, const std::vector<SituationRules::Row>& rows) {
 			if (const auto target = handle.get()) {
 				CaptureWindow::SetConditionsHeld(ask, Situations::RowsHold(*target, rows));
+			}
+		};
+		// What applies to the actor now, for the Situation List's colours: nothing is written and
+		// nobody is redressed.
+		request.onCheckSituations = [handle](std::uint32_t ask) {
+			if (const auto target = handle.get()) {
+				CaptureWindow::SetSituationsNow(ask, Assignments::SituationsNow(*target));
 			}
 		};
 	}

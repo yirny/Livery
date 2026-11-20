@@ -12,10 +12,12 @@
 //                     the outfit list (taken off its row); a folded heading opens once a drag
 //                     has hovered it a while; a situation dropped between two others (the order)
 //   Never worn      - which situations one lower in the list covers (SituationRules::CoveredBy)
-//   Situation List  - the left pane: the Default's heading, the order's caption, then a heading
-//                     per situation in the order (Edit opens the Edit situation popup, its chevron
+//   Situation List  - the left pane: the Default's heading, a rule, then a heading per
+//                     situation in the order (Edit opens the Edit situation popup, its chevron
 //                     folds, the die of the row worn puts on another of its outfits) over the
-//                     outfits it shows; a click on an outfit row of either pane shows its details
+//                     outfits it shows, the one worn now green, one met but outranked faint
+//                     green (CheckSituations), its Applies text with its conditions coloured
+//                     as a tooltip; a click on an outfit row of either pane shows its details
 //                     and puts it on the preview
 //   Condition editor - a situation's conditions (docs/custom-situations.md §7): per condition a
 //                     heading with its Remove and a row that reads as a sentence (whose state, "is" or
@@ -49,6 +51,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cmath>
 #include <cstring>
 #include <format>
 #include <optional>
@@ -92,8 +95,6 @@ namespace CaptureWindow::Internal
 		constexpr std::uint16_t kTimeStep = 30;
 		// A situation dragged by its heading's grip to another place in the order.
 		constexpr const char* kSituationPayload = "LiverySituation";
-		// Under the Default's heading, over the order.
-		constexpr Strings::Ref kOrderCaption{ Text::kOrderCaption };
 
 		// --- Edits ------------------------------------------------------------
 
@@ -419,6 +420,184 @@ namespace CaptureWindow::Internal
 
 		// --- Situation List ---------------------------------------------------
 
+		// The number of the last ask handed to Request::onCheckConditions, never reset, so an
+		// answer to an ask of a window closed since matches none.
+		// Contract: under the window state's mutex (the page draws, SetConditionsHeld reads the form).
+		std::uint32_t g_checkAsks = 0;
+
+		// Asks Request::onCheckConditions whether each of `a_rules`' conditions is met now: at once
+		// when they differ from those last asked (another situation, an edit), else every
+		// kHoldsRefresh once the last ask was answered, so a stalled game thread gets no queue of
+		// asks. SetConditionsHeld takes the answer to the latest ask only.
+		void CheckConditions(State& a_state, const SituationRules::Rules& a_rules)
+		{
+			auto&       form = a_state.situationForm;
+			const auto& onCheck = a_state.request.onCheckConditions;
+			if (!onCheck || a_rules.rows.empty()) {
+				return;
+			}
+			const double now = ImGui::GetTime();
+			if (a_rules.rows == form.checkedRows && (!form.checkAnswered || now - form.checkedAt < kHoldsRefresh)) {
+				return;
+			}
+			form.checkedRows = a_rules.rows;
+			form.checkedAt = now;
+			form.checkAnswered = false;
+			form.checkAsk = ++g_checkAsks;
+			SKSE::GetTaskInterface()->AddTask([onCheck, ask = form.checkAsk, rows = a_rules.rows] { onCheck(ask, rows); });
+		}
+
+		// The number of the last ask handed to Request::onCheckSituations, never reset, so an
+		// answer to an ask of a window closed since matches none.
+		// Contract: under the window state's mutex (the page draws, SetSituationsNow reads the form).
+		std::uint32_t g_situationsAsks = 0;
+
+		// Asks Request::onCheckSituations what applies to the actor now: at once the first time,
+		// then every kHoldsRefresh once the last ask was answered, so a stalled game thread gets
+		// no queue of asks. SetSituationsNow takes the answer to the latest ask only.
+		void CheckSituations(State& a_state)
+		{
+			auto&       form = a_state.situationForm;
+			const auto& onCheck = a_state.request.onCheckSituations;
+			if (!onCheck) {
+				return;
+			}
+			const double now = ImGui::GetTime();
+			if (form.situationsAsk != 0 && (!form.situationsAnswered || now - form.situationsAskedAt < kHoldsRefresh)) {
+				return;
+			}
+			form.situationsAskedAt = now;
+			form.situationsAnswered = false;
+			form.situationsAsk = ++g_situationsAsks;
+			SKSE::GetTaskInterface()->AddTask([onCheck, ask = form.situationsAsk] { onCheck(ask); });
+		}
+
+		// How entry `a_entry` stands by the last answer (SituationForm::situationsNow).
+		enum class NowState
+		{
+			kNone,      // not met, or no answer yet
+			kWorn,      // the one worn now: the lowest that applies, or the Default while none does
+			kOutranked  // met now, but a lower situation is worn
+		};
+
+		NowState StateNow(const State& a_state, std::size_t a_entry)
+		{
+			const auto& form = a_state.situationForm;
+			if (!form.situationsAnswered) {
+				return NowState::kNone;
+			}
+			const auto& now = form.situationsNow;
+			if (a_entry == 0) {
+				return now.count == 0 ? NowState::kWorn : NowState::kNone;
+			}
+			const auto situation = a_state.request.situations[a_entry].situation;
+			const auto items = std::span(now.items.data(), now.count);
+			const auto found = std::ranges::find(items, situation);
+			if (found == items.end()) {
+				return NowState::kNone;
+			}
+			return found == items.begin() ? NowState::kWorn : NowState::kOutranked;
+		}
+
+		// The entry worn now (StateNow's kWorn) by the last answer; 0, the Default, until an answer.
+		std::size_t EntryWornNow(const State& a_state)
+		{
+			const auto& form = a_state.situationForm;
+			if (!form.situationsAnswered || form.situationsNow.count == 0) {
+				return 0;
+			}
+			const auto& situations = a_state.request.situations;
+			for (std::size_t i = 1; i < situations.size(); ++i) {
+				if (situations[i].situation == form.situationsNow.items[0]) {
+					return i;
+				}
+			}
+			return 0;
+		}
+
+		// The answer to the latest ask (CheckConditions) while it is `a_rules`' own: whether each
+		// condition is met now, one per row; empty while unknown.
+		const std::vector<bool>& HeldFor(const State& a_state, const SituationRules::Rules& a_rules)
+		{
+			static const std::vector<bool> kUnknown;
+			const auto&                    form = a_state.situationForm;
+			return form.checkAnswered && form.checkedRows == a_rules.rows ? form.conditionsHeld : kUnknown;
+		}
+
+		// A user's situation's Applies text as SituationRules::Text words it, for Theme::RunLinks:
+		// a phrase per even run, the separators and the full stop between (run / 2 is the row), a
+		// condition met by `a_held` (HeldFor) in the palette's positive colour, one with nothing
+		// selected greyed. `a_phrases` keeps the texts the runs point into.
+		// Contract: a_rules has rows; the runs are valid while `a_phrases` is.
+		std::vector<Theme::LinkRun> AppliesRuns(const SituationRules::Rules& a_rules, const std::vector<bool>& a_held, std::vector<std::string>& a_phrases)
+		{
+			a_phrases.clear();
+			a_phrases.reserve(a_rules.rows.size());
+			for (const auto& row : a_rules.rows) {
+				a_phrases.push_back(SituationRules::RowText(row));
+			}
+			auto& first = a_phrases.front();
+			if (!first.empty() && first[0] >= 'a' && first[0] <= 'z') {
+				first[0] = static_cast<char>(first[0] - 'a' + 'A');
+			}
+			const bool                  known = a_held.size() == a_rules.rows.size();
+			const auto                  positive = Theme::PositiveColor();
+			const auto                  grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+			std::vector<Theme::LinkRun> runs;
+			runs.reserve(a_phrases.size() * 2);
+			for (std::size_t i = 0; i < a_phrases.size(); ++i) {
+				if (i > 0) {
+					runs.push_back({ Strings::Get(Text::kListSeparator), false });
+				}
+				const unsigned color = SituationRules::NothingSelected(a_rules.rows[i]) ? grey : known && a_held[i] ? positive :
+				                                                                                                      0u;
+				runs.push_back({ a_phrases[i].c_str(), true, color });
+			}
+			runs.push_back({ Strings::Get(Text::kAppliesEnd), false });
+			return runs;
+		}
+
+		// A blank line between two blocks of a tooltip, as "\n\n" leaves in one text.
+		void TooltipBlankLine()
+		{
+			const auto& style = ImGui::GetStyle();
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 0.0f));
+			ImGui::Dummy(ImVec2(0.0f, (std::max)(0.0f, ImGui::GetTextLineHeight() - style.ItemSpacing.y)));
+			ImGui::PopStyleVar();
+		}
+
+		// A heading's tooltip: for entry `a_by` (NeverWornBy, if any) why it is never worn, else
+		// for one met but outranked which situation is worn instead, each followed by a blank
+		// line; then its Applies text, the Default's words or AppliesRuns with the conditions
+		// met now coloured (CheckConditions asks for the hovered entry's rules).
+		void DrawHeadingTip(State& a_state, std::size_t a_entry, std::optional<std::size_t> a_by)
+		{
+			auto&       form = a_state.situationForm;
+			const auto& rules = form.entries[a_entry].rules;
+			BeginHelpTooltip();
+			if (a_by) {
+				DrawNeverWornText(form, *a_by);
+				TooltipBlankLine();
+			} else if (StateNow(a_state, a_entry) == NowState::kOutranked) {
+				const auto worn = EntryWornNow(a_state);
+				const auto name = Trimmed(form.entries[worn].name.data());
+				const auto why = RunsOf(Text::kMetButOverridden, { SituationRun(name.c_str(), worn == 0) });
+				Theme::RunTextWrapped(why.Parts());
+				TooltipBlankLine();
+			}
+			if (a_entry == 0) {
+				ImGui::TextUnformatted(Strings::Get(Text::kDefaultConditions));
+			} else if (rules.rows.empty()) {
+				ImGui::TextUnformatted(SituationRules::Text(rules).c_str());
+			} else {
+				CheckConditions(a_state, rules);
+				std::vector<std::string> phrases;
+				const auto               runs = AppliesRuns(rules, HeldFor(a_state, rules), phrases);
+				Theme::RunLinks(runs, false);
+			}
+			EndHelpTooltip();
+		}
+
 		// Back from an outfit's details: the right pane shows what it showed before them, and
 		// the preview the Dress page's ticks again.
 		void CloseOutfitView(State& a_state)
@@ -590,9 +769,11 @@ namespace CaptureWindow::Internal
 		// drawn selected while the popup is open on it. Every heading
 		// but the Default's drags from anywhere on it to another place in the order while the page
 		// offers that (Request::customSituations). A heading that is never worn carries a warning
-		// mark after its name, saying why on hover (DrawNeverWornText); one whose situation makes
+		// mark after its name, saying why on hover, then its Applies text (DrawHeadingTip, which
+		// the hovered name shows too); one whose situation makes
 		// the one the popup is open on, or the one whose mark is hovered, never worn has its name in the error
-		// colour (Overrides): those are lower in the list, drawn after the mark. Its die and
+		// colour (Overrides): those are lower in the list, drawn after the mark; else the name of
+		// the one worn now is in the positive colour, one met but outranked fainter (StateNow). Its die and
 		// count show with random on alone; the die is a button as DiceOf says. Only random on
 		// with something to show has the chevron; else it is never folded (random off shows its
 		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
@@ -615,8 +796,26 @@ namespace CaptureWindow::Internal
 			const auto  neverWornBy = NeverWornBy(form, a_entry);
 			const bool  grip = a_entry != 0 && a_state.request.customSituations;
 			const float top = ImGui::GetCursorScreenPos().y;
-			bool        warningHovered = false;
-			const auto  click = Theme::SituationHeading(entry.name.data(),
+			// The name's colour by what applies now (StateNow): worn, the positive colour; met but
+			// outranked, the same at kOutrankedAlpha of its opacity; a heading wearing nothing stays greyed.
+			constexpr float kOutrankedAlpha = 0.5f;
+			unsigned        nameColor = 0;
+			if (shows) {
+				switch (StateNow(a_state, a_entry)) {
+				case NowState::kWorn:
+					nameColor = Theme::PositiveColor();
+					break;
+				case NowState::kOutranked:
+					nameColor = Theme::PositiveColor();
+					nameColor = (nameColor & ~IM_COL32_A_MASK) | (static_cast<unsigned>(std::lround((nameColor >> IM_COL32_A_SHIFT) * kOutrankedAlpha)) << IM_COL32_A_SHIFT);
+					break;
+				case NowState::kNone:
+					break;
+				}
+			}
+			bool       warningHovered = false;
+			bool       nameHovered = false;
+			const auto click = Theme::SituationHeading(entry.name.data(),
 				{ .count = entry.row.random ? static_cast<int>(entry.row.outfits.size()) : -1,
 					.random = entry.row.random,
 					.diceButton = dice.button,
@@ -628,14 +827,15 @@ namespace CaptureWindow::Internal
 					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
 					.grip = grip,
 					.alert = Overrides(form, editedNow, a_entry) || Overrides(form, form.warningHovered, a_entry),
+					.nameColor = nameColor,
 					.warning = neverWornBy.has_value(),
 					.warningHovered = &warningHovered,
-					.nameTip = a_state.request.situations[a_entry].conditions.c_str() });
+					.nameHovered = &nameHovered });
 			if (warningHovered) {
 				form.warningHovered = index;
-				BeginHelpTooltip();
-				DrawNeverWornText(form, *neverWornBy);
-				EndHelpTooltip();
+				DrawHeadingTip(a_state, a_entry, neverWornBy);
+			} else if (nameHovered) {
+				DrawHeadingTip(a_state, a_entry, std::nullopt);
 			}
 			if (grip) {
 				OfferSituationDrag(a_entry, entry.name.data());
@@ -710,14 +910,15 @@ namespace CaptureWindow::Internal
 			int  edit = -1;     // a heading's Edit: the entry to open the Edit situation popup on; -1 for none
 		};
 
-		// The left pane: the Situation List (?) label over the Default's heading, the order's
-		// caption, then a heading per situation in the order.
+		// The left pane: the Situation List (?) label over the Default's heading, a rule, then a
+		// heading per situation in the order.
 		ListClick DrawSituationList(State& a_state)
 		{
 			auto& form = a_state.situationForm;
 			if (form.neverWornStale) {
 				TellNeverWorn(a_state);
 			}
+			CheckSituations(a_state);
 			form.warningHovered = -1;  // set again by its heading, before those it names
 			const float paneTop = ImGui::GetCursorPosY();
 			Theme::LabelText(Strings::Get(Text::kSituationList));
@@ -743,9 +944,9 @@ namespace CaptureWindow::Internal
 				take(DrawSituationEntry(a_state, 0, dragHovered), 0);
 				ImGui::PopID();
 				if (!form.order.empty()) {
-					// The caption takes a situation dropped on it first in the order.
+					// The rule between the Default and the order takes a situation dropped on it first.
 					const float captionTop = ImGui::GetCursorScreenPos().y;
-					Theme::ListHeading(kOrderCaption, Theme::HeadingIcon::kNone, true);  // a plain rule: no situation's heading
+					Theme::ListHeading("", Theme::HeadingIcon::kNone, true);  // a plain rule alone: no situation's heading
 					const float  captionBottom = ImGui::GetCursorScreenPos().y;
 					const float  left = ImGui::GetWindowPos().x;
 					const ImRect caption(ImVec2(left, captionTop), ImVec2(left + ImGui::GetWindowWidth(), captionBottom));
@@ -1577,69 +1778,22 @@ namespace CaptureWindow::Internal
 			ImGui::PopStyleColor();
 		}
 
-		// The number of the last ask handed to Request::onCheckConditions, never reset, so an
-		// answer to an ask of a window closed since matches none.
-		// Contract: under the window state's mutex (the page draws, SetConditionsHeld reads the form).
-		std::uint32_t g_checkAsks = 0;
-
-		// Asks Request::onCheckConditions whether each of `a_rules`' conditions is met now: at once
-		// when they differ from those last asked (another situation, an edit), else every
-		// kHoldsRefresh once the last ask was answered, so a stalled game thread gets no queue of
-		// asks. SetConditionsHeld takes the answer to the latest ask only.
-		void CheckConditions(State& a_state, const SituationRules::Rules& a_rules)
-		{
-			auto&       form = a_state.situationForm;
-			const auto& onCheck = a_state.request.onCheckConditions;
-			if (!onCheck || a_rules.rows.empty()) {
-				return;
-			}
-			const double now = ImGui::GetTime();
-			if (a_rules.rows == form.checkedRows && (!form.checkAnswered || now - form.checkedAt < kHoldsRefresh)) {
-				return;
-			}
-			form.checkedRows = a_rules.rows;
-			form.checkedAt = now;
-			form.checkAnswered = false;
-			form.checkAsk = ++g_checkAsks;
-			SKSE::GetTaskInterface()->AddTask([onCheck, ask = form.checkAsk, rows = a_rules.rows] { onCheck(ask, rows); });
-		}
-
-		// A user's situation's Applies text as SituationRules::Text words it, each condition a link
-		// (Theme::RunLinks), where a field's text sits (DrawFieldText), in the text colour pushed
-		// now, a condition met now (CheckConditions) in the palette's positive colour: lit while
-		// hovered with the editor on offer (Request::customSituations); its tooltip says whether it
-		// is met now, and without the editor how to offer it. Returns the condition clicked (index
-		// into rules.rows), or -1.
+		// A user's situation's Applies text (AppliesRuns), each condition a link (Theme::RunLinks),
+		// where a field's text sits (DrawFieldText), in the text colour pushed now, a condition met
+		// now (CheckConditions) in the palette's positive colour: lit while hovered with the editor
+		// on offer (Request::customSituations); its tooltip says whether it is met now, and without
+		// the editor how to offer it. An edit's rows are uncoloured until their own answer comes, a
+		// frame or so later. Returns the condition clicked (index into rules.rows), or -1.
 		int DrawAppliesLinks(const State& a_state, const SituationRules::Rules& a_rules)
 		{
 			if (a_rules.rows.empty()) {
-				DrawFieldText(SituationRules::Text(a_rules).c_str());  // "Never applies."
+				DrawFieldText(SituationRules::Text(a_rules).c_str());  // "-"
 				return -1;
 			}
+			const auto&              held = HeldFor(a_state, a_rules);
+			const bool               known = !held.empty();
 			std::vector<std::string> phrases;
-			phrases.reserve(a_rules.rows.size());
-			for (const auto& row : a_rules.rows) {
-				phrases.push_back(SituationRules::RowText(row));
-			}
-			auto& first = phrases.front();
-			if (!first.empty() && first[0] >= 'a' && first[0] <= 'z') {
-				first[0] = static_cast<char>(first[0] - 'a' + 'A');
-			}
-			// The answer to the latest ask, while it is one per row: an edit's rows are coloured by the
-			// answer before it until its own comes, a frame or so later.
-			const auto& held = a_state.situationForm.conditionsHeld;
-			const bool  known = held.size() == a_rules.rows.size();
-			const auto  positive = Theme::PositiveColor();
-			// A phrase per even index, the commas and the full stop between: run / 2 is the row.
-			std::vector<Theme::LinkRun> runs;
-			runs.reserve(phrases.size() * 2);
-			for (std::size_t i = 0; i < phrases.size(); ++i) {
-				if (i > 0) {
-					runs.push_back({ Strings::Get(Text::kListSeparator), false });
-				}
-				runs.push_back({ phrases[i].c_str(), true, known && held[i] ? positive : 0u });
-			}
-			runs.push_back({ Strings::Get(Text::kAppliesEnd), false });
+			const auto               runs = AppliesRuns(a_rules, held, phrases);
 
 			const bool editable = a_state.request.customSituations;
 			int        hovered = -1;

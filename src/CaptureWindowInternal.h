@@ -291,6 +291,13 @@ namespace CaptureWindow::Internal
 		std::uint32_t                    checkAsk = 0;
 		bool                             checkAnswered = false;
 		std::vector<bool>                conditionsHeld;
+		// The Situation List's ask what applies now (Request::onCheckSituations), as checkedRows'
+		// ask: its number, when it was made, whether it was answered (SetSituationsNow); the last
+		// answer taken, the situation worn first; none before the first answer.
+		std::uint32_t          situationsAsk = 0;
+		double                 situationsAskedAt = 0.0;
+		bool                   situationsAnswered = false;
+		Situations::Applicable situationsNow;
 	};
 
 	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), saved as they are

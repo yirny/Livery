@@ -158,7 +158,7 @@ outfit for Town any more`.
   takes priority. Otherwise, the default outfit is worn.` / `Drag a situation by its grip to
   reorder it.`, a line each, the last only with `Enable custom situations`
   (docs/custom-situations.md §1). (The order: docs/custom-situations.md §8.)
-- The Default's heading first, pinned, under it the rule and caption of
+- The Default's heading first, pinned, under it the rule of
   docs/custom-situations.md §7, then one heading per situation not removed in
   `Situations::Order()`, each with a grip that drags it with `Enable custom situations` (§7 there). Each: the star of the Situations tab (none for the Default, whose name starts in its place), a square 4px short of the name's line height in the name's colour, 14px in from the row's left edge, then 6px on the name in the outfit list's row style,
   which leaves the select mark its room; with
@@ -171,8 +171,19 @@ outfit for Town any more`.
   and `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
-  Hovering the star or the name shows the situation's `Applies` text (§5's, the Default's
-  without its star) as a tooltip (`SituationHeadingLook::nameTip`).
+  The name and star of the situation worn now (the lowest that applies, or the Default while
+  none does) are in the palette's `Positive` colour; those of a situation met now but outranked
+  by a lower one, in that colour at half opacity; a heading wearing nothing stays greyed; the
+  never-worn error colour wins (`SituationHeadingLook::nameColor`). While the page shows the
+  list, the window asks `Request::onCheckSituations` what applies now, at once and every 0.5 s
+  once answered (`Assignments::SituationsNow`, the poll's reading; `CaptureWindow::
+  SetSituationsNow` takes the latest ask's answer); nothing is coloured before the first answer.
+  Hovering the star or the name shows a tooltip (`SituationHeadingLook::nameHovered`): for an
+  outranked situation `Met now, but #{Situation} takes priority.` naming the one worn, with its
+  star, then a blank line; then the situation's `Applies` text (§5's, each condition met now in
+  the `Positive` colour, one with nothing selected greyed, asked for the hovered situation as the
+  popup asks for its own; the Default's words without its star). The never-worn mark's tooltip
+  (docs/custom-situations.md §7) ends with the same `Applies` text after a blank line.
 - Click areas: from the chevron (with its padding) to the die (to Edit with no die), rule
   included, folds; left of it is the name's area (with no chevron, everything left of the die
   or Edit), hovered as a row is but doing nothing when clicked; the die with 4px on each side;
@@ -384,10 +395,10 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   (`LabelLineLink`),
   Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
-  Applies text, whether the user's, rules, who has outfits on it) from the store; each row's
+  whether the user's, rules, who has outfits on it) from the store; each row's
   `outfits`, `random`, `chosen` for the captured actor; `onSituationsSave`,
   `onSituationCreate`, `onSituationDuplicate`, `onSituationRemove`, `onRestorePresets`, each
-  writing first by §5/§6; `onCheckConditions`, which writes nothing.
+  writing first by §5/§6; `onCheckConditions` and `onCheckSituations`, which write nothing.
 - `Plugin.cpp`: the handlers, the redress queue (docs/outfit-management-ui.md §6), the
   summary line.
 

@@ -237,7 +237,6 @@
 	X(kSituationList, "Situation List")                                                                                                                                                                              \
 	X(kSituationListHelp, "Each situation lists the outfits {0} can wear in it.\nThe lowest applicable situation takes priority. Otherwise, the default outfit is worn.")                                            \
 	X(kSituationListHelpDrag, "Drag a situation by its grip to reorder it.")                                                                                                                                         \
-	X(kOrderCaption, "The lowest that applies is worn.")                                                                                                                                                             \
 	X(kDefaultConditions, "Worn where no situation applies,\nand in combat.")                                                                                                                                        \
 	X(kItemsNotInWardrobe, "Items not in the Wardrobe")                                                                                                                                                              \
 	X(kOutfitNotCarriedHint, "Some items in this outfit aren't in your inventory.\nWith \"Dress yourself from inventory only\" on, they won't be equipped.")                                                         \
@@ -267,6 +266,7 @@
 	X(kNameLabel, "Name")                                                                                                                                                                                            \
 	X(kNeverWorn, "Never worn: {0} takes priority whenever this situation applies.")                                                                                                                                 \
 	X(kNeverWornFix, "Add a condition, edit {0}, or change their order.")                                                                                                                                            \
+	X(kMetButOverridden, "Met now, but {0} takes priority.")                                                                                                                                                         \
 	X(kApplies, "Applies")                                                                                                                                                                                           \
 	X(kConditions, "Conditions")                                                                                                                                                                                     \
 	X(kConditionsHelp, "Applies when all conditions are met.\nIf a condition has multiple values, meeting any one of them satisfies that condition.")                                                                \
@@ -440,7 +440,7 @@
 	X(kClauseYouWeaponSheathed, "while your weapons are sheathed")                                                                                                                               \
 	X(kAppliesOr, " or ")                                                                                                                                                                        \
 	X(kAppliesEnd, ".")                                                                                                                                                                          \
-	X(kNeverApplies, "Never applies.")                                                                                                                                                           \
+	X(kNeverApplies, "-")                                                                                                                                                                        \
 	X(kNothingSelected, "{0} (nothing selected)")                                                                                                                                                \
 	X(kTimeAm, "{0} AM")                                                                                                                                                                         \
 	X(kTimeAmMinutes, "{0}:{1} AM")                                                                                                                                                              \

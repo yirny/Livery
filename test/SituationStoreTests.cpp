@@ -289,7 +289,7 @@ TEST_CASE("The Applies line has a phrase per row, not first", "[situations]")
 {
 	CHECK(SituationRules::Text(kRainyTown) == "In a town or a castle, in rain or snow, outdoors, from 8 PM to 6 AM.");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather, .negated = true, .values = SituationRules::kRain } } }) == "Not in rain.");
-	CHECK(SituationRules::Text({}) == "Never applies.");
+	CHECK(SituationRules::Text({}) == "-");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kWeather } } }) == "Weather (nothing selected).");
 	CHECK(SituationRules::Text({ .rows = { { .kind = Kind::kInCombat, .negated = true }, { .kind = Kind::kWater, .values = SituationRules::kSwimming } } }) ==
 		  "Not in combat, swimming.");

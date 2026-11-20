@@ -527,7 +527,7 @@ namespace SituationRules
 	}
 
 	// The Applies line: one clause per row in order, "In a town, in rain or snow, outdoors.", an
-	// ASCII first letter in upper case; "Never applies." with no rows.
+	// ASCII first letter in upper case; "-" with no rows.
 	inline std::string Text(const Rules& a_rules)
 	{
 		if (a_rules.rows.empty()) {

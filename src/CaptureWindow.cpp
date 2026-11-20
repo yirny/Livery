@@ -2761,6 +2761,18 @@ namespace CaptureWindow
 		form.checkAnswered = true;
 	}
 
+	void SetSituationsNow(std::uint32_t a_ask, const Situations::Applicable& a_now)
+	{
+		auto&                  state = GetState();
+		const std::scoped_lock lock(state.mutex);
+		auto&                  form = state.situationForm;
+		if (state.status == Status::kClosed || form.situationsAsk != a_ask) {
+			return;  // an answer to an ask of a window closed since, or an older one
+		}
+		form.situationsNow = a_now;
+		form.situationsAnswered = true;
+	}
+
 	bool IsOpen()
 	{
 		return g_open;
