@@ -1333,10 +1333,12 @@ namespace CaptureWindow::Internal
 			std::optional<std::size_t> removed;
 			if (!forms.empty()) {
 				// Contract: as tall as its rows, so it never scrolls and the mouse wheel reaches the
-				// conditions' scroll area around it. No gap between the rows: each has room around its
-				// text (Theme::SelectRowHeight).
-				const float height = std::ceil(static_cast<float>(forms.size()) * Theme::SelectRowHeight() + Theme::ListPaddingY() * 2.0f);
-				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+				// conditions' scroll area around it. The rows are a tick row's height and gap apart,
+				// as the piece list's (Theme::RemovableRow).
+				PushListRowSpacing();  // popped before EndList, so the gap below the list is the normal one
+				const float rows = static_cast<float>(forms.size());
+				const float gap = ImGui::GetStyle().ItemSpacing.y;
+				const float height = std::ceil(rows * ImGui::GetFrameHeight() + (rows - 1.0f) * gap + Theme::ListPaddingY() * 2.0f);
 				if (Theme::BeginList("forms", height, true)) {
 					for (std::size_t i = 0; i < forms.size(); ++i) {
 						const auto& form = forms[i];

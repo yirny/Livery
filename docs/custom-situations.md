@@ -341,8 +341,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   Spell list their forms under the row, 16px in, as a list within the box (`Theme::BeginList`
   with `withinContent`: its rules above and below, the skin's list background), as tall as its
   rows, so it never scrolls; none while the row has no form. A form is a row
-  (`Theme::RemovableRow`): the skin's hover fill, a spell after its
-  icon, a × at its right end (`Remove this location.` / `Remove this spell.`); one whose plugin
+  (`Theme::RemovableRow`), a tick row's height and gap apart as in the piece list: the skin's
+  hover fill, a spell after its icon, a × at its right end (`Remove this location.` / `Remove this spell.`); one whose plugin
   is not loaded greyed, saying so on hover. Then `Add Location...` or `Add Spell...` at the
   list's left. In Vanilla and Nordic a
   row's dropdowns have the palette's stripe colour behind them, the frame padding at both ends (`FieldStyle::filled`). Then `Add Condition...`, a dropdown with the Add links' plus mark before its text (`FieldIcon::kAdd`), of the
