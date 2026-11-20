@@ -183,11 +183,10 @@ TEST_CASE("Wears gives chosen, or a random row's kept pick, or a new pick", "[ro
 	CHECK(OutfitRows::Wears(Row{ .random = true }, 0, NoPick) == 0);
 }
 
-TEST_CASE("Rows follow the Default in the window's order; a row not stored is empty", "[rows]")
+TEST_CASE("Each situation's row is at its id; a row not stored is empty", "[rows]")
 {
-	const auto choosable = Situations::Choosable();
-	for (std::size_t i = 0; i < choosable.size(); ++i) {
-		CHECK(OutfitRows::RowOf(choosable[i]) == i + 1);
+	for (const auto situation : Situations::Order()) {
+		CHECK(OutfitRows::RowOf(situation) == static_cast<std::size_t>(situation));
 	}
 
 	OutfitRows::Rows rows;

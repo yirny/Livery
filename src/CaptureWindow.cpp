@@ -53,7 +53,7 @@
 #include "sarrai/Theme.h"
 
 #include <imgui.h>
-#include <imgui_internal.h>  // ClosePopupsExceptModals
+#include <imgui_internal.h>  // ClosePopupsExceptModals, ImGuiContext::MovingWindow
 
 #include <algorithm>
 #include <array>
@@ -77,7 +77,11 @@ namespace CaptureWindow::Internal
 		return { Strings::Get(Text::kCreateNewOutfit), Strings::Get(Text::kUpdateExistingOutfit) };
 	}
 
+	constexpr float kBottomGap = 12.0f;  // pixels at 1080p, under the last button row on top of the window padding (EndButtonRow)
+
 	// --- State ----------------------------------------------------------------
+
+	float g_pageSpacingY = 0.0f;  // the style's item spacing as the window begins, before any push (ListBottom)
 
 	State& GetState()
 	{
@@ -387,6 +391,20 @@ namespace CaptureWindow::Internal
 		}
 	}
 
+	// A field that takes the focus itself (SetKeyboardFocusHere: a name field, the spell search)
+	// activates in the frame after it asks, and ImGui then shows the focus frame as for an arrow
+	// key; a popup closing would leave it on the item under the popup. Unless the frame was
+	// shown already, ImGui does not show it for that activation; FeedInput turns that back on.
+	// Contract: render thread, after ImGui::NewFrame and before the page draws; FeedInput read
+	// the focus frame before NewFrame.
+	void KeepFocusFrameHidden(const State& a_state)
+	{
+		const auto& g = *ImGui::GetCurrentContext();
+		if (!a_state.navShown && g.NavActivateId != 0 && (g.NavActivateFlags & ImGuiActivateFlags_FromFocusApi)) {
+			ImGui::GetIO().ConfigNavCursorVisibleAuto = false;
+		}
+	}
+
 	// ImGui reaches with Left or Right only an item level with the focus: one above or below
 	// counts as Up or Down. So a Left or Right move in this window that found nothing goes again
 	// in the next frame (NavMoveRequestForward), scored from just past the focus's edge with the
@@ -406,6 +424,34 @@ namespace CaptureWindow::Internal
 		}
 		ImGui::NavMoveRequestForward(g.NavMoveDir, g.NavMoveClipDir, g.NavMoveFlags, g.NavMoveScrollFlags);
 		a_state.navMoveWide = true;
+	}
+
+	// While a modal popup shows, the windows under it (the main window, a modal it was opened
+	// over) are drawn at half opacity: the alpha of every vertex they drew this frame is halved,
+	// as ImGuiStyleVar_Alpha halves it. The popup's own dropdowns come after it in the display
+	// order. Tooltips are kept wherever they are in it: ImGui draws them on a layer above every
+	// window, and none shows for a window under a modal.
+	// Contract: render thread, after the frame's last window and before ImGui::Render; only the
+	// windows begun this frame (Active), whose draw lists hold this frame's vertices alone.
+	void FadeBehindModal()
+	{
+		constexpr float kBehindModalAlpha = 0.5f;
+
+		auto* modal = ImGui::GetTopMostAndVisiblePopupModal();
+		if (!modal) {
+			return;
+		}
+		const int modalOrder = ImGui::FindWindowDisplayIndex(modal);
+		for (auto* window : ImGui::GetCurrentContext()->Windows) {
+			if (!window->Active || window->Hidden || (window->RootWindow->Flags & ImGuiWindowFlags_Tooltip) ||
+				ImGui::FindWindowDisplayIndex(window->RootWindow) >= modalOrder) {
+				continue;
+			}
+			for (auto& vertex : window->DrawList->VtxBuffer) {
+				const auto alpha = static_cast<ImU32>(static_cast<float>((vertex.col & IM_COL32_A_MASK) >> IM_COL32_A_SHIFT) * kBehindModalAlpha);
+				vertex.col = (vertex.col & ~IM_COL32_A_MASK) | (alpha << IM_COL32_A_SHIFT);
+			}
+		}
 	}
 
 	// Contract: render thread, after ImGui::NewFrame and before any item (RetryNavMoveWide).
@@ -565,18 +611,30 @@ namespace CaptureWindow::Internal
 		QueuePreview(a_state, a_outfit >= 0 ? OutfitAt(a_state, a_outfit).pieces : TickedPieces(a_state));
 	}
 
+	// The lowest screen Y a list may reach: the window (or the popup) it is in kept within
+	// kMaxWindowHeightRatio of the screen's height, with a button row under the list
+	// (BeginButtonRow, EndButtonRow) and the window's padding.
+	// Contract: in the window that begins as DrawWindow's, or a popup of it.
+	float ListBottom()
+	{
+		const auto* window = ImGui::GetCurrentWindow()->RootWindow;
+		const float buttons = g_pageSpacingY + ButtonRowGap() + Theme::ButtonHeight() + (std::max)(g_pageSpacingY, kBottomGap * Theme::Scale());
+		return window->Pos.y + ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - buttons - window->WindowPadding.y;
+	}
+
 	// Height of a Theme::BeginList list exactly as tall as its rows, which take
 	// `a_rowsHeight` pixels with the spacing under each, so it does not scroll,
-	// capped so a long list cannot push the window off screen; the cap also covers
-	// `a_reserved` pixels of other content stacked above it. It is at least
-	// `a_minHeight`: a child of height zero would fill the window. Whole pixels, rounded up:
-	// ImGui truncates the child's inner height but not its padding, so a fractional height
-	// (Modern's row gap above 1080p) a third of a pixel short of the rows shows a scroll bar.
-	// Contract: called with the item spacing the rows will be laid out with.
+	// capped to end by ListBottom less `a_reserved` pixels of other content under it. It is
+	// at least `a_minHeight`: a child of height zero would fill the window. Whole pixels,
+	// rounded up: ImGui truncates the child's inner height but not its padding, so a fractional
+	// height (Modern's row gap above 1080p) a third of a pixel short of the rows shows a scroll
+	// bar.
+	// Contract: called with the cursor at the list's top and the item spacing the rows will be
+	// laid out with.
 	float FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved)
 	{
 		const float fullHeight = a_rowsHeight - ImGui::GetStyle().ItemSpacing.y + Theme::ListPaddingY() * 2.0f;
-		const float cap = ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio - a_reserved;
+		const float cap = ListBottom() - ImGui::GetCursorScreenPos().y - a_reserved;
 		return std::ceil((std::max)(a_minHeight, (std::min)(fullHeight, cap)));
 	}
 
@@ -686,8 +744,6 @@ namespace CaptureWindow::Internal
 	// below the last item already counts toward it.
 	void EndButtonRow()
 	{
-		constexpr float kBottomGap = 12.0f;  // pixels at 1080p
-
 		ImGui::Dummy(ImVec2(0.0f, (std::max)(0.0f, kBottomGap * Theme::Scale() - ImGui::GetStyle().ItemSpacing.y)));
 	}
 
@@ -714,10 +770,11 @@ namespace CaptureWindow::Internal
 	}
 
 	// The outfit pages' `a_count` equal columns; every table of them on a page lines up, each
-	// with its own `a_id`. When it returns true, fill the cells, each begun with NextColumn,
-	// and call EndColumns with the same count, which draws the rules between them
+	// with its own `a_id`. With `a_firstWidth`, the first column is that wide (its content) and
+	// the others share the rest. When it returns true, fill the cells, each begun with
+	// NextColumn, and call EndColumns with the same count, which draws the rules between them
 	// (Theme::ColumnRule).
-	bool BeginColumns(const char* a_id, int a_count)
+	bool BeginColumns(const char* a_id, int a_count, float a_firstWidth)
 	{
 		constexpr float kColumnGap = 36.0f;  // pixels at 1080p, between the columns
 
@@ -728,7 +785,11 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		for (int column = 0; column < a_count; ++column) {
-			ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch);
+			if (column == 0 && a_firstWidth > 0.0f) {
+				ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed, a_firstWidth);
+			} else {
+				ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch);
+			}
 		}
 		return true;
 	}
@@ -753,16 +814,19 @@ namespace CaptureWindow::Internal
 
 	void EndColumns(int a_count)
 	{
-		if (ImGui::GetCurrentTable()->CurrentColumn >= 0) {
+		const auto* table = ImGui::GetCurrentTable();
+		if (table->CurrentColumn >= 0) {
 			ImGui::PopItemFlag();  // the last cell's PushNavPart (NextColumn)
 		}
 		ImGui::EndTable();
 		ImGui::PopStyleVar();
-		// The table is the last item: its rect spans every column, which are equally wide.
-		const ImVec2 min = ImGui::GetItemRectMin();
-		const ImVec2 max = ImGui::GetItemRectMax();
+		// The table is the last item: its rect spans the columns' height. A rule goes in the middle
+		// of the gap between two columns.
+		// Contract: ImGui keeps the table, with its columns' layout, in its pool after EndTable.
+		const float top = ImGui::GetItemRectMin().y;
+		const float bottom = ImGui::GetItemRectMax().y;
 		for (int rule = 1; rule < a_count; ++rule) {
-			Theme::ColumnRule(min.x + (max.x - min.x) * static_cast<float>(rule) / static_cast<float>(a_count), min.y, max.y);
+			Theme::ColumnRule((table->Columns[rule - 1].WorkMaxX + table->Columns[rule].WorkMinX) * 0.5f, top, bottom);
 		}
 	}
 
@@ -1056,29 +1120,50 @@ namespace CaptureWindow::Internal
 	// A help text in a tooltip, wrapped to a readable width.
 	void DrawHelpTooltip(const std::string& a_text)
 	{
+		BeginHelpTooltip();
+		ImGui::TextUnformatted(a_text.c_str());
+		EndHelpTooltip();
+	}
+
+	void BeginHelpTooltip()
+	{
 		constexpr float kWrapEms = 28.0f;  // the tooltip's text width, in font sizes
 
 		Theme::BeginTooltip();
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * kWrapEms);
-		ImGui::TextUnformatted(a_text.c_str());
+	}
+
+	void EndHelpTooltip()
+	{
 		ImGui::PopTextWrapPos();
 		Theme::EndTooltip();
 	}
 
-	// Opens a modal popup centred on the screen, in the skin; when it returns true, fill it
-	// and call ImGui::EndPopup.
+	// Opens a modal popup centred on the screen, dressed as the main window (Theme::PushModalStyle,
+	// DecorateWindow) and moved as it is, by a drag on its background; never with ImGui's own
+	// scroll bar (one that scrolls keeps within the screen itself). With `a_centred` true it is
+	// centred again at every frame, so a change of height keeps it in the middle, until a drag
+	// moves it, which sets `a_centred` false. When it returns true, fill it and call
+	// ImGui::EndPopup.
 	// Contract: called every frame on the page that opens it: a modal that is open but not
 	// submitted stays invisible and still blocks the window.
-	bool BeginModal(const char* a_id)
+	bool BeginModal(const char* a_id, bool* a_centred)
 	{
 		const auto& io = ImGui::GetIO();
-		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar;
-		Theme::PushPopupPadding();
+		const auto  centring = a_centred && *a_centred ? ImGuiCond_Always : ImGuiCond_Appearing;
+		ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), centring, ImVec2(0.5f, 0.5f));
+		constexpr auto flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar;
+		Theme::PushModalStyle();
 		const bool open = ImGui::BeginPopupModal(a_id, nullptr, flags);
-		Theme::PopPopupPadding();
+		Theme::PopModalStyle();
 		if (!open) {
 			return false;
+		}
+		// A press on the background moves the window at once, which the centring undoes until
+		// the press becomes a drag.
+		const auto* moving = ImGui::GetCurrentContext()->MovingWindow;
+		if (a_centred && moving && moving->RootWindow == ImGui::GetCurrentWindow() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+			*a_centred = false;
 		}
 		Theme::DecorateWindow(true);
 		return true;
@@ -1349,13 +1434,17 @@ namespace CaptureWindow::Internal
 	}
 
 	// Height of the piece list with every listed piece and heading in view, capped as
-	// ListHeight caps it. Contract: called with the list's row spacing pushed.
+	// ListHeight caps it with what the Dress and Edit pages have under it: the count line, the
+	// Add from Chest... line and the Live Preview line, a frame's height each at most.
+	// Contract: called with the list's row spacing pushed.
 	float PieceListHeight(const State& a_state, const PieceList& a_list)
 	{
+		constexpr float kLinesUnder = 3.0f;
+
 		const float spacing = ImGui::GetStyle().ItemSpacing.y;
 		const float rowsHeight = static_cast<float>(CountListedPieces(a_state, a_list)) * (ImGui::GetFrameHeight() + spacing) +
 		                         static_cast<float>(CountListedGroups(a_state, a_list)) * (Theme::ListHeadingHeight() + spacing);
-		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing());
+		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing(), kLinesUnder * (ImGui::GetFrameHeight() + g_pageSpacingY));
 	}
 
 	// The column labels, then the listed pieces under their groups' headings, a tick row
@@ -2180,7 +2269,7 @@ namespace CaptureWindow::Internal
 			NextColumn();
 			const auto controls = DrawBrowserControls(a_state, a_state.updateBrowser);
 			input.escapeTaken = controls.escapeTaken;
-			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit, controls.height);
+			input.clicked = DrawOutfitList(a_state, a_state.updateBrowser, a_state.chosenOutfit);
 			if (chosen) {
 				const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
 				DrawPieceColumn(a_state, Strings::Get(Text::kCurrentItems), outfit.pieces, outfit.unloadedPieces);
@@ -2528,7 +2617,7 @@ namespace CaptureWindow
 			state.updateName.fill('\0');
 			state.updateTab = false;
 			state.chosenOutfit = -1;
-			state.situationsLabel = std::format("SITUATIONS ({})", state.request.actorName);
+			state.situationsLabel = Strings::Format(Text::kSituationsLabel, state.request.actorName);
 			state.error.clear();
 			state.pending.clear();
 			state.charByteCount = 0;
@@ -2571,7 +2660,7 @@ namespace CaptureWindow
 			state.popupAfterSave = nullptr;
 			state.situationForm = {};
 			FillSituationForm(state, state.request.situations);
-			state.situationsTitle = std::format("Situational Outfits ({})", state.request.actorName);
+			state.situationsTitle = Strings::Format(Text::kSituationalOutfits, state.request.actorName);
 			state.manageApplyLabel = Strings::Format(Text::kApplyToActor, state.request.actorName);
 			state.manageApplyTip.clear();
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
@@ -2658,6 +2747,18 @@ namespace CaptureWindow
 		}
 	}
 
+	void SetConditionsHeld(std::uint32_t a_ask, std::vector<bool> a_held)
+	{
+		auto&                  state = GetState();
+		const std::scoped_lock lock(state.mutex);
+		auto&                  form = state.situationForm;
+		if (state.status == Status::kClosed || form.checkAsk != a_ask) {
+			return;  // an answer to an ask made before the rows changed again
+		}
+		form.conditionsHeld = std::move(a_held);
+		form.checkAnswered = true;
+	}
+
 	bool IsOpen()
 	{
 		return g_open;
@@ -2726,6 +2827,9 @@ namespace CaptureWindow
 			OutfitBrowser::Rebuild(*browser, request);
 		}
 		FillSituationForm(state, situationsBefore);
+		if (a_list.createdSituation) {
+			SelectSituation(state, *a_list.createdSituation);
+		}
 		FollowWornOutfit(state);
 		SetGroupHeadings(state);
 		FollowInventorySources(state);
@@ -2859,7 +2963,9 @@ namespace CaptureWindow
 		// the focused item. Navigation must not claim the keyboard: W/A/S/D still move the camera.
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigNavCaptureKeyboard = false;
+		io.ConfigNavCursorVisibleAuto = true;  // KeepFocusFrameHidden turns it off for one frame
 		state.popupsBefore = ImGui::GetCurrentContext()->OpenPopupStack.Size;
+		state.navShown = ImGui::GetCurrentContext()->NavCursorVisible;
 
 		if (auto* cursor = RE::MenuCursor::GetSingleton()) {
 			const auto& position = cursor->GetRuntimeData();
@@ -2882,6 +2988,7 @@ namespace CaptureWindow
 			state.resetImGui = false;
 		}
 		HoldNavEscape(state);
+		KeepFocusFrameHidden(state);
 		WidenNavMove(state);
 		FinishLeave(state);  // before the page's width, which a switch changes
 
@@ -2910,6 +3017,7 @@ namespace CaptureWindow
 		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
 		constexpr auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize |
 		                       ImGuiWindowFlags_NoTitleBar;
+		g_pageSpacingY = ImGui::GetStyle().ItemSpacing.y;
 		if (!ImGui::Begin("Livery", nullptr, flags)) {
 			ImGui::End();
 			return;
@@ -2971,6 +3079,7 @@ namespace CaptureWindow
 		}
 		RetryNavMoveWide(state);
 		ImGui::End();
+		FadeBehindModal();
 		ForwardViewInput(state);
 	}
 }

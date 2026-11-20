@@ -34,7 +34,7 @@ namespace CaptureWindow::Internal
 	using Text = Strings::Text;  // the player-facing texts, in the chosen language (Strings::Get)
 
 	constexpr std::size_t kNameCapacity = 64;                // bytes, UTF-8, including the terminator
-	constexpr float       kMaxListHeightRatio = 0.6f;        // of the screen height, for every scrolling list
+	constexpr float       kMaxWindowHeightRatio = 0.9f;      // of the screen height: the window, or a popup, its lists scroll to keep within
 	constexpr const char* kConfirmPopup = "Replace items?";  // IDs shared by OpenPopup and BeginPopupModal
 	constexpr const char* kCreateApplyPopup = "Apply outfit?###createAndApply";
 	constexpr const char* kApplyPopup = "Update the outfit?";
@@ -221,6 +221,7 @@ namespace CaptureWindow::Internal
 		std::string                     nameBefore;      // its name as its field's edit began, put back for an empty or taken one
 		OutfitRows::Row                 row;             // the actor's row for it
 		bool                            folded = false;  // its heading in the Situation List is folded
+		SituationRules::Rules           rules;           // its conditions as edited; none for the Default
 	};
 
 	// the Situations page's edits, kept while the window is open; a change a handler made
@@ -228,17 +229,68 @@ namespace CaptureWindow::Internal
 	struct SituationForm
 	{
 		std::vector<SituationEntry> entries;
-		bool                        defaultPieces = false;     // the Default keeps its pieces not in the wardrobe
-		int                         selected = -1;             // index into entries; -1 for none
-		bool                        details = false;           // the right pane shows the selected one (Show Outfit List not pressed since)
-		std::uint32_t               viewedOutfit = 0;          // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
-		int                         viewedRow = -1;            // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
-		bool                        scrollToSelected = false;  // the Situation List scrolls to the selected heading on its next draw
-		int                         nameEditing = -1;          // the entry whose name field is active: index into entries; -1 for none
-		ImGuiID                     nameField = 0;             // that field's ImGui ID
-		int                         dragHover = -1;            // the folded heading a drag hovers: index into entries; -1 for none
-		double                      dragHoverSince = 0.0;      // since when, ImGui::GetTime() seconds
-		float                       outfitPaneHeight = 0.0f;   // the right pane's height with the outfit list, last drawn; the Situation List keeps it
+		// The entries after the Default as the Situation List shows them, top to bottom: indices
+		// into entries, in request.situations' order until the user drags one.
+		std::vector<std::size_t> order;
+		// Per entry, the entries lower in the list that apply whenever it does, so it is never
+		// worn (SituationRules::CoveredBy), nearest first; empty for none. Worked out again before
+		// the page draws after `neverWornStale` was set: the form refilled, a condition or the
+		// order edited.
+		std::vector<std::vector<std::size_t>> neverWornBy;
+		bool                                  neverWornStale = true;
+		bool                                  defaultPieces = false;       // the Default keeps its pieces not in the wardrobe
+		int                                   selected = -1;               // the one the Edit situation popup and Remove's popup are for: index into entries; -1 for none
+		bool                                  editing = false;             // the Edit situation popup is open, as the page's frame began
+		bool                                  duplicateAfterSave = false;  // the selected one is duplicated once the running save took
+		std::uint32_t                         viewedOutfit = 0;            // the library outfit whose details the right pane shows, clicked in either pane; 0 for none
+		int                                   viewedRow = -1;              // the entry under whose heading it was clicked, whose row its piece list's ticks edit; -1 for the outfit list's (read only)
+		bool                                  scrollToSelected = false;    // the Situation List scrolls to the selected heading on its next draw
+		int                                   nameEditing = -1;            // the entry whose name field is active: index into entries; -1 for none
+		ImGuiID                               nameField = 0;               // that field's ImGui ID
+		int                                   dragHover = -1;              // the folded heading a drag hovers: index into entries; -1 for none
+		int                                   warningHovered = -1;         // the heading whose never-worn mark is hovered, this frame so far: index into entries; -1 for none
+		double                                dragHoverSince = 0.0;        // since when, ImGui::GetTime() seconds
+		float                                 outfitPaneHeight = 0.0f;     // the right pane's height with the outfit list, last drawn; the Situation List keeps it
+		std::array<char, kNameCapacity>       newName{};                   // the New situation popup's field
+		// The Place or Spell row the Add place or Add spell popup adds to: index into the selected
+		// entry's rules.rows.
+		int formRow = -1;
+		// The Edit situation popup: the page's right pane's width and the gap between its
+		// columns, last drawn, which its columns take; the condition clicked in its Applies text
+		// (index into the selected entry's rules.rows; -1 for none), lit from `editorFocusFrom`
+		// (ImGui::GetTime() seconds) and scrolled to while `editorScroll` frames remain, its
+		// height as last drawn; whether a popup was open over it at the end of the last frame (its
+		// Escape closed that, not the editor); whether it is still centred on the screen
+		// (BeginModal), not yet dragged; its height besides the conditions' area, as last drawn.
+		float  paneWidth = 0.0f;
+		float  columnGap = 0.0f;
+		int    editorFocus = -1;
+		double editorFocusFrom = 0.0;
+		int    editorScroll = 0;
+		float  editorFocusHeight = 0.0f;
+		bool   editorPopupAbove = false;
+		bool   editorCentred = true;
+		float  editorOtherHeight = 0.0f;
+		// The Add place popup's choice, in the order it shows them (request.places.At).
+		int placePick = 0;
+		// The Add spell popup: its search, Show all spells, Show player spells, the spells it lists
+		// (indices into the list OfferedSpells picks) and those ticked, in the order they were
+		// ticked: copies, which stay as the search or the checkboxes change what is listed.
+		std::array<char, OutfitBrowser::kSearchCapacity> spellSearch{};
+		bool                                             spellShowAll = false;
+		bool                                             spellShowPlayer = false;
+		float                                            spellOptionsWidth = 0.0f;  // the two checkboxes' row as last drawn, px; 0 before
+		std::vector<std::size_t>                         spellShown;
+		std::vector<SituationRules::Spell>               spellPicks;
+		// The Edit situation popup's conditions as last handed to Request::onCheckConditions, at
+		// `checkedAt` (ImGui::GetTime() seconds), with the ask's number and whether it was
+		// answered (SetConditionsHeld); the last answer taken: whether each condition is met now,
+		// one per row of the rules it was asked for; empty for none yet.
+		std::vector<SituationRules::Row> checkedRows;
+		double                           checkedAt = 0.0;
+		std::uint32_t                    checkAsk = 0;
+		bool                             checkAnswered = false;
+		std::vector<bool>                conditionsHeld;
 	};
 
 	// The chest editor's edits of the chest it opened on (docs/chest-ui.md), saved as they are
@@ -349,6 +401,7 @@ namespace CaptureWindow::Internal
 		bool                        padNav = false;       // the D-pad moved the focus since the right stick or the mouse last moved the cursor: A presses the focused item
 		bool                        padClicks = false;    // the held A clicks under the cursor, not on the focused item (RecordPadButton)
 		int                         popupsBefore = 0;     // ImGui's open popups before this frame's NewFrame (HoldNavEscape)
+		bool                        navShown = false;     // ImGui's focus frame shown before this frame's NewFrame (KeepFocusFrameHidden)
 		bool                        navMoveWide = false;  // a Left or Right move that found nothing goes again this frame, widened (WidenNavMove)
 		std::array<char, 4>         charBytes{};          // the ANSI bytes of a character not yet whole (RecordChar)
 		std::int32_t                charByteCount = 0;    // how many of charBytes are held
@@ -402,7 +455,7 @@ namespace CaptureWindow::Internal
 	void        RequestCancel();
 	bool        DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
 		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName });
-	bool        BeginModal(const char* a_id);
+	bool        BeginModal(const char* a_id, bool* a_centred = nullptr);
 	void        SetGroupHeadings(State& a_state);
 
 	// Choose icon (OutfitPages.cpp), opened as kIconPopup with State::iconPicker set: returns
@@ -419,6 +472,7 @@ namespace CaptureWindow::Internal
 	void                                 PreviewOutfitOrTicks(const State& a_state, int a_outfit);
 	float                                FittedListHeight(float a_rowsHeight, float a_minHeight, float a_reserved = 0.0f);
 	float                                ListHeight(std::size_t a_rows, float a_rowHeight, float a_reserved = 0.0f);
+	float                                ListBottom();
 	void                                 PushListRowSpacing();
 	bool                                 FocusStandIn(const char* a_id);  // a keyboard focus stop over the last item, for a greyed one or text
 	bool                                 ReasonButton(const char* a_label, const char* a_reason, const char* a_tooltip = nullptr, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone);
@@ -430,7 +484,7 @@ namespace CaptureWindow::Internal
 	int                                  CompareColumn(const CaptureWindow::Piece& a_left, const CaptureWindow::Piece& a_right, int a_column);
 	void                                 EndButtonRow();
 	void                                 ResetCellBaseline();
-	bool                                 BeginColumns(const char* a_id, int a_count = 2);
+	bool                                 BeginColumns(const char* a_id, int a_count = 2, float a_firstWidth = 0.0f);
 	void                                 NextColumn();  // in place of ImGui::TableNextColumn in BeginColumns
 	void                                 EndColumns(int a_count = 2);
 	std::size_t                          GroupIndex(CaptureWindow::PieceGroup a_group);
@@ -440,6 +494,8 @@ namespace CaptureWindow::Internal
 	const std::string*                   HoveredMarkText(const PieceMarks& a_marks);  // of the mark the mouse is over (Theme::RowMarkHovered); nullptr for none
 	bool                                 DrawCategoryRow(const char* a_label, bool& a_ticked, bool a_showMark = true);
 	void                                 DrawHelpTooltip(const std::string& a_text);
+	void                                 BeginHelpTooltip();  // DrawHelpTooltip's tooltip, for other content; EndHelpTooltip after it
+	void                                 EndHelpTooltip();
 	std::size_t                          RowCount(const State& a_state);
 	const char*                          RowName(const State& a_state, std::size_t a_row);
 	bool                                 HoldsOutfit(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
@@ -585,23 +641,24 @@ namespace CaptureWindow::Internal
 
 	struct BrowserControls
 	{
-		bool  escapeTaken = false;  // Escape cleared the search, so it is not also Back
-		float height = 0.0f;        // pixels the controls took, which the outfit list's height cap leaves room for
+		bool escapeTaken = false;  // Escape cleared the search, so it is not also Back
 	};
 
-	// The outfit list's search (and Filter, while kShowFilter) at the top of its column.
-	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser);
+	// The outfit list's search (and Filter, while kShowFilter) at the top of its column; with
+	// `a_underLabel`, under a label that opened the column's field (Theme::LabelText).
+	BrowserControls DrawBrowserControls(const State& a_state, OutfitBrowser::State& a_browser, bool a_underLabel = false);
 
-	// The outfit list under the browser (`a_reserved` is its height). Returns the index into
-	// request.existingOutfits of the outfit clicked, or -1. `a_draggable`: the Situations page's
-	// list, whose rows have a grip and drag a copy of their outfit.
-	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, float a_reserved, bool a_draggable = false);
+	// The outfit list under the browser. Returns the index into request.existingOutfits of the
+	// outfit clicked, or -1. `a_draggable`: the Situations page's list, whose rows have a grip
+	// and drag a copy of their outfit.
+	int DrawOutfitList(State& a_state, OutfitBrowser::State& a_browser, int a_selected, bool a_draggable = false);
 
 	// One outfit of a list, `a_index` into request.existingOutfits, with its marks (the star of
-	// one chosen for a situation only with `a_situationMark`); `a_grip` places the drag grip.
-	// Returns true when clicked.
+	// one chosen for a situation only with `a_situationMark`; on the Situations page the warning of
+	// items the player would not get, less `a_excluded`, the row's left off); `a_grip` places the
+	// drag grip. Returns true when clicked.
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped,
-		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true);
+		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true, const std::vector<std::uint32_t>* a_excluded = nullptr);
 
 	// Outfit `a_index` (into request.existingOutfits) in the Wardrobe page's order: its name as
 	// a one-row list whose grip drags a copy of it (OfferOutfitDrag; the Situations page only),
@@ -685,7 +742,12 @@ namespace CaptureWindow::Internal
 	// none for a situation gone.
 	void FillSituationForm(State& a_state, const std::vector<CaptureWindow::SituationInfo>& a_before);
 
-	// A situation's name differs from situations.json, or a row from the actor's.
+	// Selects `a_situation` (a situation just created), scrolls the Situation List to it and opens
+	// its Edit situation popup on the page's next frame; nothing for one the page does not list.
+	void SelectSituation(State& a_state, Situations::Situation a_situation);
+
+	// A situation's name or a user's situation's conditions differ from situations.json, or a
+	// row from the actor's.
 	bool HasSituationEdits(const State& a_state);
 
 	// Saves the page's edits now, a name still being typed ended first. Returns whether a save

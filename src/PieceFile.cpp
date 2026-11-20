@@ -22,15 +22,21 @@ namespace PieceFile
 		return name && *name ? name : std::format("{:08X}", a_armor.GetFormID());
 	}
 
-	RE::TESObjectARMO* ArmorOf(const PieceRef& a_piece)
+	std::uint32_t FormIDOf(const PieceRef& a_piece)
 	{
 		auto*       dataHandler = RE::TESDataHandler::GetSingleton();
 		const auto* file = dataHandler ? dataHandler->LookupModByName(a_piece.plugin) : nullptr;
 		// A light plugin owns only 12 bits; a larger id would reach into another plugin's forms.
 		if (!file || (file->IsLight() && a_piece.localID > kMaxLightLocalID)) {
-			return nullptr;
+			return 0;
 		}
-		return dataHandler->LookupForm<RE::TESObjectARMO>(a_piece.localID, a_piece.plugin);
+		return dataHandler->LookupFormID(a_piece.localID, a_piece.plugin);
+	}
+
+	RE::TESObjectARMO* ArmorOf(const PieceRef& a_piece)
+	{
+		const auto id = FormIDOf(a_piece);
+		return id ? RE::TESForm::LookupByID<RE::TESObjectARMO>(id) : nullptr;
 	}
 
 	std::optional<std::string> ToPieces(const std::vector<RE::TESObjectARMO*>& a_armor, std::vector<PieceRef>& a_pieces)

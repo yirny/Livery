@@ -73,6 +73,7 @@ namespace
 	constexpr auto kShowPlayerWornKey = L"ShowPlayerWornPieces";
 	constexpr auto kShowSlotColumnKey = L"ShowSlotColumn";
 	constexpr auto kItemChestsKey = L"ItemChests";
+	constexpr auto kCustomSituationsKey = L"CustomSituations";
 	constexpr auto kOutfitSortKey = L"OutfitSort";
 	constexpr auto kOutfitSortDescendingKey = L"OutfitSortDescending";
 	constexpr auto kItemSortKey = L"ItemSort";
@@ -125,7 +126,7 @@ namespace
 	// Every key the INI can hold, grouped by section. The INI is not shipped: it is
 	// created from this table on first start, and keys a newer version adds are
 	// appended to the player's file, so an update never resets their settings.
-	constexpr std::array<IniKey, 27> kIniKeys{ {
+	constexpr std::array<IniKey, 28> kIniKeys{ {
 		{ kIniSection, kFollowersAndSpouseKey, L"Full",
 			L"What the hotkey lets you do with your followers and spouse. You can always open Livery for yourself.\n"
 			L"Full = dress them and save what they wear. SaveOnly = only save what they wear as an outfit. Off = nothing." },
@@ -177,6 +178,9 @@ namespace
 		{ kWindowSection, kItemChestsKey, L"0",
 			L"1 = Livery has a Chests tab: a chest holds any number of items, several for one body slot too,\n"
 			L"which you can load on the Dress page. Chests are kept in chests.json beside outfits.json." },
+		{ kWindowSection, kCustomSituationsKey, L"0",
+			L"1 = the Situations page lets you create your own situations, order them and edit every situation's conditions.\n"
+			L"0 = situations you made stay in use, but none can be created or edited. They are kept in situations.json." },
 		{ kWindowSection, kOutfitSortKey, L"Name",
 			L"How Livery sorts its outfit lists: Icon or Name. Livery remembers the column label you last clicked." },
 		{ kWindowSection, kOutfitSortDescendingKey, L"0",
@@ -300,6 +304,7 @@ namespace
 	std::atomic<bool>          g_showPlayerWorn{ false };
 	std::atomic<bool>          g_showSlotColumn{ false };
 	std::atomic<bool>          g_itemChests{ false };
+	std::atomic<bool>          g_customSituations{ false };
 	std::atomic<bool>          g_protectFavorites{ true };
 	std::atomic<bool>          g_moveFromPlayer{ true };
 	std::atomic<bool>          g_notifySituationChanges{ false };
@@ -351,9 +356,9 @@ namespace
 		}
 		wchar_t name[64]{};
 		if (::GetKeyNameTextW(lParam, name, static_cast<int>(std::size(name))) > 0) {
-			return SKSE::stl::utf16_to_utf8(name).value_or(std::format("Key {}", a_scanCode));
+			return SKSE::stl::utf16_to_utf8(name).value_or(Strings::Format(Strings::Text::kKeyNumber, a_scanCode));
 		}
-		return std::format("Key {}", a_scanCode);
+		return Strings::Format(Strings::Text::kKeyNumber, a_scanCode);
 	}
 
 	std::string HotkeyName()
@@ -911,6 +916,8 @@ namespace
 		SaveFlag(kWindowSection, kShowSlotColumnKey, false);
 		g_itemChests = false;
 		SaveFlag(kWindowSection, kItemChestsKey, false);
+		g_customSituations = false;
+		SaveFlag(kWindowSection, kCustomSituationsKey, false);
 		g_menuSounds = true;
 		SaveMenuSounds(true);
 		logger::info("Settings restored to their defaults (SKSE Menu Framework)");
@@ -1223,6 +1230,11 @@ namespace
 
 		SettingGap();
 
+		RenderUnusedSlots();
+
+		// Features that add to the window, each off by default.
+		Heading(PageText(Text::kSetOptionalFeatures));
+
 		// Takes effect the next time the window opens.
 		bool itemChests = g_itemChests.load();
 		if (ImGuiMCP::Checkbox(PageText(Text::kSetEnableChests), &itemChests)) {
@@ -1234,7 +1246,14 @@ namespace
 
 		SettingGap();
 
-		RenderUnusedSlots();
+		// Takes effect the next time the window opens.
+		bool customSituations = g_customSituations.load();
+		if (ImGuiMCP::Checkbox(PageText(Text::kSetEnableCustomSituations), &customSituations)) {
+			g_customSituations = customSituations;
+			SaveFlag(kWindowSection, kCustomSituationsKey, customSituations);
+			logger::info("CustomSituations = {} (SKSE Menu Framework)", customSituations);
+		}
+		SettingTooltip(Text::kSetEnableCustomSituationsTip, Text::kSetOff);
 
 		// Every tick here is immersive when on; so are the dropdowns' defaults.
 		Heading(PageText(Text::kSetImmersion));
@@ -1477,6 +1496,11 @@ namespace Settings
 		g_itemChests = std::wstring_view{ value } == L"1";
 		logger::info("ItemChests = {}", g_itemChests.load());
 
+		// A missing key keeps the default (off).
+		::GetPrivateProfileStringW(kWindowSection, kCustomSituationsKey, L"0", value, static_cast<DWORD>(std::size(value)), g_iniPath.c_str());
+		g_customSituations = std::wstring_view{ value } == L"1";
+		logger::info("CustomSituations = {}", g_customSituations.load());
+
 		g_outfitSort = LoadSort(kOutfitSortKey, kOutfitSortDescendingKey, kOutfitSortColumns, kDefaultOutfitSort);
 		g_itemSort = LoadSort(kItemSortKey, kItemSortDescendingKey, kItemSortColumns, kDefaultItemSort);
 
@@ -1626,6 +1650,11 @@ namespace Settings
 	bool ItemChests()
 	{
 		return g_itemChests.load();
+	}
+
+	bool CustomSituations()
+	{
+		return g_customSituations.load();
 	}
 
 	SortOrder OutfitSort()

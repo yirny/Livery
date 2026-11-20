@@ -34,7 +34,8 @@
 //                    (Assignments::SetRows) and redresses them as Update does; Remove
 //                    Situation writes situations.json, clears the situation's rows
 //                    (Assignments::ForgetSituation) and takes those wearing it out of it as
-//                    Remove does; Restore Presets writes situations.json; the settings page's
+//                    Remove does; Restore Presets, New Situation and Duplicate write
+//                    situations.json; the settings page's
 //                    Release everyone goes to Assignments
 //   Event sinks    - crosshair target, the capture hotkey
 //   Messaging      - situation data, outfit library and piece icon rules, settings page, sink and menu registration,
@@ -711,21 +712,26 @@ namespace
 	{
 		std::vector<std::string> lines;
 		for (const auto& holder : Assignments::HoldersOf(situation)) {
-			lines.push_back(std::format("{}: {} outfits", ActorLabel(holder.actor), holder.outfits));
+			lines.push_back(Strings::Format(Strings::Text::kHolderLine, ActorLabel(holder.actor), holder.outfits));
 		}
 		return lines;
 	}
 
 	// The window's rows (Request::situations): the Default, then the situations not removed
-	// (SituationStore::Offered), each with its name, conditions and who has outfits on it.
+	// (SituationStore::Offered), each with its name, conditions (its rules and their Applies
+	// line; the Default's words, which the Situations page draws with the situations' star,
+	// DrawDefaultConditions) and who has outfits on it.
 	// Contract: game thread.
 	std::vector<CaptureWindow::SituationInfo> SituationInfos()
 	{
 		std::vector<CaptureWindow::SituationInfo> infos;
 		const auto                                add = [&infos](Situations::Situation situation, std::vector<std::string> holders) {
+			const auto* rules = SituationStore::RulesOf(situation);
 			infos.push_back({ .situation = situation,
 				.name = SituationStore::Name(situation),
-				.conditions = Situations::ConditionsText(situation),
+				.conditions = rules ? SituationRules::Text(*rules) : Strings::Get(Strings::Text::kDefaultConditions),
+				.user = Situations::IsUser(situation),
+				.rules = rules ? *rules : SituationRules::Rules{},
 				.holders = std::move(holders) });
 		};
 		add(Situations::Situation::kDefault, {});
@@ -1038,7 +1044,7 @@ namespace
 		} else if (redress.updated != 0) {
 			RedressFor(actor, redress.updated);
 		} else {
-			Assignments::WearFor(actor, Situations::Evaluate(actor));
+			Assignments::WearFor(actor, Assignments::SituationsNow(actor));
 		}
 	}
 
@@ -1130,7 +1136,7 @@ namespace
 			if (!actor || !actor->Is3DLoaded() || actor->IsDead()) {
 				continue;
 			}
-			Assignments::WearFor(*actor, Situations::Evaluate(*actor));
+			Assignments::WearFor(*actor, Assignments::SituationsNow(*actor));
 		}
 	}
 
@@ -1417,7 +1423,29 @@ namespace
 		return rows;
 	}
 
-	// the Situations page's save, Remove (a situation) and Restore Presets. Each writes
+	// The places the never-worn mark may meet (Situations::PlaceFacts): those of every
+	// situation's rules, and those the Add place popup offers.
+	// Contract: game thread.
+	std::vector<std::uint32_t> PlacesToTell(const SituationRules::PlaceChoices& choices)
+	{
+		std::vector<std::uint32_t> places;
+		for (const auto situation : Situations::Order()) {
+			if (const auto* rules = SituationStore::RulesOf(situation)) {
+				for (const auto& row : rules->rows) {
+					for (const auto& place : row.places) {
+						places.push_back(place.formID);
+					}
+				}
+			}
+		}
+		for (int i = 0; const auto* place = choices.At(i); ++i) {
+			places.push_back(place->formID);
+		}
+		return places;
+	}
+
+	// the Situations page's save, Remove (a situation) and Restore Presets, and the check of the
+	// Edit situation popup's conditions. Each but the check, which writes nothing, writes
 	// situations.json first; a refused or failed write changes no row and redresses no one
 	// (CLAUDE.md §2.1). Then the captured actor's rows change and the actors are redressed
 	// (RedressCaptured, QueueRedress), and the window, still open, shows the situations and
@@ -1429,22 +1457,38 @@ namespace
 		const auto handle = actor.GetHandle();
 		const auto actorID = actor.GetFormID();
 		request.restoreChanges = SituationStore::RestoreChanges();
+		request.customSituations = Settings::CustomSituations();
+		request.actorIsPlayer = actor.IsPlayerRef();
+		if (request.customSituations) {
+			request.places = Situations::PlacesAround(actor);
+			request.spells = Situations::SpellsAround(actor);
+			if (auto* player = RE::PlayerCharacter::GetSingleton(); player && !request.actorIsPlayer) {
+				request.spellsWithPlayer = request.spells;
+				std::ranges::move(Situations::SpellsAround(*player), std::back_inserter(request.spellsWithPlayer));
+				SituationRules::MergeSameSpells(request.spellsWithPlayer);
+			}
+			request.allSpells = Situations::AllSpells();
+		}
+		request.placeFacts = Situations::PlaceFacts(PlacesToTell(request.places));
 		// The rows are made at once, so the window shows them, and dressed for in one Refresh,
 		// at once, Live Preview on or off (RedressCaptured, the preview begun again on the
 		// outfit whose details show, else on what they wear). The row they wear, when random,
 		// wears the outfit it gained first, or with `reroll` another of its outfits, picked at
 		// random.
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
-			if (!save.edits.empty()) {
+			if (!save.edits.empty() || !save.order.empty()) {
 				std::vector<SituationStore::Edit> edits;
-				for (const auto& [situation, name] : save.edits) {
-					edits.push_back({ .situation = situation, .name = name });
+				for (const auto& [situation, name, rules] : save.edits) {
+					edits.push_back({ .situation = situation, .name = name, .rules = rules });
 				}
-				if (const auto error = SituationStore::Apply(edits)) {
+				if (const auto error = SituationStore::Apply(edits, save.order)) {
 					CaptureWindow::SetError(*error);
 					return;
 				}
-				logger::info("Saved the situations' names.");  // no HUD message: the page saves as it is edited
+				// No HUD message: the page saves as it is edited. Nobody is redressed for changed
+				// conditions or order here: the poll, which waits while the window is open, follows
+				// them.
+				logger::info("Saved the situations' names, conditions and order.");
 			}
 			const auto                                target = handle.get();
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};
@@ -1463,18 +1507,42 @@ namespace
 			list.actorPieces = std::move(redressed);
 			CaptureWindow::SetOutfits(std::move(list));
 		};
+		// A user's situation with no conditions: it never applies, and nobody's rows change.
+		request.onSituationCreate = [actorID, armors](const std::string& name) {
+			auto created = Situations::Situation::kDefault;
+			if (const auto error = SituationStore::Create(name, created)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			Notify(Strings::Format(Strings::Text::kHudCreatedSituation, name));
+			auto list = CurrentOutfitList(actorID, armors);
+			list.createdSituation = created;
+			CaptureWindow::SetOutfits(std::move(list));
+		};
+		// The source's conditions under a new name, right after it; nobody's rows change, and
+		// nobody is redressed: the poll, which waits while the window is open, follows the order.
+		request.onSituationDuplicate = [actorID, armors](Situations::Situation source, const std::string& name) {
+			auto created = Situations::Situation::kDefault;
+			if (const auto error = SituationStore::Duplicate(source, name, created)) {
+				CaptureWindow::SetError(*error);
+				return;
+			}
+			Notify(Strings::Format(Strings::Text::kHudCreatedSituation, name));
+			auto list = CurrentOutfitList(actorID, armors);
+			list.createdSituation = created;
+			CaptureWindow::SetOutfits(std::move(list));
+		};
 		// Every row of the situation goes (Assignments::ForgetSituation), and those wearing it
 		// are taken out of it as Remove takes them out of a removed outfit.
 		request.onSituationRemove = [handle, actorID, armors, offered](Situations::Situation situation) {
-			const auto name = SituationStore::Name(situation);  // copied: Remove leaves the reference stale
+			const auto name = SituationStore::Name(situation);
 			const auto holders = Assignments::HoldersOf(situation).size();
 			if (const auto error = SituationStore::Remove(situation)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
 			const auto wearing = Assignments::ForgetSituation(situation);
-			Notify(holders > 0 ? std::format("Livery: removed the situation \"{}\"; cleared from {} characters.", name, holders) :
-								 std::format("Livery: removed the situation \"{}\".", name));
+			Notify(Strings::Format(holders > 0 ? Strings::Text::kHudRemovedSituationFrom : Strings::Text::kHudRemovedSituation, name, holders));
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			for (const auto id : wearing) {
@@ -1494,8 +1562,15 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify("Livery: restored the preset situations.");
+			Notify(Strings::Get(Strings::Text::kHudRestoredPresets));
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
+		};
+		// The Edit situation popup's conditions, as edited, read for the actor now: nothing is
+		// written and nobody is redressed.
+		request.onCheckConditions = [handle](std::uint32_t ask, const std::vector<SituationRules::Row>& rows) {
+			if (const auto target = handle.get()) {
+				CaptureWindow::SetConditionsHeld(ask, Situations::RowsHold(*target, rows));
+			}
 		};
 	}
 

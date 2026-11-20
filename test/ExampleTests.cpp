@@ -1,6 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <limits>
+#include <string>
+#include <vector>
 
 #include "Utils.h"
 
@@ -52,6 +55,33 @@ TEST_CASE("TrimWhitespace removes leading and trailing whitespace", "[utils]")
 	CHECK(TrimWhitespace("  a b c  ") == "a b c");
 	CHECK(TrimWhitespace("hello\r\n") == "hello");
 	CHECK(TrimWhitespace("\r\n  hello  \r\n") == "hello");
+}
+
+TEST_CASE("CopyName names a copy as Windows does, within the bytes given", "[utils]")
+{
+	const auto CopyName = [](std::string_view a_name, std::size_t a_maxBytes, const auto& a_taken) {
+		return ExampleMod::CopyName(a_name, a_maxBytes, "{0} - Copy", "{0} - Copy {1}", a_taken);
+	};
+
+	const auto none = [](const std::string&) { return false; };
+	CHECK(CopyName(" Rain ", 63, none) == "Rain - Copy");
+
+	const std::vector<std::string> names{ "Rain - Copy", "rain - copy 2" };
+	const auto                     taken = [&names](const std::string& a_name) {
+		return std::ranges::any_of(names, [&a_name](const std::string& a_taken) { return ExampleMod::CaseInsensitiveEqual(a_taken, a_name); });
+	};
+	CHECK(CopyName("Rain", 63, taken) == "Rain - Copy 3");
+	CHECK(CopyName("Rain - Copy", 63, taken) == "Rain - Copy - Copy");
+
+	// Cut short to keep the ending, never inside a character, nor before a space.
+	CHECK(CopyName("Abcdefgh", 12, none) == "Abcde - Copy");
+	CHECK(CopyName("Ab cdefgh", 10, none) == "Ab - Copy");
+	CHECK(CopyName("A\xC3\xA9\xC3\xA9", 11, none) == "A\xC3\xA9 - Copy");
+
+	// Worded another way, the number before the name.
+	const auto once = [](const std::string& a_name) { return a_name == "Kopie von Rain"; };
+	CHECK(ExampleMod::CopyName("Rain", 63, "Kopie von {0}", "Kopie {1} von {0}", once) == "Kopie 2 von Rain");
+	CHECK(ExampleMod::CopyName("Abcdefgh", 12, "Kopie von {0}", "Kopie {1} von {0}", none) == "Kopie von Ab");
 }
 
 TEST_CASE("ClampOrDefault clamps and validates values", "[utils]")

@@ -13,7 +13,8 @@
 //                 menu, or by the engine's worn-gear pass, taken off at once; pieces taken from
 //                 one in a menu replaced as it closes
 //   Co-save     - save, load (version 6; the rows of situations removed in situations.json
-//                 or unknown to this version dropped),
+//                 or unknown to this version dropped, but a user's situation's kept while
+//                 situations.json cannot be read),
 //                 the items the rows' outfits leave off in a record of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
 //                 inventory), MenuOpenCloseEvent (also logs menus opening or closing while
@@ -31,6 +32,8 @@
 #include "Library.h"
 #include "Settings.h"
 #include "SituationStore.h"
+#include "SituationTable.h"
+#include "Strings.h"
 
 #include <algorithm>
 #include <atomic>
@@ -62,6 +65,13 @@ namespace
 
 	// --- Records --------------------------------------------------------------
 
+	// A row stored under the key (Situations::Name) of a situation this session does not have.
+	struct KeptRow
+	{
+		std::string     key;
+		OutfitRows::Row row;
+	};
+
 	// An actor Livery dresses: the pieces it has on them, their own pieces it took off, and
 	// their rows, the Default and the situations. NPCs wear the pieces locked, and their
 	// outfit copies carry a lock while they wear pieces (Dressing::LockOutfitCopies); the
@@ -78,6 +88,10 @@ namespace
 		std::vector<RE::FormID> defaultPieces;
 		Situation               worn = Situation::kDefault;  // the row `pieces` are for
 		std::uint32_t           wornOutfit = 0;              // the library outfit `pieces` are from; 0 for none or the Default's pieces
+		// The rows of user's situations this session does not have, as the co-save held them
+		// while situations.json could not be read (SituationTable::KeepsUnknownRow), written
+		// back on save; never worn or shown. Each holds something (HoldsSomething).
+		std::vector<KeptRow> kept;
 	};
 
 	// Contract: game thread only.
@@ -119,19 +133,24 @@ namespace
 
 	bool HasSituations(const Assignment& a_assignment)
 	{
-		return std::ranges::any_of(Situations::Choosable(), [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
+		return std::ranges::any_of(Situations::Order(), [&a_assignment](Situation a_situation) { return OutfitRows::HoldsAny(a_assignment.rows[RowOf(a_situation)]); });
 	}
 
-	// An assignment with nothing on the actor, no row holding an outfit and no row random is
-	// no assignment: they keep what they wear. A row, the Default's included, keeps the record
-	// while it holds an outfit that puts nothing on (none of its items loaded) or is random
-	// with nothing on its list yet, so the window shows the row as the user left it.
+	// A row keeps the record while it holds an outfit, even one that puts nothing on (none of
+	// its items loaded), or is random with nothing on its list yet, so the window shows the row
+	// as the user left it.
+	bool HoldsSomething(const OutfitRows::Row& a_row)
+	{
+		return a_row.random || OutfitRows::HoldsAny(a_row);
+	}
+
+	// An assignment with nothing on the actor and no row, kept ones included, holding
+	// something is no assignment: they keep what they wear.
 	// Contract: every record dropped as empty goes through this test (DropIfEmpty, the
 	// co-save load, ForgetOutfit, ForgetSituation).
 	bool IsEmpty(const Assignment& a_assignment)
 	{
-		return a_assignment.pieces.empty() &&
-		       std::ranges::none_of(a_assignment.rows, [](const OutfitRows::Row& a_row) { return a_row.random || OutfitRows::HoldsAny(a_row); });
+		return a_assignment.pieces.empty() && a_assignment.kept.empty() && std::ranges::none_of(a_assignment.rows, HoldsSomething);
 	}
 
 	void DropIfEmpty(RE::FormID a_actor)
@@ -181,53 +200,63 @@ namespace
 		std::string joined;
 		for (const auto* armor : armors) {
 			const auto* name = armor->GetName();
-			joined += (joined.empty() ? "" : ", ") + (name && *name ? std::string{ name } : std::format("{:08X}", armor->GetFormID()));
+			joined += (joined.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + (name && *name ? std::string{ name } : std::format("{:08X}", armor->GetFormID()));
 		}
 		return joined;
 	}
 
-	// What the HUD adds about a dressing: the pieces left out and those the engine refused.
-	std::string DressingNotes(const Dressing::Result& a_result)
+	// The HUD's sentences are built in the language's own order (LIVERY_STRINGS_HUD_DRESSING):
+	// a main clause, the notes below, each taking the sentence so far, and EndOf.
+
+	// `a_text` with what the HUD adds about a dressing: the pieces left out and those the engine
+	// refused.
+	std::string WithDressingNotes(std::string a_text, const Dressing::Result& a_result)
 	{
-		std::string notes;
 		if (!a_result.notCarried.empty()) {
-			notes += "; not carried: " + JoinNames(a_result.notCarried);
+			a_text = Strings::Format(Strings::Text::kHudNoteNotCarried, a_text, JoinNames(a_result.notCarried));
 		}
 		if (!a_result.refused.empty()) {
-			notes += "; could not be put on: " + JoinNames(a_result.refused);
+			a_text = Strings::Format(Strings::Text::kHudNoteRefused, a_text, JoinNames(a_result.refused));
 		}
-		return notes;
+		return a_text;
+	}
+
+	std::string EndOf(const std::string& a_text)
+	{
+		return Strings::Format(Strings::Text::kHudEnd, a_text);
 	}
 
 	std::string JoinSituations(const std::vector<Situation>& a_situations)
 	{
 		std::string joined;
 		for (const auto situation : a_situations) {
-			joined += std::format("{}{}", joined.empty() ? "" : ", ", SituationStore::Name(situation));
+			joined += (joined.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + SituationStore::Name(situation);
 		}
 		return joined;
 	}
 
+	// The outfit's name in the language's quotes; its words for one the Wardrobe no longer holds.
 	std::string QuotedOutfitName(std::uint32_t a_outfit)
 	{
 		const auto* stored = Library::Find(a_outfit);
-		return stored ? std::format("\"{}\"", stored->name) : "an outfit no longer in the Wardrobe";
+		return stored ? Strings::Format(Strings::Text::kQuotedName, stored->name) : Strings::Get(Strings::Text::kOutfitGone);
 	}
 
 	// The HUD line for a redress because a situation began or ended (WearFor): what they wear
-	// now, ending in the situation it is for.
+	// now, and the situation it is for.
 	std::string SituationChangeText(RE::Actor& a_actor, const Assignment& a_assignment)
 	{
+		using Strings::Text;
 		const bool player = a_actor.IsPlayerRef();
-		const auto who = player ? std::string("you now wear") : std::format("{} now wears", NameOf(a_actor));
+		const auto name = NameOf(a_actor);
 		if (a_assignment.pieces.empty()) {
-			return std::format("Livery: {} {} own clothes.", who, player ? "your" : "their");
+			return Strings::Format(player ? Text::kHudYouWearOwn : Text::kHudWearsOwn, name);
 		}
-		const auto suffix = SituationStore::Suffix(a_assignment.worn);
 		if (a_assignment.worn == Situation::kDefault) {
-			return std::format("Livery: {} the default outfit{}.", who, suffix);
+			return Strings::Format(player ? Text::kHudYouWearDefault : Text::kHudWearsDefault, name);
 		}
-		return std::format("Livery: {} {}{}.", who, QuotedOutfitName(a_assignment.wornOutfit), suffix);
+		return Strings::Format(player ? Text::kHudYouWearFor : Text::kHudWearsFor, name, QuotedOutfitName(a_assignment.wornOutfit),
+			SituationStore::Name(a_assignment.worn));
 	}
 
 	std::vector<RE::FormID> FormIDsOf(const std::vector<RE::TESObjectARMO*>& a_armor)
@@ -353,12 +382,53 @@ namespace
 		return result;
 	}
 
+	// Why a situation outfit put nothing on, so the Default went on instead (Redress).
+	struct Fallback
+	{
+		Situation     row = Situation::kDefault;
+		std::uint32_t outfit = 0;
+		std::size_t   notCarried = 0;  // its pieces left out: not carried and adding was off
+		std::size_t   refused = 0;     // its pieces the engine would not put on
+		bool          loaded = false;  // any of its pieces is loaded
+	};
+
+	struct Redressed
+	{
+		Dressing::Result        result;    // the last dressing's: the Default's after a fallback
+		std::optional<Fallback> fallback;  // set when the situation outfit put nothing on
+	};
+
+	// The HUD's clause for a fallback, without "Livery: " or the full stop: "you carry none of
+	// the items of "Noble Robes" for Castle".
+	std::string FallbackText(RE::Actor& a_actor, const Fallback& a_fallback)
+	{
+		using Strings::Text;
+		auto text = Text::kHudFallbackRefused;
+		if (!a_fallback.loaded) {
+			text = Text::kHudFallbackNotLoaded;
+		} else if (a_actor.IsPlayerRef()) {
+			text = a_fallback.notCarried > 0 && a_fallback.refused == 0 ? Text::kHudFallbackNotCarried : Text::kHudFallbackRefusedYou;
+		}
+		return Strings::Format(text, QuotedOutfitName(a_fallback.outfit), SituationStore::Name(a_fallback.row), NameOf(a_actor));
+	}
+
+	// `a_text` with the notes of the last dressing (WithDressingNotes), then why the situation
+	// outfit gave way, if it did.
+	std::string WithRedressNotes(std::string a_text, RE::Actor& a_actor, const Redressed& a_redressed)
+	{
+		a_text = WithDressingNotes(std::move(a_text), a_redressed.result);
+		if (a_redressed.fallback) {
+			a_text = Strings::Format(Strings::Text::kHudNoteJoin, a_text, FallbackText(a_actor, *a_redressed.fallback));
+		}
+		return a_text;
+	}
+
 	// Dresses them for `a_now` unless they already wear the row it resolves to and the
 	// outfit that row wears (`force` dresses them anyway), the rows as LiveRows sees them. A
-	// situation outfit that puts nothing on falls back to the Default. Returns the dressing's
-	// result, or nullopt when nothing changed; the assignment's `worn` and `wornOutfit` tell
-	// what went on.
-	std::optional<Dressing::Result> Redress(Assignment& a_assignment, RE::Actor& a_actor, const Situations::Applicable& a_now, const RedressOptions& a_options = {})
+	// situation outfit that puts nothing on falls back to the Default, with a log line that
+	// says why. Returns the dressing's result, or nullopt when nothing changed; the
+	// assignment's `worn` and `wornOutfit` tell what went on.
+	std::optional<Redressed> Redress(Assignment& a_assignment, RE::Actor& a_actor, const Situations::Applicable& a_now, const RedressOptions& a_options = {})
 	{
 		const auto rows = LiveRows(a_assignment);
 		const auto row = OutfitRows::Resolve(rows, a_now);
@@ -367,24 +437,32 @@ namespace
 			return std::nullopt;
 		}
 		// Read before Wear, which changes what they wear and so a random Default's kept pick.
-		const auto fallback = row != Situation::kDefault ? OutfitFor(a_assignment, rows, Situation::kDefault, a_options) : outfit;
-		auto       result = Wear(a_assignment, a_actor, row, outfit, a_options.leaveOut);
-		if (result.worn.empty() && row != Situation::kDefault) {
-			logger::info("No piece of the {} outfit went on {:08X}; the default outfit instead", Situations::Name(row), a_actor.GetFormID());
-			result = Wear(a_assignment, a_actor, Situation::kDefault, fallback, a_options.leaveOut);
+		const auto defaultOutfit = row != Situation::kDefault ? OutfitFor(a_assignment, rows, Situation::kDefault, a_options) : outfit;
+		Redressed  redressed{ .result = Wear(a_assignment, a_actor, row, outfit, a_options.leaveOut) };
+		if (redressed.result.worn.empty() && row != Situation::kDefault) {
+			const auto* stored = Library::Find(outfit);
+			const auto& missed = redressed.result;
+			redressed.fallback = Fallback{ .row = row,
+				.outfit = outfit,
+				.notCarried = missed.notCarried.size(),
+				.refused = missed.refused.size(),
+				.loaded = stored && !Library::LoadedPieces(*stored).empty() };
+			logger::info("No piece of the {} outfit \"{}\" went on {:08X}: {} not carried, {} could not be put on; the default outfit instead", Situations::Name(row),
+				stored ? stored->name : "no longer in the Wardrobe", a_actor.GetFormID(), missed.notCarried.size(), missed.refused.size());
+			redressed.result = Wear(a_assignment, a_actor, Situation::kDefault, defaultOutfit, a_options.leaveOut);
 		}
-		return result;
+		return redressed;
 	}
 
 	// Children and the dead are never dressed; a HUD message says why.
 	bool CanBeDressed(RE::Actor& a_actor)
 	{
 		if (a_actor.IsChild()) {
-			Notify("Livery: children cannot be dressed.");
+			Notify(Strings::Get(Strings::Text::kHudChildrenNotDressed));
 			return false;
 		}
 		if (a_actor.IsDead()) {
-			Notify(std::format("Livery: {} is dead.", NameOf(a_actor)));
+			Notify(Strings::Format(Strings::Text::kHudDead, NameOf(a_actor)));
 			return false;
 		}
 		return true;
@@ -685,15 +763,19 @@ namespace
 		return true;
 	}
 
-	bool WriteSituation(const SKSE::SerializationInterface& a_intfc, Situation a_situation)
+	bool WriteSituationKey(const SKSE::SerializationInterface& a_intfc, std::string_view a_key)
 	{
-		const std::string_view key = Situations::Name(a_situation);
-		return Write(a_intfc, static_cast<std::uint8_t>(key.size())) && a_intfc.WriteRecordData(key.data(), static_cast<std::uint32_t>(key.size()));
+		return Write(a_intfc, static_cast<std::uint8_t>(a_key.size())) && a_intfc.WriteRecordData(a_key.data(), static_cast<std::uint32_t>(a_key.size()));
 	}
 
-	bool WriteRow(const SKSE::SerializationInterface& a_intfc, Situation a_situation, const OutfitRows::Row& a_row)
+	bool WriteSituation(const SKSE::SerializationInterface& a_intfc, Situation a_situation)
 	{
-		bool written = WriteSituation(a_intfc, a_situation) && Write(a_intfc, static_cast<std::uint8_t>(a_row.random)) &&
+		return WriteSituationKey(a_intfc, Situations::Name(a_situation));
+	}
+
+	bool WriteRow(const SKSE::SerializationInterface& a_intfc, std::string_view a_key, const OutfitRows::Row& a_row)
+	{
+		bool written = WriteSituationKey(a_intfc, a_key) && Write(a_intfc, static_cast<std::uint8_t>(a_row.random)) &&
 		               Write(a_intfc, a_row.chosen) && Write(a_intfc, static_cast<std::uint32_t>(a_row.outfits.size()));
 		for (const auto outfit : a_row.outfits) {
 			written = written && Write(a_intfc, outfit);
@@ -713,11 +795,18 @@ namespace
 		for (const auto armor : a_assignment.defaultPieces) {
 			written = written && Write(a_intfc, armor);
 		}
-		// Every situation's row, an empty one for a row never stored (OutfitRows::Rows).
+		// Every situation's row, an empty one for a row never stored (OutfitRows::Rows), then the
+		// kept rows.
+		// Contract: rows are kept only while situations.json cannot be read, when Count() is the
+		// presets alone; the record they were read from held the presets' rows too, so the
+		// count still fits in a byte.
 		const auto rows = Situations::Count();
-		written = written && WriteSituation(a_intfc, a_assignment.worn) && Write(a_intfc, static_cast<std::uint8_t>(rows));
+		written = written && WriteSituation(a_intfc, a_assignment.worn) && Write(a_intfc, static_cast<std::uint8_t>(rows + a_assignment.kept.size()));
 		for (std::size_t i = 0; i < rows; ++i) {
-			written = written && WriteRow(a_intfc, static_cast<Situation>(i), a_assignment.rows[i]);
+			written = written && WriteRow(a_intfc, Situations::Name(static_cast<Situation>(i)), a_assignment.rows[i]);
+		}
+		for (const auto& [key, row] : a_assignment.kept) {
+			written = written && WriteRow(a_intfc, key, row);
 		}
 		return written;
 	}
@@ -734,6 +823,9 @@ namespace
 			for (const auto& row : assignment.rows) {
 				count += static_cast<std::uint32_t>(row.excluded.size());
 			}
+			for (const auto& kept : assignment.kept) {
+				count += static_cast<std::uint32_t>(kept.row.excluded.size());
+			}
 		}
 		return count;
 	}
@@ -748,16 +840,22 @@ namespace
 			logger::error("Could not open the co-save record of the items left off");
 			return;
 		}
-		bool written = Write(*a_intfc, count);
+		bool       written = Write(*a_intfc, count);
+		const auto writeRow = [&written, a_intfc](RE::FormID a_actor, std::string_view a_key, const OutfitRows::Row& a_row) {
+			for (const auto& [outfit, armor] : a_row.excluded) {
+				written = written && Write(*a_intfc, a_actor) && WriteSituationKey(*a_intfc, a_key) && Write(*a_intfc, outfit) &&
+				          Write(*a_intfc, static_cast<std::uint32_t>(armor.size()));
+				for (const auto id : armor) {
+					written = written && Write(*a_intfc, id);
+				}
+			}
+		};
 		for (const auto& assignment : g_assignments) {
 			for (std::size_t i = 0; i < assignment.rows.size(); ++i) {
-				for (const auto& [outfit, armor] : assignment.rows[i].excluded) {
-					written = written && Write(*a_intfc, assignment.actor) && WriteSituation(*a_intfc, static_cast<Situation>(i)) && Write(*a_intfc, outfit) &&
-					          Write(*a_intfc, static_cast<std::uint32_t>(armor.size()));
-					for (const auto id : armor) {
-						written = written && Write(*a_intfc, id);
-					}
-				}
+				writeRow(assignment.actor, Situations::Name(static_cast<Situation>(i)), assignment.rows[i]);
+			}
+			for (const auto& [key, row] : assignment.kept) {
+				writeRow(assignment.actor, key, row);
 			}
 		}
 		if (!written) {
@@ -884,8 +982,11 @@ namespace
 		return true;
 	}
 
-	// Reads the Default's pieces, the row worn and the rows. A row for a situation this version
-	// does not have is dropped with a log line. Returns false when the record ends early.
+	// Reads the Default's pieces, the row worn and the rows. A row for a situation this session
+	// does not have is kept for a user's situation while situations.json cannot be read
+	// (SituationTable::KeepsUnknownRow), dropped otherwise, with a log line either way. Returns
+	// false when the record ends early.
+	// Contract: SituationStore is loaded (kDataLoaded, before any co-save load).
 	bool ReadRows(const SKSE::SerializationInterface& a_intfc, Assignment& a_assignment)
 	{
 		std::uint8_t rows = 0;
@@ -900,7 +1001,13 @@ namespace
 			}
 			const auto situation = Situations::FromKey(key);
 			if (!situation) {
-				if (row != OutfitRows::Row{}) {
+				if (!HoldsSomething(row)) {
+					continue;
+				}
+				if (SituationTable::KeepsUnknownRow(key, SituationStore::WasLoaded())) {
+					logger::warn("Kept the co-save row of situation {} for {:08X}: situations.json could not be read", key, a_assignment.actor);
+					a_assignment.kept.push_back({ .key = std::move(key), .row = std::move(row) });
+				} else {
 					logger::warn("Dropped the co-save row of situation {}, which this version does not have, for {:08X}", key, a_assignment.actor);
 				}
 				continue;
@@ -926,7 +1033,7 @@ namespace
 	// Contract: SituationStore is loaded (kDataLoaded, before any co-save load).
 	void DropRemovedRows(Assignment& a_assignment)
 	{
-		for (const auto situation : Situations::Choosable()) {
+		for (const auto situation : Situations::Order()) {
 			auto& row = a_assignment.rows[RowOf(situation)];
 			if (SituationStore::IsRemoved(situation) && row != OutfitRows::Row{}) {
 				logger::info("Dropped the {} row of {:08X}: the situation is removed in situations.json", Situations::Name(situation), a_assignment.actor);
@@ -964,7 +1071,8 @@ namespace
 	struct StoredExclusion
 	{
 		RE::FormID               actor = 0;
-		std::optional<Situation> row;  // nullopt for a situation this version does not have
+		std::optional<Situation> row;  // nullopt for a situation this session does not have
+		std::string              key;  // the row's situation as stored, for a kept row (Assignment::kept)
 		std::uint32_t            outfit = 0;
 		std::vector<RE::FormID>  armor;
 	};
@@ -981,12 +1089,11 @@ namespace
 		}
 		for (; count > 0; --count) {
 			StoredExclusion entry;
-			std::string     key;
-			if (!Read(a_intfc, entry.actor) || !ReadSituationKey(a_intfc, key) || !Read(a_intfc, entry.outfit) || !ReadArmorForms(a_intfc, entry.armor)) {
+			if (!Read(a_intfc, entry.actor) || !ReadSituationKey(a_intfc, entry.key) || !Read(a_intfc, entry.outfit) || !ReadArmorForms(a_intfc, entry.armor)) {
 				logger::error("The co-save record of the items left off is cut short");
 				return entries;
 			}
-			entry.row = Situations::FromKey(key);
+			entry.row = Situations::FromKey(entry.key);
 			if (a_intfc.ResolveFormID(entry.actor, entry.actor)) {
 				entries.push_back(std::move(entry));
 			}
@@ -994,20 +1101,32 @@ namespace
 		return entries;
 	}
 
-	// Gives the assignments read the items their rows' outfits leave off. An entry for an actor
-	// without an assignment, a row this version does not have, or an outfit no longer on the
-	// row (its situation removed in situations.json, DropRemovedRows) is dropped.
+	// The row an exclusion entry belongs to: a situation's, or a kept row stored under its key;
+	// nullptr for neither.
+	OutfitRows::Row* EntryRow(Assignment& a_assignment, const StoredExclusion& a_entry)
+	{
+		if (a_entry.row) {
+			return &a_assignment.rows[RowOf(*a_entry.row)];
+		}
+		const auto kept = std::ranges::find(a_assignment.kept, a_entry.key, &KeptRow::key);
+		return kept != a_assignment.kept.end() ? &kept->row : nullptr;
+	}
+
+	// Gives the assignments read the items their rows' outfits leave off, kept rows included.
+	// An entry for an actor without an assignment, a row this session neither has nor kept, or
+	// an outfit no longer on the row (its situation removed in situations.json,
+	// DropRemovedRows) is dropped.
 	// Contract: after the ASGN record was read, in whichever order the records came.
 	void AttachExclusions(const std::vector<StoredExclusion>& a_entries)
 	{
 		for (const auto& entry : a_entries) {
 			auto* assignment = FindAssignment(entry.actor);
-			if (!assignment || !entry.row) {
+			auto* row = assignment ? EntryRow(*assignment, entry) : nullptr;
+			if (!row) {
 				continue;
 			}
-			auto& row = assignment->rows[RowOf(*entry.row)];
-			if (std::ranges::find(row.outfits, entry.outfit) != row.outfits.end()) {
-				OutfitRows::SetExcluded(row, entry.outfit, entry.armor);
+			if (std::ranges::find(row->outfits, entry.outfit) != row->outfits.end()) {
+				OutfitRows::SetExcluded(*row, entry.outfit, entry.armor);
 			}
 		}
 	}
@@ -1204,8 +1323,7 @@ namespace Assignments
 			}
 		}
 		SyncManaged();
-		Notify(released == total ? std::format("Livery: released {} characters.", total) :
-								   std::format("Livery: released {} of {} characters; the others are out of reach and keep their items.", released, total));
+		Notify(Strings::Format(released == total ? Strings::Text::kHudReleased : Strings::Text::kHudReleasedSome, released, total));
 	}
 
 	void Assign(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_armor, std::uint32_t a_outfit)
@@ -1228,24 +1346,29 @@ namespace Assignments
 		}
 		// The new Default goes on even when they already wore the Default; a situation
 		// outfit they wear stays on and the Default waits for its turn.
-		const auto now = Situations::Evaluate(a_actor);
+		const auto now = Situations::Evaluate(a_actor, assignment.rows);
 		options.force = OutfitRows::Resolve(LiveRows(assignment), now) == Situation::kDefault;
 		const auto result = Redress(assignment, a_actor, now, options);
 		const auto wornFor = assignment.worn;  // read before DropIfEmpty, which may end the record
 		DropIfEmpty(id);
 		SyncManaged();
+		using Strings::Text;
+		const auto name = NameOf(a_actor);
+		const bool situational = wornFor != Situation::kDefault;
+		const auto situation = SituationStore::Name(wornFor);
 		if (!result) {
-			Notify(std::format("Livery: {} will wear these by default; dressed now{}.", NameOf(a_actor), SituationStore::Suffix(wornFor)));
+			Notify(Strings::Format(situational ? Text::kHudWillWearDefaultFor : Text::kHudWillWearDefault, name, situation));
 			return;
 		}
 
-		const auto added = std::ranges::count_if(result->worn, &Dressing::Piece::added);
-		auto       text = a_actor.IsPlayerRef() ? std::string("Livery: you now wear these") : std::format("Livery: {} now wears these", NameOf(a_actor));
-		text += SituationStore::Suffix(wornFor);
+		const auto added = std::ranges::count_if(result->result.worn, &Dressing::Piece::added);
+		const auto wears = a_actor.IsPlayerRef() ? (situational ? Text::kHudYouWearTheseFor : Text::kHudYouWearThese) :
+		                                           (situational ? Text::kHudWearsTheseFor : Text::kHudWearsThese);
+		auto       text = Strings::Format(wears, name, situation);
 		if (added > 0) {
-			text += std::format(", {} added", added);
+			text = Strings::Format(Text::kHudNoteAdded, text, added);
 		}
-		Notify(text + DressingNotes(*result) + ".");
+		Notify(EndOf(WithRedressNotes(std::move(text), a_actor, *result)));
 	}
 
 	void Change(RE::Actor& a_actor, const Changes& a_changes)
@@ -1262,29 +1385,37 @@ namespace Assignments
 		for (const auto row : a_changes.remove) {
 			(OutfitRows::HoldsAny(assignment.rows[RowOf(row)]) ? kept : emptied).push_back(row);
 		}
-		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor),
+		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor, assignment.rows),
 			{ .force = true, .leaveOut = a_changes.leaveOut, .given = a_changes.outfit, .givenRows = a_changes.assign });
 		const auto worn = assignment.worn;  // read before DropIfEmpty, which may end the record
 		const auto pieces = assignment.pieces.size();
 		DropIfEmpty(id);
 		SyncManaged();
 
-		std::vector<std::string> parts;
+		// Contract: every caller assigns the outfit to a row, so there is always a part to name.
+		using Strings::Text;
+		std::string parts;
+		const auto  add = [&parts](const std::string& a_part) {
+			parts = parts.empty() ? a_part : Strings::Format(Text::kHudNoteJoin, parts, a_part);
+		};
 		if (!a_changes.assign.empty()) {
-			parts.push_back(std::format("{} for {}", QuotedOutfitName(a_changes.outfit), JoinSituations(a_changes.assign)));
+			add(Strings::Format(Text::kHudPartFor, QuotedOutfitName(a_changes.outfit), JoinSituations(a_changes.assign)));
 		}
 		if (!emptied.empty()) {
-			parts.push_back(std::format("no outfit for {} any more", JoinSituations(emptied)));
+			add(Strings::Format(Text::kHudPartNoOutfit, JoinSituations(emptied)));
 		}
 		if (!kept.empty()) {
-			parts.push_back(std::format("{} no longer for {}", QuotedOutfitName(a_changes.outfit), JoinSituations(kept)));
+			add(Strings::Format(Text::kHudPartNoLonger, QuotedOutfitName(a_changes.outfit), JoinSituations(kept)));
 		}
-		auto text = std::format("Livery: {}:", NameOf(a_actor));
-		for (std::size_t i = 0; i < parts.size(); ++i) {
-			text += (i == 0 ? " " : "; ") + parts[i];
+		auto text = Strings::Format(Text::kHudChangeHead, NameOf(a_actor), parts);
+		if (pieces == 0) {
+			text = Strings::Format(Text::kHudOwnClothesNow, text);
+		} else if (worn == Situation::kDefault) {
+			text = Strings::Format(Text::kHudDressedNow, text);
+		} else {
+			text = Strings::Format(Text::kHudDressedNowFor, text, SituationStore::Name(worn));
 		}
-		text += pieces > 0 ? std::format(". Dressed now{}", SituationStore::Suffix(worn)) : ". Own clothes now";
-		Notify(text + (result ? DressingNotes(*result) : "") + ".");
+		Notify(EndOf(result ? WithRedressNotes(std::move(text), a_actor, *result) : text));
 	}
 
 	std::optional<std::uint32_t> SetRows(RE::Actor& a_actor, const OutfitRows::Rows& a_rows, bool a_dropDefaultPieces)
@@ -1296,7 +1427,7 @@ namespace Assignments
 		auto&      assignment = FindOrAddAssignment(id);
 		const auto pick = GainedPick(assignment, a_rows);
 		assignment.rows = a_rows;
-		for (const auto situation : Situations::Choosable()) {
+		for (const auto situation : Situations::Order()) {
 			if (SituationStore::IsRemoved(situation)) {
 				assignment.rows[RowOf(situation)] = {};
 			}
@@ -1318,20 +1449,26 @@ namespace Assignments
 			return;
 		}
 		if (a_actor.IsDead()) {
-			Notify(std::format("Livery: {} is dead.", NameOf(a_actor)));
+			Notify(Strings::Format(Strings::Text::kHudDead, NameOf(a_actor)));
 			return;
 		}
-		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor),
+		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor, assignment->rows),
 			{ .force = true, .leaveOut = a_leaveOut, .given = a_pick, .givenRows = { assignment->worn } });
 		const auto worn = assignment->worn;  // read before DropIfEmpty, which may end the record
 		const auto outfit = assignment->wornOutfit;
 		const auto pieces = assignment->pieces.size();
 		DropIfEmpty(id);
 		SyncManaged();
-		auto text = pieces > 0 ? std::format("Livery: {} now wears {}{}", NameOf(a_actor), outfit ? QuotedOutfitName(outfit) : "the default items",
-									 SituationStore::Suffix(worn)) :
-		                         std::format("Livery: {}: own clothes now", NameOf(a_actor));
-		Notify(text + (result ? DressingNotes(*result) : "") + ".");
+		using Strings::Text;
+		const auto  name = NameOf(a_actor);
+		std::string text;
+		if (pieces == 0) {
+			text = Strings::Format(Text::kHudOwnClothes, name);
+		} else {
+			const auto wears = outfit ? QuotedOutfitName(outfit) : std::string{ Strings::Get(Text::kHudDefaultItems) };
+			text = Strings::Format(worn == Situation::kDefault ? Text::kHudWearsOutfit : Text::kHudWearsOutfitFor, name, wears, SituationStore::Name(worn));
+		}
+		Notify(EndOf(result ? WithRedressNotes(std::move(text), a_actor, *result) : text));
 	}
 
 	std::uint32_t PickAnother(RE::FormID a_actor)
@@ -1357,19 +1494,27 @@ namespace Assignments
 		if (!assignment) {
 			return false;
 		}
-		if (!Redress(*assignment, a_actor, a_now)) {
+		const auto redressed = Redress(*assignment, a_actor, a_now);
+		if (!redressed) {
 			return false;
 		}
 		logger::info("Dressed {:08X} for {}: {} piece(s) on", id, Situations::Name(assignment->worn), assignment->pieces.size());
 		// Read before DropIfEmpty: a situation outfit gone from their rows (ForgetOutfit) may
-		// leave nothing, which ends the record.
-		const auto text = SituationChangeText(a_actor, *assignment);
+		// leave nothing, which ends the record. After a fallback, why it gave way alone.
+		const auto text = redressed->fallback ? EndOf(Strings::Format(Strings::Text::kHudFallbackAlone, FallbackText(a_actor, *redressed->fallback))) :
+		                                        SituationChangeText(a_actor, *assignment);
 		DropIfEmpty(id);
 		SyncManaged();
 		if (Settings::NotifySituationChanges()) {
 			Notify(text);
 		}
 		return true;
+	}
+
+	Situations::Applicable SituationsNow(RE::Actor& a_actor)
+	{
+		const auto* assignment = FindAssignment(a_actor.GetFormID());
+		return assignment ? Situations::Evaluate(a_actor, assignment->rows) : Situations::Applicable{};
 	}
 
 	std::vector<RE::FormID> ActorsWithSituations()
@@ -1390,11 +1535,15 @@ namespace Assignments
 			return uses;
 		}
 		for (const auto& assignment : g_assignments) {
-			Use use{ .actor = assignment.actor };
-			for (std::size_t row = 0; row < assignment.rows.size(); ++row) {
-				if (OutfitRows::Holds(assignment.rows[row], a_outfit)) {
-					use.rows.push_back(static_cast<Situation>(row));
+			Use        use{ .actor = assignment.actor };
+			const auto add = [&](Situation a_situation) {
+				if (OutfitRows::Holds(assignment.rows[RowOf(a_situation)], a_outfit)) {
+					use.rows.push_back(a_situation);
 				}
+			};
+			add(Situation::kDefault);
+			for (const auto situation : Situations::Order()) {
+				add(situation);
 			}
 			if (!use.rows.empty()) {
 				uses.push_back(std::move(use));
@@ -1433,6 +1582,10 @@ namespace Assignments
 			for (auto& row : assignment.rows) {
 				OutfitRows::Take(row, a_outfit);
 			}
+			for (auto& kept : assignment.kept) {
+				OutfitRows::Take(kept.row, a_outfit);
+			}
+			std::erase_if(assignment.kept, [](const KeptRow& a_kept) { return !HoldsSomething(a_kept.row); });
 			if (heldByDefault && !OutfitRows::HoldsAny(defaultRow) && assignment.defaultPieces.empty()) {
 				assignment.defaultPieces = FormIDsOf(a_pieces);
 			}
@@ -1470,7 +1623,7 @@ namespace Assignments
 		}
 		const auto putBack = ReleaseActor(a_actor, true, true);
 		logger::info("Put {} of their own piece(s) back on {:08X}", putBack, a_actor.GetFormID());
-		Notify(a_actor.IsPlayerRef() ? std::string("Livery: restored your original outfit.") : std::format("Livery: restored {}'s original outfit.", NameOf(a_actor)));
+		Notify(Strings::Format(a_actor.IsPlayerRef() ? Strings::Text::kHudRestoredYours : Strings::Text::kHudRestored, NameOf(a_actor)));
 	}
 
 	std::optional<Choices> ChoicesOf(RE::FormID a_actor)

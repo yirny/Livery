@@ -10,17 +10,28 @@
 //   Drag and drop   - an outfit dragged from either pane, dropped on a situation (at its front,
 //                     or between two of its outfits; moved with the items it leaves off) or on
 //                     the outfit list (taken off its row); a folded heading opens once a drag
-//                     has hovered it a while
-//   Situation List  - the left pane: a heading per situation (a click or Edit selects, its
-//                     chevron folds, the die of the row worn puts on another of its outfits)
-//                     over the outfits it shows; a click on an outfit row of either pane shows
-//                     its details and puts it on the preview
-//   Right pane      - the outfit list with what a drag does under it; the selected situation's
-//                     details: name, conditions, Random Outfit (for #{Name}), Show
-//                     Outfit List with Remove; or an outfit's details with Open in Wardrobe and Back, its
-//                     pieces ticked as the row it was clicked under wears them
-//   Buttons, popups - Exit, Restore Presets (?); Remove's and Restore Presets' popups, each
-//                     handing its write to the Request's handler
+//                     has hovered it a while; a situation dropped between two others (the order)
+//   Never worn      - which situations one lower in the list covers (SituationRules::CoveredBy)
+//   Situation List  - the left pane: the Default's heading, the order's caption, then a heading
+//                     per situation in the order (Edit opens the Edit situation popup, its chevron
+//                     folds, the die of the row worn puts on another of its outfits) over the
+//                     outfits it shows; a click on an outfit row of either pane shows its details
+//                     and puts it on the preview
+//   Condition editor - a situation's conditions (docs/custom-situations.md §7): per condition a
+//                     heading with its Remove and a row that reads as a sentence (whose state, "is" or
+//                     a two-state dropdown, an operator dropdown and its values), places or spells
+//                     under it with a × each, the one clicked in the Applies text lit; Add
+//                     Condition..., Allow during combat
+//   Right pane      - the outfit list with what a drag does under it; or an outfit's details with
+//                     Open in Wardrobe and Back, its pieces ticked as the row it was clicked under
+//                     wears them
+//   Buttons, popups - New Situation..., Exit, Restore Presets (?); the New situation, Remove's and
+//                     Restore Presets' popups, each handing its write to the Request's handler;
+//                     the Edit situation popup (name, never worn, the Applies text with a link per
+//                     condition, Random Outfit (for #{Name}); the editor beside them; Done with
+//                     Remove Situation and Duplicate, the copy handed to the Request's handler once
+//                     the edits are saved) with the Add place and Add spell popups over it, edits of
+//                     the selected situation's Place or Spell row
 //   Saving          - an edit is saved shortly after the last one, as the page is left, or with
 //                     a die's click (ScheduleAutosave, SaveSituationEdits, RequestReroll)
 #include "PCH.h"
@@ -37,10 +48,14 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstring>
 #include <format>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -51,15 +66,34 @@ namespace CaptureWindow::Internal
 		// --- Constants --------------------------------------------------------
 
 		// How long a drag hovers a folded heading before it opens (seconds).
-		constexpr double      kDragExpandDelay = 1.0;
-		constexpr const char* kRemoveSituationPopup = "Remove situation?";
-		constexpr const char* kRestorePresetsPopup = "Restore presets?";
+		constexpr double       kDragExpandDelay = 1.0;
+		constexpr const char*  kRemoveSituationPopup = "Remove situation?";
+		constexpr const char*  kRestorePresetsPopup = "Restore presets?";
+		constexpr const char*  kNewSituationPopup = "New situation";
+		constexpr const char*  kAddPlacePopup = "Add location";
+		constexpr const char*  kAddSpellPopup = "Add spell";
+		constexpr const char*  kEditSituationPopup = "Edit situation";
+		constexpr Strings::Ref kNewSituation{ Text::kNewSituation };
+		// How often the Edit situation popup asks whether its conditions are met (seconds): the
+		// weather, the time and the actor change under it.
+		constexpr double kHoldsRefresh = 0.5;
+		// A condition's box in the editor, in every skin (pixels at 1080p): its padding inside,
+		// the gap under it, its corners' radius.
+		constexpr ImVec2 kConditionBoxPadding{ 12.0f, 8.0f };
+		constexpr float  kConditionBoxGap = 8.0f;
+		constexpr float  kConditionBoxRounding = 4.0f;
 		// Reasons a button is greyed out, shown on hover.
-		constexpr const char* kAsInstalled = "Every preset situation is as installed.";
+		constexpr Strings::Ref kAsInstalled{ Text::kPresetsAsInstalled };
 		// The name a situation gets when neither the one typed nor the one before can be used.
-		constexpr const char* kUnnamed = "Unnamed Situation";
+		constexpr Strings::Ref kUnnamed{ Text::kUnnamedSituation };
 		// A line in an outfit row's place under a heading.
-		constexpr const char* kPiecesLine = "Items not in the Wardrobe";
+		constexpr Strings::Ref kPiecesLine{ Text::kItemsNotInWardrobe };
+		// Minutes between the times a Time of day dropdown offers.
+		constexpr std::uint16_t kTimeStep = 30;
+		// A situation dragged by its heading's grip to another place in the order.
+		constexpr const char* kSituationPayload = "LiverySituation";
+		// Under the Default's heading, over the order.
+		constexpr Strings::Ref kOrderCaption{ Text::kOrderCaption };
 
 		// --- Edits ------------------------------------------------------------
 
@@ -75,6 +109,23 @@ namespace CaptureWindow::Internal
 			const auto& entries = a_state.situationForm.entries;
 			for (std::size_t i = 0; i < entries.size(); ++i) {
 				if (Trimmed(entries[i].name.data()) != a_state.request.situations[i].name) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// Entry `a_index`'s conditions differ from situations.json; the Default has none.
+		bool RulesChanged(const State& a_state, std::size_t a_index)
+		{
+			return a_index > 0 && a_state.situationForm.entries[a_index].rules != a_state.request.situations[a_index].rules;
+		}
+
+		// The Situation List's order differs from situations.json's, request.situations' own.
+		bool OrderChanged(const SituationForm& a_form)
+		{
+			for (std::size_t i = 0; i < a_form.order.size(); ++i) {
+				if (a_form.order[i] != i + 1) {
 					return true;
 				}
 			}
@@ -225,6 +276,72 @@ namespace CaptureWindow::Internal
 			ScheduleAutosave(a_state);
 		}
 
+		// A situation dragged by its grip: the entry it is.
+		struct SituationPayload
+		{
+			std::size_t entry = 0;
+		};
+
+		// The situation the drag on now carries; nullptr for none.
+		const SituationPayload* DraggedSituation()
+		{
+			const auto* payload = ImGui::GetDragDropPayload();
+			return payload && payload->IsDataType(kSituationPayload) ? static_cast<const SituationPayload*>(payload->Data) : nullptr;
+		}
+
+		// Accepts a situation dragged over the drop target just begun, with the line at `a_lineY`
+		// while it hovers, and ends the target. Returns the dragged entry once dropped.
+		// Contract: right after a BeginDragDropTarget that returned true.
+		std::optional<std::size_t> AcceptSituation(float a_lineY)
+		{
+			std::optional<std::size_t> dropped;
+			if (DraggedSituation()) {
+				if (const auto* payload = ImGui::AcceptDragDropPayload(kSituationPayload, ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
+					DrawInsertLine(a_lineY);
+					if (payload->IsDelivery()) {
+						dropped = static_cast<const SituationPayload*>(payload->Data)->entry;
+					}
+				}
+			}
+			ImGui::EndDragDropTarget();
+			return dropped;
+		}
+
+		// Situation `a_entry` dropped before the one at `a_place` in the order (its end with
+		// order.size()). Nobody is redressed for it: the poll follows the order once the window
+		// closes.
+		void DropSituation(State& a_state, std::size_t a_entry, std::size_t a_place)
+		{
+			auto&      order = a_state.situationForm.order;
+			const auto from = std::ranges::find(order, a_entry);
+			if (from == order.end()) {
+				return;
+			}
+			const auto index = static_cast<std::size_t>(from - order.begin());
+			const auto place = a_place > index ? a_place - 1 : a_place;  // the place once it is out
+			if (place == index) {
+				return;
+			}
+			order.erase(from);
+			order.insert(order.begin() + static_cast<std::ptrdiff_t>(place), a_entry);
+			a_state.situationForm.neverWornStale = true;
+			ScheduleAutosave(a_state);
+		}
+
+		// Situation `a_entry`'s drag from anywhere on its heading (Theme::SituationHeadingLook::grip),
+		// a see-through copy of the heading following the mouse (Theme::SituationDragGhost).
+		// Contract: right after the SituationHeading it drags, whose part held is the last item.
+		void OfferSituationDrag(std::size_t a_entry, const char* a_name)
+		{
+			if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoPreviewTooltip)) {
+				return;
+			}
+			const SituationPayload payload{ .entry = a_entry };
+			ImGui::SetDragDropPayload(kSituationPayload, &payload, sizeof(payload));
+			Theme::SituationDragGhost(a_name);
+			ImGui::EndDragDropSource();
+		}
+
 		// A drag from the Situation List dropped on the outfit list: the outfit leaves its row
 		// (its `chosen` 0 if it was that), or the Default's pieces go.
 		void DropOnOutfitList(State& a_state, const OutfitPayload& a_payload)
@@ -241,6 +358,63 @@ namespace CaptureWindow::Internal
 			const auto before = ViewedOutfitPieces(a_state);
 			OutfitRows::Take(form.entries[static_cast<std::size_t>(a_payload.from)].row, a_payload.outfit);
 			FollowViewedPieces(a_state, before);
+		}
+
+		// --- Never worn -------------------------------------------------------
+
+		// For each situation, those lower in the list that apply whenever it does
+		// (SituationRules::CoveredBy, from the rules and the order as edited), nearest first. At
+		// most kMaxSituations squared pairs, each a few rows.
+		void TellNeverWorn(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			form.neverWornBy.assign(form.entries.size(), {});
+			for (std::size_t p = 0; p < form.order.size(); ++p) {
+				const auto& rules = form.entries[form.order[p]].rules;
+				for (std::size_t q = p + 1; q < form.order.size(); ++q) {
+					if (SituationRules::CoveredBy(rules, form.entries[form.order[q]].rules, a_state.request.placeFacts)) {
+						form.neverWornBy[form.order[p]].push_back(form.order[q]);
+					}
+				}
+			}
+			form.neverWornStale = false;
+		}
+
+		// The nearest entry lower in the list that applies whenever entry `a_entry` does, so that
+		// one is never worn; none while it may be worn.
+		std::optional<std::size_t> NeverWornBy(const SituationForm& a_form, std::size_t a_entry)
+		{
+			if (a_entry >= a_form.neverWornBy.size() || a_form.neverWornBy[a_entry].empty()) {
+				return std::nullopt;
+			}
+			return a_form.neverWornBy[a_entry].front();
+		}
+
+		// "Never worn: Rainy town, lower in the list, applies whenever this does." and how to
+		// change that, naming entry `a_by` (NeverWornBy) after its star in the emphasis, each
+		// sentence wrapped (Theme::RunTextWrapped) in the text colour pushed now; its lines as
+		// close as a wrapped text's.
+		void DrawNeverWornText(const SituationForm& a_form, std::size_t a_by)
+		{
+			const auto name = Trimmed(a_form.entries[a_by].name.data());
+			const auto why = RunsOf(Text::kNeverWorn, { SituationRun(name.c_str()) });
+			const auto fix = RunsOf(Text::kNeverWornFix, { SituationRun(name.c_str()) });
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+			Theme::RunTextWrapped(why.Parts());
+			ImGui::PopStyleVar();
+			Theme::RunTextWrapped(fix.Parts());
+		}
+
+		// Entry `a_entry` applies whenever entry `a_of` (-1 for none) does, so `a_of` is never
+		// worn: its heading's name shows in the error colour while `a_of` is selected or its
+		// never-worn mark hovered.
+		bool Overrides(const SituationForm& a_form, int a_of, std::size_t a_entry)
+		{
+			if (a_of <= 0 || static_cast<std::size_t>(a_of) >= a_form.neverWornBy.size()) {
+				return false;
+			}
+			const auto& by = a_form.neverWornBy[static_cast<std::size_t>(a_of)];
+			return std::ranges::find(by, a_entry) != by.end();
 		}
 
 		// --- Situation List ---------------------------------------------------
@@ -320,7 +494,7 @@ namespace CaptureWindow::Internal
 		float SituationListHeight(const State& a_state, float a_top)
 		{
 			const auto& form = a_state.situationForm;
-			float       rows = 0.0f;
+			float       rows = form.entries.size() > 1 ? Theme::ListHeadingHeight() : 0.0f;  // the order's caption
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				rows += Theme::SituationHeadingHeight();
 				if (ShowsPieces(form, i)) {
@@ -368,7 +542,8 @@ namespace CaptureWindow::Internal
 				const float top = ImGui::GetCursorScreenPos().y;
 				// No star: every row here is one chosen for a situation.
 				const bool viewed = form.viewedOutfit == shown[k] && form.viewedRow == static_cast<int>(a_entry);
-				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, viewed, k % 2 == 1, Theme::Grip::kName, false)) {
+				const auto excluded = OutfitRows::ExcludedOf(form.entries[a_entry].row, shown[k]);
+				if (DrawOutfitRow(a_state, a_state.situationBrowser, index, viewed, k % 2 == 1, Theme::Grip::kName, false, &excluded)) {
 					QueueMenuSound(kFocusSound);
 					ViewOutfit(a_state, index, static_cast<int>(a_entry));
 				}
@@ -396,42 +571,51 @@ namespace CaptureWindow::Internal
 
 		Dice DiceOf(const State& a_state, std::size_t a_entry)
 		{
-			constexpr const char* kRandomLine = "One of these outfits is picked at random each time this situation begins.";
-
 			const auto& request = a_state.request;
 			const auto& outfits = a_state.situationForm.entries[a_entry].row.outfits;
 			const bool  wears = request.wornOutfit != 0 && request.situations[a_entry].situation == request.wornFor &&
 			                    std::ranges::find(outfits, request.wornOutfit) != outfits.end();
+			const char* line = Strings::Get(Text::kRandomLine);
 			if (!wears) {
-				return { .tip = std::format("{}\n{} is not wearing one of them now.", kRandomLine, request.actorName) };
+				return { .tip = std::format("{}\n{}", line, Strings::Format(Text::kRandomNotWearing, request.actorName)) };
 			}
 			if (outfits.size() < 2) {
-				return { .tip = std::format("{}\nAdd another to pick from.", kRandomLine) };
+				return { .tip = std::format("{}\n{}", line, Strings::Get(Text::kRandomAddAnother)) };
 			}
-			return { .button = true, .tip = std::format("{}\nClick to pick another now.", kRandomLine) };
+			return { .button = true, .tip = std::format("{}\n{}", line, Strings::Get(Text::kRandomClick)) };
 		}
 
-		// Situation `a_entry`'s heading, then, unless folded, what it shows. A click left of the
-		// chevron selects it and shows its details, closing an outfit's, or unselects it when its
-		// details show; Edit always selects it and shows them; the chevron folds it. Its die and
+		// Situation `a_entry`'s heading, then, unless folded, what it shows. Edit asks for its Edit
+		// situation popup, the chevron folds it, and a click elsewhere on it does nothing; it is
+		// drawn selected while the popup is open on it. Every heading
+		// but the Default's drags from anywhere on it to another place in the order while the page
+		// offers that (Request::customSituations). A heading that is never worn carries a warning
+		// mark after its name, saying why on hover (DrawNeverWornText); one whose situation makes
+		// the one the popup is open on, or the one whose mark is hovered, never worn has its name in the error
+		// colour (Overrides): those are lower in the list, drawn after the mark. Its die and
 		// count show with random on alone; the die is a button as DiceOf says. Only random on
 		// with something to show has the chevron; else it is never folded (random off shows its
 		// one outfit, a drop shows what it got). With nothing to show its name is greyed. A drop
 		// on the heading, its rule included, adds at the front. `a_dragHovered` becomes the entry
 		// while a drag hovers its folded heading, which opens once DrawSituationList has seen
-		// that for kDragExpandDelay. Returns whether its die was clicked.
-		bool DrawSituationEntry(State& a_state, std::size_t a_entry, int& a_dragHovered)
+		// that for kDragExpandDelay. Returns HeadingClick::kDice or kEdit when its die or Edit was
+		// clicked, else kNone.
+		Theme::HeadingClick DrawSituationEntry(State& a_state, std::size_t a_entry, int& a_dragHovered)
 		{
 			auto&      form = a_state.situationForm;
 			auto&      entry = form.entries[a_entry];
 			const int  index = static_cast<int>(a_entry);
+			const int  editedNow = form.editing ? form.selected : -1;
 			const bool shows = ShowsAnything(form, a_entry);
 			const bool foldable = shows && entry.row.random;
 			if (!foldable) {
 				entry.folded = false;
 			}
 			const auto  dice = entry.row.random ? DiceOf(a_state, a_entry) : Dice{};
+			const auto  neverWornBy = NeverWornBy(form, a_entry);
+			const bool  grip = a_entry != 0 && a_state.request.customSituations;
 			const float top = ImGui::GetCursorScreenPos().y;
+			bool        warningHovered = false;
 			const auto  click = Theme::SituationHeading(entry.name.data(),
 				{ .count = entry.row.random ? static_cast<int>(entry.row.outfits.size()) : -1,
 					.random = entry.row.random,
@@ -439,10 +623,23 @@ namespace CaptureWindow::Internal
 					.diceTip = dice.tip.empty() ? nullptr : dice.tip.c_str(),
 					.open = !entry.folded,
 					.foldable = foldable,
-					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
+					.selected = editedNow == index,
 					.dim = !shows,
 					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
+					.grip = grip,
+					.alert = Overrides(form, editedNow, a_entry) || Overrides(form, form.warningHovered, a_entry),
+					.warning = neverWornBy.has_value(),
+					.warningHovered = &warningHovered,
 					.nameTip = a_state.request.situations[a_entry].conditions.c_str() });
+			if (warningHovered) {
+				form.warningHovered = index;
+				BeginHelpTooltip();
+				DrawNeverWornText(form, *neverWornBy);
+				EndHelpTooltip();
+			}
+			if (grip) {
+				OfferSituationDrag(a_entry, entry.name.data());
+			}
 			const float bottom = top + Theme::SituationHeadingHeight();
 			if (form.scrollToSelected && form.selected == index) {
 				ImGui::SetScrollHereY(0.0f);
@@ -451,15 +648,6 @@ namespace CaptureWindow::Internal
 			if (click == Theme::HeadingClick::kFold) {
 				QueueMenuSound(kFocusSound);
 				entry.folded = !entry.folded;
-			} else if (click == Theme::HeadingClick::kSelect || click == Theme::HeadingClick::kEdit) {
-				QueueMenuSound(kFocusSound);
-				const bool viewing = form.viewedOutfit != 0;
-				const bool unselect = click == Theme::HeadingClick::kSelect && form.selected == index && form.details && !viewing;
-				if (viewing) {
-					CloseOutfitView(a_state);
-				}
-				form.selected = unselect ? -1 : index;
-				form.details = !unselect;
 			}
 			const float  left = ImGui::GetWindowPos().x;
 			const ImRect heading(ImVec2(left, top), ImVec2(left + ImGui::GetWindowWidth(), bottom));
@@ -477,35 +665,98 @@ namespace CaptureWindow::Internal
 			if (!entry.folded) {
 				DrawShownOutfits(a_state, a_entry);
 			}
-			return click == Theme::HeadingClick::kDice;
+			return click == Theme::HeadingClick::kDice || click == Theme::HeadingClick::kEdit ? click : Theme::HeadingClick::kNone;
 		}
 
-		// The left pane: the Situation List (?) label over a heading per situation, the Default
-		// first. Returns whether a heading's die was clicked.
-		bool DrawSituationList(State& a_state)
+		// The help of the Situation List's label: what the list is, which situation is worn; the
+		// order's drag only while the page offers it.
+		std::string SituationListHelp(const State& a_state)
 		{
-			auto&       form = a_state.situationForm;
+			const auto& request = a_state.request;
+			auto        help = Strings::Format(Text::kSituationListHelp, request.actorName);
+			if (request.customSituations) {
+				help += '\n';
+				help += Strings::Get(Text::kSituationListHelpDrag);
+			}
+			return help;
+		}
+
+		// The situation at place `a_place` of the order, its heading and what it shows: a drop of
+		// a situation over its heading's upper half goes before it, anywhere lower in its block
+		// after it. Returns what DrawSituationEntry returns.
+		Theme::HeadingClick DrawOrderedEntry(State& a_state, std::size_t a_place, int& a_dragHovered)
+		{
+			const auto  entry = a_state.situationForm.order[a_place];
+			const float top = ImGui::GetCursorScreenPos().y;
+			ImGui::PushID(static_cast<int>(entry));
+			const auto   click = DrawSituationEntry(a_state, entry, a_dragHovered);
+			const float  bottom = ImGui::GetCursorScreenPos().y;
+			const float  left = ImGui::GetWindowPos().x;
+			const ImRect block(ImVec2(left, top), ImVec2(left + ImGui::GetWindowWidth(), bottom));
+			if (DraggedSituation() && ImGui::BeginDragDropTargetCustom(block, ImGui::GetID("situationDrop"))) {
+				const bool before = ImGui::GetMousePos().y < top + Theme::SituationHeadingHeight() * 0.5f;
+				if (const auto dropped = AcceptSituation(before ? top : bottom)) {
+					DropSituation(a_state, *dropped, before ? a_place : a_place + 1);
+				}
+			}
+			ImGui::PopID();
+			return click;
+		}
+
+		// What a click in the Situation List asks of the page.
+		struct ListClick
+		{
+			bool dice = false;  // a heading's die: another outfit of the row worn
+			int  edit = -1;     // a heading's Edit: the entry to open the Edit situation popup on; -1 for none
+		};
+
+		// The left pane: the Situation List (?) label over the Default's heading, the order's
+		// caption, then a heading per situation in the order.
+		ListClick DrawSituationList(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			if (form.neverWornStale) {
+				TellNeverWorn(a_state);
+			}
+			form.warningHovered = -1;  // set again by its heading, before those it names
 			const float paneTop = ImGui::GetCursorPosY();
-			Theme::LabelText("Situation List");
+			Theme::LabelText(Strings::Get(Text::kSituationList));
 			const bool helpHovered = Theme::LabelHelpMark();
 			if (FocusStandIn("##listHelp") || helpHovered) {
-				DrawHelpTooltip(std::format(
-					"Each situation lists the outfits {} can wear there.\nWhen several apply, the most specific one with an "
-					"outfit is worn; otherwise, and in combat, the default outfit.\nDrag an outfit onto a situation to add it, between "
-					"its outfits to place it, onto another situation to move it, or back to the outfit list to take it off.",
-					a_state.request.actorName));
+				DrawHelpTooltip(SituationListHelp(a_state));
 			}
 			const float top = ImGui::GetCursorPosY() - paneTop;
 			// No gap between rows: the headings and rows hold it themselves (Theme::OutfitRow).
 			// Popped before EndList, as the outfit list's spacing is.
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			int  dragHovered = -1;
-			bool diceClicked = false;
-			if (Theme::BeginList("situations", SituationListHeight(a_state, top))) {
-				for (std::size_t i = 0; i < form.entries.size(); ++i) {
-					ImGui::PushID(static_cast<int>(i));
-					diceClicked = DrawSituationEntry(a_state, i, dragHovered) || diceClicked;
-					ImGui::PopID();
+			int        dragHovered = -1;
+			ListClick  result;
+			const auto take = [&result](Theme::HeadingClick a_click, std::size_t a_entry) {
+				if (a_click == Theme::HeadingClick::kDice) {
+					result.dice = true;
+				} else if (a_click == Theme::HeadingClick::kEdit) {
+					result.edit = static_cast<int>(a_entry);
+				}
+			};
+			if (Theme::BeginList("situations", SituationListHeight(a_state, top)) && !form.entries.empty()) {
+				ImGui::PushID(0);
+				take(DrawSituationEntry(a_state, 0, dragHovered), 0);
+				ImGui::PopID();
+				if (!form.order.empty()) {
+					// The caption takes a situation dropped on it first in the order.
+					const float captionTop = ImGui::GetCursorScreenPos().y;
+					Theme::ListHeading(kOrderCaption, Theme::HeadingIcon::kNone, true);  // a plain rule: no situation's heading
+					const float  captionBottom = ImGui::GetCursorScreenPos().y;
+					const float  left = ImGui::GetWindowPos().x;
+					const ImRect caption(ImVec2(left, captionTop), ImVec2(left + ImGui::GetWindowWidth(), captionBottom));
+					if (DraggedSituation() && ImGui::BeginDragDropTargetCustom(caption, ImGui::GetID("captionDrop"))) {
+						if (const auto dropped = AcceptSituation(captionBottom)) {
+							DropSituation(a_state, *dropped, 0);
+						}
+					}
+				}
+				for (std::size_t p = 0; p < form.order.size(); ++p) {
+					take(DrawOrderedEntry(a_state, p, dragHovered), form.order[p]);
 				}
 			}
 			ImGui::PopStyleVar();
@@ -514,48 +765,728 @@ namespace CaptureWindow::Internal
 				form.dragHover = dragHovered;
 				form.dragHoverSince = ImGui::GetTime();
 			}
-			return diceClicked;
+			return result;
 		}
 
-		// --- Right pane -------------------------------------------------------
+		// --- Condition editor -------------------------------------------------
+		//
+		// Each condition has a heading, its kind's name with (?) and Remove at the line's right end,
+		// and under it reads as a sentence (docs/custom-situations.md §7): a kind reading an actor's
+		// state starts with whose, the wearer or the player (a dropdown), then "is" / "is not" and
+		// its phrase, or for Weapon a dropdown of its two
+		// states, as Indoors is; the others an operator dropdown ("is" / "is not", "is any of" /
+		// "is none of" with several selected, "between" / "not between") and their values: a
+		// multi-choice dropdown (Swimming's a single choice), the two times, or the places or
+		// spells listed under, each with a ×.
 
-		enum class RightPane
+		// The operator a row reads with: "is" / "is not" up to one selected, "is any of" / "is none
+		// of" with more (`a_several`); a Spell Effect row "has" / "has not", "has any of" / "has
+		// none of"; a Time of day row "between" / "not between".
+		Text OperatorText(SituationRules::Kind a_kind, bool a_several, bool a_negated)
 		{
-			kOutfitList,
-			kSituation,  // the selected situation's details
-			kOutfit      // the details of the outfit clicked last
+			if (a_kind == SituationRules::Kind::kTimeOfDay) {
+				return a_negated ? Text::kOperatorNotBetween : Text::kOperatorBetween;
+			}
+			if (a_kind == SituationRules::Kind::kSpell) {
+				if (a_several) {
+					return a_negated ? Text::kOperatorHasNoneOf : Text::kOperatorHasAnyOf;
+				}
+				return a_negated ? Text::kOperatorHasNot : Text::kOperatorHas;
+			}
+			if (a_several) {
+				return a_negated ? Text::kOperatorIsNoneOf : Text::kOperatorIsAnyOf;
+			}
+			return a_negated ? Text::kOperatorIsNot : Text::kOperatorIs;
+		}
+
+		// The row's operator as it stands, or negated.
+		const char* OperatorLabel(const SituationRules::Row& a_row, bool a_negated)
+		{
+			const auto count = SituationRules::HasValues(a_row.kind) ? static_cast<std::size_t>(std::popcount(a_row.values)) : SituationRules::FormsOf(a_row).size();
+			return Strings::Get(OperatorText(a_row.kind, count > 1, a_negated));
+		}
+
+		// The widest of `a_labels` as a dropdown's preview and row (Theme::DropdownWidth).
+		float WidestDropdown(std::initializer_list<const char*> a_labels)
+		{
+			const Theme::FieldStyle style{ .filled = true };
+			float                   widest = 0.0f;
+			for (const char* label : a_labels) {
+				widest = (std::max)(widest, Theme::DropdownWidth(label, style));
+			}
+			return widest;
+		}
+
+		// A row's operator dropdown is as wide as its widest wording (OperatorText), so a second
+		// value ticked ("is" to "is any of") never widens it.
+		float OperatorWidth(SituationRules::Kind a_kind)
+		{
+			const bool takesSeveral = (SituationRules::HasValues(a_kind) && !SituationRules::OneValue(a_kind)) || SituationRules::HasForms(a_kind);
+			float      widest = WidestDropdown({ Strings::Get(OperatorText(a_kind, false, false)), Strings::Get(OperatorText(a_kind, false, true)) });
+			if (takesSeveral) {
+				widest = (std::max)(widest, WidestDropdown({ Strings::Get(OperatorText(a_kind, true, false)), Strings::Get(OperatorText(a_kind, true, true)) }));
+			}
+			return widest;
+		}
+
+		// A dropdown of two choices, `a_positive` while `a_negated` is off and `a_negative` on: a
+		// row's operator, `a_width` wide (OperatorWidth), or a two-state condition itself, as wide
+		// as its wider choice with `a_width` 0. Returns true when switched; `a_hovered` tells the
+		// caller to show the kind's help (never while open).
+		bool DrawNegationDropdown(const char* a_id, const char* a_positive, const char* a_negative, float a_width, bool& a_negated, bool& a_hovered)
+		{
+			const Theme::FieldStyle style{ .filled = true };
+			ImGui::SetNextItemWidth(a_width > 0.0f ? a_width : WidestDropdown({ a_positive, a_negative }));
+			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_None, style);
+			a_hovered = !open && ImGui::IsItemHovered();
+			bool changed = false;
+			if (open) {
+				for (const bool negative : { false, true }) {
+					bool chosen = negative == a_negated;
+					if (Theme::DropdownRow(negative ? a_negative : a_positive, &chosen, false) && negative != a_negated) {
+						a_negated = negative;
+						changed = true;
+					}
+				}
+			}
+			Theme::EndCombo(open, a_negated ? a_negative : a_positive, style);
+			return changed;
+		}
+
+		// Whose state the row reads (SituationRules::Target): the wearer, named as the actor, or
+		// the player. In the player's own window both name them, so the help tells the wearer
+		// (whoever wears the outfit) from the player (always you). Returns true when switched.
+		bool DrawTargetDropdown(const CaptureWindow::Request& a_request, SituationRules::Row& a_row)
+		{
+			const char*             player = Strings::Get(Text::kPlayer);
+			const char*             wearer = a_request.actorName.c_str();
+			const Theme::FieldStyle style{ .filled = true };
+			ImGui::SetNextItemWidth(WidestDropdown({ wearer, player }));
+			const bool open = Theme::BeginCombo("##target", ImGuiComboFlags_None, style);
+			const bool hovered = !open && ImGui::IsItemHovered();
+			bool       changed = false;
+			if (open) {
+				for (const auto target : { SituationRules::Target::kWearer, SituationRules::Target::kPlayer }) {
+					bool chosen = target == a_row.target;
+					if (Theme::DropdownRow(target == SituationRules::Target::kPlayer ? player : wearer, &chosen, false) && target != a_row.target) {
+						a_row.target = target;
+						changed = true;
+					}
+				}
+			}
+			Theme::EndCombo(open, a_row.target == SituationRules::Target::kPlayer ? player : wearer, style);
+			if (hovered) {
+				Theme::Tooltip(Strings::Format(a_request.actorIsPlayer ? Text::kTargetHelpPlayer : Text::kTargetHelp, wearer).c_str());
+			}
+			return changed;
+		}
+
+		// The values of `a_row`'s kind as a multi-choice dropdown, the ticked ones its preview
+		// ("Rain, Snow"), a greyed Select... with none; a single choice, closed by it, for a kind
+		// whose rows take one (SituationRules::OneValue); a rule between groups of values
+		// (Value::ruleAbove). `a_width` is the room it takes. Returns true when one was ticked,
+		// unticked or chosen.
+		bool DrawValuesDropdown(SituationRules::Row& a_row, float a_width)
+		{
+			const bool  one = SituationRules::OneValue(a_row.kind);
+			const auto  values = SituationRules::InfoOf(a_row.kind).values;
+			std::string preview;
+			for (const auto& value : values) {
+				if (a_row.values & value.bit) {
+					preview += (preview.empty() ? "" : Strings::Get(Text::kListSeparator)) + std::string(Strings::Get(value.label));
+				}
+			}
+			const Theme::FieldStyle style{ .previewIsHint = preview.empty(), .filled = true };
+			ImGui::SetNextItemWidth(a_width);
+			const bool open = Theme::BeginCombo("##values", ImGuiComboFlags_HeightLargest, style);
+			bool       changed = false;
+			if (open) {
+				for (const auto& value : values) {
+					if (value.ruleAbove) {
+						ImGui::Separator();
+					}
+					bool ticked = (a_row.values & value.bit) != 0;
+					if (Theme::DropdownRow(Strings::Get(value.label), &ticked, !one)) {  // ticks keep it open for more
+						changed = one ? a_row.values != value.bit : true;
+						a_row.values = one ? value.bit : a_row.values ^ value.bit;
+					}
+					if (value.tip && ImGui::IsItemHovered()) {
+						Theme::Tooltip(Strings::Get(*value.tip));
+					}
+				}
+			}
+			Theme::EndCombo(open, preview.empty() ? Strings::Get(Text::kSelectValues) : preview.c_str(), style);
+			return changed;
+		}
+
+		// The widths a values dropdown asks for: the least that shows its widest value, and the
+		// most it needs, every value ticked (the least for a single choice).
+		struct ValuesWidth
+		{
+			float least;
+			float most;
 		};
 
-		// What the right pane shows: the outfit list while a drag from the Situation List is on;
-		// else the outfit clicked last (`a_viewed`, its index into request.existingOutfits, -1
-		// for none), until Back; else the selected situation, until Show Outfit List; else the
-		// outfit list.
-		RightPane ShownPane(const State& a_state, int a_viewed)
+		ValuesWidth ValuesDropdownWidth(SituationRules::Kind a_kind)
 		{
-			const auto& form = a_state.situationForm;
-			const auto* dragged = DraggedOutfit();
-			if (dragged && dragged->from >= 0) {
-				return RightPane::kOutfitList;
+			const Theme::FieldStyle style{ .filled = true };
+			std::string             all;
+			float                   least = 0.0f;
+			for (const auto& value : SituationRules::InfoOf(a_kind).values) {
+				least = (std::max)(least, Theme::DropdownWidth(Strings::Get(value.label), style));
+				all += (all.empty() ? "" : Strings::Get(Text::kListSeparator)) + std::string(Strings::Get(value.label));
 			}
-			if (a_viewed >= 0) {
-				return RightPane::kOutfit;
-			}
-			return form.selected >= 0 && form.details ? RightPane::kSituation : RightPane::kOutfitList;
+			return { least, SituationRules::OneValue(a_kind) ? least : Theme::ComboWidth(all.c_str(), style) };
 		}
 
-		// The outfit list with its own search and sort, its rows dragged as copies and
-		// a click on one showing its details (`a_viewed`'s row selected). A drag from the Situation
-		// List dropped anywhere on it takes that outfit, or the Default's pieces, off its row.
-		// Returns whether Escape cleared the search.
+		// How wide a Time of day dropdown is: as its widest time, as the chosen language writes them.
+		// Contract: the window's thread only. Measured once per font and size, which a skin or the
+		// scale changes; the language is the same for the whole game.
+		float TimeDropdownWidth()
+		{
+			static const ImFont* measuredFont = nullptr;
+			static float         measuredSize = 0.0f;
+			static float         width = 0.0f;
+			if (measuredFont != ImGui::GetFont() || measuredSize != ImGui::GetFontSize()) {
+				measuredFont = ImGui::GetFont();
+				measuredSize = ImGui::GetFontSize();
+				width = 0.0f;
+				for (std::uint16_t minute = 0; minute < SituationRules::kMinutesPerDay; minute += kTimeStep) {
+					width = (std::max)(width, Theme::DropdownWidth(SituationRules::TimeText(minute).c_str(), Theme::FieldStyle{ .filled = true }));
+				}
+			}
+			return width;
+		}
+
+		// A dropdown of the times of day, `a_minutes` (after midnight) its choice. Returns true
+		// when another was chosen.
+		bool DrawTimeDropdown(const char* a_id, std::uint16_t& a_minutes)
+		{
+			const Theme::FieldStyle style{ .filled = true };
+			const auto              current = SituationRules::TimeText(a_minutes);
+			ImGui::SetNextItemWidth(TimeDropdownWidth());
+			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_HeightLarge, style);
+			bool       changed = false;
+			if (open) {
+				for (std::uint16_t minute = 0; minute < SituationRules::kMinutesPerDay; minute += kTimeStep) {
+					bool chosen = minute == a_minutes;
+					if (Theme::DropdownRow(SituationRules::TimeText(minute).c_str(), &chosen, false) && minute != a_minutes) {
+						a_minutes = minute;
+						changed = true;
+					}
+				}
+			}
+			Theme::EndCombo(open, current.c_str(), style);
+			return changed;
+		}
+
+		// AlignTextToFramePadding for a condition's line: its plain text level with its
+		// dropdowns' text, which sits by the field's own padding (Theme::FieldHeight), not the
+		// skin's frame padding (Vanilla's and Nordic's underlined fields).
+		void AlignTextToField()
+		{
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, (Theme::FieldHeight({}) - ImGui::GetFontSize()) * 0.5f));
+			ImGui::AlignTextToFramePadding();
+			ImGui::PopStyleVar();
+		}
+
+		// `[8 PM] and [6 AM]`, a Time of day row's range. Returns true when a time was changed.
+		bool DrawTimeRange(SituationRules::Row& a_row)
+		{
+			bool changed = DrawTimeDropdown("##from", a_row.from);
+			ImGui::SameLine();
+			AlignTextToField();
+			ImGui::TextUnformatted(Strings::Get(Text::kTimeRangeAnd));
+			ImGui::SameLine();
+			return DrawTimeDropdown("##to", a_row.to) || changed;
+		}
+
+		float TimeRangeWidth()
+		{
+			const float spacing = ImGui::GetStyle().ItemSpacing.x;
+			return TimeDropdownWidth() * 2.0f + ImGui::CalcTextSize(Strings::Get(Text::kTimeRangeAnd)).x + spacing * 2.0f;
+		}
+
+		// Whether `a_width` more fits on the line just laid out, before `a_right`.
+		bool FitsOnLine(float a_width, float a_right)
+		{
+			return ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x + a_width <= a_right;
+		}
+
+		// A × (Theme::ClearButton) `a_side` square on the line just laid out, its centre on
+		// `a_centreX` and its top at `a_top`; `a_tip` on hover. Returns true when clicked. The
+		// next item starts under the line, so lay it out before anything that wraps under it.
+		bool DrawRemoveCross(const char* a_id, float a_centreX, float a_top, float a_side, const char* a_tip)
+		{
+			ImGui::SameLine();
+			ImGui::SetCursorScreenPos(ImVec2(a_centreX - a_side * 0.5f, a_top));
+			const bool clicked = Theme::ClearButton(a_id, a_side);
+			if (ImGui::IsItemHovered()) {
+				Theme::Tooltip(a_tip);
+			}
+			return clicked;
+		}
+
+		enum class ConditionEdit
+		{
+			kNone,
+			kChanged,
+			kRemove,
+			kAddForm  // a Place row's Add Location... or a Spell row's Add Spell... pressed
+		};
+
+		// A spell's hover: its plugin and FormID, then its visible effects a line each
+		// (SituationRules::SpellChoice::effectLines; none when `a_effectLines` is empty).
+		std::string SpellTip(const SituationRules::Spell& a_spell, const std::string& a_effectLines)
+		{
+			const auto head = std::format("{} {:06X}", a_spell.ref.plugin, a_spell.ref.localID);
+			return a_effectLines.empty() ? head : head + "\n" + a_effectLines;
+		}
+
+		// The Add spell popup's entry for a spell of a row: the same spell, or one it was merged
+		// with (the same name and effects); null when no list has it.
+		const SituationRules::SpellChoice* ChoiceFor(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		{
+			const auto same = [&a_spell](const SituationRules::SpellChoice& a_choice) {
+				const auto& spell = a_choice.spell;
+				return SituationRules::SameForm(spell.ref, a_spell.ref) ||
+				       (!a_spell.effects.empty() && spell.effects == a_spell.effects && ExampleMod::CaseInsensitiveEqual(spell.ref.name, a_spell.ref.name));
+			};
+			using Choices = std::span<const SituationRules::SpellChoice>;
+			for (const Choices list : { Choices(a_request.spellsWithPlayer), Choices(a_request.spells), a_request.allSpells }) {
+				if (const auto found = std::ranges::find_if(list, same); found != list.end()) {
+					return &*found;
+				}
+			}
+			return nullptr;
+		}
+
+		// The effect lines of a row's spell (ChoiceFor); "" when no list has it.
+		const std::string& EffectLinesOf(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		{
+			static const std::string none;
+			const auto*              choice = ChoiceFor(a_request, a_spell);
+			return choice ? choice->effectLines : none;
+		}
+
+		// The icon before a spell's name in the Add spell popup's list.
+		Theme::RowIcon IconOf(const SituationRules::SpellChoice& a_choice)
+		{
+			return { .key = a_choice.icon, .rgb = a_choice.iconColor.value_or(0), .textColor = !a_choice.iconColor };
+		}
+
+		// The icon before a row's spell (ChoiceFor's); no key when no list has the spell or its
+		// plugin is not loaded.
+		// Contract: the window's thread only. A row's lines are drawn every frame, so the search of
+		// the lists is kept per FormID, which a spell's icon follows alone; what was kept is dropped
+		// when the window has read the actor's spells again, for a spell no list had before. It
+		// keeps the key's own text: a list's entries go with that read.
+		Theme::RowIcon RowSpellIcon(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		{
+			struct Kept
+			{
+				std::string                  key;
+				std::optional<std::uint32_t> color;
+			};
+			static std::unordered_map<RE::FormID, Kept> icons;
+			static const void*                          readSpells = nullptr;
+			static std::size_t                          readCount = 0;
+			if (a_spell.formID == 0) {
+				return {};
+			}
+			const auto count = a_request.spells.size() + a_request.spellsWithPlayer.size();
+			if (readSpells != a_request.spells.data() || readCount != count) {
+				icons.clear();
+				readSpells = a_request.spells.data();
+				readCount = count;
+			}
+			auto found = icons.find(a_spell.formID);
+			if (found == icons.end()) {
+				const auto* choice = ChoiceFor(a_request, a_spell);
+				found = icons.emplace(a_spell.formID, choice ? Kept{ choice->icon, choice->iconColor } : Kept{}).first;
+			}
+			const auto& kept = found->second;
+			return { .key = kept.key, .rgb = kept.color.value_or(0), .textColor = !kept.color };
+		}
+
+		// A Place or Spell row's forms, a line each with a × centred on `a_crossX`, a spell after its
+		// icon, one whose
+		// plugin is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
+		// Location... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
+		// link was pressed.
+		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_crossX, bool& a_add)
+		{
+			const bool                 place = a_row.kind == SituationRules::Kind::kPlace;
+			auto&                      forms = SituationRules::FormsOf(a_row);
+			std::optional<std::size_t> removed;
+			for (std::size_t i = 0; i < forms.size(); ++i) {
+				const auto& form = forms[i];
+				const bool  loaded = form.formID != 0;
+				ImGui::PushID(static_cast<int>(i));
+				if (!loaded) {
+					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+				}
+				if (place) {
+					ImGui::TextUnformatted(SituationRules::FormName(form).c_str());
+				} else {
+					Theme::IconText(SituationRules::FormName(form).c_str(), RowSpellIcon(a_request, form));
+				}
+				if (!loaded) {
+					ImGui::PopStyleColor();
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(Strings::Format(Text::kPluginNotLoaded, form.ref.plugin).c_str());
+					}
+				} else if (!place && ImGui::IsItemHovered()) {
+					Theme::Tooltip(SpellTip(form, EffectLinesOf(a_request, form)).c_str());
+				}
+				if (DrawRemoveCross("##remove", a_crossX, ImGui::GetItemRectMin().y, ImGui::GetItemRectSize().y,
+						Strings::Get(place ? Text::kRemoveThisLocation : Text::kRemoveThisSpell))) {
+					removed = i;
+				}
+				ImGui::PopID();
+			}
+			if (removed) {
+				forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(*removed));
+			}
+			a_add = Theme::LabelLink(Strings::Get(place ? Text::kAddLocation : Text::kAddSpell), Theme::LinkLine::kNextLeft);
+			return removed.has_value();
+		}
+
+		// A row's first words for a kind that is not targetable (KindInfo::subject, the actor
+		// named); "" for a targetable kind, whose row starts with whose state.
+		std::string SubjectOf(const CaptureWindow::Request& a_request, const SituationRules::KindInfo& a_info)
+		{
+			return a_info.subject ? Strings::Format(*a_info.subject, a_request.actorName) : std::string{};
+		}
+
+		// How wide a row of `a_kind` is with every value shown on it: whose state or its subject,
+		// the operator or state dropdown, then the phrase, the values or the times. A Place or
+		// Spell row lists its forms under it, so only its first line counts.
+		float ConditionRowWidth(const CaptureWindow::Request& a_request, SituationRules::Kind a_kind)
+		{
+			const auto& info = SituationRules::InfoOf(a_kind);
+			const float gap = ImGui::GetStyle().ItemSpacing.x;
+			float       width = info.targetable ? WidestDropdown({ a_request.actorName.c_str(), Strings::Get(Text::kPlayer) }) :
+			                                      ImGui::CalcTextSize(SubjectOf(a_request, info).c_str()).x;
+			if (info.state && info.negState) {
+				width += gap + WidestDropdown({ Strings::Get(*info.state), Strings::Get(*info.negState) });
+			} else {
+				width += gap + OperatorWidth(a_kind);
+				if (info.phrase) {
+					width += gap + ImGui::CalcTextSize(Strings::Get(*info.phrase)).x;
+				}
+			}
+			if (!info.values.empty()) {
+				width += gap + ValuesDropdownWidth(a_kind).most;
+			} else if (a_kind == SituationRules::Kind::kTimeOfDay) {
+				width += gap + TimeRangeWidth();
+			}
+			return width;
+		}
+
+		// One condition: its heading (the kind's name, its help on the (?), a Remove link at the
+		// line's right end, `a_lineRight`), then the row under it as the section says; a Place or
+		// Spell row lists its forms under that, each with a ×; values or times that do not fit the
+		// row go under it.
+		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_lineRight)
+		{
+			constexpr float kListIndent = 16.0f;  // pixels at 1080p, what sits under the row in from its left
+
+			const auto& info = SituationRules::InfoOf(a_row.kind);
+			const float side = ImGui::GetFrameHeight();
+			const float crossX = a_lineRight - side * 0.5f;
+			Theme::LabelText(Strings::Get(info.label), Theme::HeadingIcon::kNone, false);  // the box sets the conditions apart
+			if (Theme::LabelHelpMark()) {
+				Theme::Tooltip(Strings::Format(info.tip, a_request.actorName).c_str());
+			}
+			const bool removed = Theme::LabelLineLink(Strings::Get(Text::kRemove));  // a word, not a ×, apart from the forms' ×s under it
+
+			const bool time = a_row.kind == SituationRules::Kind::kTimeOfDay;
+			bool       changed = false;
+			bool       ignored = false;
+			if (info.targetable) {
+				changed = DrawTargetDropdown(a_request, a_row);
+				ImGui::SameLine();
+			} else {
+				AlignTextToField();
+				ImGui::TextUnformatted(SubjectOf(a_request, info).c_str());
+				ImGui::SameLine();
+			}
+			if (info.state && info.negState) {
+				changed = DrawNegationDropdown("##state", Strings::Get(*info.state), Strings::Get(*info.negState), 0.0f, a_row.negated, ignored) || changed;
+			} else {
+				changed = DrawNegationDropdown("##operator", OperatorLabel(a_row, false), OperatorLabel(a_row, true), OperatorWidth(a_row.kind), a_row.negated,
+							  ignored) ||
+				          changed;
+				if (info.phrase) {
+					ImGui::SameLine();
+					AlignTextToField();
+					ImGui::TextUnformatted(Strings::Get(*info.phrase));
+				}
+			}
+			// The values on the row while they fit, else under it.
+			bool under = false;
+			if (!info.values.empty()) {
+				const auto width = ValuesDropdownWidth(a_row.kind);
+				if (FitsOnLine(width.least, a_lineRight)) {
+					ImGui::SameLine();
+					changed = DrawValuesDropdown(a_row, (std::min)(width.most, a_lineRight - ImGui::GetCursorScreenPos().x)) || changed;
+				} else {
+					under = true;
+				}
+			} else if (time) {
+				if (FitsOnLine(TimeRangeWidth(), a_lineRight)) {
+					ImGui::SameLine();
+					changed = DrawTimeRange(a_row) || changed;
+				} else {
+					under = true;
+				}
+			}
+			bool addForm = false;
+			if (under || SituationRules::HasForms(a_row.kind)) {
+				const float indent = kListIndent * Theme::Scale();
+				ImGui::Indent(indent);
+				if (!info.values.empty()) {
+					changed = DrawValuesDropdown(a_row, (std::min)(ValuesDropdownWidth(a_row.kind).most, a_lineRight - ImGui::GetCursorScreenPos().x)) || changed;
+				} else if (time) {
+					changed = DrawTimeRange(a_row) || changed;
+				} else {
+					changed = DrawFormList(a_request, a_row, crossX, addForm) || changed;
+				}
+				ImGui::Unindent(indent);
+			}
+			if (removed) {
+				return ConditionEdit::kRemove;
+			}
+			if (addForm) {
+				return ConditionEdit::kAddForm;
+			}
+			return changed ? ConditionEdit::kChanged : ConditionEdit::kNone;
+		}
+
+		// A two-state kind the situation has every row it can take of: one, or with a target to
+		// choose, one per target. A second adds nothing.
+		bool KindExhausted(const SituationRules::Rules& a_rules, SituationRules::Kind a_kind)
+		{
+			if (!SituationRules::TwoState(a_kind)) {
+				return false;
+			}
+			bool wearer = false;
+			bool player = false;
+			for (const auto& row : a_rules.rows) {
+				if (row.kind == a_kind) {
+					(row.target == SituationRules::Target::kPlayer ? player : wearer) = true;
+				}
+			}
+			return (wearer || player) && (!SituationRules::Targetable(a_kind) || (wearer && player));
+		}
+
+		// The kinds by label in the chosen language, ASCII case ignored, as Add Condition... lists
+		// them.
+		// Contract: sorted at the first call and kept; the window opens only after Strings::Load, and
+		// the language is the same for the whole game.
+		const std::array<const SituationRules::KindInfo*, SituationRules::kKinds.size()>& KindsByLabel()
+		{
+			static const auto sorted = [] {
+				std::array<const SituationRules::KindInfo*, SituationRules::kKinds.size()> kinds{};
+				for (std::size_t i = 0; i < kinds.size(); ++i) {
+					kinds[i] = &SituationRules::kKinds[i];
+				}
+				const auto lower = [](char a_char) { return a_char >= 'A' && a_char <= 'Z' ? static_cast<char>(a_char - 'A' + 'a') : a_char; };
+				std::ranges::sort(kinds, [&lower](const SituationRules::KindInfo* a_left, const SituationRules::KindInfo* a_right) {
+					return std::ranges::lexicographical_compare(std::string_view(Strings::Get(a_left->label)), std::string_view(Strings::Get(a_right->label)), {},
+						lower, lower);
+				});
+				return kinds;
+			}();
+			return sorted;
+		}
+
+		// Add Condition...: a dropdown of the kinds by label, closed by a choice; returns the one
+		// chosen. A two-state kind the situation has every row it can take of is greyed
+		// (KindExhausted). As wide as its widest kind needs: the list is as wide as the field, and
+		// a language may word a kind longer than the field's own label.
+		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
+		{
+			const char*             label = Strings::Get(Text::kAddCondition);
+			const Theme::FieldStyle style{ .icon = Theme::FieldIcon::kAdd, .previewIsHint = true };
+			float                   width = Theme::DropdownWidth(label, style);
+			for (const auto& info : SituationRules::kKinds) {
+				width = (std::max)(width, Theme::DropdownWidth(Strings::Get(info.label), style));
+			}
+			ImGui::SetNextItemWidth(width);
+			const bool                          open = Theme::BeginCombo("##addCondition", ImGuiComboFlags_HeightLargest, style);
+			std::optional<SituationRules::Kind> added;
+			if (open) {
+				for (const auto* info : KindsByLabel()) {
+					bool chosen = false;
+					ImGui::BeginDisabled(KindExhausted(a_rules, info->kind));
+					if (Theme::DropdownRow(Strings::Get(info->label), &chosen, false)) {
+						added = info->kind;
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndDisabled();
+				}
+			}
+			Theme::EndCombo(open, label, style);
+			return added;
+		}
+
+		// Allow during combat, ticked and greyed while an In combat condition needs it.
+		bool DrawAllowDuringCombat(const State& a_state, SituationRules::Rules& a_rules)
+		{
+			const bool forced = !a_rules.applyInCombat && SituationRules::AppliesInCombat(a_rules);
+			bool       ticked = forced || a_rules.applyInCombat;
+			BeginItemDisabled(a_state, forced);
+			const bool changed = Theme::Checkbox(Strings::Get(Text::kAllowDuringCombat), &ticked);
+			const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			EndItemDisabled();
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (hovered) {
+				Theme::Tooltip(Strings::Get(forced ? Text::kAllowDuringCombatForced : Text::kAllowDuringCombatTip));
+			}
+			if (changed) {
+				a_rules.applyInCombat = ticked;
+			}
+			return changed;
+		}
+
+		// The fill inside the box of the condition clicked in the Applies text
+		// (SituationForm::editorFocus), its top left `a_topLeft`, as tall as the box was last
+		// drawn, fading out; scrolls the editor to it while SituationForm::editorScroll frames
+		// remain.
+		void LightFocusedCondition(SituationForm& a_form, ImVec2 a_topLeft, float a_right)
+		{
+			constexpr double kLightSeconds = 1.5;  // from the editor's opening to the fill gone
+
+			if (a_form.editorScroll > 0) {
+				ImGui::SetScrollHereY(0.0f);
+				--a_form.editorScroll;
+			}
+			const double lit = 1.0 - (ImGui::GetTime() - a_form.editorFocusFrom) / kLightSeconds;
+			if (lit <= 0.0 || a_form.editorFocusHeight <= 0.0f) {
+				return;
+			}
+			ImVec4 fill = ImGui::GetStyleColorVec4(ImGuiCol_Header);  // a selected row's
+			fill.w *= static_cast<float>(lit);
+			ImGui::GetWindowDrawList()->AddRectFilled(a_topLeft, ImVec2(a_right, a_topLeft.y + a_form.editorFocusHeight), ImGui::GetColorU32(fill),
+				kConditionBoxRounding * Theme::Scale());
+		}
+
+		// The editor's content width: the widest row any kind can have (ConditionRowWidth) in its
+		// box, so only a Place or Spell row's list goes under its row. The scroll bar goes past it
+		// (Theme::BeginScrollArea).
+		float EditorContentWidth(const CaptureWindow::Request& a_request)
+		{
+			float widest = 0.0f;
+			for (const auto& info : SituationRules::kKinds) {
+				widest = (std::max)(widest, ConditionRowWidth(a_request, info.kind));
+			}
+			return widest + std::round(kConditionBoxPadding.x * Theme::Scale()) * 2.0f;
+		}
+
+		// A user's situation's conditions as edited: a row each (DrawConditionRow) in a box of a
+		// 1px rule-coloured line with round corners, the one clicked in the Applies text lit
+		// (LightFocusedCondition), then Add Condition... and Allow during combat. Returns true on
+		// a change; sets `a_addForm` when a Place or Spell row's Add link was pressed, that row in
+		// SituationForm::formRow.
+		bool DrawConditionEditor(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
+		{
+			auto&                      form = a_state.situationForm;
+			const float                scale = Theme::Scale();
+			const ImVec2               padding(std::round(kConditionBoxPadding.x * scale), std::round(kConditionBoxPadding.y * scale));
+			const float                boxRight = std::round(ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x);
+			auto*                      draw = ImGui::GetWindowDrawList();
+			bool                       changed = false;
+			std::optional<std::size_t> removed;
+			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
+				const bool   focused = static_cast<int>(i) == form.editorFocus;
+				const ImVec2 cursor = ImGui::GetCursorScreenPos();
+				const ImVec2 topLeft(std::round(cursor.x), std::round(cursor.y));
+				if (focused) {
+					LightFocusedCondition(form, topLeft, boxRight);
+				}
+				ImGui::SetCursorScreenPos(ImVec2(topLeft.x, topLeft.y + padding.y));
+				ImGui::Indent(padding.x);
+				// The padding on the right too, for what aligns to the content's right edge (the
+				// heading's Remove, Theme::LabelLineLink). Contract: inside the scroll area, a child window
+				// with no table, whose content region GetContentRegionAvail reads.
+				auto* window = ImGui::GetCurrentWindow();
+				window->ContentRegionRect.Max.x -= padding.x;
+				window->WorkRect.Max.x -= padding.x;
+				ImGui::PushID(static_cast<int>(i));
+				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], boxRight - padding.x);
+				ImGui::PopID();
+				window->WorkRect.Max.x += padding.x;
+				window->ContentRegionRect.Max.x += padding.x;
+				ImGui::Unindent(padding.x);
+				const float bottom = std::round(ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y + padding.y);
+				draw->AddRect(topLeft, ImVec2(boxRight, bottom), ImGui::GetColorU32(ImGuiCol_Border), kConditionBoxRounding * scale, ImDrawFlags_None, 1.0f);
+				if (focused) {
+					form.editorFocusHeight = bottom - topLeft.y;
+				}
+				ImGui::SetCursorScreenPos(ImVec2(topLeft.x, bottom + std::round(kConditionBoxGap * scale)));
+				if (edit == ConditionEdit::kAddForm) {
+					a_state.situationForm.formRow = static_cast<int>(i);
+					a_addForm = true;
+					continue;
+				}
+				changed = changed || edit != ConditionEdit::kNone;
+				if (edit == ConditionEdit::kRemove) {
+					removed = i;
+				}
+			}
+			if (removed) {
+				a_rules.rows.erase(a_rules.rows.begin() + static_cast<std::ptrdiff_t>(*removed));
+				form.editorFocus = -1;  // its index may now name another
+			}
+			if (const auto kind = DrawAddCondition(a_rules)) {
+				// A kind whose rows take one value starts with its first, never with none.
+				a_rules.rows.push_back({ .kind = *kind, .values = SituationRules::OneValue(*kind) ? SituationRules::InfoOf(*kind).values.front().bit : 0u });
+				changed = true;
+				// A Place or Spell row starts empty, so its Add link is pressed for the user.
+				if (SituationRules::HasForms(*kind)) {
+					form.formRow = static_cast<int>(a_rules.rows.size() - 1);
+					a_addForm = true;
+				}
+			}
+			Theme::SectionGap();  // not a condition: apart from the list
+			changed = DrawAllowDuringCombat(a_state, a_rules) || changed;
+			if (changed) {
+				QueueMenuSound(kFocusSound);
+			}
+			return changed;
+		}
+
+		// --- Right pane: the outfit list --------------------------------------
+
+		// The right pane shows the details of the outfit clicked last (`a_viewed`, its index into
+		// request.existingOutfits, -1 for none) until Back; else, and while a drag from the
+		// Situation List is on, the outfit list.
+		bool ShowsOutfitView(int a_viewed)
+		{
+			const auto* dragged = DraggedOutfit();
+			return a_viewed >= 0 && !(dragged && dragged->from >= 0);
+		}
+
+		// The Outfit List (?) label over the outfit list with its own search and sort, its rows
+		// dragged as copies and a click on one showing its details (`a_viewed`'s row selected). A
+		// drag from the Situation List dropped anywhere on it takes that outfit, or the Default's
+		// pieces, off its row. Returns whether Escape cleared the search.
 		bool DrawOutfitPane(State& a_state, int a_viewed)
 		{
 			constexpr float kFrameWidth = 2.0f;  // pixels at 1080p, around the pane while a drop would take an outfit off
 
 			const ImVec2 top = ImGui::GetCursorScreenPos();
 			const float  width = ImGui::GetContentRegionAvail().x;
-			const auto   controls = DrawBrowserControls(a_state, a_state.situationBrowser);
-			const int    clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, controls.height, true);
-			const float  bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
+			Theme::LabelText(Strings::Get(Text::kOutfitList));
+			const bool helpHovered = Theme::LabelHelpMark();
+			if (FocusStandIn("##outfitListHelp") || helpHovered) {
+				DrawHelpTooltip(Strings::Get(Text::kOutfitListHelp));
+			}
+			const auto  controls = DrawBrowserControls(a_state, a_state.situationBrowser, true);
+			const int   clicked = DrawOutfitList(a_state, a_state.situationBrowser, a_viewed, true);
+			const float bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 			a_state.situationForm.outfitPaneHeight = bottom - top.y;
 			const ImRect pane(top, ImVec2(top.x + width, bottom));
 			if (ImGui::BeginDragDropTargetCustom(pane, ImGui::GetID("outfitListDrop"))) {
@@ -577,10 +1508,12 @@ namespace CaptureWindow::Internal
 			return controls.escapeTaken;
 		}
 
+		// --- Edit situation: settings -----------------------------------------
+
 		// What the Default is, under its name.
 		void DrawDefaultNote(const State& a_state)
 		{
-			const auto whose = std::format("This is {}'s default outfit.", a_state.request.actorName);
+			const auto whose = Strings::Format(Text::kDefaultOutfitOf, a_state.request.actorName);
 			Theme::SectionGap();
 			RunLine({ TextRun(whose.c_str()) });
 		}
@@ -590,23 +1523,154 @@ namespace CaptureWindow::Internal
 		// sits (DrawFieldText); its two lines as close as a wrapped text's.
 		void DrawDefaultConditions()
 		{
-			const std::array<Theme::SubtitleRun, 3> first{ { TextRun("Worn where no "), SituationRun(""), TextRun("situation applies,") } };
-			const std::array<Theme::SubtitleRun, 1> second{ { TextRun("and in combat.") } };
+			const auto                              first = RunsOf(Text::kDefaultWornWhere, { SituationRun("") });
+			const std::array<Theme::SubtitleRun, 1> second{ { TextRun(Strings::Get(Text::kDefaultWornInCombat)) } };
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-			Theme::RunText(first, true);
+			Theme::RunText(first.Parts(), true);
 			ImGui::PopStyleVar();
 			Theme::RunText(second, true);
 		}
 
-		// The settings every actor shares: the name, its label with the situation star (none for
-		// the Default, which says what it is under it), and the conditions, read only.
-		void DrawGlobalSettings(State& a_state, std::size_t a_entry)
+		// Why a situation is never worn (DrawNeverWornText), in the error colour, wrapped to the pane.
+		void DrawNeverWorn(const SituationForm& a_form, std::size_t a_entry)
 		{
-			auto&      form = a_state.situationForm;
-			auto&      entry = form.entries[a_entry];
-			const bool isDefault = a_entry == 0;
-			Theme::LabelText("Name", isDefault ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar);
+			const auto by = NeverWornBy(a_form, a_entry);
+			if (!by) {
+				return;
+			}
+			Theme::SectionGap();
+			ImGui::PushStyleColor(ImGuiCol_Text, Theme::ErrorColor());
+			DrawNeverWornText(a_form, *by);
+			ImGui::PopStyleColor();
+		}
+
+		// "Always overrides Rainy town." for each situation higher in the list that entry
+		// `a_entry` applies whenever it does, so that one is never worn (Overrides): in the error
+		// colour, one line each in the list's order, as close as a wrapped text's lines.
+		void DrawOverrides(const SituationForm& a_form, std::size_t a_entry)
+		{
+			std::vector<std::size_t> overridden;
+			for (const auto other : a_form.order) {
+				if (Overrides(a_form, static_cast<int>(other), a_entry)) {
+					overridden.push_back(other);
+				}
+			}
+			if (overridden.empty()) {
+				return;
+			}
+			Theme::SectionGap();
+			ImGui::PushStyleColor(ImGuiCol_Text, Theme::ErrorColor());
+			for (std::size_t i = 0; i < overridden.size(); ++i) {
+				const bool last = i + 1 == overridden.size();
+				const auto name = Trimmed(a_form.entries[overridden[i]].name.data());
+				const auto line = RunsOf(Text::kAlwaysOverrides, { SituationRun(name.c_str()) });
+				if (!last) {
+					ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+				}
+				Theme::RunTextWrapped(line.Parts());
+				if (!last) {
+					ImGui::PopStyleVar();
+				}
+			}
+			ImGui::PopStyleColor();
+		}
+
+		// The number of the last ask handed to Request::onCheckConditions, never reset, so an
+		// answer to an ask of a window closed since matches none.
+		// Contract: under the window state's mutex (the page draws, SetConditionsHeld reads the form).
+		std::uint32_t g_checkAsks = 0;
+
+		// Asks Request::onCheckConditions whether each of `a_rules`' conditions is met now: at once
+		// when they differ from those last asked (another situation, an edit), else every
+		// kHoldsRefresh once the last ask was answered, so a stalled game thread gets no queue of
+		// asks. SetConditionsHeld takes the answer to the latest ask only.
+		void CheckConditions(State& a_state, const SituationRules::Rules& a_rules)
+		{
+			auto&       form = a_state.situationForm;
+			const auto& onCheck = a_state.request.onCheckConditions;
+			if (!onCheck || a_rules.rows.empty()) {
+				return;
+			}
+			const double now = ImGui::GetTime();
+			if (a_rules.rows == form.checkedRows && (!form.checkAnswered || now - form.checkedAt < kHoldsRefresh)) {
+				return;
+			}
+			form.checkedRows = a_rules.rows;
+			form.checkedAt = now;
+			form.checkAnswered = false;
+			form.checkAsk = ++g_checkAsks;
+			SKSE::GetTaskInterface()->AddTask([onCheck, ask = form.checkAsk, rows = a_rules.rows] { onCheck(ask, rows); });
+		}
+
+		// A user's situation's Applies text as SituationRules::Text words it, each condition a link
+		// (Theme::RunLinks), where a field's text sits (DrawFieldText), in the text colour pushed
+		// now, a condition met now (CheckConditions) in the palette's positive colour: lit while
+		// hovered with the editor on offer (Request::customSituations); its tooltip says whether it
+		// is met now, and without the editor how to offer it. Returns the condition clicked (index
+		// into rules.rows), or -1.
+		int DrawAppliesLinks(const State& a_state, const SituationRules::Rules& a_rules)
+		{
+			if (a_rules.rows.empty()) {
+				DrawFieldText(SituationRules::Text(a_rules).c_str());  // "Never applies."
+				return -1;
+			}
+			std::vector<std::string> phrases;
+			phrases.reserve(a_rules.rows.size());
+			for (const auto& row : a_rules.rows) {
+				phrases.push_back(SituationRules::RowText(row));
+			}
+			auto& first = phrases.front();
+			if (!first.empty() && first[0] >= 'a' && first[0] <= 'z') {
+				first[0] = static_cast<char>(first[0] - 'a' + 'A');
+			}
+			// The answer to the latest ask, while it is one per row: an edit's rows are coloured by the
+			// answer before it until its own comes, a frame or so later.
+			const auto& held = a_state.situationForm.conditionsHeld;
+			const bool  known = held.size() == a_rules.rows.size();
+			const auto  positive = Theme::PositiveColor();
+			// A phrase per even index, the commas and the full stop between: run / 2 is the row.
+			std::vector<Theme::LinkRun> runs;
+			runs.reserve(phrases.size() * 2);
+			for (std::size_t i = 0; i < phrases.size(); ++i) {
+				if (i > 0) {
+					runs.push_back({ Strings::Get(Text::kListSeparator), false });
+				}
+				runs.push_back({ phrases[i].c_str(), true, known && held[i] ? positive : 0u });
+			}
+			runs.push_back({ Strings::Get(Text::kAppliesEnd), false });
+
+			const bool editable = a_state.request.customSituations;
+			int        hovered = -1;
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetStyle().FramePadding.y);
+			const int clicked = Theme::RunLinks(runs, editable, &hovered);
+			if (hovered >= 0) {
+				std::string tip = known ? Strings::Get(held[static_cast<std::size_t>(hovered / 2)] ? Text::kMetNow : Text::kNotMetNow) : "";
+				if (!editable) {
+					tip += tip.empty() ? "" : "\n\n";
+					tip += Strings::Get(Text::kTurnOnCustom);
+				}
+				if (!tip.empty()) {
+					Theme::Tooltip(tip.c_str());
+				}
+			}
+			return editable && clicked >= 0 ? clicked / 2 : -1;
+		}
+
+		// The Edit situation popup's settings, its left column: the name (the Default says what it
+		// is under it), why it is never
+		// worn, the situations it always overrides, `Applies` over the conditions, the Default's
+		// read only, another's Applies text (DrawAppliesLinks) with the label's help, greyed and
+		// read only unless the page offers the editor (Request::customSituations); then Random
+		// Outfit (for #{Name}). Returns the condition clicked in the Applies text (index into
+		// rules.rows), or -1.
+		int DrawSituationSettings(State& a_state, std::size_t a_entry)
+		{
+			auto&       form = a_state.situationForm;
+			auto&       entry = form.entries[a_entry];
+			const auto& name = a_state.request.actorName;
+			const bool  isDefault = a_entry == 0;
+			Theme::LabelText(Strings::Get(Text::kNameLabel));
 			ImGui::SetNextItemWidth(-FLT_MIN);
 			Theme::InputText("##name", entry.name.data(), entry.name.size(), ImGuiInputTextFlags_None, kNeedName);
 			if (ImGui::IsItemActivated()) {
@@ -617,46 +1681,35 @@ namespace CaptureWindow::Internal
 			if (isDefault) {
 				DrawDefaultNote(a_state);
 			}
-			Theme::LabelText("Conditions");
-			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			DrawNeverWorn(form, a_entry);
+			DrawOverrides(form, a_entry);
+			Theme::LabelText(Strings::Get(Text::kApplies));
+			int        clicked = -1;
+			const bool editable = !isDefault && a_state.request.customSituations;
+			if (!isDefault && Theme::LabelHelpMark()) {
+				DrawHelpTooltip(Strings::Get(Text::kConditionsHelp));
+			}
+			if (!editable) {
+				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			}
 			if (isDefault) {
 				DrawDefaultConditions();
 			} else {
-				DrawFieldText(a_state.request.situations[a_entry].conditions.c_str());
+				clicked = DrawAppliesLinks(a_state, entry.rules);
 			}
-			ImGui::PopStyleColor();
-		}
-
-		enum class DetailsAction
-		{
-			kNone,
-			kShowList,
-			kRemove
-		};
-
-		// The selected situation's details as edited: its name and conditions,
-		// Random Outfit (for #{Name}), then Show Outfit List centred with Remove at the row's
-		// right end (not for the Default).
-		DetailsAction DrawSituationDetails(State& a_state)
-		{
-			constexpr const char* kShowList = "Show Outfit List";
-
-			auto&       form = a_state.situationForm;
-			const auto  selected = static_cast<std::size_t>(form.selected);
-			auto&       entry = form.entries[selected];
-			const auto& name = a_state.request.actorName;
-			ImGui::PushID(form.selected);
-			DrawGlobalSettings(a_state, selected);
+			if (!editable) {
+				ImGui::PopStyleColor();
+			}
 
 			Theme::SectionGap();  // a field of its own, with no label
 			bool              random = entry.row.random;
-			const std::string randomLabel = std::format("Random Outfit (for {})", name);
+			const std::string randomLabel = Strings::Format(Text::kRandomOutfitFor, name);
 			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
 				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
 				ScheduleAutosave(a_state);
 				// An outfit the Default wears with random off drops its pieces, as a drop does.
-				if (selected == 0 && !random && entry.row.chosen != 0) {
+				if (isDefault && !random && entry.row.chosen != 0) {
 					form.defaultPieces = false;
 				}
 			}
@@ -664,20 +1717,12 @@ namespace CaptureWindow::Internal
 			ImGui::TextDisabled("(?)");
 			const bool helpHovered = ImGui::IsItemHovered();
 			if (FocusStandIn("##randomHelp") || helpHovered) {
-				DrawHelpTooltip(std::format(
-					"On: Each time this situation begins, {0} wears a random outfit from the list until it ends.\n\n"
-					"Off: {0} wears the last picked outfit. The others stay in the list but are hidden.",
-					name));
+				DrawHelpTooltip(Strings::Format(Text::kRandomOutfitHelp, name));
 			}
-
-			BeginButtonRow({ kShowList });
-			auto action = Theme::Button(kShowList) ? DetailsAction::kShowList : DetailsAction::kNone;
-			if (selected > 0 && Theme::LineLink("Remove")) {
-				action = DetailsAction::kRemove;
-			}
-			ImGui::PopID();
-			return action;
+			return clicked;
 		}
+
+		// --- Right pane: an outfit's details ----------------------------------
 
 		enum class OutfitViewAction
 		{
@@ -693,10 +1738,10 @@ namespace CaptureWindow::Internal
 			std::string names;
 			for (const auto& entry : a_state.situationForm.entries) {
 				if (OutfitRows::Holds(entry.row, a_outfit)) {
-					names += std::format("{}{}", names.empty() ? "" : ", ", Trimmed(entry.name.data()));
+					names += std::format("{}{}", names.empty() ? "" : Strings::Get(Text::kListSeparator), Trimmed(entry.name.data()));
 				}
 			}
-			return names.empty() ? "None" : names;
+			return names.empty() ? Strings::Get(Text::kHeldByNone) : names;
 		}
 
 		// The outfit clicked last (`a_viewed`, its index into request.existingOutfits) as Manage
@@ -706,18 +1751,17 @@ namespace CaptureWindow::Internal
 		// centred, one over the other when the pane leaves them no item spacing on either side,
 		// as far apart as buttons side by side are.
 		// It grows with the pieces, moving the page's buttons when taller than the Situation
-		// List; its pieces' list scrolls only to keep the whole view
-		// within kMaxListHeightRatio of the screen, as every list's column keeps, so the window
-		// stays on screen. Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
-		// Contract: ShownPane is RightPane::kOutfit; called at the top of the right pane.
+		// List; its pieces' list scrolls only to keep the window within kMaxWindowHeightRatio of
+		// the screen, as every list does (ListBottom). Escape is Back, and sets `a_escapeTaken` so it is not also Exit.
+		// Contract: ShowsOutfitView is true; called at the top of the right pane.
 		OutfitViewAction DrawOutfitView(State& a_state, int a_viewed, bool& a_escapeTaken)
 		{
 			const float     spacing = ImGui::GetStyle().ItemSpacing.x;
-			const RowButton open{ "Open in Wardrobe", Theme::HeadingIcon::kWardrobe };
-			const bool      stacked = ButtonRowWidth({ open, "Back" }) + spacing * 2.0f > ImGui::GetContentRegionAvail().x;
+			const RowButton open{ Strings::Get(Text::kOpenInWardrobe), Theme::HeadingIcon::kWardrobe };
+			const bool      stacked = ButtonRowWidth({ open, Strings::Get(Text::kBack) }) + spacing * 2.0f > ImGui::GetContentRegionAvail().x;
 			const float     buttonRow = ImGui::GetStyle().ItemSpacing.y + ButtonRowGap() + Theme::ButtonHeight() +
-			                            (stacked ? spacing + Theme::ButtonHeight() : 0.0f);                               // under the pieces' list
-			const float     bottom = ImGui::GetCursorScreenPos().y + ImGui::GetIO().DisplaySize.y * kMaxListHeightRatio;  // the view's lowest
+			                            (stacked ? spacing + Theme::ButtonHeight() : 0.0f);  // under the pieces' list
+			const float     bottom = ListBottom();                                           // the view's lowest
 			ImGui::PushID("outfitView");
 			auto&      form = a_state.situationForm;
 			const auto edited = EditedRow(form);
@@ -731,17 +1775,17 @@ namespace CaptureWindow::Internal
 			if (stacked) {
 				BeginButtonRow({ open });
 			} else {
-				BeginButtonRow({ open, "Back" });
+				BeginButtonRow({ open, Strings::Get(Text::kBack) });
 			}
 			const bool openWardrobe = Theme::Button(open.icon, open.label);
 			if (stacked) {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + spacing - ImGui::GetStyle().ItemSpacing.y);
-				CentreButtonRow({ "Back" });
+				CentreButtonRow({ Strings::Get(Text::kBack) });
 			} else {
 				ImGui::SameLine();
 			}
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-			const bool back = Theme::Button("Back") || escape;
+			const bool back = Theme::Button(Strings::Get(Text::kBack)) || escape;
 			ImGui::PopID();
 			a_escapeTaken = a_escapeTaken || escape;
 			if (openWardrobe) {
@@ -755,41 +1799,58 @@ namespace CaptureWindow::Internal
 		enum class SituationAction
 		{
 			kNone,
+			kNew,
 			kRestore,
 			kExit
 		};
 
-		// Exit, centred as the other pages' buttons, then Restore Presets (?) at the row's right
-		// end, a link as the details' Remove and Restore are, greyed while every preset is as
-		// installed. a_escapeTaken: the
-		// browser used this frame's Escape, which is otherwise Exit.
+		// What the Edit situation popup's links ask for as they close it.
+		enum class EditAction
+		{
+			kNone,
+			kRemove,
+			kDuplicate
+		};
+
+		// New Situation... (while the page offers it, Request::customSituations) and Exit, centred
+		// as the other pages' buttons, then Restore Presets (?) at the row's right end, a link as
+		// the Edit situation popup's Remove Situation is, greyed while every preset is as installed.
+		// a_escapeTaken: the browser used this frame's Escape, which is otherwise Exit.
 		SituationAction DrawSituationButtons(const State& a_state, bool a_escapeTaken)
 		{
-			constexpr const char* kRestoreHelp =
-				"Brings the preset situations back as installed: a removed one returns, empty, and a renamed one "
-				"gets its name back.\nNobody's outfits change.";
-
 			const auto& request = a_state.request;
-			BeginButtonRow({ "Exit" });
+			bool        create = false;
+			if (request.customSituations) {
+				BeginButtonRow({ { kNewSituation, Theme::HeadingIcon::kStar }, Strings::Get(Text::kExit) });
+				BeginItemDisabled(a_state, !request.onSituationCreate);
+				create = Theme::Button(Theme::HeadingIcon::kStar, kNewSituation);
+				EndItemDisabled();
+				ImGui::SameLine();
+			} else {
+				BeginButtonRow({ Strings::Get(Text::kExit) });
+			}
 			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !a_escapeTaken && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-			const bool exit = Theme::Button("Exit") || escape;
+			const bool exit = Theme::Button(Strings::Get(Text::kExit)) || escape;
 
 			const bool installed = request.restoreChanges.empty();
 			BeginItemDisabled(a_state, installed || !request.onRestorePresets);
 			bool       helpHovered = false;
-			const bool restore = Theme::LineHelpLink("Restore Presets", &helpHovered);
+			const bool restore = Theme::LineHelpLink(Strings::Get(Text::kRestorePresets), &helpHovered);
 			bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
 			EndItemDisabled();
-			if (installed && FocusStandIn("Restore Presets")) {
+			if (installed && FocusStandIn("##restorePresets")) {
 				hovered = true;
 			}
 			// After EndDisabled, so the tooltip is not drawn faded.
 			if (installed && hovered) {
 				Theme::Tooltip(kAsInstalled);
 			} else if (helpHovered) {
-				DrawHelpTooltip(kRestoreHelp);
+				DrawHelpTooltip(Strings::Get(Text::kRestorePresetsHelp));
 			}
 
+			if (create) {
+				return SituationAction::kNew;
+			}
 			if (restore) {
 				return SituationAction::kRestore;
 			}
@@ -800,10 +1861,10 @@ namespace CaptureWindow::Internal
 		// Contract: inside a BeginModal popup.
 		bool DrawPopupButtons(const char* a_confirm)
 		{
-			BeginButtonRow({ a_confirm, "Cancel" });
+			BeginButtonRow({ a_confirm, Strings::Get(Text::kCancel) });
 			const bool confirm = Theme::Button(a_confirm);
 			ImGui::SameLine();
-			const bool cancel = Theme::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 			EndButtonRow();
 			if (confirm || cancel) {
 				QueueMenuSound(confirm ? kOkSound : kCancelSound);
@@ -812,8 +1873,8 @@ namespace CaptureWindow::Internal
 			return confirm;
 		}
 
-		// `Remove Town?` (the name after its star), who has outfits on it in this save, and what
-		// Restore Presets brings back; Remove / Cancel. Returns true on Remove.
+		// `Remove Town?` (the name after its star), who has outfits on it in this save, and for a
+		// preset what Restore Presets brings back; Remove / Cancel. Returns true on Remove.
 		bool DrawRemoveSituationPopup(const State& a_state)
 		{
 			if (!BeginModal(kRemoveSituationPopup)) {
@@ -827,15 +1888,17 @@ namespace CaptureWindow::Internal
 			}
 			const auto& saved = a_state.request.situations[static_cast<std::size_t>(selected)];
 			const auto  situation = SituationRun(saved.name.c_str());
-			RunLine({ TextRun("Remove "), situation, TextRun("?") });
+			RunLine(Text::kRemoveSituationQuestion, { situation });
 			if (!saved.holders.empty()) {
-				ImGui::TextUnformatted("Used by:");
+				ImGui::TextUnformatted(Strings::Get(Text::kUsedBy));
 				for (const auto& holder : saved.holders) {
 					ImGui::BulletText("%s", holder.c_str());
 				}
 			}
-			ImGui::TextUnformatted(saved.holders.empty() ? "Restore Presets can bring it back." : "Restore Presets can bring it back, but not their outfits.");
-			const bool remove = DrawPopupButtons("Remove");
+			if (!saved.user) {
+				ImGui::TextUnformatted(Strings::Get(saved.holders.empty() ? Text::kRestoreBringsBack : Text::kRestoreBringsBackNoOutfits));
+			}
+			const bool remove = DrawPopupButtons(Strings::Get(Text::kRemove));
 			ImGui::EndPopup();
 			return remove;
 		}
@@ -847,13 +1910,397 @@ namespace CaptureWindow::Internal
 			if (!BeginModal(kRestorePresetsPopup)) {
 				return false;
 			}
-			ImGui::TextUnformatted("Restore the preset situations?");
+			ImGui::TextUnformatted(Strings::Get(Text::kRestorePresetsQuestion));
 			for (const auto& line : a_state.request.restoreChanges) {
 				ImGui::BulletText("%s", line.c_str());
 			}
-			const bool restore = DrawPopupButtons("Restore");
+			const bool restore = DrawPopupButtons(Strings::Get(Text::kRestore));
 			ImGui::EndPopup();
 			return restore;
+		}
+
+		// The New situation popup: the name, then Create (Enter with a name typed) / Cancel
+		// (Escape). Returns true on Create; the name is SituationForm::newName.
+		bool DrawNewSituationPopup(State& a_state)
+		{
+			if (!BeginModal(kNewSituationPopup)) {
+				return false;
+			}
+			auto& name = a_state.situationForm.newName;
+			ImGui::TextUnformatted(Strings::Get(Text::kNameNewSituation));
+			const bool enter = DrawNameField(a_state, name, nullptr, nullptr, Strings::Get(Text::kSituationNameHint));
+			BeginButtonRow({ Strings::Get(Text::kCreate), Strings::Get(Text::kCancel) });
+			const bool typed = !Trimmed(name.data()).empty();
+			const bool create = ReasonButton(Strings::Get(Text::kCreate), typed ? nullptr : kNeedName) || enter;
+			ImGui::SameLine();
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			EndButtonRow();
+			if (create || cancel) {
+				QueueMenuSound(create ? kOkSound : kCancelSound);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+			return create;
+		}
+
+		// The row of `a_kind` the Add place or Add spell popup adds to (SituationForm::formRow) as
+		// edited; nullptr once it is gone.
+		SituationRules::Row* FormRow(State& a_state, SituationRules::Kind a_kind)
+		{
+			auto& form = a_state.situationForm;
+			if (form.selected < 0 || static_cast<std::size_t>(form.selected) >= form.entries.size() || form.formRow < 0) {
+				return nullptr;
+			}
+			auto&      rows = form.entries[static_cast<std::size_t>(form.selected)].rules.rows;
+			const auto index = static_cast<std::size_t>(form.formRow);
+			return index < rows.size() && rows[index].kind == a_kind ? &rows[index] : nullptr;
+		}
+
+		// The Add spell popup's row checks the player (SituationRules::Target::kPlayer) in another
+		// actor's window, so its first line speaks of you.
+		bool ChecksPlayer(State& a_state)
+		{
+			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
+			return row && row->target == SituationRules::Target::kPlayer && !a_state.request.actorIsPlayer;
+		}
+
+		// What the Add spell popup lists from: the actor's spells, with Show player spells those and
+		// the player's, or with Show all spells every one.
+		std::span<const SituationRules::SpellChoice> OfferedSpells(const State& a_state)
+		{
+			const auto& form = a_state.situationForm;
+			const auto& request = a_state.request;
+			if (form.spellShowAll) {
+				return request.allSpells;
+			}
+			return form.spellShowPlayer && !request.actorIsPlayer ? request.spellsWithPlayer : request.spells;
+		}
+
+		// The spells the Add spell popup lists (SituationForm::spellShown): those offered whose name
+		// holds the search, ASCII case ignored; with Show all spells and nothing typed, none.
+		void RefreshSpellList(State& a_state)
+		{
+			auto&                  form = a_state.situationForm;
+			const std::string_view search = form.spellSearch.data();
+			form.spellShown.clear();
+			if (form.spellShowAll && search.empty()) {
+				return;
+			}
+			const auto spells = OfferedSpells(a_state);
+			for (std::size_t i = 0; i < spells.size(); ++i) {
+				if (ExampleMod::ContainsIgnoringCase(spells[i].spell.ref.name, search)) {
+					form.spellShown.push_back(i);
+				}
+			}
+		}
+
+		// Opens the popup of the row SituationForm::formRow names: Add place on its first choice
+		// (This Location, or This Cell outside any location), or Add spell on the actor's spells
+		// with nothing typed or ticked.
+		// Contract: inside the Edit situation popup, as the popups are drawn there
+		// (DrawAddFormPopups).
+		void OpenAddFormPopup(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			if (FormRow(a_state, SituationRules::Kind::kPlace)) {
+				form.placePick = 0;
+				ImGui::OpenPopup(kAddPlacePopup);
+			} else if (FormRow(a_state, SituationRules::Kind::kSpell)) {
+				form.spellSearch.fill('\0');
+				form.spellShowAll = false;
+				form.spellShowPlayer = false;
+				form.spellPicks.clear();
+				RefreshSpellList(a_state);
+				a_state.focusNameField = true;  // the search field
+				ImGui::OpenPopup(kAddSpellPopup);
+			}
+		}
+
+		// The Add place popup (docs/custom-situations.md §7): This Location, each Parent Location
+		// and This Cell, each with the place's name and a (?) saying what it covers; Add, greyed
+		// for a place the row has already, / Cancel (Escape). Returns the place to add on Add.
+		std::optional<SituationRules::Place> DrawAddPlacePopup(State& a_state)
+		{
+			if (!BeginModal(kAddPlacePopup)) {
+				return std::nullopt;
+			}
+			auto&       form = a_state.situationForm;
+			const auto& places = a_state.request.places;
+			const auto& name = a_state.request.actorName;
+			int         shown = 0;  // the choices drawn so far, in request.places.At's order
+			const auto  radio = [&form, &shown](const char* a_kind, const SituationRules::Place& a_place, const std::string& a_help) {
+				const int  pick = shown++;
+				const auto label = Strings::Format(Text::kPlaceChoice, a_kind, SituationRules::FormName(a_place));
+				ImGui::PushID(pick);
+				if (Theme::RadioButton(label.c_str(), form.placePick == pick)) {
+					form.placePick = pick;
+					QueueMenuSound(kFocusSound);
+				}
+				ImGui::SameLine();
+				ImGui::TextDisabled("(?)");
+				if (ImGui::IsItemHovered()) {
+					DrawHelpTooltip(a_help);
+				}
+				ImGui::PopID();
+			};
+			ImGui::TextUnformatted(Strings::Format(Text::kAddPlaceLead, name).c_str());
+			if (places.location) {
+				radio(Strings::Get(Text::kThisLocation), *places.location, Strings::Format(Text::kThisLocationTip, name));
+				const auto here = SituationRules::FormName(*places.location);
+				for (const auto& parent : places.parents) {
+					radio(Strings::Get(Text::kParentLocation), parent, Strings::Format(Text::kParentLocationTip, here));
+				}
+			}
+			if (places.cell) {
+				radio(Strings::Get(Text::kThisCell), *places.cell, Strings::Format(Text::kThisCellTip, name));
+			}
+			const auto* picked = places.At(form.placePick);
+			const auto* row = FormRow(a_state, SituationRules::Kind::kPlace);
+			const bool  listed = picked && row && std::ranges::any_of(row->places, [&picked](const SituationRules::Place& a_place) {
+				return SituationRules::SameForm(a_place.ref, picked->ref);
+			});
+			BeginButtonRow({ Strings::Get(Text::kAdd), Strings::Get(Text::kCancel) });
+			const char* reason = !picked ? Strings::Get(Text::kNothingToAdd) : ReasonIf(listed, Strings::Get(Text::kAlreadyListed));
+			const bool  add = ReasonButton(Strings::Get(Text::kAdd), reason);
+			ImGui::SameLine();
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			EndButtonRow();
+			if (add || cancel) {
+				QueueMenuSound(add ? kOkSound : kCancelSound);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+			return add && picked ? std::optional{ *picked } : std::nullopt;
+		}
+
+		// The Add spell popup's search field, underlined with a magnifying glass as the outfit
+		// search, `a_width` wide, a clear button on its right end while text is typed. Returns true
+		// when the search changed; sets `a_escapeTaken` when Escape cleared it, so it does not also
+		// cancel.
+		bool DrawSpellSearch(State& a_state, float a_width, bool& a_escapeTaken)
+		{
+			auto&      search = a_state.situationForm.spellSearch;
+			const bool searching = search[0] != '\0';
+			a_escapeTaken = searching && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+			const Theme::FieldStyle style{ .look = searching ? Theme::FieldLook::kHighlighted : Theme::FieldLook::kNormal,
+				.shape = Theme::FieldShape::kUnderlined,
+				.icon = Theme::FieldIcon::kSearch };
+			if (a_state.focusNameField) {
+				ImGui::SetKeyboardFocusHere();
+				a_state.focusNameField = false;
+			}
+			ImGui::SetNextItemWidth(a_width);
+			ImGui::SetNextItemAllowOverlap();  // the clear button sits on its right end
+			bool changed = Theme::InputText("##search", search.data(), search.size(), ImGuiInputTextFlags_EscapeClearsAll, Strings::Get(Text::kSearchByName), style);
+			bool clear = a_escapeTaken;
+			if (search[0] != '\0') {
+				const ImVec2 fieldMin = ImGui::GetItemRectMin();
+				const ImVec2 fieldMax = ImGui::GetItemRectMax();
+				const float  side = fieldMax.y - fieldMin.y;
+				ImGui::SetCursorScreenPos(ImVec2(fieldMax.x - side, fieldMin.y));
+				if (Theme::ClearButton("##clearSearch", side)) {
+					QueueMenuSound(kFocusSound);
+					clear = true;
+				}
+			}
+			if (clear) {
+				search.fill('\0');
+				changed = true;
+			}
+			return changed;
+		}
+
+		// Whether `a_spells` holds `a_spell` (SituationRules::SameForm).
+		bool HoldsSpell(std::span<const SituationRules::Spell> a_spells, const SituationRules::Spell& a_spell)
+		{
+			return std::ranges::any_of(a_spells, [&a_spell](const SituationRules::Spell& a_other) {
+				return SituationRules::SameForm(a_other.ref, a_spell.ref);
+			});
+		}
+
+		// A row of the Add spell popup's list: a tick row of the spell after its icon, a click
+		// ticking or unticking it (SituationForm::spellPicks); one the row `a_row` has already is
+		// ticked, greyed and takes no click. Its plugin and FormID on hover, to tell the same
+		// names apart, then its effects, and for one the row has, that it has it.
+		void DrawSpellRow(State& a_state, const SituationRules::SpellChoice& a_choice, const SituationRules::Row* a_row)
+		{
+			auto&                            picks = a_state.situationForm.spellPicks;
+			const auto&                      spell = a_choice.spell;
+			const bool                       inRow = a_row && HoldsSpell(a_row->spells, spell);
+			const auto                       pick = std::ranges::find_if(picks, [&spell](const SituationRules::Spell& a_pick) {
+				return SituationRules::SameForm(a_pick.ref, spell.ref);
+			});
+			bool                             ticked = inRow || pick != picks.end();
+			const std::array<const char*, 1> cells{ spell.ref.name.c_str() };
+			const std::array<float, 1>       columnX{ Theme::RowIconRoom() };
+			ImGui::BeginDisabled(inRow);
+			const bool toggled = Theme::TickRow(cells, columnX, &ticked, IconOf(a_choice));
+			bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			ImGui::EndDisabled();
+			// The keyboard still reaches a greyed row, so the list scrolls.
+			if (inRow && FocusStandIn("##row")) {
+				hovered = true;
+			}
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (hovered) {
+				const auto tip = SpellTip(spell, a_choice.effectLines);
+				Theme::Tooltip(inRow ? (tip + "\n\n" + Strings::Get(Text::kAlreadyListed)).c_str() : tip.c_str());
+			}
+			if (toggled) {
+				QueueMenuSound(kFocusSound);
+				if (ticked) {
+					picks.push_back(spell);
+				} else {
+					picks.erase(pick);
+				}
+			}
+		}
+
+		// The count line under the Add spell popup's list: how many spells are ticked, those the
+		// search hides counted too, and Clear All at its right end, greyed with none, which
+		// unticks them all.
+		void DrawSpellCount(State& a_state)
+		{
+			auto&      picks = a_state.situationForm.spellPicks;
+			const auto count = picks.size();
+			Theme::CountText((count == 1 ? std::string{ Strings::Get(Text::kOneSpellSelected) } : Strings::Format(Text::kSpellsSelected, count)).c_str(), false);
+			ImGui::BeginDisabled(picks.empty());
+			if (Theme::LineLink(Strings::Get(Text::kClearAll))) {
+				picks.clear();
+				QueueMenuSound(kFocusSound);
+			}
+			ImGui::EndDisabled();
+		}
+
+		// The Add spell popup's list: the spells SituationForm::spellShown names, a tick row each
+		// (DrawSpellRow); under it the count line (DrawSpellCount), then past the most it lists,
+		// a line saying how many more.
+		void DrawSpellList(State& a_state)
+		{
+			constexpr std::size_t kMaxListed = 100;   // rows listed; more need a longer search
+			constexpr float       kRowsTall = 10.0f;  // the list's height in rows, kept as the search narrows
+
+			auto&       form = a_state.situationForm;
+			const auto  spells = OfferedSpells(a_state);
+			const auto  listed = (std::min)(form.spellShown.size(), kMaxListed);
+			const auto* row = FormRow(a_state, SituationRules::Kind::kSpell);
+			const char* hint = form.spellShowAll && form.spellSearch[0] == '\0' ? Strings::Get(Text::kTypeToSearch) : Strings::Get(Text::kNothingFound);
+			PushListRowSpacing();
+			const float rowHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;  // Theme::TickRow's
+			if (Theme::BeginList("spells", FittedListHeight(rowHeight * kRowsTall, rowHeight))) {
+				if (listed == 0) {
+					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+					Theme::TextRow(hint);
+					ImGui::PopStyleColor();
+				}
+				for (std::size_t i = 0; i < listed; ++i) {
+					// Contract: an index past the list is skipped: a refresh of the window
+					// (SetOutfits) may read the actor's spells again while the popup is open.
+					if (form.spellShown[i] >= spells.size()) {
+						continue;
+					}
+					ImGui::PushID(static_cast<int>(i));
+					DrawSpellRow(a_state, spells[form.spellShown[i]], row);
+					ImGui::PopID();
+				}
+			}
+			ImGui::PopStyleVar();
+			Theme::EndList();
+			DrawSpellCount(a_state);
+			if (form.spellShown.size() > kMaxListed) {
+				Theme::CountText(Strings::Format(Text::kMoreSpells, form.spellShown.size() - kMaxListed).c_str(), false);
+			}
+		}
+
+		// The Add spell popup's Show player spells, right of Show all spells and greyed while it is
+		// ticked; not drawn in the player's own window. Returns true when ticked or unticked.
+		bool DrawShowPlayerSpells(State& a_state, const char* a_label)
+		{
+			auto& form = a_state.situationForm;
+			ImGui::SameLine();
+			ImGui::BeginDisabled(form.spellShowAll);
+			const bool changed = Theme::Checkbox(a_label, &form.spellShowPlayer);
+			bool       hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+			ImGui::EndDisabled();
+			if (form.spellShowAll && FocusStandIn(a_label)) {
+				hovered = true;
+			}
+			// After EndDisabled, so the tooltip is not drawn faded.
+			if (hovered) {
+				Theme::Tooltip(Strings::Get(Text::kShowPlayerSpellsTip));
+			}
+			return changed;
+		}
+
+		// The Add spell popup (docs/custom-situations.md §7): the search, Show all spells and Show
+		// player spells, the spells that match, each with a tick, and how many are ticked; Add,
+		// greyed with none ticked, / Cancel (Escape, unless it clears the search). Returns the
+		// ticked spells on Add, in the order they were ticked; none otherwise.
+		std::vector<SituationRules::Spell> DrawAddSpellPopup(State& a_state)
+		{
+			constexpr float kWidthInFonts = 18.0f;  // the popup's content width, in font sizes
+
+			const char* showAllLabel = Strings::Get(Text::kShowAllSpells);
+			const char* showPlayerLabel = Strings::Get(Text::kShowPlayerSpells);
+			auto&       form = a_state.situationForm;
+			const auto& name = a_state.request.actorName;
+			const bool  showPlayer = !a_state.request.actorIsPlayer;
+			const auto  lead = ChecksPlayer(a_state) ? std::string{ Strings::Get(Text::kAddSpellLeadYou) } : Strings::Format(Text::kAddSpellLead, name);
+			// The width is set before the popup begins, the line above and the checkboxes widening
+			// it: the list runs past the content into the window's padding in Vanilla and Nordic
+			// (Theme::BeginList), which a popup fitted to its content would take in and grow by at
+			// every frame. The checkboxes' row is as last drawn, or before that guessed with each
+			// box a frame height wide (the skins draw it at most about that).
+			const auto& style = ImGui::GetStyle();
+			float       options = form.spellOptionsWidth;
+			if (options <= 0.0f) {
+				for (const char* label : { showAllLabel, showPlayerLabel }) {
+					options += ImGui::GetFrameHeight() + style.ItemInnerSpacing.x + ImGui::CalcTextSize(label).x;
+				}
+				options += style.ItemSpacing.x;
+			}
+			const float width = (std::max)({ ImGui::CalcTextSize(lead.c_str()).x, ImGui::GetFontSize() * kWidthInFonts, showPlayer ? options : 0.0f });
+			const float windowWidth = width + style.WindowPadding.x * 2.0f;
+			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
+			if (!BeginModal(kAddSpellPopup)) {
+				return {};
+			}
+			ImGui::TextUnformatted(lead.c_str());
+			bool        escapeTaken = false;
+			bool        changed = DrawSpellSearch(a_state, width, escapeTaken);
+			const float rowLeft = ImGui::GetCursorScreenPos().x;
+			if (Theme::Checkbox(showAllLabel, &form.spellShowAll)) {
+				QueueMenuSound(kFocusSound);
+				changed = true;
+			}
+			if (ImGui::IsItemHovered()) {
+				Theme::Tooltip(Strings::Format(Text::kShowAllSpellsTip, name).c_str());
+			}
+			if (showPlayer) {
+				if (DrawShowPlayerSpells(a_state, showPlayerLabel)) {
+					QueueMenuSound(kFocusSound);
+					changed = true;
+				}
+				form.spellOptionsWidth = ImGui::GetItemRectMax().x - rowLeft;
+			}
+			// Contract: the ticks stay as the list changes, so spells of several searches are added
+			// at once; a ticked spell may not be listed, and only the count line tells of it.
+			if (changed) {
+				RefreshSpellList(a_state);
+			}
+			DrawSpellList(a_state);
+
+			BeginButtonRow({ Strings::Get(Text::kAdd), Strings::Get(Text::kCancel) });
+			const bool add = ReasonButton(Strings::Get(Text::kAdd), ReasonIf(form.spellPicks.empty(), Strings::Get(Text::kSelectSpell)));
+			ImGui::SameLine();
+			const bool cancel = Theme::Button(Strings::Get(Text::kCancel)) || (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !escapeTaken);
+			EndButtonRow();
+			if (add || cancel) {
+				QueueMenuSound(add ? kOkSound : kCancelSound);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+			return add ? std::exchange(form.spellPicks, {}) : std::vector<SituationRules::Spell>{};
 		}
 
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
@@ -870,8 +2317,16 @@ namespace CaptureWindow::Internal
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				const auto& saved = request.situations[i];
 				auto        name = Trimmed(form.entries[i].name.data());
-				if (name != saved.name) {
-					save.edits.push_back({ .situation = saved.situation, .name = std::move(name) });
+				const bool  rules = RulesChanged(a_state, i);
+				if (name != saved.name || rules) {
+					save.edits.push_back({ .situation = saved.situation,
+						.name = std::move(name),
+						.rules = rules ? std::optional{ form.entries[i].rules } : std::nullopt });
+				}
+			}
+			if (OrderChanged(form)) {
+				for (const auto entry : form.order) {
+					save.order.push_back(request.situations[entry].situation);
 				}
 			}
 			if (RowsChanged(a_state)) {
@@ -917,6 +2372,42 @@ namespace CaptureWindow::Internal
 				[onRemove, situation = a_state.request.situations[static_cast<std::size_t>(a_state.situationForm.selected)].situation] { onRemove(situation); });
 		}
 
+		// Hands the New situation popup's name to onSituationCreate; the page is greyed until the
+		// handler ends with SetOutfits or SetError.
+		// Contract: the handler writes situations.json first and changes nothing for a refused
+		// or failed write (CLAUDE.md §2.1).
+		void RequestSituationCreate(State& a_state)
+		{
+			a_state.status = Status::kSaving;
+			a_state.error.clear();
+			auto onCreate = a_state.request.onSituationCreate;
+			SKSE::GetTaskInterface()->AddTask([onCreate, name = Trimmed(a_state.situationForm.newName.data())] { onCreate(name); });
+		}
+
+		// Hands the selected situation and its copy's name (CopyName among the names as saved,
+		// short enough for a name field) to onSituationDuplicate; the page is greyed until the
+		// handler ends with SetOutfits or SetError.
+		// Contract: the handler writes situations.json first and changes nothing for a refused
+		// or failed write (CLAUDE.md §2.1).
+		void RequestSituationDuplicate(State& a_state)
+		{
+			const auto& form = a_state.situationForm;
+			if (form.selected <= 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
+				return;
+			}
+			const auto selected = static_cast<std::size_t>(form.selected);
+			const auto taken = [&form](const std::string& a_name) {
+				return std::ranges::any_of(form.entries, [&a_name](const SituationEntry& a_entry) { return ExampleMod::CaseInsensitiveEqual(Trimmed(a_entry.name.data()), a_name); });
+			};
+			auto name = ExampleMod::CopyName(Trimmed(form.entries[selected].name.data()), kNameCapacity - 1, Strings::Get(Text::kCopyName),
+				Strings::Get(Text::kCopyNameNumbered), taken);
+			a_state.status = Status::kSaving;
+			a_state.error.clear();
+			auto onDuplicate = a_state.request.onSituationDuplicate;
+			SKSE::GetTaskInterface()->AddTask(
+				[onDuplicate, source = a_state.request.situations[selected].situation, name = std::move(name)] { onDuplicate(source, name); });
+		}
+
 		void RequestRestorePresets(State& a_state)
 		{
 			a_state.status = Status::kSaving;
@@ -937,8 +2428,162 @@ namespace CaptureWindow::Internal
 			}
 		}
 
-		// The page's popups, each opened by the page in its own ID scope.
-		void DrawSituationPopups(State& a_state)
+		// The Add place and Add spell popups over the Edit situation popup, and what they add.
+		// An edit, saved as the others are (the autosave waits while a popup is open).
+		// Contract: inside the Edit situation popup, where OpenAddFormPopup opens them.
+		void DrawAddFormPopups(State& a_state)
+		{
+			auto& form = a_state.situationForm;
+			if (auto place = DrawAddPlacePopup(a_state)) {
+				if (auto* row = FormRow(a_state, SituationRules::Kind::kPlace)) {
+					row->places.push_back(std::move(*place));
+					form.neverWornStale = true;
+					ScheduleAutosave(a_state);
+				}
+			}
+			if (auto spells = DrawAddSpellPopup(a_state); !spells.empty()) {
+				if (auto* row = FormRow(a_state, SituationRules::Kind::kSpell)) {
+					for (auto& spell : spells) {
+						row->spells.push_back(std::move(spell));
+					}
+					form.neverWornStale = true;
+					ScheduleAutosave(a_state);
+				}
+			}
+		}
+
+		// The Edit situation popup's right column: `Conditions` (with the Applies help) over the
+		// condition editor (DrawConditionEditor) in an area that scrolls to keep the whole popup within
+		// kMaxWindowHeightRatio of the screen. Returns the area's height as shown; sets
+		// `a_addForm` as DrawConditionEditor does.
+		float DrawConditionsColumn(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
+		{
+			auto& form = a_state.situationForm;
+			Theme::LabelText(Strings::Get(Text::kConditions));
+			if (Theme::LabelHelpMark()) {
+				DrawHelpTooltip(Strings::Get(Text::kConditionsHelp));
+			}
+			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - form.editorOtherHeight;
+			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
+				if (DrawConditionEditor(a_state, a_rules, a_addForm)) {
+					form.neverWornStale = true;
+					ScheduleAutosave(a_state);
+				}
+			}
+			Theme::EndScrollArea();
+			return ImGui::GetItemRectSize().y;
+		}
+
+		// The Edit situation popup (docs/situation-management-ui.md §5, docs/custom-situations.md
+		// §7), centred as its height changes until dragged: `Edit` and the situation's name as its
+		// heading (the name as last entered, not while it is typed); the situation's settings
+		// (DrawSituationSettings) as wide as the page's right pane, and while the page offers the
+		// editor (Request::customSituations), for every situation but the Default, the conditions
+		// (DrawConditionsColumn) in a column of their own beside them, as wide as the editor's
+		// widest row (EditorContentWidth); then Done, with Remove Situation at the row's
+		// right end (not for the Default) and, beside the conditions, Duplicate at its left end. A
+		// condition clicked in the Applies text is lit and scrolled to in the editor. Escape is
+		// Done unless it closed a dropdown or a popup over it. Its edits are saved once it closes
+		// (TakeAutosaveDue waits for it). Returns kRemove or kDuplicate when that link was
+		// pressed, which closes it.
+		EditAction DrawEditSituationPopup(State& a_state)
+		{
+			if (!ImGui::IsPopupOpen(kEditSituationPopup)) {
+				return EditAction::kNone;
+			}
+			auto&       form = a_state.situationForm;
+			const bool  conditions = form.selected > 0 && a_state.request.customSituations;  // the editor's column
+			const float columns = conditions ? form.paneWidth + form.columnGap + EditorContentWidth(a_state.request) : form.paneWidth;
+			const float windowWidth = columns + ImGui::GetStyle().WindowPadding.x * 2.0f;
+			ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, FLT_MAX));
+			if (!BeginModal(kEditSituationPopup, &form.editorCentred)) {
+				return EditAction::kNone;
+			}
+			if (form.selected < 0 || static_cast<std::size_t>(form.selected) >= form.entries.size()) {
+				ImGui::CloseCurrentPopup();
+				ImGui::EndPopup();
+				return EditAction::kNone;
+			}
+			if (ImGui::IsWindowAppearing()) {
+				form.editorFocus = -1;
+				form.editorFocusFrom = ImGui::GetTime();
+				form.editorScroll = 0;
+				form.editorFocusHeight = 0.0f;
+				form.editorPopupAbove = false;
+				form.editorCentred = true;
+				form.editorOtherHeight = 0.0f;
+				form.checkedRows.clear();  // asked again at once, nothing coloured until answered
+				form.conditionsHeld.clear();
+				// Contract: ImGui 1.92.7 centres the popup (BeginModal's pivot) at the first frame
+				// it is shown, at the size its content had the frame before. The scroll area learns
+				// its height a frame after it is made, so the popup stays hidden one frame more
+				// than ImGui's own, or the first opening is centred too short and grows downwards.
+				ImGui::GetCurrentWindow()->HiddenFramesCannotSkipItems = 2;
+			}
+			// Before anything is drawn: a dropdown that Escape closed is gone by now.
+			const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !form.editorPopupAbove && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+
+			const auto selected = static_cast<std::size_t>(form.selected);
+			auto&      entry = form.entries[selected];
+			if (selected > 0) {
+				CheckConditions(a_state, entry.rules);
+			}
+			const auto title = Trimmed(form.nameEditing == form.selected ? entry.nameBefore.c_str() : entry.name.data());
+			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { SituationRun(title.c_str(), selected == 0) }).Parts());
+			ImGui::PushID(form.selected);
+			bool  addForm = false;
+			float areaShown = 0.0f;
+			if (!conditions) {
+				DrawSituationSettings(a_state, selected);  // no link to click: the Default's, or greyed
+			} else if (BeginColumns("edit", 2, form.paneWidth)) {
+				NextColumn();
+				if (const int clicked = DrawSituationSettings(a_state, selected); clicked >= 0) {
+					QueueMenuSound(kFocusSound);
+					form.editorFocus = clicked;
+					form.editorFocusFrom = ImGui::GetTime();
+					form.editorScroll = 1;
+				}
+				NextColumn();
+				ResetCellBaseline();
+				areaShown = DrawConditionsColumn(a_state, entry.rules, addForm);
+				EndColumns();
+			}
+			ImGui::PopID();
+			if (addForm) {
+				QueueMenuSound(kOkSound);
+				OpenAddFormPopup(a_state);
+			}
+			DrawAddFormPopups(a_state);
+
+			BeginButtonRow({ Strings::Get(Text::kDone) });
+			const bool done = Theme::Button(Strings::Get(Text::kDone));
+			const bool remove = selected > 0 && Theme::LineLink(Strings::Get(Text::kRemoveSituation));
+			bool       duplicate = false;
+			if (conditions) {
+				BeginItemDisabled(a_state, !a_state.request.onSituationDuplicate);
+				duplicate = Theme::LeftLineLink(Strings::Get(Text::kDuplicateSituation));
+				EndItemDisabled();
+			}
+			EndButtonRow();
+			if (done || escape) {
+				QueueMenuSound(done ? kOkSound : kCancelSound);
+			}
+			if (done || escape || remove || duplicate) {
+				ImGui::CloseCurrentPopup();
+			}
+			form.editorPopupAbove = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+			// The popup fits its content: its height is the content's bottom and the padding under it.
+			const auto* window = ImGui::GetCurrentWindow();
+			form.editorOtherHeight = window->DC.CursorMaxPos.y - window->Pos.y + ImGui::GetStyle().WindowPadding.y - areaShown;
+			ImGui::EndPopup();
+			return remove ? EditAction::kRemove : duplicate ? EditAction::kDuplicate :
+			                                                  EditAction::kNone;
+		}
+
+		// The page's popups, each opened by the page in its own ID scope. Returns what the Edit
+		// situation popup's links asked for: Remove Situation, which the page answers with Remove's
+		// popup, or Duplicate.
+		EditAction DrawSituationPopups(State& a_state)
 		{
 			if (DrawRemoveSituationPopup(a_state)) {
 				RequestSituationRemove(a_state);
@@ -946,6 +2591,10 @@ namespace CaptureWindow::Internal
 			if (DrawRestorePresetsPopup(a_state)) {
 				RequestRestorePresets(a_state);
 			}
+			if (DrawNewSituationPopup(a_state)) {
+				RequestSituationCreate(a_state);
+			}
+			return DrawEditSituationPopup(a_state);
 		}
 	}
 
@@ -970,6 +2619,7 @@ namespace CaptureWindow::Internal
 			auto&       entry = entries[i];
 			CopyToField(entry.name, info.name);
 			entry.row = request.assigned[i].row;
+			entry.rules = info.rules;
 			for (std::size_t j = 0; j < a_before.size() && j < form.entries.size(); ++j) {
 				if (a_before[j].situation == info.situation) {
 					entry.folded = form.entries[j].folded;
@@ -983,15 +2633,38 @@ namespace CaptureWindow::Internal
 			}
 		}
 		form.entries = std::move(entries);
+		form.order.clear();
+		for (std::size_t i = 1; i < form.entries.size(); ++i) {
+			form.order.push_back(i);  // as saved: request.situations' order
+		}
+		form.neverWornStale = true;
 		form.defaultPieces = !request.assigned.empty() && request.assigned[0].pieces;
-		form.details = form.details && form.selected >= 0;
 		form.nameEditing = -1;
 		form.dragHover = -1;
 	}
 
+	void SelectSituation(State& a_state, Situations::Situation a_situation)
+	{
+		auto&       form = a_state.situationForm;
+		const auto& situations = a_state.request.situations;
+		for (std::size_t i = 0; i < situations.size() && i < form.entries.size(); ++i) {
+			if (situations[i].situation == a_situation) {
+				form.selected = static_cast<int>(i);
+				form.scrollToSelected = true;
+				a_state.popupAfterSave = kEditSituationPopup;  // DrawSituationPage opens it
+				return;
+			}
+		}
+	}
+
 	bool HasSituationEdits(const State& a_state)
 	{
-		return NamesChanged(a_state) || RowsChanged(a_state);
+		for (std::size_t i = 0; i < a_state.situationForm.entries.size(); ++i) {
+			if (RulesChanged(a_state, i)) {
+				return true;
+			}
+		}
+		return NamesChanged(a_state) || RowsChanged(a_state) || OrderChanged(a_state.situationForm);
 	}
 
 	bool SaveSituationEdits(State& a_state)
@@ -1006,14 +2679,14 @@ namespace CaptureWindow::Internal
 
 	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit)
 	{
-		const auto& entries = a_state.situationForm.entries;
-		std::string text;
-		for (std::size_t i = 1; i < entries.size(); ++i) {
-			if (OutfitRows::Holds(entries[i].row, a_outfit)) {
-				text += std::format("{}{}", text.empty() ? "For " : ", ", Trimmed(entries[i].name.data()));
+		const auto& form = a_state.situationForm;
+		std::string names;
+		for (const auto i : form.order) {
+			if (OutfitRows::Holds(form.entries[i].row, a_outfit)) {
+				names += std::format("{}{}", names.empty() ? "" : Strings::Get(Text::kListSeparator), Trimmed(form.entries[i].name.data()));
 			}
 		}
-		return text;
+		return names.empty() ? names : Strings::Format(Text::kForSituations, names);
 	}
 
 	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state)
@@ -1039,10 +2712,11 @@ namespace CaptureWindow::Internal
 		ImGui::EndDragDropSource();
 	}
 
-	// The Situation List on the left; on the right the outfit list, the selected situation or
-	// an outfit's details (ShownPane). Every change is an edit, saved shortly after the last one
-	// or as the page is left; Remove and Restore Presets save them, then write after their
-	// popups. The preview shows the Dress page's ticks, or the outfit whose details show.
+	// The Situation List on the left; on the right the outfit list or an outfit's details
+	// (ShowsOutfitView); a situation's settings in the Edit situation popup, opened by its
+	// heading's Edit. Every change is an edit, saved shortly after the last one, as the page is
+	// left, or once that popup closes; Remove and Restore Presets save them, then write after
+	// their popups. The preview shows the Dress page's ticks, or the outfit whose details show.
 	void DrawSituationPage(State& a_state)
 	{
 		auto& form = a_state.situationForm;
@@ -1052,28 +2726,31 @@ namespace CaptureWindow::Internal
 			}
 			a_state.popupAfterSave = nullptr;
 		}
+		if (form.duplicateAfterSave && a_state.status == Status::kEditing) {
+			form.duplicateAfterSave = false;
+			if (a_state.error.empty()) {
+				RequestSituationDuplicate(a_state);
+			}
+		}
+		form.editing = ImGui::IsPopupOpen(kEditSituationPopup);
 		EndInactiveNameEdit(a_state);
 		BeginPageDisabled(a_state);
-		bool escapeTaken = false;
-		bool reroll = false;
-		auto details = DetailsAction::kNone;
-		auto outfitView = OutfitViewAction::kNone;
+		bool       escapeTaken = false;
+		ListClick  list;
+		auto       outfitView = OutfitViewAction::kNone;
+		const auto pageWidth = ImGui::GetContentRegionAvail().x;
 		if (BeginColumns("situations")) {
 			NextColumn();
-			reroll = DrawSituationList(a_state);
+			list = DrawSituationList(a_state);
 			NextColumn();
 			ResetCellBaseline();
+			form.paneWidth = ImGui::GetContentRegionAvail().x;
+			form.columnGap = pageWidth - form.paneWidth * 2.0f;
 			const int viewed = IndexOfOutfit(a_state, form.viewedOutfit);  // after the Situation List, whose clicks change it
-			switch (ShownPane(a_state, viewed)) {
-			case RightPane::kOutfit:
+			if (ShowsOutfitView(viewed)) {
 				outfitView = DrawOutfitView(a_state, viewed, escapeTaken);
-				break;
-			case RightPane::kSituation:
-				details = DrawSituationDetails(a_state);
-				break;
-			case RightPane::kOutfitList:
+			} else {
 				escapeTaken = DrawOutfitPane(a_state, viewed);
-				break;
 			}
 			EndColumns();
 		}
@@ -1090,7 +2767,7 @@ namespace CaptureWindow::Internal
 			return;
 		}
 
-		if (reroll) {
+		if (list.dice) {
 			QueueMenuSound(kOkSound);
 			RequestReroll(a_state);
 			DrawSituationPopups(a_state);
@@ -1103,16 +2780,19 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kOkSound);
 			RequestLeave(a_state, { .page = Page::kManage, .manageOutfit = form.viewedOutfit });
 		}
-		if (details == DetailsAction::kShowList) {
-			QueueMenuSound(kFocusSound);
-			form.details = false;
-			form.entries[static_cast<std::size_t>(form.selected)].folded = false;
-			form.scrollToSelected = true;
-		} else if (details == DetailsAction::kRemove) {
+		if (list.edit >= 0) {
 			QueueMenuSound(kOkSound);
-			OpenAfterSave(a_state, kRemoveSituationPopup);
+			form.selected = list.edit;
+			OpenAfterSave(a_state, kEditSituationPopup);
 		}
 		switch (action) {
+		case SituationAction::kNew:
+			QueueMenuSound(kOkSound);
+			form.newName.fill('\0');
+			a_state.error.clear();
+			a_state.focusNameField = true;
+			OpenAfterSave(a_state, kNewSituationPopup);
+			break;
 		case SituationAction::kRestore:
 			QueueMenuSound(kOkSound);
 			OpenAfterSave(a_state, kRestorePresetsPopup);
@@ -1123,7 +2803,23 @@ namespace CaptureWindow::Internal
 		case SituationAction::kNone:
 			break;
 		}
-		DrawSituationPopups(a_state);
+		// The edits made in the popup are saved first.
+		switch (DrawSituationPopups(a_state)) {
+		case EditAction::kRemove:
+			QueueMenuSound(kOkSound);
+			OpenAfterSave(a_state, kRemoveSituationPopup);
+			break;
+		case EditAction::kDuplicate:
+			QueueMenuSound(kOkSound);
+			if (SaveSituationEdits(a_state)) {
+				form.duplicateAfterSave = true;
+			} else {
+				RequestSituationDuplicate(a_state);
+			}
+			break;
+		case EditAction::kNone:
+			break;
+		}
 		// Contract: not while a name is typed: a save would write it half typed, and SetOutfits
 		// would replace the field being typed in.
 		if (form.nameEditing < 0 && TakeAutosaveDue(a_state)) {

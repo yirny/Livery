@@ -6,6 +6,9 @@
 //   Browser   - Reset / Rebuild / Refresh / SetSort, and the search and filter accessors
 #include "OutfitBrowser.h"
 
+#include "Strings.h"
+#include "Utils.h"
+
 #include <algorithm>
 #include <compare>
 #include <string_view>
@@ -18,13 +21,6 @@ namespace
 	unsigned char AsciiLower(unsigned char a_c)
 	{
 		return a_c >= 'A' && a_c <= 'Z' ? static_cast<unsigned char>(a_c - 'A' + 'a') : a_c;
-	}
-
-	// Every name contains the empty text; ranges::search finds it as an empty match.
-	bool ContainsIgnoringCase(std::string_view a_text, std::string_view a_part)
-	{
-		const auto equal = [](unsigned char a, unsigned char b) { return AsciiLower(a) == AsciiLower(b); };
-		return a_part.empty() || !std::ranges::search(a_text, a_part, equal).empty();
 	}
 
 	std::weak_ordering CompareNames(std::string_view a_left, std::string_view a_right)
@@ -68,13 +64,13 @@ namespace
 	// the outfit for; "" for none.
 	std::string SituationsText(const CaptureWindow::ExistingOutfit& a_outfit, const CaptureWindow::Request& a_request)
 	{
-		std::string text;
+		std::string names;
 		for (std::size_t row = 1; row < a_request.assigned.size() && row < a_request.situations.size(); ++row) {
 			if (HoldsRow(a_request, row, a_outfit.id)) {
-				text += (text.empty() ? "For " : ", ") + a_request.situations[row].name;
+				names += (names.empty() ? "" : Strings::Get(Strings::Text::kListSeparator)) + a_request.situations[row].name;
 			}
 		}
-		return text;
+		return names.empty() ? names : Strings::Format(Strings::Text::kForSituations, names);
 	}
 
 	// The outfit's categories in one group: indices into Request::categories, ascending.
@@ -168,7 +164,7 @@ namespace OutfitBrowser
 		const std::string_view search = a_state.search.data();
 		a_state.visible.clear();
 		for (std::size_t i = 0; i < outfits.size(); ++i) {
-			if (ContainsIgnoringCase(outfits[i].name, search) && PassesFilter(a_state, a_request, i)) {
+			if (ExampleMod::ContainsIgnoringCase(outfits[i].name, search) && PassesFilter(a_state, a_request, i)) {
 				a_state.visible.push_back(static_cast<int>(i));
 			}
 		}

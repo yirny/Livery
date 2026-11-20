@@ -304,7 +304,7 @@ menu closes, even while the window's menu is open (the Fader Menu after a save l
 mod's HUD menu closing as the window opened); sarrai-common's overlay shows it again.
 
 A dressing's HUD message names the pieces not carried (the player without `AddMissingPieces`)
-and those the engine refused to put on (`DressingNotes` in `src/Assignments.cpp`).
+and those the engine refused to put on (`WithDressingNotes` in `src/Assignments.cpp`).
 
 ### Live Preview camera
 
@@ -335,7 +335,9 @@ takes it (`FocusStandIn`), so the tooltip shows and the list scrolls to the row;
 does nothing. A greyed item with no tooltip, and the page while a write runs, stay out.
 Navigation never claims the keyboard (`ConfigNavCaptureKeyboard` off), so W/A/S/D still move
 the camera. An Escape that ImGui spent closing a combo is not also the page's Back, Exit or
-Cancel (`HoldNavEscape`). The right stick's return to the centre is handed over too, or the
+Cancel (`HoldNavEscape`). A field that takes the focus itself (a name field, the spell search)
+shows no focus frame unless one was shown already (`KeepFocusFrameHidden`), so a popup it sits
+in leaves none on the item under it. The right stick's return to the centre is handed over too, or the
 Cursor Menu keeps moving the cursor at the last tilt. sarrai-common's overlay drops the
 controller keys ImGui's Win32 backend reads from XInput itself: a button change there made
 ImGui hold back the game's cursor for a frame, the OS cursor standing in its place (the focus
@@ -418,11 +420,16 @@ would have to be kept in step).
   pieces. Other saves' rows naming it keep the id, which counts as not on the row and never
   shows (docs/situation-management-ui.md §1); restoring outfits.json brings it back.
 - Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
-  presets, the file's parse and write and the name rules in `src/SituationTable.h`): per
-  situation key its name and removed flag, only for the situations that
-  differ from the presets; a missing or empty file is every preset as installed and is not
-  written at load. The same load and write rules as the library (docs/situation-management-ui.md
+  presets, the file's parse and write and the name rules in `src/SituationTable.h`): every
+  situation's name, removed flag and conditions, the presets' and those the user defines, in
+  the window's order (version 2, docs/custom-situations.md §6; version 1, the presets' names and
+  removed flags alone, while nothing else differs from as installed); a missing or empty file is every preset as
+  installed and is not written at load. The same load and write rules as the library (docs/situation-management-ui.md
   §2); an empty `outfits.json` is an empty library too. Loaded at `kDataLoaded`, before the library and any co-save load.
+  A preset still named as installed is stored under its English name and shown in the chosen
+  language (`SituationTable::DisplayName`, `StoredName`); no two situations may share a name as
+  stored or as shown, ASCII case ignored (`CheckNames`; `Parse` checks the file with
+  `Strings::English`).
 - Chests (docs/chest-ui.md): `chests.json` beside the library (`src/Chests.cpp`), named sets of
   items that are never worn, several on one body slot too, offered when dressing; a chest may
   be empty. The pieces are stored as the library's (`src/PieceFile.h`, shared), with the same
@@ -447,8 +454,12 @@ Co-save id `LVRY`, records `ASGN` (version 6) and `EXCL` (version 2), read in th
 callback, cleared on revert; a record of another version is skipped with a log line. A
 situation is stored by its key (`Situations::Name`, the key `situations.json` uses): a
 length byte and its characters, so situations can be added or removed without a new
-version. A key the version does not have drops its row with a log line, or reads a row worn
-as the Default.
+version. A key the session does not have drops its row with a log line, or reads a row worn
+as the Default; but while `situations.json` cannot be read, a user's situation's row
+(`user:<n>`, `SituationTable::KeepsUnknownRow`) is kept as read (`Assignment::kept`, never worn
+or shown), the items it leaves off included, and written back at the next save after the
+known rows, so the row returns once the file can be read again. `ForgetOutfit` takes the
+outfit off kept rows too, and a kept row then holding nothing goes.
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
   library outfit the pieces on them are from (`wornOutfit`, 0 for none or the Default's
@@ -462,10 +473,11 @@ as the Default.
   pieces are for, and the rows (`OutfitRows`): a count, and per row its situation, random,
   `chosen` and its library outfit ids. Every row
   reads its outfit from the library each time it goes on; the window names the outfits
-  from the ids. A row for a situation the version does not know is dropped with a log line.
+  from the ids. A row for a situation the session does not know is dropped with a log line,
+  or kept as above.
 - A piece, own copy, locked outfit copy or Default piece whose plugin is gone is dropped at load, and an
-  assignment with nothing on the actor, no row (the Default's included) holding an outfit and
-  no row random (`IsEmpty`; a row holding an outfit none of whose items is loaded keeps it). Before that
+  assignment with nothing on the actor, no row (the Default's included) holding an outfit,
+  no row random and no kept row (`IsEmpty`; a row holding an outfit none of whose items is loaded keeps it). Before that
   check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
   line; pieces worn for it stay on until the poll's next dressing. A key whose
   instance is gone is skipped whenever the actor is dressed or released.
@@ -473,7 +485,7 @@ as the Default.
   per entry the actor FormID, the row's situation, the library outfit id and the armor
   FormIDs it leaves off. A record of its own, so a Livery that does not know `EXCL` skips
   it and dresses every item. At load, after `ASGN`, an
-  entry for an actor without an assignment, a row the version does not know or an outfit
+  entry for an actor without an assignment, a row the session neither knows nor kept, or an outfit
   no longer on that row is dropped, and so is an armor form whose plugin is gone.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
@@ -537,7 +549,7 @@ can come later if sharing across characters is wanted.
 - Situation outfits on a follower (§7): Town in a town and the default outside it; Cold
   outdoors by weather (a region that is not snowy, while cloudy weather still counted); the default
   during a fight and the situation outfit after it; the choices and the switching survive
-  save and load; a version 2 co-save record is read.
+  save and load.
 - Clearing situation choices (§7): two cleared at once; Town cleared while in a town put
   the default back on at once; the cleared choices stayed cleared across save and load.
 - Situation outfits on the player (§7): Town in Whiterun, Cold by weather, and the
@@ -558,14 +570,17 @@ can come later if sharing across characters is wanted.
 
 ## 7. Situations
 
-An assigned actor has a row per situation, Town, Castle, Home, Sleep, Cold
-(`Situations::Choosable()`), and the Default, what the window's Apply gives, worn where
+An assigned actor has a row per situation, the presets Town, Castle, Home, Cold, Sleep and
+those the user defines, in the window's order (docs/custom-situations.md §8,
+`Situations::Order()`), and the Default, what the window's Apply gives, worn where
 none of them applies. A row is a list of library outfit ids, a random flag and the one
 chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
-on. Each situation's name comes from `situations.json` (§4): the window and the HUD show
-it, the sentences that say what is worn end in ` for <name>` (the summary line in `as
-<name>` for the Default, the HUD in nothing), and the logs keep the key. A removed situation offers no row
+on. Each situation's name comes from `situations.json` (§4), a preset still named as installed
+shown in the chosen language (`SituationStore::Name`): the window and the HUD show it as a
+value of whole texts (`Wearing {0} for {1}{2}.`, `Wearing {0} as {1}{2}.` for the Default;
+`Livery: {0} now wears {1} for {2}.`, `Livery: {0} now wears the default outfit.`), and the
+log's own lines keep the key (`Situations::Name`). A removed situation offers no row
 and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on and kept until it changes, a forced redress keeping it while it is on the list,
 and recorded as `chosen`, so turning random off keeps the last pick on. A click on the
@@ -575,7 +590,7 @@ outfit (`OutfitRows::Give`) with random on puts it at the front of the list; wit
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so
 the list keeps its length. The Save page changes no row but by Create and Apply, which gives
 the new outfit the row the Wardrobe page's Apply would (below) in one `Assignments::Change`, after
-the library write, with one forced redress. The Wardrobe page's Save changes no row; its `Apply to #{Name}` changes
+the library write, with one forced redress. The Wardrobe page's Save changes no row; its `Apply to <name>` changes
 what the actor wears now: while they wear another outfit for a situation, its popup gives
 the outfit that row (Yes, `OutfitRows::Give`, worn now) or the Default (Apply as Default,
 the situation's outfit staying on); else the outfit goes to the situation they wear it
@@ -595,40 +610,48 @@ player has the same rows.
 
 ### Detection (`Situations::Evaluate`)
 
-The situations an actor is in, the most specific first (`Situations::Applicable`); the
-first one whose row holds an outfit is worn, else the Default (`OutfitRows::Resolve`).
-Each situation applies while its condition holds (`Situations::Condition`,
-`Situations::ConditionOf`); Evaluate checks the situations in `Situations::Priority()`
-order, Sleep, Cold, Home, Castle, Town, and only their conditions. The rules are Tailor 3.0's
+The situations an actor is in, the lowest in the window's list first
+(`Situations::Applicable`); the first one whose row holds an outfit is worn, else the
+Default (`OutfitRows::Resolve`). Every situation is its rules (docs/custom-situations.md
+§2-§5, §8): the presets' as installed are below, edited like the user's. Evaluate reads only
+the situations whose row holds an outfit for the actor. In combat a situation applies only
+with `Allow during combat` on or with an In combat condition
+(`SituationRules::AppliesInCombat`); neither holds for any preset as installed, so a fight is
+fought in the default outfit unless one does. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
-(§6): Town, Cold by weather (while cloudy weather counted), combat, in water by wading.
-Not yet: Castle, Home, Sleep, Cold by a snowy region. In combat no situation applies, so
-a fight is fought in the default outfit. The conditions:
+(§6) through the first release's fixed rules: Town, Cold by weather (while cloudy weather
+counted), combat, in water by wading; through the model: Town, Cold by snow and by region,
+Sleep, an NPC's Town in a player home. Not yet: Castle, Home. The presets as installed, and
+what each condition reads:
 
-- In water (no situation Livery installs uses it; kept for situations whose conditions
-  can be chosen): the actor state's swimming flag, or the engine reports a water height
-  relevant to them no lower than 40 units under their feet (wading counts); once the poll
-  saw them in a situation in water, they stay in it until that water is 60 units under
+- In water (no preset uses it; the Swimming condition's `In water` value, while its
+  `Swimming` value reads the swimming flag alone): the actor state's
+  swimming flag, or the engine reports a water height
+  relevant to them no lower than 40 units under their feet (wading counts); once they were
+  told in water, they stay in it until that water is 60 units under
   their feet, so a shore does not flip it on and off. On a mount only the swimming flag
   counts: a rider's feet are above the water the horse wades.
-- Sleeping (Sleep): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
+- Sleeping (Sleep = Sleeping): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
   and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
   bed (Tailor's note in `SituationHandler.cpp`), so the player's Sleep needs a mod that does.
-- Cold: in an exterior cell and the weather is rainy or snowy, not cloudy alone (while the sky
-  blends weathers, the last one decides until the new one is halfway in), or the sky's
-  weather region, the one around the player, has snow weathers for at least a quarter
-  of its weather chance (its clear days are its own).
-- Home: the current location has `LocTypePlayerHouse`, or `LocTypeHouse` for an NPC.
-  Town follows it, so a home without a Home outfit wears the Town one.
-- Castle: the current location has `LocTypeCastle`. In Skyrim.esm these are the jarls'
+- Cold (Weather {Snow, Freezing region}): read around the player, whoever wears it. The player is
+  in an exterior cell and the weather is snowy (while the sky blends weathers, the last one
+  decides until the new one is halfway in), or the climate where they stand is freezing
+  (`RegionClimate`, docs/custom-situations.md §3): Survival Mode's freezing areas by the
+  cell's regions and the player's height, Windhelm's city too; a place it does not class when
+  a region of its cell has snow weathers for at least 40% of its weather chance; its ice
+  caves. Indoors otherwise never.
+- Home (Location type {Player home}): the current location has `LocTypePlayerHouse`, for
+  every actor. Town applies there too and is above it in the list as installed, so a home
+  without a Home outfit wears the Town one.
+- Castle (Location type {Castle}): the current location has `LocTypeCastle`. In Skyrim.esm these are the jarls'
   seats but Winterhold's longhouse (a house), and Solitude's Castle Dour with its Emperor's
-  Tower; the DLCs add none. Each is a dwelling too, so Town follows it.
-- Town: `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`, `LocTypeDwelling` or
-  `LocTypeInn`, or Home's. Keywords keep their editor IDs at runtime and are found by
+  Tower; the DLCs add none. Each is a dwelling too, so Town applies there and is above it in the list as installed.
+- Town (Location type {Town}): `LocTypeCity`, `LocTypeTown`, `LocTypeSettlement`,
+  `LocTypeDwelling`, `LocTypeInn`, `LocTypeHouse` or `LocTypePlayerHouse`, for every actor. Keywords keep their editor IDs at runtime and are found by
   them; a location's own keywords only.
 
-A situation is thus an ordered list of conditions; user-defined conditions, as Skyrim
-Outfit Equipment System NG offers them, would extend this list.
+The conditions of the user's situations are in docs/custom-situations.md §3.
 
 ### Switching
 
@@ -644,7 +667,9 @@ actor at most once in 3 seconds; a change it holds back is not marked seen, so i
 evaluated again at a later poll. A change is acted on
 once: a situation outfit that puts nothing on falls back to the default and is not tried
 again until the situations change. With `[Situations] NotifyChanges` on (off by default),
-each such redress shows a HUD message naming what they wear now. Apply and the Save page
+each such redress shows a HUD message naming what they wear now; after a fallback to the
+default it says why instead (they carry none of the outfit's items, none could be put on, or
+none is loaded). The window's messages add the same reason, and the log always has it. Apply and the Save page
 dress for the current situations at once. The poll stops at `kPreLoadGame` and starts at `kPostLoadGame` and
 `kNewGame`, forgetting what it last saw. The record's `pieces` describe whatever is worn,
 so a situation outfit is kept on, locked and put back at 3D load like the default.
@@ -655,12 +680,12 @@ Built and checked in game: the dressing core (§2), the library and the capture 
 (hotkey Shift + V by default), the trade-menu filter (§3), situation outfits for NPCs and
 the player (§7), the window's pages (docs/ui-redesign.md, docs/outfit-management-ui.md,
 docs/situation-management-ui.md) and the chests (docs/chest-ui.md, behind the `Enable chests`
-setting, off by default). Open:
+setting, off by default) and the user-defined situations (docs/custom-situations.md: the
+conditions, one order for the presets and the user's, the presets' rules editable, behind the
+`Enable custom situations` setting, off by default). Open:
 
-1. Later: user-defined conditions in the way of Skyrim Outfit Equipment System NG,
-   extending `Situations::Applicable` (§7); layer outfits (docs/memo-layer-outfits.md).
-2. The open in-game checks: Castle, Home, Sleep, Cold by weather without cloudy and by a
-   snowy region (§7); quickload with the window open, then New Game; the player's left-hand
+1. Layer outfits (docs/memo-layer-outfits.md).
+2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit.
 
@@ -715,6 +740,24 @@ setting, off by default). Open:
   would hand over, the best unworn one, the worn one only when it is the only copy. A copy
   without an enchantment of its own, and a piece nobody carries, have the armor's own
   (`formEnchanting`); a piece nobody carries is never tempered.
+- Magic icons: the Situations page's spell lists (the `Add spell` popup's, `Theme::SelectRow`,
+  and a Spell row's lines, `Theme::IconText`) draw before a name the icon SkyUI 5 gives the
+  item (`PieceIcons::ResolveMagic`, read when the window lists the spells), from the base
+  effect of its costliest effect, as SKSE hands the menus an item's school, resistance and
+  actor value. A spell (`processSpellIcon`): `default_alteration`, `default_conjuration`,
+  `default_illusion`, `default_restoration` by school; a Destruction spell `magic_fire`
+  `#C73636`, `magic_shock` `#EAAB00` or `magic_frost` `#1FFBFF` by what resists it, else
+  `default_destruction`; no school, `default_power`. A scroll: `default_scroll`, in the
+  resisting element's colour (shock `#FFFF00`). A potion (`processPotionIcon`): food
+  `default_food`, with the potion's use sound `food_wine`; a poison `potion_poison` `#AD00B3`;
+  else by the actor value, `potion_health` `#DB2E73`, `potion_magic` `#2E9FDB`, `potion_stam`
+  `#51DB2E` (each with its rate and rate multiplier), `potion_fire`, `potion_shock`,
+  `potion_frost` in the spells' colours; else `default_potion`. An ingredient:
+  `default_ingredient`. SkyUI names the rest by the menu's entry, so Livery goes by the spell
+  type: a power or lesser power `default_power`, a shout's word `default_shout`, anything else
+  (an ability, a disease) `default_effect`. An icon SkyUI gives no colour is drawn in the
+  skin's text colour (`RowIcon::textColor`). No I4 rule is read for these: I4's `Skyrim.json`
+  assigns the same.
 - Livery ships a PNG for every label of SkyUI's `icons_item_psychosteve.swf` (PsychoSteve's
   art, and Jelidity's SkyUI 6 additions) and of `I4IconAddon/icons.swf` (Jelidity's art),
   rendered from the swf frames as is, with their permission (`icons/ICON-CREDITS.txt`). Other
@@ -737,12 +780,11 @@ setting, off by default). Open:
 
 ## 10. Translations
 
-- Every text Livery shows the player is to come from `LIVERY_STRINGS` (`src/Strings.h`): an id
-  and its English. So far the window does, but for the Situations page, the situations'
-  names and conditions and the `For Town, Cold` line under an outfit, which move there after
-  the custom situations (docs/custom-situations.md on its branch) reach `main`. Of the HUD
-  messages, those of saving, removing, chests, moving items and the hotkey's refusals do; those
-  of dressing and situations (`src/Assignments.cpp`) follow with the custom situations.
+- Every text Livery shows the player comes from `LIVERY_STRINGS` (`src/Strings.h`): an id
+  and its English. English on purpose: the log's own lines, the JSON keys, what a file's
+  check says of a file it cannot use (`SituationTable::Parse` and the like, in the log
+  only), popup IDs, and the outfit list's category filter, which is hidden (`kShowFilter`).
+  The HUD's messages are logged as shown, so those log lines are in the chosen language.
 - The settings page is drawn in SKSE Menu Framework's font, which has a language's letters
   only while the player turns that language on in the framework's font settings (`[Fonts]
   EnableJapanese` and the like; it never follows `sLanguage`). Each frame the page asks the
@@ -753,12 +795,18 @@ setting, off by default). Open:
 - A sentence with a name drawn in a look of its own (an outfit after its icon) is one text
   with values; `Strings::Pieces` gives it cut at them (at `Strings::Load`, so drawing
   allocates nothing) and the window's `RunsOf` puts each value's part in its place. A
-  sentence is never built from fragments, so a translation can order it freely.
+  sentence is never built from fragments, so a translation can order it freely; the HUD's
+  dressing sentences (`LIVERY_STRINGS_HUD_DRESSING`, built in `src/Assignments.cpp`) are a
+  main clause, then notes that each take the sentence so far as `{0}` (`kHudNoteAdded`,
+  `kHudNoteNotCarried`, `kHudNoteRefused`), then `kHudEnd`, and the summary line takes its
+  `kGap*` text as `{2}`, so each part is still a text a translation orders. `Strings::Format`
+  fills a text's values; `Strings::English` gives the table's English whatever the language.
 - `Data/Interface/Translations/Livery_JAPANESE.txt` ships with Livery, deployed and packaged
   with it, and so does `Livery_ENGLISH.txt`, the translators' template: the table's texts in
   its order, written by the hidden test `[.write-template]`. The unit tests fail while the
   English file differs from the table or the Japanese file lacks a text, so a new text is
-  never shipped untranslated by mistake (docs/DEVELOPMENT.md, Translations).
+  never shipped untranslated by mistake (docs/DEVELOPMENT.md, Translations). The test build
+  links no `src/Strings.cpp`: `test/StringsTests.cpp` defines `Strings::Get` as the English.
 - `[UI] Language` in `Livery.ini` picks the file: `Auto` (the default) is the game's
   `sLanguage`, another value a language name (letters, digits and `_`). `Strings::Load` reads
   `Data/Interface/Translations/Livery_<language>.txt` once, first at `kDataLoaded`; until then,
@@ -767,10 +815,13 @@ setting, off by default). Open:
   with its byte order mark, as the game's translation files, or UTF-8; a file in neither is
   not read. `\n` is a line break, `\\` a backslash. A text with values names them `{0}`,
   `{1}`... and may leave some out; `{{` and `}}` are braces. A text with any other brace, or a
-  value its English does not name, keeps the English and is logged; so are unknown ids. Lines
-  not starting with `$` are notes.
-- The log names the language and how many texts the file gave (`Read 5 of 5 texts from
-  Livery_JAPANESE.txt`).
+  value it is not given, keeps the English and is logged; so are unknown ids. A text is given
+  the values its English names, the four time texts (`kTimeAm`, `kTimeAmMinutes`, `kTimePm`,
+  `kTimePmMinutes`) three whatever their English names (`Strings::Detail::ValuesGiven`): `{0}`
+  the hour of 12, `{1}` the minutes, `{2}` the hour of 24, so a translation can write
+  `{2}:{1}`. Lines not starting with `$` are notes.
+- The log names the language and how many texts the file gave (`Language = JAPANESE (Auto)`,
+  `Read 586 of 586 texts from Livery_JAPANESE.txt`).
 - A label that is also an ImGui ID (a tab, a button) changes with the language; the language
   stays for the whole game, so every use of the label through `Strings::Get` agrees. A popup's
   ID stays English: popups have no title bar, so it is never shown.

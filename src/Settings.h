@@ -101,6 +101,11 @@ namespace Settings
 	// any thread.
 	bool ItemChests();
 
+	// Whether the Situations page lets the user create situations, order them and edit every
+	// situation's conditions (docs/custom-situations.md §1); off, the situations made stay in use
+	// and Remove stays. Read when the window opens. Safe from any thread.
+	bool CustomSituations();
+
 	// A list's sort: its sorted column, numbered as the list numbers its columns, and whether
 	// the order is reversed.
 	struct SortOrder

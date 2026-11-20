@@ -23,7 +23,8 @@ if(PLUGIN_TESTS_ONLY)
     find_package(nlohmann_json CONFIG REQUIRED)
 
     add_executable(${PROJECT_NAME}Tests test/ExampleTests.cpp test/OutfitBrowserTests.cpp test/OutfitRowsTests.cpp
-                                        test/PieceFileTests.cpp test/SituationStoreTests.cpp test/StringsTests.cpp
+                                        test/PieceFileTests.cpp test/RegionClimateTests.cpp test/SituationStoreTests.cpp
+                                        test/StringsTests.cpp
                                         src/OutfitBrowser.cpp)
 
     # CaptureWindow.h takes FreeCamera::ViewInput from sarrai-common (header only, no build of it here).
