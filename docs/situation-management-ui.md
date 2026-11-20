@@ -5,12 +5,13 @@ made on it; current spec only:
 
 - The rows: per-row outfit lists, the random flag, the chosen outfit (§1); the co-save
   record that keeps them is in design.md §5.
-- `situations.json`: situation names, removed situations, the names in sentences (§2).
+- `situations.json`: situation names, removed situations, the names in sentences (§2); its
+  version 2 (the user's situations, conditions, the order) is in docs/custom-situations.md §6.
 - The Situations page (§3-§6).
 
 Terms: a *row* is the Default or one situation, per actor. The *preset situations* are
-the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (`Situations::Order()`
-plus the Default).
+the ones Livery ships: Default, Town, Castle, Home, Sleep, Cold (the ids up to
+`Situations::kPresetCount`); the others are the user's (docs/custom-situations.md).
 
 ## 1. Rows
 
@@ -93,13 +94,18 @@ items left off in `EXCL`; the layout is in design.md §5.
 { "version": 1, "situations": [ { "key": "Town", "name": "City", "removed": false } ] }
 ```
 
-- `key` is the `Situations::Situation` it is for (`Default`, `Town`, `Castle`, `Home`,
-  `Sleep`, `Cold`), never shown or changed. The file holds only rows that differ from
-  the presets; a missing or empty file (nothing but whitespace) means every preset as
-  installed and is not written at load. An entry's other fields are ignored, and a
-  rewrite drops them.
-- Presets: name as the key.
-- Names: never empty; unique among the situations not removed, ASCII case ignored. The
+- `key` is a preset's (`Default`, `Town`, `Castle`, `Home`, `Sleep`, `Cold`) or a user's
+  situation's (`user:<n>`), never shown or changed. Version 1, shown here, holds only the
+  presets that differ from installed, and is written while nothing else differs
+  (`SituationTable::FitsVersion1`); version 2 holds every situation in the window's order
+  with its conditions (docs/custom-situations.md §6). A missing or empty file (nothing but
+  whitespace) means every preset as installed and is not written at load. An entry's other
+  fields are ignored, and a rewrite drops them.
+- Presets: name as the key, stored in English; a preset still named so shows in the chosen
+  language (`SituationTable::DisplayName`), and that name handed back unchanged is stored as
+  the key (`StoredName`).
+- Names: never empty; unique among the situations not removed, as stored and as shown, ASCII
+  case ignored (`SituationTable::CheckNames`). The
   Default can be renamed but not removed; its name shows wherever a row is named (the
   HUD still adds no ` for <name>` for it).
 - The same write rules as `outfits.json` (CLAUDE.md §2.1): `Load` sets the writable state
@@ -110,16 +116,17 @@ items left off in `EXCL`; the layout is in design.md §5.
   category group, the sort's headings, or the page's
   list; `Situations::Evaluate` still reports it and nothing wears it. Removing it clears
   its rows in this save (§5); another save's rows for it are dropped when that save loads,
-  with a log line. A save not loaded between Remove and Restore Presets keeps its rows.
-- The names replace `Situations::Name` wherever the window and the HUD show a situation;
-  logs keep the key.
+  with a log line. A save not loaded between a preset's Remove and Restore Presets keeps its
+  rows; a user's situation leaves the file for good.
+- `SituationStore::Name` (the name as shown, `DisplayName`) replaces `Situations::Name`
+  wherever the window and the HUD show a situation; the log's own lines keep the key.
 
 The sentences that say what is worn end in ` for <name>` (the texts of `LIVERY_STRINGS_HUD_DRESSING`),
 nothing for the Default; the summary line names the Default too. Only these:
 
 | Where | Text |
 | --- | --- |
-| Inventory summary line (`DescribeAssignment`) | `Wearing X for Town.`, `Wearing X as Default.`, each name with its icon in the palette's `Emphasis` colour (`Theme::SubtitleRun`); `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library; with pieces Livery put on no longer worn (`PiecesNotWorn`), `Assigned X as Default, 1 item not worn.`, `Dressed by Livery, 2 items not worn.`; with worn armor Livery did not put on, `, 1 extra item worn` after them (`GapsOf`) |
+| Inventory summary line (`DescribeAssignment`) | `Wearing X for Town.`, `Wearing X as Default.`, each name with its icon in the palette's `Emphasis` colour (`Theme::SubtitleRun`); `Dressed by Livery.` for pieces that are not a saved outfit or an outfit gone from the library; with pieces Livery put on no longer worn (`Request::piecesNotWorn`), `Assigned X as Default, 1 item not worn.`, `Dressed by Livery, 2 items not worn.`; with worn armor Livery did not put on, `, 1 extra item worn` after them (`GapsOf`) |
 | Situation change HUD (`SituationChangeText`) | `Livery: Lydia now wears "X" for Town.` |
 | Assign HUD, nothing went on | `...; dressed now for Town.` |
 | Assign HUD | `Livery: Lydia now wears these for Town` |
@@ -127,7 +134,7 @@ nothing for the Default; the summary line names the Default too. Only these:
 | Refresh HUD | `Livery: Lydia now wears "X" for Town` |
 
 The names also show in: the Apply popup's `This is Lydia's Town outfit.`, the star's `For Town,
-Cold`, the Situation headings, the rows' labels and change lines (`Town: added`),
+Cold`, the Situation headings, the rows' labels,
 Remove's popup (`Lydia: Default, Town`), the Change HUD's `"X" for Town, Cold` and `no
 outfit for Town any more`.
 
@@ -164,7 +171,7 @@ outfit for Town any more`.
   and `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
-  Hovering the star or the name shows the situation's `Conditions` text (§5's, the Default's
+  Hovering the star or the name shows the situation's `Applies` text (§5's, the Default's
   without its star) as a tooltip (`SituationHeadingLook::nameTip`).
 - Click areas: from the chevron (with its padding) to the die (to Edit with no die), rule
   included, folds; left of it is the name's area (with no chevron, everything left of the die
@@ -270,7 +277,7 @@ the heading `Edit` and the situation's name after its star (the Default's form f
 Default; `Theme::HeadingRunText`), the name as last entered, not while it is typed; no
 subtitle. Its left column holds the situation's settings, its fields evenly spaced with no
 headings; with `Enable custom situations`, every situation but the Default has a right column,
-`Conditions` (no help) over the condition editor of docs/custom-situations.md §7. Off, and for
+`Conditions (?)`, with the help of `Applies`, over the condition editor of docs/custom-situations.md §7. Off, and for
 the Default, the left column alone. The popup's edits (the name, Random Outfit, the
 conditions) are saved once it closes (§6). The left column:
 
@@ -286,21 +293,20 @@ conditions) are saved once it closes (§6). The left column:
   `plainNames`), the lines as close as a wrapped text's. The text sits a field's
   frame padding below the label, where a field's text would (`DrawFieldText`).
 - `Random Outfit (for #{Name}) (?)`, a checkbox: `On: Each time this situation begins, #{Name}
-  wears a random outfit from the list until it ends.` then a blank line and `Off: #{Name} wears
-  the last picked outfit. The others stay in the list but are hidden.` Unticking it keeps
-  the last pick on (§1).
+  wears a random outfit from the list until it ends.` Unticking it keeps the last pick on
+  (§1).
 
 Under the columns, the room above every button row (`ButtonRowGap`), then `Done` centred;
 Escape is Done unless it closed a dropdown or a popup over the popup.
 
-- `Duplicate Situation` at the left end of Done's row while custom situations are offered
-  (docs/custom-situations.md §7).
+- `Duplicate Situation` at the left end of Done's row while custom situations are offered,
+  not on the Default (docs/custom-situations.md §7).
 - `Remove Situation` at the right end of Done's row, drawn as Restore Presets is, without
   the `(?)` (`Theme::LineLink`); not on the Default. It closes the Edit situation popup;
   Remove's popup opens once the edits made in it are saved. Its popup: `Remove Town?`, then under `Used by:` the
   actors in this save with outfits on their Town row's list, hidden ones included
-  (`Lydia: 2 outfits`, the length of `outfits`; a FormID when not in memory), `Restore
-  Presets can bring it back, but not their outfits.` (`... can bring it back.` when nobody has any); `Remove` /
+  (`Lydia: 2 outfits`, the length of `outfits`; a FormID when not in memory), for a preset `Restore
+  Presets can bring it back, but not their outfits.` (`... can bring it back.` when nobody has any), for a user's situation no such line; `Remove` /
   `Cancel`. The page's edits are saved first, and a refused save opens no popup. Remove writes `situations.json` first; a refused or
   failed write changes nothing and shows the error. Then `Assignments::ForgetSituation`
   clears the row for every actor in this save, and those wearing it are redressed by
@@ -309,32 +315,38 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
 
 ## 6. Buttons and leaving
 
-- `Exit` where the other pages put their buttons, and at the row's right
+- With `Enable custom situations`, `New Situation...` (the star before its label) then `Exit`,
+  else `Exit` alone, where the other pages put their buttons; New Situation... saves the
+  page's edits, then opens the New situation popup (docs/custom-situations.md §7). At the row's right
   end `Restore Presets (?)`, a link drawn as the Edit situation popup's Remove Situation is, its
   `(?)` inside its click area, its text centred on the buttons' height
   (`Theme::LineHelpLink`).
 - Restore Presets: greyed, with `Every preset situation is as installed.`, while they are.
   Its help: `Brings the preset situations back as installed: a removed one returns, empty,
   and a renamed or edited one gets its name and conditions back. Their order and nobody's
-  outfits change.` It always asks: the changes (`Town: restored`, `Home: name reset`,
-  `Cold: conditions reset`); `Restore` / `Cancel`. The page's edits are
+  outfits change.` It always asks: `Restore the preset situations?`, then the changes (`Town: restored`,
+  `Home: name reset`, `Cold: conditions reset`, `Sleep: name and conditions reset`); `Restore` / `Cancel`. The page's edits are
   saved first, and a refused save opens no popup. Restore writes `situations.json` (a refused
   or failed write changes nothing and shows the error) and keeps the selection.
-- Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a name entered)
+- Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a name entered, a
+  condition, Allow during combat, a situation moved in the order)
   starts the wait of `kAutosaveDelay` (0.5 s) again, so a burst of edits writes and redresses
   once (`ScheduleAutosave`, `TakeAutosaveDue`). A drag, an open popup (the Edit situation
   popup's edits wait for it to close) or a name being typed holds the save until it ends. The page takes no input while a save runs but keeps its look
   (`BeginPageDisabled`, `State::quietSave`), and the HUD says nothing
-  of a rename (the log does); the redress has its usual HUD message. A save writes the global edits to `situations.json` first, when there are any; a
+  of a rename (the log does); the redress has its usual HUD message. A save writes the global edits (names, conditions, the order; `SituationStore::Apply`, one write) to `situations.json` first, when there are any; a
   refused or failed write changes no row and shows the error. Then, when a row changed, it
   replaces the captured actor's rows at once (`Assignments::SetRows`, so the page shows them
   even before the redress) and dresses them once (`Assignments::Refresh`), by
   docs/outfit-management-ui.md §6 (at once, Live Preview on or off; with it on the preview
   begins again on the outfit whose details show (§5), else on what they wear); a random
-  row they wear wears the outfit it gained first. A die's click (§3) saves at once, with
+  row they wear wears the outfit it gained first. A die's click (§4) saves at once, with
   `SituationSave::reroll`: after the rows, `Assignments::PickAnother` picks another outfit
   of the row they wear and the `Refresh` wears it, even with no edit to save. The page
   stays, an outfit's details too, and the edits start again from what was saved.
+- HUD: `Livery: created the situation "X".` (Create, Duplicate), `Livery: removed the
+  situation "X".` or `...; cleared from 2 characters.` (Remove), `Livery: restored the preset
+  situations.` (Restore Presets).
 - Exit closes the window; Escape does what Exit does, first clearing a search. While a write
   runs (a save, Remove, Restore Presets) the page takes no input, Remove and Restore Presets
   greying it, and Escape does nothing,
@@ -346,12 +358,12 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
 
 ## 7. Code
 
-- `src/SituationStore.cpp` / `.h`: load, names, removed, the
-  `Apply` (names of several situations in one write) / `Remove` /
-  `RestorePresets` writes, Restore's change lines. The rules that need no game (the presets,
-  the file's parse and write, the name rules, Restore's change lines) in
-  `src/SituationTable.h`, which `test/SituationStoreTests.cpp` reaches: presets, the name
-  rules, a file with unknown keys, Restore's change lines.
+- `src/SituationStore.cpp` / `.h`: load, names as shown, removed, the rules (`RulesOf`), the
+  situations offered (`Offered`), the `Apply` (names, conditions and the order in one write) /
+  `Create` / `Duplicate` / `Remove` / `RestorePresets` writes, Restore's change lines. The
+  rules that need no game (the presets, both versions' parse and write, the name rules with
+  `DisplayName` / `StoredName`, the order, Restore's change lines) in `src/SituationTable.h`,
+  which `test/SituationStoreTests.cpp` reaches.
 - `src/Assignments.cpp`: the rows, the co-save record, the
   pick, "has an outfit" and "holds", `ForgetOutfit`'s rules, `ForgetSituation` and the rows
   of removed situations dropped at load. The row rules that need no game (insert at front,
@@ -372,9 +384,10 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   (`LabelLineLink`),
   Restore Presets' (`LineHelpLink`).
 - `CaptureWindow::Request`: the situations offered (`SituationInfo`: key, name,
-  conditions text, who has outfits on it) from the store; each row's `outfits`, `random`,
-  `chosen` for the captured actor; `onSituationsSave`, `onSituationRemove`,
-  `onRestorePresets`, each writing first by §5/§6.
+  Applies text, whether the user's, rules, who has outfits on it) from the store; each row's
+  `outfits`, `random`, `chosen` for the captured actor; `onSituationsSave`,
+  `onSituationCreate`, `onSituationDuplicate`, `onSituationRemove`, `onRestorePresets`, each
+  writing first by §5/§6; `onCheckConditions`, which writes nothing.
 - `Plugin.cpp`: the handlers, the redress queue (docs/outfit-management-ui.md §6), the
   summary line.
 

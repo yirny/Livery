@@ -1,7 +1,6 @@
 # User-defined situations
 
-Design, decided 2026-11-13. Built and checked in game: 2a to 2c (§9); 2d (§8, the presets'
-rules and the order) is built, not checked in game. It turns the situations of
+Design, decided 2026-11-13. Built and checked in game: 2a to 2d (§9). It turns the situations of
 docs/design.md §7 into one model: the five presets and the situations the user defines, each
 a key, a name, a list of conditions and a place in one order. The registry
 (`Situations::Count`, `Order`, `AddUser`, `kMaxSituations = 64`) is its base; the model is
@@ -12,7 +11,9 @@ Items marked *provisional* are tried in a prototype first and may change.
 ## 1. Scope
 
 - A user-defined situation has a key (`user:<n>`, §6), a name (the same rules as the presets':
-  text, unique among situations not removed, ASCII case ignored), a list of condition rows
+  text, unique among situations not removed as the file keeps it and as shown, ASCII case
+  ignored; a preset still named as installed is shown in the chosen language and stored in
+  English: `SituationTable::DisplayName`, `StoredName`, `CheckNames`), a list of condition rows
   (§2), an `Allow during combat` flag and a place in the order (§8).
 - It is chosen for outfits like a preset: a row per assigned actor (`OutfitRows`), the Situations
   page, the HUD and the logs treat it the same; the co-save stores it by key, so no co-save
@@ -35,7 +36,7 @@ Items marked *provisional* are tried in a prototype first and may change.
 
 A situation holds a list of condition rows. The situation applies while every row holds
 (AND). A row is a kind, a `not` flag, for a kind with values a set of values, and for a kind
-that reads an actor's own state (`SituationRules::Targetable`: In Combat, Sleeping, Swimming,
+that reads an actor's own state (`SituationRules::Targetable`: In combat, Sleeping, Swimming,
 Spell Effect, Weapon) whose state it reads (`Row::target`): the character wearing the
 situation's outfit, or the player whoever wears it (a follower who changes when you fight). A
 row with values holds while any of its values holds (OR), and `not` inverts the row. Rows do not
@@ -49,7 +50,7 @@ applies either.
 Combat: every situation but the Default has the flag `Allow during combat`:
 off, the situation does not apply in combat, so a fight is fought in the Default unless another
 one applies (the wearer's combat, whoever the rows read); on, its rows decide. A situation with
-an `In Combat` row, reading the wearer or the player, has the flag on and not editable: the row
+an `In combat` row, reading the wearer or the player, has the flag on and not editable: the row
 would never hold otherwise, or only while the player fights and the wearer does not. Every
 preset has it off as installed.
 
@@ -60,7 +61,7 @@ whose plugin is not loaded never holds. "Verified" means the rule runs in Livery
 
 | Kind | Values | Holds while | Source | Verified |
 |---|---|---|---|---|
-| In Combat | none | the actor is in combat | `Actor::IsInCombat` | yes (as today's rule) |
+| In combat | none | the actor is in combat | `Actor::IsInCombat` | yes (as today's rule) |
 | Sleeping | none | the sleeping rule of docs/design.md §7 | `GetSitSleepState`, CanSleep furniture | not yet |
 | Swimming (key `water`) | one of In water (key `inWater`), Swimming | In water = the in-water rule: swimming, or water no lower than 40 units under their feet; once in, out only past 60 units; on a mount swimming only. Swimming = the actor state's swimming flag | `IsSwimming`, `GetWaterHeight` | In water by wading yes; Swimming not yet |
 | Indoors | none | their cell is an interior cell | `TESObjectCELL::IsInteriorCell` | no |
@@ -151,11 +152,11 @@ compares integers and walks parents (at most 32, against a loop in a mod's data)
 no logging. The poll, its one-redress-per-run rule and the 3 s hold are unchanged.
 
 The registry is mutable: `SituationStore::Load` adds the file's user situations at
-`kDataLoaded`, before any co-save load, `SituationStore::Create` adds one after its write
+`kDataLoaded`, before any co-save load, `SituationStore::Create` and `Duplicate` add one after their write
 took and `SituationStore::Apply` reorders them (`Situations::Reorder`), all on the game thread; the window is open then, so the poll does not run. Each list is
 reserved for `kMaxSituations` (64, the Default and the presets included), so adding moves
 nothing. A removed situation stays in the registry and the store's table until the game is
-closed, so no id moves or is reused; it counts toward the 64 until then, and Create refuses
+closed, so no id moves or is reused; it counts toward the 64 until then, and Create and Duplicate refuse
 past them. `OutfitRows::Rows` reads empty past what it stores, so a new situation needs no
 row change.
 
@@ -256,12 +257,13 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   its edits, then makes a user's situation with the source's rules (conditions and Allow during
   combat) and no outfit, right after the source in the order, so the copy wins over it until its
   conditions change (`SituationStore::Duplicate`). Its name follows Windows: `<name> - Copy`, else
-  `- Copy 2`, `- Copy 3`, ... (`ExampleMod::CopyName`, ASCII case ignored), the name cut short at
+  `- Copy 2`, `- Copy 3`, ... (`ExampleMod::CopyName` with the texts `kCopyName` and `kCopyNameNumbered`, ASCII case ignored), the name cut short at
   a character's start to fit a name field. The HUD and the page then act as for New Situation:
   the Situation List scrolls to the copy and its Edit situation popup opens.
 - The Edit situation popup's left column (docs/situation-management-ui.md §5), for every
-  situation but the Default, shows the `Applies` label, its help `Applies while every
-  condition is met.` and `A condition with several values is met by any of them.`, over the
+  situation but the Default, shows the `Applies` label, its help `Applies when all conditions
+  are met.` and `If a condition has multiple values, meeting any one of them satisfies that
+  condition.`, over the
   Applies text (below), each condition's phrase a link (`Theme::RunLinks`). A condition met
   now is in the palette's `Positive` colour (`#B7DA7B` in every shipped palette); a hovered
   phrase's tooltip says `Met now.` or `Not met now.` With `Request::customSituations` the rest
@@ -326,7 +328,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
   hover), then `Add Location...` or `Add Spell...` at the list's left. In Vanilla and Nordic a
   row's dropdowns have the palette's stripe colour behind them, the frame padding at both ends (`FieldStyle::filled`). Then `Add Condition...`, a dropdown with the Add links' plus mark before its text (`FieldIcon::kAdd`), of the
-  kinds by label, closed by the choice, which adds a row with nothing selected, Swimming's with
+  kinds by label in the chosen language (`KindsByLabel`, ASCII case ignored), as wide as its widest kind, closed by the choice, which adds a row with nothing selected, Swimming's with
   In water (a Place or Spell row opens its Add popup at once); a two-state kind the situation has every row it can take of
   (one; one per target for a kind with a target) is greyed there, a second adding nothing.
 - `Add Location...` opens the `Add location` popup, its choices read as the window opens
@@ -386,24 +388,24 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   ticked (`Select at least one spell.`); Escape clears the search, or with none typed is Cancel.
 - `Allow during combat` is a checkbox a field's gap under `Add Condition...`, apart from the
   conditions since it is not one; its tooltip `In combat, the default outfit is normally
-  worn.` and `On, this situation can apply in combat too.` With an In Combat row (not
+  worn.` and `On, this situation can apply in combat too.` With an In combat row (not
   negated) it is on and disabled, `On while the situation has an In combat condition.`; a
   preset's is off as installed.
 - The `Applies` line, under its own label, is every situation's but the Default's
-  (`ConditionsText` stays for the Default alone) and is built from the rows in order, one phrase per row, `not` first: `In a town
+  (the Default's is the texts `kDefaultWornWhere` and `kDefaultWornInCombat`) and is built from the rows in order, one clause per row, each a whole text of `LIVERY_STRINGS_CONDITIONS` (`KindInfo::clauses`), joined by `kListSeparator` and ended by `kAppliesEnd`: `In a town
   or a castle, in rain or snow, outdoors, at Whiterun, from 8 PM to 6 AM, while Stoneflesh
   is on, with a weapon drawn.` Negated, `not in combat`, `outdoors`, `with weapons sheathed`
-  (`KindInfo::negPhrase`); reading the player, `while you are in combat`, `while you are not
+  (`Clauses::negated`); reading the player, `while you are in combat`, `while you are not
   sleeping`, `while Stoneflesh is on you`, `while your weapon is drawn`, `while your weapons are
-  sheathed` (`youPhrase`, `youNegPhrase`). A row with nothing selected reads `Weather (nothing
+  sheathed` (`Clauses::you`, `youNegated`). A row with nothing selected reads `Weather (nothing
   selected)`; a situation without rows `Never applies.`
 - The editor's edits save once its popup closes (the page's autosave waits while a popup is
   open) or as the page is left, the file first. Nobody is redressed for changed conditions then: the poll, which waits
   while the window is open, follows them once it closes.
 - While a situation is never worn (§8a), its Edit situation popup says so under the name, after a field's
   gap, in the error colour, each sentence wrapped (`Theme::RunTextWrapped`): `Never worn:
-  <name>, lower in the list, applies whenever this does.` / `To change that, add a condition,
-  edit <name>, or move one of them in the list.`, naming the nearest after its star, both in the
+  <name> takes priority whenever this situation applies.` / `Add a condition, edit <name>, or
+  change their order.`, naming the nearest after its star, both in the
   emphasis. Its heading carries a warning mark after the name (and its count), a circle with an
   exclamation mark in the error colour (`Theme::SituationHeadingLook::warning`), the same
   sentences its tooltip, in the text colour. While its Edit situation popup is open or its mark hovered, the
@@ -418,7 +420,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
 
 Decided 2026-11-14. One order for every situation but the Default, presets and the user's
 alike: the window's list, where the lowest situation that applies is worn
-(`Situations::Order()`, which replaces `Choosable` and `Priority`). The Default sits above them
+(`Situations::Order()`). The Default sits above them
 as the base every situation overrides, pinned, and a new situation is appended last, so it wins
 over the presets as made. The reading is a load order's: lower wins. Installed order, top to
 bottom: Town, Castle, Home, Cold, Sleep (the first release's Sleep, Cold, Home, Castle, Town
@@ -454,7 +456,7 @@ mark proves nothing; the tooltip names what was found. The mark does not read th
 ## 9. Implementation order
 
 1. 2a: the condition model, situations.json version 2, the mutable registry, the editor, and
-   the kinds that need no form picker: In Combat, Sleeping, Swimming, Indoors,
+   the kinds that need no form picker: In combat, Sleeping, Swimming, Indoors,
    Location type, Weather, Time of day. Usable on its own; the prototype of §7 is checked here.
    Built on `feat/cs-model`, checked in game.
 2. 2b: Place, with its list line and the add-current-place popup (the first form picker).
@@ -463,7 +465,7 @@ mark proves nothing; the tooltip names what was found. The mark does not read th
    Built on `feat/cs-spell`, checked in game.
 4. 2d: the order and the presets' rules (§8): one list, the presets' rules in the model, the
    grip drag, Restore Presets with rules, the never-worn mark, `Enable custom situations` (§1).
-   On `feat/cs-priority`, built.
+   Built on `feat/cs-priority`, checked in game.
 
 ## 10. Open and in-game checks
 
