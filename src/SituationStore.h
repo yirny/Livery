@@ -27,6 +27,11 @@ namespace SituationStore
 	// user's situation, and refuses every change, so the file is never overwritten.
 	void Load();
 
+	// Whether Load read the file, or found none; false for the whole session when it could not.
+	// The co-save then keeps the rows of the user's situations it does not know
+	// (SituationTable::KeepsUnknownRow).
+	bool WasLoaded();
+
 	// Contract: the reference goes stale at the next Apply, Create, Duplicate, Remove or RestorePresets.
 	const std::string& Name(Situations::Situation a_situation);
 

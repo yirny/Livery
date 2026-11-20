@@ -450,8 +450,12 @@ Co-save id `LVRY`, records `ASGN` (version 6) and `EXCL` (version 2), read in th
 callback, cleared on revert; a record of another version is skipped with a log line. A
 situation is stored by its key (`Situations::Name`, the key `situations.json` uses): a
 length byte and its characters, so situations can be added or removed without a new
-version. A key the version does not have drops its row with a log line, or reads a row worn
-as the Default.
+version. A key the session does not have drops its row with a log line, or reads a row worn
+as the Default; but while `situations.json` cannot be read, a user's situation's row
+(`user:<n>`, `SituationTable::KeepsUnknownRow`) is kept as read (`Assignment::kept`, never worn
+or shown), the items it leaves off included, and written back at the next save after the
+known rows, so the row returns once the file can be read again. `ForgetOutfit` takes the
+outfit off kept rows too, and a kept row then holding nothing goes.
 
 - Per assigned actor, the player included (FormID, fixed with `ResolveFormID`): the
   library outfit the pieces on them are from (`wornOutfit`, 0 for none or the Default's
@@ -465,10 +469,11 @@ as the Default.
   pieces are for, and the rows (`OutfitRows`): a count, and per row its situation, random,
   `chosen` and its library outfit ids. Every row
   reads its outfit from the library each time it goes on; the window names the outfits
-  from the ids. A row for a situation the version does not know is dropped with a log line.
+  from the ids. A row for a situation the session does not know is dropped with a log line,
+  or kept as above.
 - A piece, own copy, locked outfit copy or Default piece whose plugin is gone is dropped at load, and an
-  assignment with nothing on the actor, no row (the Default's included) holding an outfit and
-  no row random (`IsEmpty`; a row holding an outfit none of whose items is loaded keeps it). Before that
+  assignment with nothing on the actor, no row (the Default's included) holding an outfit,
+  no row random and no kept row (`IsEmpty`; a row holding an outfit none of whose items is loaded keeps it). Before that
   check, the row of a situation removed in `situations.json` (§4) is dropped, with a log
   line; pieces worn for it stay on until the poll's next dressing. A key whose
   instance is gone is skipped whenever the actor is dressed or released.
@@ -476,7 +481,7 @@ as the Default.
   per entry the actor FormID, the row's situation, the library outfit id and the armor
   FormIDs it leaves off. A record of its own, so a Livery that does not know `EXCL` skips
   it and dresses every item. At load, after `ASGN`, an
-  entry for an actor without an assignment, a row the version does not know or an outfit
+  entry for an actor without an assignment, a row the session neither knows nor kept, or an outfit
   no longer on that row is dropped, and so is an armor form whose plugin is gone.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)

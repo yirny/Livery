@@ -6,7 +6,7 @@
 //   File      - write through a temporary file
 //   Adding    - the checks and the write that Create and Duplicate share
 //   Forms     - the FormIDs of the Place and Spell rows' forms in this game's load order
-//   API       - Load / Name / Suffix / IsRemoved / Offered / RulesOf / Apply / Create /
+//   API       - Load / WasLoaded / Name / Suffix / IsRemoved / Offered / RulesOf / Apply / Create /
 //               Duplicate / Remove / RestorePresets / RestoreChanges
 //
 // The file's format and rules are in SituationTable.h.
@@ -185,6 +185,11 @@ namespace SituationStore
 		g_writable = true;
 		logger::info("Loaded situations.json: {} preset(s) changed, {} situation(s) of your own", SituationTable::RestoreChanges(g_table).size(),
 			g_table.size() - Situations::kPresetCount);
+	}
+
+	bool WasLoaded()
+	{
+		return g_writable;
 	}
 
 	const std::string& Name(Situations::Situation a_situation)

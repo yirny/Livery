@@ -141,6 +141,14 @@ namespace SituationTable
 		return number > 0 ? std::optional{ number } : std::nullopt;
 	}
 
+	// Whether the co-save keeps a row stored under `a_key`, a situation this session does not
+	// have: a user's situation (UserKey) while situations.json could not be read (`a_fileLoaded`
+	// false), so the row comes back once the file can. Any other unknown key's row is dropped.
+	inline bool KeepsUnknownRow(std::string_view a_key, bool a_fileLoaded)
+	{
+		return !a_fileLoaded && UserKeyNumber(a_key).has_value();
+	}
+
 	// Adds a user's situation to `a_table` under the next key (UserKey), named `a_name`, with
 	// `a_rules`: in the order right after `a_after`, or last without it, as Situations::AddUser
 	// puts it. Its id is the table's size before, as AddUser gives it. Returns its key.
