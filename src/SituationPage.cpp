@@ -20,10 +20,10 @@
 //                     as a tooltip; a click on an outfit row of either pane shows its details
 //                     and puts it on the preview
 //   Condition editor - a situation's conditions (docs/custom-situations.md §7): per condition a
-//                     heading with its Remove and a row that reads as a sentence (whose state, "is" or
-//                     a two-state dropdown, an operator dropdown and its values), places or spells
-//                     under it with a × each, the one clicked in the Applies text lit; Add
-//                     Condition..., Allow during combat
+//                     heading with its Remove and a row that reads as a sentence (whose state or
+//                     the subject, an operator dropdown and its values), places or spells under it
+//                     with a × each, the one clicked in the Applies text lit; Add Condition...,
+//                     Allow during combat
 //   Right pane      - the outfit list with what a drag does under it; or an outfit's details with
 //                     Open in Wardrobe and Back, its pieces ticked as the row it was clicked under
 //                     wears them
@@ -979,12 +979,11 @@ namespace CaptureWindow::Internal
 		//
 		// Each condition has a heading, its kind's name with (?) and Remove at the line's right end,
 		// and under it reads as a sentence (docs/custom-situations.md §7): a kind reading an actor's
-		// state starts with whose, the wearer or the player (a dropdown), then "is" / "is not" and
-		// its phrase, or for Weapon a dropdown of its two
-		// states, as Indoors is; the others an operator dropdown ("is" / "is not", "is any of" /
-		// "is none of" with several selected, "between" / "not between") and their values: a
-		// multi-choice dropdown (Swimming's a single choice), the two times, or the places or
-		// spells listed under, each with a ×.
+		// state starts with whose, the wearer or the player (a dropdown), the others with their
+		// subject ("The weather"); then an operator dropdown ("is" / "is not", "is any of" / "is
+		// none of" with several selected, "between" / "not between") and the values: a
+		// multi-choice dropdown, the two times, or the places or spells listed under, each with a
+		// ×.
 
 		// The operator a row reads with: "is" / "is not" up to one selected, "is any of" / "is none
 		// of" with more (`a_several`); a Spell Effect row "has" / "has not", "has any of" / "has
@@ -1028,7 +1027,7 @@ namespace CaptureWindow::Internal
 		// value ticked ("is" to "is any of") never widens it.
 		float OperatorWidth(SituationRules::Kind a_kind)
 		{
-			const bool takesSeveral = (SituationRules::HasValues(a_kind) && !SituationRules::OneValue(a_kind)) || SituationRules::HasForms(a_kind);
+			const bool takesSeveral = SituationRules::HasValues(a_kind) || SituationRules::HasForms(a_kind);
 			float      widest = WidestDropdown({ Strings::Get(OperatorText(a_kind, false, false)), Strings::Get(OperatorText(a_kind, false, true)) });
 			if (takesSeveral) {
 				widest = (std::max)(widest, WidestDropdown({ Strings::Get(OperatorText(a_kind, true, false)), Strings::Get(OperatorText(a_kind, true, true)) }));
@@ -1037,13 +1036,12 @@ namespace CaptureWindow::Internal
 		}
 
 		// A dropdown of two choices, `a_positive` while `a_negated` is off and `a_negative` on: a
-		// row's operator, `a_width` wide (OperatorWidth), or a two-state condition itself, as wide
-		// as its wider choice with `a_width` 0. Returns true when switched; `a_hovered` tells the
-		// caller to show the kind's help (never while open).
+		// row's operator, `a_width` wide (OperatorWidth). Returns true when switched; `a_hovered`
+		// tells the caller to show the kind's help (never while open).
 		bool DrawNegationDropdown(const char* a_id, const char* a_positive, const char* a_negative, float a_width, bool& a_negated, bool& a_hovered)
 		{
 			const Theme::FieldStyle style{ .filled = true };
-			ImGui::SetNextItemWidth(a_width > 0.0f ? a_width : WidestDropdown({ a_positive, a_negative }));
+			ImGui::SetNextItemWidth(a_width);
 			const bool open = Theme::BeginCombo(a_id, ImGuiComboFlags_None, style);
 			a_hovered = !open && ImGui::IsItemHovered();
 			bool changed = false;
@@ -1089,13 +1087,13 @@ namespace CaptureWindow::Internal
 		}
 
 		// The values of `a_row`'s kind as a multi-choice dropdown, the ticked ones its preview
-		// ("Rain, Snow"), a greyed Select... with none; a single choice, closed by it, for a kind
-		// whose rows take one (SituationRules::OneValue); a rule between groups of values
-		// (Value::ruleAbove). `a_width` is the room it takes. Returns true when one was ticked,
-		// unticked or chosen.
-		bool DrawValuesDropdown(SituationRules::Row& a_row, float a_width)
+		// ("Rain, Snow"), a greyed Select... with none; a rule between groups of values
+		// (Value::ruleAbove). `a_width` is the room it takes. In combat's tip warns while the
+		// situation does not apply in combat (`a_combatAllowed`, SituationRules::AppliesInCombat)
+		// and the row is not negated: it would never hold. Returns true when one was ticked or
+		// unticked.
+		bool DrawValuesDropdown(SituationRules::Row& a_row, float a_width, bool a_combatAllowed)
 		{
-			const bool  one = SituationRules::OneValue(a_row.kind);
 			const auto  values = SituationRules::InfoOf(a_row.kind).values;
 			std::string preview;
 			for (const auto& value : values) {
@@ -1113,12 +1111,14 @@ namespace CaptureWindow::Internal
 						ImGui::Separator();
 					}
 					bool ticked = (a_row.values & value.bit) != 0;
-					if (Theme::DropdownRow(Strings::Get(value.label), &ticked, !one)) {  // ticks keep it open for more
-						changed = one ? a_row.values != value.bit : true;
-						a_row.values = one ? value.bit : a_row.values ^ value.bit;
+					if (Theme::DropdownRow(Strings::Get(value.label), &ticked, true)) {  // ticks keep it open for more
+						changed = true;
+						a_row.values ^= value.bit;
 					}
 					if (value.tip && ImGui::IsItemHovered()) {
-						Theme::Tooltip(Strings::Get(*value.tip));
+						const bool never = a_row.kind == SituationRules::Kind::kState && value.bit == SituationRules::kInCombat && !a_combatAllowed &&
+						                   !a_row.negated;
+						Theme::Tooltip(Strings::Get(never ? Text::kTipInCombatNotAllowed : *value.tip));
 					}
 				}
 			}
@@ -1127,7 +1127,7 @@ namespace CaptureWindow::Internal
 		}
 
 		// The widths a values dropdown asks for: the least that shows its widest value, and the
-		// most it needs, every value ticked (the least for a single choice).
+		// most it needs, every value ticked.
 		struct ValuesWidth
 		{
 			float least;
@@ -1143,7 +1143,7 @@ namespace CaptureWindow::Internal
 				least = (std::max)(least, Theme::DropdownWidth(Strings::Get(value.label), style));
 				all += (all.empty() ? "" : Strings::Get(Text::kListSeparator)) + std::string(Strings::Get(value.label));
 			}
-			return { least, SituationRules::OneValue(a_kind) ? least : Theme::ComboWidth(all.c_str(), style) };
+			return { least, Theme::ComboWidth(all.c_str(), style) };
 		}
 
 		// How wide a Time of day dropdown is: as its widest time, as the chosen language writes them.
@@ -1359,30 +1359,23 @@ namespace CaptureWindow::Internal
 			return removed.has_value();
 		}
 
-		// A row's first words for a kind that is not targetable (KindInfo::subject, the actor
-		// named); "" for a targetable kind, whose row starts with whose state.
-		std::string SubjectOf(const CaptureWindow::Request& a_request, const SituationRules::KindInfo& a_info)
+		// A row's first words for a kind that is not targetable (KindInfo::subject); "" for a
+		// targetable kind, whose row starts with whose state.
+		const char* SubjectOf(const SituationRules::KindInfo& a_info)
 		{
-			return a_info.subject ? Strings::Format(*a_info.subject, a_request.actorName) : std::string{};
+			return a_info.subject ? Strings::Get(*a_info.subject) : "";
 		}
 
 		// How wide a row of `a_kind` is with every value shown on it: whose state or its subject,
-		// the operator or state dropdown, then the phrase, the values or the times. A Place or
-		// Spell row lists its forms under it, so only its first line counts.
+		// the operator, then the values or the times. A Place or Spell row lists its forms under
+		// it, so only its first line counts.
 		float ConditionRowWidth(const CaptureWindow::Request& a_request, SituationRules::Kind a_kind)
 		{
 			const auto& info = SituationRules::InfoOf(a_kind);
 			const float gap = ImGui::GetStyle().ItemSpacing.x;
 			float       width = info.targetable ? WidestDropdown({ a_request.actorName.c_str(), Strings::Get(Text::kPlayer) }) :
-			                                      ImGui::CalcTextSize(SubjectOf(a_request, info).c_str()).x;
-			if (info.state && info.negState) {
-				width += gap + WidestDropdown({ Strings::Get(*info.state), Strings::Get(*info.negState) });
-			} else {
-				width += gap + OperatorWidth(a_kind);
-				if (info.phrase) {
-					width += gap + ImGui::CalcTextSize(Strings::Get(*info.phrase)).x;
-				}
-			}
+			                                      ImGui::CalcTextSize(SubjectOf(info)).x;
+			width += gap + OperatorWidth(a_kind);
 			if (!info.values.empty()) {
 				width += gap + ValuesDropdownWidth(a_kind).most;
 			} else if (a_kind == SituationRules::Kind::kTimeOfDay) {
@@ -1394,8 +1387,8 @@ namespace CaptureWindow::Internal
 		// One condition: its heading (the kind's name, its help on the (?), a Remove link at the
 		// line's right end, `a_lineRight`), then the row under it as the section says; a Place or
 		// Spell row lists its forms under that, each with a ×; values or times that do not fit the
-		// row go under it.
-		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_lineRight)
+		// row go under it. `a_combatAllowed`: the situation applies in combat (DrawValuesDropdown).
+		ConditionEdit DrawConditionRow(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, float a_lineRight, bool a_combatAllowed)
 		{
 			constexpr float kListIndent = 16.0f;  // pixels at 1080p, what sits under the row in from its left
 
@@ -1416,28 +1409,18 @@ namespace CaptureWindow::Internal
 				ImGui::SameLine();
 			} else {
 				AlignTextToField();
-				ImGui::TextUnformatted(SubjectOf(a_request, info).c_str());
+				ImGui::TextUnformatted(SubjectOf(info));
 				ImGui::SameLine();
 			}
-			if (info.state && info.negState) {
-				changed = DrawNegationDropdown("##state", Strings::Get(*info.state), Strings::Get(*info.negState), 0.0f, a_row.negated, ignored) || changed;
-			} else {
-				changed = DrawNegationDropdown("##operator", OperatorLabel(a_row, false), OperatorLabel(a_row, true), OperatorWidth(a_row.kind), a_row.negated,
-							  ignored) ||
-				          changed;
-				if (info.phrase) {
-					ImGui::SameLine();
-					AlignTextToField();
-					ImGui::TextUnformatted(Strings::Get(*info.phrase));
-				}
-			}
+			changed = DrawNegationDropdown("##operator", OperatorLabel(a_row, false), OperatorLabel(a_row, true), OperatorWidth(a_row.kind), a_row.negated, ignored) ||
+			          changed;
 			// The values on the row while they fit, else under it.
 			bool under = false;
 			if (!info.values.empty()) {
 				const auto width = ValuesDropdownWidth(a_row.kind);
 				if (FitsOnLine(width.least, a_lineRight)) {
 					ImGui::SameLine();
-					changed = DrawValuesDropdown(a_row, (std::min)(width.most, a_lineRight - ImGui::GetCursorScreenPos().x)) || changed;
+					changed = DrawValuesDropdown(a_row, (std::min)(width.most, a_lineRight - ImGui::GetCursorScreenPos().x), a_combatAllowed) || changed;
 				} else {
 					under = true;
 				}
@@ -1454,7 +1437,9 @@ namespace CaptureWindow::Internal
 				const float indent = kListIndent * Theme::Scale();
 				ImGui::Indent(indent);
 				if (!info.values.empty()) {
-					changed = DrawValuesDropdown(a_row, (std::min)(ValuesDropdownWidth(a_row.kind).most, a_lineRight - ImGui::GetCursorScreenPos().x)) || changed;
+					changed =
+						DrawValuesDropdown(a_row, (std::min)(ValuesDropdownWidth(a_row.kind).most, a_lineRight - ImGui::GetCursorScreenPos().x), a_combatAllowed) ||
+						changed;
 				} else if (time) {
 					changed = DrawTimeRange(a_row) || changed;
 				} else {
@@ -1469,23 +1454,6 @@ namespace CaptureWindow::Internal
 				return ConditionEdit::kAddForm;
 			}
 			return changed ? ConditionEdit::kChanged : ConditionEdit::kNone;
-		}
-
-		// A two-state kind the situation has every row it can take of: one, or with a target to
-		// choose, one per target. A second adds nothing.
-		bool KindExhausted(const SituationRules::Rules& a_rules, SituationRules::Kind a_kind)
-		{
-			if (!SituationRules::TwoState(a_kind)) {
-				return false;
-			}
-			bool wearer = false;
-			bool player = false;
-			for (const auto& row : a_rules.rows) {
-				if (row.kind == a_kind) {
-					(row.target == SituationRules::Target::kPlayer ? player : wearer) = true;
-				}
-			}
-			return (wearer || player) && (!SituationRules::Targetable(a_kind) || (wearer && player));
 		}
 
 		// The kinds by label in the chosen language, ASCII case ignored, as Add Condition... lists
@@ -1510,10 +1478,9 @@ namespace CaptureWindow::Internal
 		}
 
 		// Add Condition...: a dropdown of the kinds by label, closed by a choice; returns the one
-		// chosen. A two-state kind the situation has every row it can take of is greyed
-		// (KindExhausted). As wide as its widest kind needs: the list is as wide as the field, and
-		// a language may word a kind longer than the field's own label.
-		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
+		// chosen. As wide as its widest kind needs: the list is as wide as the field, and a
+		// language may word a kind longer than the field's own label.
+		std::optional<SituationRules::Kind> DrawAddCondition()
 		{
 			const char*             label = Strings::Get(Text::kAddCondition);
 			const Theme::FieldStyle style{ .icon = Theme::FieldIcon::kAdd, .previewIsHint = true };
@@ -1527,19 +1494,18 @@ namespace CaptureWindow::Internal
 			if (open) {
 				for (const auto* info : KindsByLabel()) {
 					bool chosen = false;
-					ImGui::BeginDisabled(KindExhausted(a_rules, info->kind));
 					if (Theme::DropdownRow(Strings::Get(info->label), &chosen, false)) {
 						added = info->kind;
 						ImGui::CloseCurrentPopup();
 					}
-					ImGui::EndDisabled();
 				}
 			}
 			Theme::EndCombo(open, label, style);
 			return added;
 		}
 
-		// Allow during combat, ticked and greyed while an In combat condition needs it.
+		// Allow during combat, ticked and greyed while a State condition of In combat alone needs it
+		// (SituationRules::AppliesInCombat).
 		bool DrawAllowDuringCombat(const State& a_state, SituationRules::Rules& a_rules)
 		{
 			const bool forced = !a_rules.applyInCombat && SituationRules::AppliesInCombat(a_rules);
@@ -1605,6 +1571,7 @@ namespace CaptureWindow::Internal
 			const ImVec2               padding(std::round(kConditionBoxPadding.x * scale), std::round(kConditionBoxPadding.y * scale));
 			const float                boxRight = std::round(ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x);
 			auto*                      draw = ImGui::GetWindowDrawList();
+			const bool                 combatAllowed = SituationRules::AppliesInCombat(a_rules);
 			bool                       changed = false;
 			std::optional<std::size_t> removed;
 			for (std::size_t i = 0; i < a_rules.rows.size(); ++i) {
@@ -1623,7 +1590,7 @@ namespace CaptureWindow::Internal
 				window->ContentRegionRect.Max.x -= padding.x;
 				window->WorkRect.Max.x -= padding.x;
 				ImGui::PushID(static_cast<int>(i));
-				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], boxRight - padding.x);
+				const auto edit = DrawConditionRow(a_state.request, a_rules.rows[i], boxRight - padding.x, combatAllowed);
 				ImGui::PopID();
 				window->WorkRect.Max.x += padding.x;
 				window->ContentRegionRect.Max.x += padding.x;
@@ -1648,9 +1615,8 @@ namespace CaptureWindow::Internal
 				a_rules.rows.erase(a_rules.rows.begin() + static_cast<std::ptrdiff_t>(*removed));
 				form.editorFocus = -1;  // its index may now name another
 			}
-			if (const auto kind = DrawAddCondition(a_rules)) {
-				// A kind whose rows take one value starts with its first, never with none.
-				a_rules.rows.push_back({ .kind = *kind, .values = SituationRules::OneValue(*kind) ? SituationRules::InfoOf(*kind).values.front().bit : 0u });
+			if (const auto kind = DrawAddCondition()) {
+				a_rules.rows.push_back({ .kind = *kind });
 				changed = true;
 				// A Place or Spell row starts empty, so its Add link is pressed for the user.
 				if (SituationRules::HasForms(*kind)) {

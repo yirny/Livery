@@ -615,7 +615,7 @@ The situations an actor is in, the lowest in the window's list first
 Default (`OutfitRows::Resolve`). Every situation is its rules (docs/custom-situations.md
 §2-§5, §8): the presets' as installed are below, edited like the user's. Evaluate reads only
 the situations whose row holds an outfit for the actor. In combat a situation applies only
-with `Allow during combat` on or with an In combat condition
+with `Allow during combat` on or with a State condition of In combat alone
 (`SituationRules::AppliesInCombat`); neither holds for any preset as installed, so a fight is
 fought in the default outfit unless one does. The rules are Tailor 3.0's
 (`src/events/SituationHandler.cpp` and its policy headers). Verified in game in Livery
@@ -624,14 +624,14 @@ counted), combat, in water by wading; through the model: Town, Cold by snow and 
 Sleep, an NPC's Town in a player home. Not yet: Castle, Home. The presets as installed, and
 what each condition reads:
 
-- In water (no preset uses it; the Swimming condition's `In water` value, while its
+- In water (no preset uses it; the State condition's `In water` value, while its
   `Swimming` value reads the swimming flag alone): the actor state's
   swimming flag, or the engine reports a water height
   relevant to them no lower than 40 units under their feet (wading counts); once they were
   told in water, they stay in it until that water is 60 units under
   their feet, so a shore does not flip it on and off. On a mount only the swimming flag
   counts: a rider's feet are above the water the horse wades.
-- Sleeping (Sleep = Sleeping): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
+- Sleeping (Sleep = State {Sleeping}): sit/sleep state `kWantToSleep` to `kWantToWake` (the other states are chairs
   and mounts), or on furniture flagged CanSleep. Vanilla beds never put the player into
   bed (Tailor's note in `SituationHandler.cpp`), so the player's Sleep needs a mod that does.
 - Cold (Weather {Snow, Freezing region}): read around the player, whoever wears it. The player is

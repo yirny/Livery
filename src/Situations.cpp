@@ -300,7 +300,8 @@ namespace
 
 	// Location type's values (SituationRules) the location's own keywords give: Town is any
 	// house, the player's included, or inhabited; Castle a jarl's palace or keep, every one of
-	// which is a dwelling too, so a town as well.
+	// which is a dwelling too, so a town as well. Indoors is the cell's (InLocationType), never
+	// a keyword's, so the type masks of the never-worn mark (TypeMaskOf) leave it out.
 	bool HasLocationType(const RE::BGSLocation& a_location, std::uint32_t a_values)
 	{
 		const auto has = [&a_location](std::string_view a_keyword) { return a_location.HasKeywordString(a_keyword); };
@@ -375,6 +376,35 @@ namespace
 			return &*player;
 		}
 	};
+
+	// Whether the actor is in one of State's `a_values` (SituationRules). In water takes swimming
+	// in (IsInWater), so it settles a row with both.
+	bool InState(std::uint32_t a_values, Facts& a_facts)
+	{
+		auto&       actor = a_facts.actor;
+		const auto* state = actor.AsActorState();
+		if ((a_values & SituationRules::kInCombat) && actor.IsInCombat()) {
+			return true;
+		}
+		if ((a_values & SituationRules::kWeaponDrawn) && state && state->IsWeaponDrawn()) {  // drawn, or being put away; fists and spells count
+			return true;
+		}
+		if (a_values & SituationRules::kInWater ? a_facts.InWater() : (a_values & SituationRules::kSwimming) && state && state->IsSwimming()) {
+			return true;
+		}
+		return (a_values & SituationRules::kSleeping) && IsSleeping(actor);
+	}
+
+	// Whether the actor's location has one of Location type's `a_values` by its keywords
+	// (HasLocationType), or their cell is an interior with Indoors among them.
+	bool InLocationType(std::uint32_t a_values, Facts& a_facts)
+	{
+		if ((a_values & SituationRules::kIndoors) && a_facts.Cell() && a_facts.Cell()->IsInteriorCell()) {
+			return true;
+		}
+		const auto* location = a_facts.Location();
+		return location && HasLocationType(*location, a_values);
+	}
 
 	// Weather's values (SituationRules) that hold now around the player (Climate): Rain and Snow
 	// by the sky while they are in an exterior cell, a region by the climate where they stand.
@@ -504,31 +534,13 @@ namespace
 		if (!facts) {
 			return a_row.negated;
 		}
-		auto&       actor = facts->actor;
-		const auto* state = actor.AsActorState();
-		bool        holds = false;
+		bool holds = false;
 		switch (a_row.kind) {
-		case Kind::kInCombat:
-			holds = actor.IsInCombat();
-			break;
-		case Kind::kSleeping:
-			holds = IsSleeping(actor);
-			break;
-		case Kind::kWater:
-			// In water takes swimming in (IsInWater), so it settles a row with both.
-			holds = a_row.values & SituationRules::kInWater ? facts->InWater() : state && state->IsSwimming();
-			break;
-		case Kind::kIndoors:
-			{
-				const auto* cell = facts->Cell();
-				holds = cell && cell->IsInteriorCell();
-			}
+		case Kind::kState:
+			holds = InState(a_row.values, *facts);
 			break;
 		case Kind::kLocationType:
-			{
-				const auto* location = facts->Location();
-				holds = location && HasLocationType(*location, a_row.values);
-			}
+			holds = InLocationType(a_row.values, *facts);
 			break;
 		case Kind::kPlace:
 			holds = InPlaces(a_row.places, *facts);
@@ -543,10 +555,7 @@ namespace
 			holds = SituationRules::InTimeRange(a_row.from, a_row.to, MinuteOfDay());
 			break;
 		case Kind::kSpell:
-			holds = UnderSpells(a_row.spells, actor);
-			break;
-		case Kind::kWeapon:
-			holds = state && state->IsWeaponDrawn();  // drawn, or being put away; fists and spells count
+			holds = UnderSpells(a_row.spells, facts->actor);
 			break;
 		}
 		return holds != a_row.negated;
