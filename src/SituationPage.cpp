@@ -1304,12 +1304,17 @@ namespace CaptureWindow::Internal
 
 		// Add Condition...: a dropdown of the kinds by label, closed by a choice; returns the one
 		// chosen. A two-state kind the situation has every row it can take of is greyed
-		// (KindExhausted).
+		// (KindExhausted). As wide as its widest kind needs: the list is as wide as the field, and
+		// a language may word a kind longer than the field's own label.
 		std::optional<SituationRules::Kind> DrawAddCondition(const SituationRules::Rules& a_rules)
 		{
 			const char*             label = Strings::Get(Text::kAddCondition);
 			const Theme::FieldStyle style{ .icon = Theme::FieldIcon::kAdd, .previewIsHint = true };
-			ImGui::SetNextItemWidth(Theme::DropdownWidth(label, style));
+			float                   width = Theme::DropdownWidth(label, style);
+			for (const auto& info : SituationRules::kKinds) {
+				width = (std::max)(width, Theme::DropdownWidth(Strings::Get(info.label), style));
+			}
+			ImGui::SetNextItemWidth(width);
 			const bool                          open = Theme::BeginCombo("##addCondition", ImGuiComboFlags_HeightLargest, style);
 			std::optional<SituationRules::Kind> added;
 			if (open) {
