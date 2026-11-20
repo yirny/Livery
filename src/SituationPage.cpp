@@ -1322,10 +1322,10 @@ namespace CaptureWindow::Internal
 		}
 
 		// A Place or Spell row's forms as a list (Theme::BeginList, within the condition's box), a
-		// row each with a × at its right end (Theme::RemovableRow), every second one striped, a
-		// spell after its icon, one whose plugin is not loaded greyed and saying so on hover, a
-		// spell's effects on hover; no list while the row has no form. Then Add Location... or Add
-		// Spell.... Returns true when one was removed; sets `a_add` when the Add link was pressed.
+		// row each with a × at its right end (Theme::RemovableRow), a spell after its icon, one
+		// whose plugin is not loaded greyed and saying so on hover, a spell's effects on hover; no
+		// list while the row has no form. Then Add Location... or Add Spell.... Returns true when
+		// one was removed; sets `a_add` when the Add link was pressed.
 		bool DrawFormList(const CaptureWindow::Request& a_request, SituationRules::Row& a_row, bool& a_add)
 		{
 			const bool                 place = a_row.kind == SituationRules::Kind::kPlace;
@@ -1333,7 +1333,8 @@ namespace CaptureWindow::Internal
 			std::optional<std::size_t> removed;
 			if (!forms.empty()) {
 				// Contract: as tall as its rows, so it never scrolls and the mouse wheel reaches the
-				// conditions' scroll area around it. No gap between the rows, so their stripes meet.
+				// conditions' scroll area around it. No gap between the rows: each has room around its
+				// text (Theme::SelectRowHeight).
 				const float height = std::ceil(static_cast<float>(forms.size()) * Theme::SelectRowHeight() + Theme::ListPaddingY() * 2.0f);
 				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 				if (Theme::BeginList("forms", height, true)) {
@@ -1343,7 +1344,7 @@ namespace CaptureWindow::Internal
 						auto        hovered = Theme::RemovableRowPart::kNone;
 						ImGui::PushID(static_cast<int>(i));
 						if (Theme::RemovableRow(SituationRules::FormName(form).c_str(),
-								{ .striped = i % 2 == 1, .greyed = form.formID == 0, .icon = place ? nullptr : &icon }, &hovered)) {
+								{ .greyed = form.formID == 0, .icon = place ? nullptr : &icon }, &hovered)) {
 							removed = i;
 						}
 						ImGui::PopID();
