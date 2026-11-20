@@ -2771,6 +2771,7 @@ namespace CaptureWindow
 		}
 		form.situationsNow = a_now;
 		form.situationsAnswered = true;
+		form.situationsKnown = true;
 	}
 
 	bool IsOpen()

@@ -426,9 +426,9 @@ namespace CaptureWindow::Internal
 		std::uint32_t g_checkAsks = 0;
 
 		// Asks Request::onCheckConditions whether each of `a_rules`' conditions is met now: at once
-		// when they differ from those last asked (another situation, an edit), else every
-		// kHoldsRefresh once the last ask was answered, so a stalled game thread gets no queue of
-		// asks. SetConditionsHeld takes the answer to the latest ask only.
+		// when they differ from those last asked (another situation, an edit), the answer to those
+		// dropped, else every kHoldsRefresh once the last ask was answered, so a stalled game
+		// thread gets no queue of asks. SetConditionsHeld takes the answer to the latest ask only.
 		void CheckConditions(State& a_state, const SituationRules::Rules& a_rules)
 		{
 			auto&       form = a_state.situationForm;
@@ -437,8 +437,12 @@ namespace CaptureWindow::Internal
 				return;
 			}
 			const double now = ImGui::GetTime();
-			if (a_rules.rows == form.checkedRows && (!form.checkAnswered || now - form.checkedAt < kHoldsRefresh)) {
+			const bool   same = a_rules.rows == form.checkedRows;
+			if (same && (!form.checkAnswered || now - form.checkedAt < kHoldsRefresh)) {
 				return;
+			}
+			if (!same) {
+				form.conditionsHeld.clear();  // the answer to other rows; the same rows' stays until the next
 			}
 			form.checkedRows = a_rules.rows;
 			form.checkedAt = now;
@@ -454,7 +458,8 @@ namespace CaptureWindow::Internal
 
 		// Asks Request::onCheckSituations what applies to the actor now: at once the first time,
 		// then every kHoldsRefresh once the last ask was answered, so a stalled game thread gets
-		// no queue of asks. SetSituationsNow takes the answer to the latest ask only.
+		// no queue of asks. SetSituationsNow takes the answer to the latest ask only; the one
+		// before stays shown while it waits.
 		void CheckSituations(State& a_state)
 		{
 			auto&       form = a_state.situationForm;
@@ -483,7 +488,7 @@ namespace CaptureWindow::Internal
 		NowState StateNow(const State& a_state, std::size_t a_entry)
 		{
 			const auto& form = a_state.situationForm;
-			if (!form.situationsAnswered) {
+			if (!form.situationsKnown) {
 				return NowState::kNone;
 			}
 			const auto& now = form.situationsNow;
@@ -503,7 +508,7 @@ namespace CaptureWindow::Internal
 		std::size_t EntryWornNow(const State& a_state)
 		{
 			const auto& form = a_state.situationForm;
-			if (!form.situationsAnswered || form.situationsNow.count == 0) {
+			if (!form.situationsKnown || form.situationsNow.count == 0) {
 				return 0;
 			}
 			const auto& situations = a_state.request.situations;
@@ -515,13 +520,14 @@ namespace CaptureWindow::Internal
 			return 0;
 		}
 
-		// The answer to the latest ask (CheckConditions) while it is `a_rules`' own: whether each
-		// condition is met now, one per row; empty while unknown.
+		// The last answer taken (CheckConditions) while it is `a_rules`' own, kept while the same
+		// rows are asked again: whether each condition is met now, one per row; empty while unknown.
 		const std::vector<bool>& HeldFor(const State& a_state, const SituationRules::Rules& a_rules)
 		{
 			static const std::vector<bool> kUnknown;
 			const auto&                    form = a_state.situationForm;
-			return form.checkAnswered && form.checkedRows == a_rules.rows ? form.conditionsHeld : kUnknown;
+			const bool                     own = form.checkedRows == a_rules.rows && form.conditionsHeld.size() == a_rules.rows.size();
+			return own ? form.conditionsHeld : kUnknown;
 		}
 
 		// A user's situation's Applies text as SituationRules::Text words it, for Theme::RunLinks:

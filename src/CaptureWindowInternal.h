@@ -285,7 +285,8 @@ namespace CaptureWindow::Internal
 		// The Edit situation popup's conditions as last handed to Request::onCheckConditions, at
 		// `checkedAt` (ImGui::GetTime() seconds), with the ask's number and whether it was
 		// answered (SetConditionsHeld); the last answer taken: whether each condition is met now,
-		// one per row of the rules it was asked for; empty for none yet.
+		// one per row of the rules it was asked for, kept while the same rows are asked again;
+		// empty for none yet, and again once other rows are asked.
 		std::vector<SituationRules::Row> checkedRows;
 		double                           checkedAt = 0.0;
 		std::uint32_t                    checkAsk = 0;
@@ -293,10 +294,12 @@ namespace CaptureWindow::Internal
 		std::vector<bool>                conditionsHeld;
 		// The Situation List's ask what applies now (Request::onCheckSituations), as checkedRows'
 		// ask: its number, when it was made, whether it was answered (SetSituationsNow); the last
-		// answer taken, the situation worn first; none before the first answer.
+		// answer taken, the situation worn first, kept while the next ask waits, and whether one
+		// was taken since the window opened.
 		std::uint32_t          situationsAsk = 0;
 		double                 situationsAskedAt = 0.0;
 		bool                   situationsAnswered = false;
+		bool                   situationsKnown = false;
 		Situations::Applicable situationsNow;
 	};
 
