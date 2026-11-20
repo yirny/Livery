@@ -562,6 +562,10 @@ can come later if sharing across characters is wanted.
   frozen game skips, while a copy taken back (`RemoveItem`) loses its 3D at once (the torso
   showed empty). `Set3DUpdateFlag(kModel)` + `Update3DModel` on the NPC right after the
   dressing shows the new outfit at once, in the frozen game.
+- The player's model is rebuilt only while the game is halted (2026-11-21): the rebuild in a
+  running game ended a concentration spell being cast (a situation on Healing's effect
+  flipped back at once), and a running game shows the player's equip change without it,
+  Live Preview on included.
 - The trade-menu filter (§3) hides Livery's copies in the pickpocket menu too (2026-10-23):
   it fills its list through the hooked container-menu call sites.
 - Sources for the PreventRemoval semantics: Tailor `src/wig/WigEquipment.cpp`
