@@ -356,9 +356,9 @@ namespace
 		}
 		wchar_t name[64]{};
 		if (::GetKeyNameTextW(lParam, name, static_cast<int>(std::size(name))) > 0) {
-			return SKSE::stl::utf16_to_utf8(name).value_or(std::format("Key {}", a_scanCode));
+			return SKSE::stl::utf16_to_utf8(name).value_or(Strings::Format(Strings::Text::kKeyNumber, a_scanCode));
 		}
-		return std::format("Key {}", a_scanCode);
+		return Strings::Format(Strings::Text::kKeyNumber, a_scanCode);
 	}
 
 	std::string HotkeyName()

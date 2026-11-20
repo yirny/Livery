@@ -114,7 +114,7 @@ items left off in `EXCL`; the layout is in design.md §5.
 - The names replace `Situations::Name` wherever the window and the HUD show a situation;
   logs keep the key.
 
-The sentences that say what is worn end in ` for <name>` (`SituationStore::Suffix`),
+The sentences that say what is worn end in ` for <name>` (the texts of `LIVERY_STRINGS_HUD_DRESSING`),
 nothing for the Default; the summary line names the Default too. Only these:
 
 | Where | Text |

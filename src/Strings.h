@@ -560,6 +560,62 @@
 	X(kHudLoadSaveFirst, "Livery: load a save and close the window first.")                                                                    \
 	X(kHudUninstallMode, "Livery: uninstall mode is on (Livery.ini: [Uninstall] ReleaseEveryone=1).")
 
+// HUD messages about a dressing. Whole sentences where one says it all; the others are built
+// from a main clause ("Livery: Lydia now wears these for Town"), notes that take the sentence so
+// far as {0} and add to it (NoteAdded: {1} the count; NoteNotCarried, NoteRefused: {1} item
+// names; NoteJoin: {1} a Fallback clause or the next Part) and End, which closes it. In a main
+// clause {0} is the character, {1} the situation, or {1} the outfit (QuotedName, OutfitGone or
+// DefaultItems) and {2} the situation. A Fallback clause says why a situation's outfit gave way
+// to the Default: {0} the outfit, {1} the situation, {2} the character. A Part is one change to
+// who wears what for which situations: {0} the outfit and {1} the situations, NoOutfit's {0}
+// the situations; ChangeHead takes the character and the parts joined, and DressedNow,
+// DressedNowFor ({1} the situation) and OwnClothesNow add what they wear after it.
+#define LIVERY_STRINGS_HUD_DRESSING(X)                                                                               \
+	X(kHudYouWearOwn, "Livery: you now wear your own clothes.")                                                      \
+	X(kHudWearsOwn, "Livery: {0} now wears their own clothes.")                                                      \
+	X(kHudYouWearDefault, "Livery: you now wear the default outfit.")                                                \
+	X(kHudWearsDefault, "Livery: {0} now wears the default outfit.")                                                 \
+	X(kHudYouWearFor, "Livery: you now wear {1} for {2}.")                                                           \
+	X(kHudWearsFor, "Livery: {0} now wears {1} for {2}.")                                                            \
+	X(kHudFallbackNotLoaded, "no item of {0} for {1} is loaded")                                                     \
+	X(kHudFallbackNotCarried, "you carry none of the items of {0} for {1}")                                          \
+	X(kHudFallbackRefusedYou, "none of the items of {0} for {1} could be put on you")                                \
+	X(kHudFallbackRefused, "none of the items of {0} for {1} could be put on {2}")                                   \
+	X(kHudFallbackAlone, "Livery: {0}")                                                                              \
+	X(kHudWillWearDefault, "Livery: {0} will wear these by default; dressed now.")                                   \
+	X(kHudWillWearDefaultFor, "Livery: {0} will wear these by default; dressed now for {1}.")                        \
+	X(kHudYouWearThese, "Livery: you now wear these")                                                                \
+	X(kHudYouWearTheseFor, "Livery: you now wear these for {1}")                                                     \
+	X(kHudWearsThese, "Livery: {0} now wears these")                                                                 \
+	X(kHudWearsTheseFor, "Livery: {0} now wears these for {1}")                                                      \
+	X(kHudWearsOutfit, "Livery: {0} now wears {1}")                                                                  \
+	X(kHudWearsOutfitFor, "Livery: {0} now wears {1} for {2}")                                                       \
+	X(kHudDefaultItems, "the default items")                                                                         \
+	X(kHudOwnClothes, "Livery: {0}: own clothes now")                                                                \
+	X(kHudNoteAdded, "{0}, {1} added")                                                                               \
+	X(kHudNoteNotCarried, "{0}; not carried: {1}")                                                                   \
+	X(kHudNoteRefused, "{0}; could not be put on: {1}")                                                              \
+	X(kHudNoteJoin, "{0}; {1}")                                                                                      \
+	X(kHudEnd, "{0}.")                                                                                               \
+	X(kHudChangeHead, "Livery: {0}: {1}")                                                                            \
+	X(kHudPartFor, "{0} for {1}")                                                                                    \
+	X(kHudPartNoOutfit, "no outfit for {0} any more")                                                                \
+	X(kHudPartNoLonger, "{0} no longer for {1}")                                                                     \
+	X(kHudDressedNow, "{0}. Dressed now")                                                                            \
+	X(kHudDressedNowFor, "{0}. Dressed now for {1}")                                                                 \
+	X(kHudOwnClothesNow, "{0}. Own clothes now")                                                                     \
+	X(kHudChildrenNotDressed, "Livery: children cannot be dressed.")                                                 \
+	X(kHudDead, "Livery: {0} is dead.")                                                                              \
+	X(kHudReleased, "Livery: released {0} characters.")                                                              \
+	X(kHudReleasedSome, "Livery: released {0} of {1} characters; the others are out of reach and keep their items.") \
+	X(kHudRestoredYours, "Livery: restored your original outfit.")                                                   \
+	X(kHudRestored, "Livery: restored {0}'s original outfit.")                                                       \
+	X(kHudCreatedSituation, "Livery: created the situation \"{0}\".")                                                \
+	X(kHudRemovedSituation, "Livery: removed the situation \"{0}\".")                                                \
+	X(kHudRemovedSituationFrom, "Livery: removed the situation \"{0}\"; cleared from {1} characters.")               \
+	X(kHudRestoredPresets, "Livery: restored the preset situations.")                                                \
+	X(kKeyNumber, "Key {0}")
+
 // The settings page on SKSE Menu Framework, drawn in the framework's font (Settings.cpp draws
 // it in English while that font lacks the language's letters). Its tooltips end in
 // kSetDefault's line after a blank one. LanguageName is the language's name in English
@@ -639,20 +695,21 @@
 	X(kSetReleaseEveryoneTitle, "Release everyone?")                                                                                                                                                                                                                                                         \
 	X(kSetReleaseEveryoneQuestion, "Release all characters dressed by Livery? Do this before uninstalling.")
 
-#define LIVERY_STRINGS(X)        \
-	LIVERY_STRINGS_COMMON(X)     \
-	LIVERY_STRINGS_DRESS(X)      \
-	LIVERY_STRINGS_SAVE(X)       \
-	LIVERY_STRINGS_APPEARANCE(X) \
-	LIVERY_STRINGS_OUTFITS(X)    \
-	LIVERY_STRINGS_WARDROBE(X)   \
-	LIVERY_STRINGS_CHESTS(X)     \
-	LIVERY_STRINGS_SITUATIONS(X) \
-	LIVERY_STRINGS_CONDITIONS(X) \
-	LIVERY_STRINGS_FILES(X)      \
-	LIVERY_STRINGS_ITEMS(X)      \
-	LIVERY_STRINGS_CHARACTER(X)  \
-	LIVERY_STRINGS_HUD(X)        \
+#define LIVERY_STRINGS(X)          \
+	LIVERY_STRINGS_COMMON(X)       \
+	LIVERY_STRINGS_DRESS(X)        \
+	LIVERY_STRINGS_SAVE(X)         \
+	LIVERY_STRINGS_APPEARANCE(X)   \
+	LIVERY_STRINGS_OUTFITS(X)      \
+	LIVERY_STRINGS_WARDROBE(X)     \
+	LIVERY_STRINGS_CHESTS(X)       \
+	LIVERY_STRINGS_SITUATIONS(X)   \
+	LIVERY_STRINGS_CONDITIONS(X)   \
+	LIVERY_STRINGS_FILES(X)        \
+	LIVERY_STRINGS_ITEMS(X)        \
+	LIVERY_STRINGS_CHARACTER(X)    \
+	LIVERY_STRINGS_HUD(X)          \
+	LIVERY_STRINGS_HUD_DRESSING(X) \
 	LIVERY_STRINGS_SETTINGS(X)
 
 namespace Strings

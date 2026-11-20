@@ -1514,7 +1514,7 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify(std::format("Livery: created the situation \"{}\".", name));
+			Notify(Strings::Format(Strings::Text::kHudCreatedSituation, name));
 			auto list = CurrentOutfitList(actorID, armors);
 			list.createdSituation = created;
 			CaptureWindow::SetOutfits(std::move(list));
@@ -1527,7 +1527,7 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify(std::format("Livery: created the situation \"{}\".", name));
+			Notify(Strings::Format(Strings::Text::kHudCreatedSituation, name));
 			auto list = CurrentOutfitList(actorID, armors);
 			list.createdSituation = created;
 			CaptureWindow::SetOutfits(std::move(list));
@@ -1535,15 +1535,14 @@ namespace
 		// Every row of the situation goes (Assignments::ForgetSituation), and those wearing it
 		// are taken out of it as Remove takes them out of a removed outfit.
 		request.onSituationRemove = [handle, actorID, armors, offered](Situations::Situation situation) {
-			const auto name = SituationStore::Name(situation);  // copied: Remove leaves the reference stale
+			const auto name = SituationStore::Name(situation);
 			const auto holders = Assignments::HoldersOf(situation).size();
 			if (const auto error = SituationStore::Remove(situation)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
 			const auto wearing = Assignments::ForgetSituation(situation);
-			Notify(holders > 0 ? std::format("Livery: removed the situation \"{}\"; cleared from {} characters.", name, holders) :
-								 std::format("Livery: removed the situation \"{}\".", name));
+			Notify(Strings::Format(holders > 0 ? Strings::Text::kHudRemovedSituationFrom : Strings::Text::kHudRemovedSituation, name, holders));
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			for (const auto id : wearing) {
@@ -1563,7 +1562,7 @@ namespace
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			Notify("Livery: restored the preset situations.");
+			Notify(Strings::Get(Strings::Text::kHudRestoredPresets));
 			CaptureWindow::SetOutfits(CurrentOutfitList(actorID, armors));
 		};
 		// The Edit situation popup's conditions, as edited, read for the actor now: nothing is
