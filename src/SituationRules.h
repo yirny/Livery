@@ -63,10 +63,10 @@ namespace SituationRules
 	inline constexpr std::uint32_t kWarmRegion = 1u << 2;  // the climates of RegionClimate
 	inline constexpr std::uint32_t kCoolRegion = 1u << 3;
 	inline constexpr std::uint32_t kFreezingRegion = 1u << 4;
-	// State's values, bits of Row::values. In water takes swimming in.
+	// State's values, bits of Row::values. Wading and Swimming never hold together.
 	inline constexpr std::uint32_t kInCombat = 1u << 0;
 	inline constexpr std::uint32_t kWeaponDrawn = 1u << 1;
-	inline constexpr std::uint32_t kInWater = 1u << 2;
+	inline constexpr std::uint32_t kWading = 1u << 2;
 	inline constexpr std::uint32_t kSwimming = 1u << 3;
 	inline constexpr std::uint32_t kSleeping = 1u << 4;
 
@@ -268,7 +268,7 @@ namespace SituationRules
 	inline constexpr std::array<Value, 5> kStates{ {
 		{ kInCombat, "inCombat", Strings::Text::kValueInCombat, Strings::Text::kPhraseInCombat, Strings::Text::kTipInCombat },
 		{ kWeaponDrawn, "weaponDrawn", Strings::Text::kValueWeaponDrawn, Strings::Text::kPhraseWeaponDrawn, Strings::Text::kTipWeaponDrawn },
-		{ kInWater, "inWater", Strings::Text::kValueInWater, Strings::Text::kPhraseInWater, Strings::Text::kTipInWater, true },  // fighting above, water below
+		{ kWading, "wading", Strings::Text::kValueWading, Strings::Text::kPhraseWading, Strings::Text::kTipWading, true },  // fighting above, water below
 		{ kSwimming, "swimming", Strings::Text::kValueSwimming, Strings::Text::kPhraseSwimming, Strings::Text::kTipSwimming },
 		{ kSleeping, "sleeping", Strings::Text::kValueSleeping, Strings::Text::kPhraseSleeping, Strings::Text::kTipSleeping, true },
 	} };
@@ -621,15 +621,10 @@ namespace SituationRules
 			switch (a_row.kind) {
 			case Kind::kLocationType:
 			case Kind::kWeather:
+			case Kind::kState:
 				return (inner.values & ~outer.values) == 0;
 			case Kind::kIndoors:
 				return true;  // the same side of the door
-			case Kind::kState:
-				{
-					// Swimming is in water: a row that takes In water takes Swimming too.
-					const auto taken = outer.values & kInWater ? outer.values | kSwimming : outer.values;
-					return (inner.values & ~taken) == 0;
-				}
 			case Kind::kTimeOfDay:
 				return TimeWithin(inner, outer);
 			case Kind::kPlace:

@@ -376,8 +376,7 @@ namespace
 		}
 	};
 
-	// Whether the actor is in one of State's `a_values` (SituationRules). In water takes swimming
-	// in (IsInWater), so it settles a row with both.
+	// Whether the actor is in one of State's `a_values` (SituationRules).
 	bool InState(std::uint32_t a_values, Facts& a_facts)
 	{
 		auto&       actor = a_facts.actor;
@@ -388,7 +387,13 @@ namespace
 		if ((a_values & SituationRules::kWeaponDrawn) && state && state->IsWeaponDrawn()) {  // drawn, or being put away; fists and spells count
 			return true;
 		}
-		if (a_values & SituationRules::kInWater ? a_facts.InWater() : (a_values & SituationRules::kSwimming) && state && state->IsSwimming()) {
+		const bool swimming = state && state->IsSwimming();
+		if ((a_values & SituationRules::kSwimming) && swimming) {
+			return true;
+		}
+		// Wading is in water but not swimming. The in-water record counts swimming, so one who
+		// swims back to the shallows wades at once and leaves the water only past kWaterLeave.
+		if ((a_values & SituationRules::kWading) && a_facts.InWater() && !swimming) {
 			return true;
 		}
 		return (a_values & SituationRules::kSleeping) && IsSleeping(actor);

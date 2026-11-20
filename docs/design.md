@@ -624,8 +624,8 @@ counted), combat, in water by wading; through the model: Town, Cold by snow and 
 Sleep, an NPC's Town in a player home. Not yet: Castle, Home. The presets as installed, and
 what each condition reads:
 
-- In water (no preset uses it; the State condition's `In water` value, while its
-  `Swimming` value reads the swimming flag alone): the actor state's
+- In water (no preset uses it; the State condition's `Wading` value is in water and not
+  swimming, its `Swimming` value the swimming flag alone): the actor state's
   swimming flag, or the engine reports a water height
   relevant to them no lower than 40 units under their feet (wading counts); once they were
   told in water, they stay in it until that water is 60 units under
