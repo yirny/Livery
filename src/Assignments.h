@@ -94,6 +94,11 @@ namespace Assignments
 	// Contract: game thread; no preview is on (the poll checks).
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now);
 
+	// Whether WearFor would redress them for `a_now`: the row it resolves to, or the outfit
+	// that row wears, is not what they wear. Changes nothing.
+	// Contract: game thread.
+	bool WouldRedress(RE::Actor& a_actor, const Situations::Applicable& a_now);
+
 	// The situations they are in now among those their rows hold an outfit for
 	// (Situations::Evaluate); empty for an actor Livery does not dress.
 	// Contract: game thread.
