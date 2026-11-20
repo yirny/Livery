@@ -1309,7 +1309,10 @@ namespace Assignments
 			if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(assignment.actor)) {
 				Dressing::Release(*actor, assignment.pieces, true);
 				Dressing::UnlockOutfitCopies(*actor, assignment.lockedCopies);  // before PutBack, which skips a locked copy
-				Dressing::PutBack(*actor, assignment.takenOff);
+				// As Unassign: the player keeps what they wear.
+				if (assignment.actor != kPlayerRef) {
+					Dressing::PutBack(*actor, assignment.takenOff);
+				}
 				++released;
 			}
 		}
@@ -1612,9 +1615,16 @@ namespace Assignments
 		if (!FindAssignment(a_actor.GetFormID())) {
 			return;
 		}
+		// The player keeps what they wear, less the copies Livery added: unlike an NPC's fixed
+		// outfit, what they wore before Livery is no look they would know to expect back.
+		if (a_actor.IsPlayerRef()) {
+			ReleaseActor(a_actor, true, false);
+			Notify(Strings::Get(Strings::Text::kHudNoLongerDressingYou));
+			return;
+		}
 		const auto putBack = ReleaseActor(a_actor, true, true);
 		logger::info("Put {} of their own piece(s) back on {:08X}", putBack, a_actor.GetFormID());
-		Notify(Strings::Format(a_actor.IsPlayerRef() ? Strings::Text::kHudRestoredYours : Strings::Text::kHudRestored, NameOf(a_actor)));
+		Notify(Strings::Format(Strings::Text::kHudRestored, NameOf(a_actor)));
 	}
 
 	std::optional<Choices> ChoicesOf(RE::FormID a_actor)
