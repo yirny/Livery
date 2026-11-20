@@ -11,6 +11,7 @@
 
 #include "SituationRules.h"
 #include "SituationTable.h"
+#include "Strings.h"
 
 namespace
 {
@@ -22,6 +23,21 @@ namespace
 	SituationTable::Entry& At(SituationTable::Table& a_table, Situation a_situation)
 	{
 		return a_table[IndexOf(a_situation)];
+	}
+
+	// A language that words the presets and the name clash its own way; the rest English.
+	const char* Dutch(Strings::Text a_text)
+	{
+		switch (a_text) {
+		case Strings::Text::kPresetTown:
+			return "Stad";
+		case Strings::Text::kPresetHome:
+			return "Thuis";
+		case Strings::Text::kTwoSituationsNamed:
+			return "Twee: {0}";
+		default:
+			return Strings::English(a_text);
+		}
 	}
 }
 
@@ -37,6 +53,54 @@ TEST_CASE("Presets are named by their keys", "[situations]")
 
 	CHECK_FALSE(SituationTable::CheckNames(table));
 	CHECK(SituationTable::RestoreChanges(table).empty());
+}
+
+TEST_CASE("The presets' texts are their keys in English", "[situations]")
+{
+	for (std::size_t i = 0; i < Situations::kPresetCount; ++i) {
+		CHECK(std::string(Strings::English(SituationTable::kPresetNames[i])) == Situations::Name(static_cast<Situation>(i)));
+	}
+}
+
+TEST_CASE("A preset named as installed is shown in the language and stored as its key", "[situations]")
+{
+	using SituationTable::DisplayName;
+	using SituationTable::StoredName;
+
+	auto       table = SituationTable::Presets();
+	const auto town = IndexOf(Situation::kTown);
+	const auto home = IndexOf(Situation::kHome);
+	CHECK(DisplayName(table[town], town, Dutch) == "Stad");
+	CHECK(DisplayName(table[town], town) == "Town");
+	CHECK(StoredName(town, "Stad", Dutch) == "Town");
+	CHECK(StoredName(home, "Stad", Dutch) == "Stad");  // another preset's name is a name like any
+
+	table[town].name = "City";  // renamed: shown and stored as entered
+	CHECK(DisplayName(table[town], town, Dutch) == "City");
+	CHECK(StoredName(town, "City", Dutch) == "City");
+
+	table[home].name = "Town";  // the key of another preset is no key here
+	CHECK(DisplayName(table[home], home, Dutch) == "Town");
+
+	const auto user = table.size();
+	SituationTable::AddUserEntry(table, "Home", {});
+	CHECK(DisplayName(table[user], user, Dutch) == "Home");
+	CHECK(StoredName(user, "Thuis", Dutch) == "Thuis");
+}
+
+TEST_CASE("Names clash as shown too, and the reason is in the language", "[situations]")
+{
+	auto table = SituationTable::Presets();
+	SituationTable::AddUserEntry(table, "stad", {});  // shown beside the Town preset as "Stad"
+	CHECK_FALSE(SituationTable::CheckNames(table, Strings::English));
+	CHECK(SituationTable::CheckNames(table, Dutch) == std::optional<std::string>{ "Twee: stad" });
+	At(table, Situation::kTown).removed = true;
+	CHECK_FALSE(SituationTable::CheckNames(table, Dutch));
+
+	table = SituationTable::Presets();
+	At(table, Situation::kHome).name = "town";
+	CHECK(SituationTable::CheckNames(table) == std::optional<std::string>{ "Two situations are named \"town\"." });
+	CHECK(SituationTable::CheckNames(table, Dutch) == std::optional<std::string>{ "Twee: town" });  // as the file keeps them
 }
 
 TEST_CASE("Names need text, are unique among the situations not removed, and the Default is never removed", "[situations]")
@@ -602,7 +666,7 @@ TEST_CASE("Every kind's tooltip formats with the actor's name", "[situations]")
 {
 	const std::string name = "Lydia";
 	for (const auto& info : SituationRules::kKinds) {
-		const auto tip = std::vformat(info.tip, std::make_format_args(name));
+		const auto tip = Strings::Format(info.tip, name);
 		CHECK((tip.find("Lydia") != std::string::npos) == (info.kind == SituationRules::Kind::kSpell));
 	}
 }

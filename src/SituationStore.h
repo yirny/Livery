@@ -32,8 +32,9 @@ namespace SituationStore
 	// (SituationTable::KeepsUnknownRow).
 	bool WasLoaded();
 
-	// Contract: the reference goes stale at the next Apply, Create, Duplicate, Remove or RestorePresets.
-	const std::string& Name(Situations::Situation a_situation);
+	// The situation's name as shown: a preset still named as installed in the chosen language
+	// (SituationTable::DisplayName), any other as the user named it.
+	std::string Name(Situations::Situation a_situation);
 
 	// " for Town" for the end of a sentence that says what is worn for it; "" for the Default.
 	std::string Suffix(Situations::Situation a_situation);

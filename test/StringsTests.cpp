@@ -9,6 +9,13 @@
 
 #include "Strings.h"
 
+// The tests link no Strings.cpp, which reads the game's language: every text the tested code
+// asks for is the English.
+const char* Strings::Get(Text a_text)
+{
+	return English(a_text);
+}
+
 namespace
 {
 	using Strings::Detail::Translate;
@@ -91,6 +98,16 @@ TEST_CASE("Translate keeps the English for a text naming a value its English has
 	const auto result = Translate("$Livery_PageDress\tDress {0}\n");  // the English names no value
 	CHECK(result.read == 0);
 	CHECK(result.texts[IndexOf(Strings::Text::kPageDress)].empty());
+	CHECK(result.problems.size() == 1);
+}
+
+TEST_CASE("Translate lets a time name the hour of 24, which its English leaves out", "[Strings]")
+{
+	const auto result = Translate("$Livery_TimePmMinutes\t{2}:{1}\n$Livery_TimeAm\t{2}:{1}\n$Livery_TimePm\t{3}\n");
+	CHECK(result.read == 2);
+	CHECK(result.texts[IndexOf(Strings::Text::kTimePmMinutes)] == "{2}:{1}");
+	CHECK(result.texts[IndexOf(Strings::Text::kTimeAm)] == "{2}:{1}");
+	CHECK(result.texts[IndexOf(Strings::Text::kTimePm)].empty());
 	CHECK(result.problems.size() == 1);
 }
 

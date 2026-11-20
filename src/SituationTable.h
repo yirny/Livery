@@ -3,6 +3,7 @@
 
 #include "SituationRules.h"
 #include "Situations.h"
+#include "Strings.h"
 #include "Utils.h"
 
 #include <nlohmann/json.hpp>
@@ -39,7 +40,7 @@ namespace SituationTable
 
 	struct Entry
 	{
-		std::string           name;  // shown wherever the window and the HUD name the situation
+		std::string           name;  // as the file keeps it; DisplayName is what the window and the HUD show
 		bool                  removed = false;
 		std::string           key;    // a user's situation's (`user:<n>`); "" for a preset, keyed by Situations::Name
 		SituationRules::Rules rules;  // every situation's but the Default's, which has none
@@ -163,24 +164,65 @@ namespace SituationTable
 		return key;
 	}
 
+	// --- Names ------------------------------------------------------------------
+	//
+	// The file keeps a preset's name in English while the user has not renamed it, whatever the
+	// language (the name is its key, Situations::Name), so one situations.json reads the same in
+	// every language. Such a name is shown in the chosen language (DisplayName), and one the
+	// window hands back unchanged is stored as the key again (StoredName). A name the user
+	// entered is kept and shown as entered.
+
+	// The presets' names as installed, at the index of each; in English, its key.
+	inline constexpr std::array<Strings::Text, Situations::kPresetCount> kPresetNames{ Strings::Text::kPresetDefault, Strings::Text::kPresetTown,
+		Strings::Text::kPresetCastle, Strings::Text::kPresetHome, Strings::Text::kPresetSleep, Strings::Text::kPresetCold };
+
+	// What reads a text: Strings::Get for the chosen language, Strings::English for the file's.
+	using Lookup = const char* (*)(Strings::Text);
+
+	// The name shown for the entry at `a_index`: a preset still named as installed in the
+	// language of `a_lookup`, any other as the file keeps it.
+	inline std::string DisplayName(const Entry& a_entry, std::size_t a_index, Lookup a_lookup = Strings::Get)
+	{
+		if (a_index < Situations::kPresetCount && a_entry.name == Situations::Name(static_cast<Situations::Situation>(a_index))) {
+			return a_lookup(kPresetNames[a_index]);
+		}
+		return a_entry.name;
+	}
+
+	// The name the file keeps for `a_name`, as the window gives it for the situation at
+	// `a_index`: a preset's name as installed in the language of `a_lookup` is its key.
+	inline std::string StoredName(std::size_t a_index, std::string a_name, Lookup a_lookup = Strings::Get)
+	{
+		if (a_index < Situations::kPresetCount && a_name == a_lookup(kPresetNames[a_index])) {
+			return Situations::Name(static_cast<Situations::Situation>(a_index));
+		}
+		return a_name;
+	}
+
 	// Why the names break the rules, or nullopt: every name has text, the Default is never
-	// removed (it may be renamed), and no two situations not removed share a name (ASCII case
-	// ignored). Sentences, for the window and the log.
-	inline std::optional<std::string> CheckNames(const Table& a_table)
+	// removed (it may be renamed), and no two situations not removed share a name, as the file
+	// keeps it or as shown in the language of `a_lookup` (ASCII case ignored). Sentences in that
+	// language: for the window, and with Strings::English for the log.
+	inline std::optional<std::string> CheckNames(const Table& a_table, Lookup a_lookup = Strings::Get)
 	{
 		if (a_table[IndexOf(Situations::Situation::kDefault)].removed) {
-			return "The default outfit cannot be removed.";
+			return a_lookup(Strings::Text::kDefaultNotRemoved);
 		}
+		std::vector<std::string> shown;
 		for (std::size_t i = 0; i < a_table.size(); ++i) {
 			if (ExampleMod::TrimWhitespace(a_table[i].name).empty()) {
-				return "Enter a name for every situation.";
+				return a_lookup(Strings::Text::kNameEverySituation);
 			}
+			shown.push_back(DisplayName(a_table[i], i, a_lookup));
+		}
+		for (std::size_t i = 0; i < a_table.size(); ++i) {
 			if (a_table[i].removed) {
 				continue;
 			}
 			for (std::size_t j = i + 1; j < a_table.size(); ++j) {
-				if (!a_table[j].removed && ExampleMod::CaseInsensitiveEqual(a_table[i].name, a_table[j].name)) {
-					return std::format("Two situations are named \"{}\".", a_table[j].name);
+				if (!a_table[j].removed &&
+					(ExampleMod::CaseInsensitiveEqual(a_table[i].name, a_table[j].name) || ExampleMod::CaseInsensitiveEqual(shown[i], shown[j]))) {
+					return std::vformat(a_lookup(Strings::Text::kTwoSituationsNamed), std::make_format_args(shown[j]));
 				}
 			}
 		}
@@ -394,7 +436,7 @@ namespace SituationTable
 				problem = std::format("It has more than {} situations.", Situations::kMaxSituations - Situations::kPresetCount);
 			}
 			if (!problem) {
-				problem = CheckNames(a_table);
+				problem = CheckNames(a_table, Strings::English);  // for the log; the window's save checks them as shown
 			}
 			if (version >= 2) {
 				Detail::AddMissingPresets(a_table);
@@ -473,11 +515,12 @@ namespace SituationTable
 	}
 
 	// What Restore Presets changes, one line per preset that differs from as installed, the
-	// Default first, each under its name now: "Town: restored" for a removed one, else "Home:
-	// name reset", "Cold: conditions reset" or "Home: name and conditions reset". Empty while
-	// every preset is as installed.
+	// Default first, each under its name now (DisplayName): "Town: restored" for a removed one,
+	// else "Home: name reset", "Cold: conditions reset" or "Home: name and conditions reset".
+	// Empty while every preset is as installed.
 	inline std::vector<std::string> RestoreChanges(const Table& a_table)
 	{
+		using Strings::Text;
 		std::vector<std::string> lines;
 		for (std::size_t i = 0; i < Situations::kPresetCount && i < a_table.size(); ++i) {
 			const auto& entry = a_table[i];
@@ -485,13 +528,13 @@ namespace SituationTable
 			const bool  renamed = entry.name != preset.name;
 			const bool  ruled = entry.rules != preset.rules;
 			if (entry.removed) {
-				lines.push_back(entry.name + ": restored");
+				lines.push_back(Strings::Format(Text::kRestoreLineRestored, DisplayName(entry, i)));
 			} else if (renamed && ruled) {
-				lines.push_back(entry.name + ": name and conditions reset");
+				lines.push_back(Strings::Format(Text::kRestoreLineBoth, DisplayName(entry, i)));
 			} else if (renamed) {
-				lines.push_back(entry.name + ": name reset");
+				lines.push_back(Strings::Format(Text::kRestoreLineName, DisplayName(entry, i)));
 			} else if (ruled) {
-				lines.push_back(entry.name + ": conditions reset");
+				lines.push_back(Strings::Format(Text::kRestoreLineConditions, DisplayName(entry, i)));
 			}
 		}
 		return lines;

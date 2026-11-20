@@ -27,7 +27,8 @@
 // a line break and "\\" a backslash. A text with values names them {0}, {1}... as its English
 // does, in any order, and may leave some out; "{{" and "}}" are braces. Lines that do not start
 // with "$" are ignored, so they can hold notes. An id the file lacks, or a text that names a value
-// its English has not, keeps the English.
+// its English has not, keeps the English; a time of day alone is given a value its English
+// leaves out (Detail::ValuesGiven).
 
 // --- Table -------------------------------------------------------------------
 
@@ -228,7 +229,7 @@
 // The Situations page: its list and outfit list, the Edit situation popup with its conditions,
 // the New situation, Add location, Add spell, Remove and Restore presets popups, and why a
 // change to situations.json was refused. The words of a condition and of the Applies line are
-// not here yet.
+// in LIVERY_STRINGS_CONDITIONS.
 #define LIVERY_STRINGS_SITUATIONS(X)                                                                                                                                                                                 \
 	X(kSituationsLabel, "SITUATIONS ({0})")                                                                                                                                                                          \
 	X(kSituationalOutfits, "Situational Outfits ({0})")                                                                                                                                                              \
@@ -320,6 +321,140 @@
 	X(kSituationOrderMismatch, "The situations' order does not match the list. Open the window again.")                                                                                                              \
 	X(kDefaultNotDuplicated, "The default outfit cannot be duplicated.")                                                                                                                                             \
 	X(kDefaultNotRemoved, "The default outfit cannot be removed.")
+
+// A situation's conditions (SituationRules.h): the preset situations' names, each kind's name,
+// states, help and row words in the editor, its values, the operators, the Applies line, the
+// times of day, and the lines about situations' names. An Applies clause is one condition's
+// whole wording, {0} its values joined by ListSeparator and AppliesOr ("a town, a castle or a
+// dungeon"); a line joins its clauses by ListSeparator and ends in AppliesEnd. A time's values:
+// {0} the hour of 12, {1} the minutes in two digits, {2} the hour of 24, for a translation
+// alone ("{2}:{1}").
+#define LIVERY_STRINGS_CONDITIONS(X)                                                                                                                                                             \
+	X(kPresetDefault, "Default")                                                                                                                                                                 \
+	X(kPresetTown, "Town")                                                                                                                                                                       \
+	X(kPresetCastle, "Castle")                                                                                                                                                                   \
+	X(kPresetHome, "Home")                                                                                                                                                                       \
+	X(kPresetSleep, "Sleep")                                                                                                                                                                     \
+	X(kPresetCold, "Cold")                                                                                                                                                                       \
+	X(kKindInCombat, "In combat")                                                                                                                                                                \
+	X(kKindSleeping, "Sleeping")                                                                                                                                                                 \
+	X(kKindWater, "Swimming")                                                                                                                                                                    \
+	X(kKindIndoors, "Indoors")                                                                                                                                                                   \
+	X(kKindLocationType, "Location type")                                                                                                                                                        \
+	X(kKindPlace, "Specific Location")                                                                                                                                                           \
+	X(kKindWeather, "Weather")                                                                                                                                                                   \
+	X(kKindTimeOfDay, "Time of day")                                                                                                                                                             \
+	X(kKindSpell, "Spell Effect")                                                                                                                                                                \
+	X(kKindWeapon, "Weapon")                                                                                                                                                                     \
+	X(kStateIndoors, "Indoors")                                                                                                                                                                  \
+	X(kStateOutdoors, "Outdoors")                                                                                                                                                                \
+	X(kStateWeaponDrawn, "Weapon drawn")                                                                                                                                                         \
+	X(kStateWeaponSheathed, "Weapon sheathed")                                                                                                                                                   \
+	X(kRowInCombat, "in combat")                                                                                                                                                                 \
+	X(kRowSleeping, "sleeping")                                                                                                                                                                  \
+	X(kTipInCombat, "Fighting.")                                                                                                                                                                 \
+	X(kTipSleeping, "Going to bed, in it or getting up.")                                                                                                                                        \
+	X(kTipWater, "In water: any water underfoot, however shallow.\nSwimming: swimming only, not wading.")                                                                                        \
+	X(kTipIndoors, "Inside a building, cave or other interior.")                                                                                                                                 \
+	X(kTipLocationType, "Town: a city, town, settlement, inn or house.\nCastle: a jarl's palace or keep.\nPlayer home: a house you own.\nDungeon: a cave, ruin, fort or other dungeon.")         \
+	X(kTipPlace, "In one of the locations listed.\nA location counts with every room and area in it.")                                                                                           \
+	X(kTipWeather, "Rain and Snow: the weather now, outdoors only.\nWarm, Cool and Freezing region: the climate of the area, whatever the weather.\nIndoors is none of them, except ice caves.") \
+	X(kTipTimeOfDay, "Game time.\nA range past midnight wraps, as 8 PM to 6 AM.")                                                                                                                \
+	X(kTipSpell, "A spell, power, shout, potion or other effect currently affecting {0}.\nListed by spell name, not effect name.\nAny spell, scroll or potion with the same effects counts.")    \
+	X(kTipWeapon, "Drawn: a weapon, spell or fists at the ready.\nSheathed: put away.")                                                                                                          \
+	X(kSubjectActor, "{0} is")                                                                                                                                                                   \
+	X(kSubjectLocationType, "The location type")                                                                                                                                                 \
+	X(kSubjectLocation, "The location")                                                                                                                                                          \
+	X(kSubjectWeather, "The weather")                                                                                                                                                            \
+	X(kSubjectTime, "The time is")                                                                                                                                                               \
+	X(kOperatorIs, "is")                                                                                                                                                                         \
+	X(kOperatorIsNot, "is not")                                                                                                                                                                  \
+	X(kOperatorIsAnyOf, "is any of")                                                                                                                                                             \
+	X(kOperatorIsNoneOf, "is none of")                                                                                                                                                           \
+	X(kOperatorHas, "has")                                                                                                                                                                       \
+	X(kOperatorHasNot, "has not")                                                                                                                                                                \
+	X(kOperatorHasAnyOf, "has any of")                                                                                                                                                           \
+	X(kOperatorHasNoneOf, "has none of")                                                                                                                                                         \
+	X(kOperatorBetween, "between")                                                                                                                                                               \
+	X(kOperatorNotBetween, "not between")                                                                                                                                                        \
+	X(kTimeRangeAnd, "and")                                                                                                                                                                      \
+	X(kSelectValues, "Select...")                                                                                                                                                                \
+	X(kValueTown, "Town")                                                                                                                                                                        \
+	X(kValueCastle, "Castle")                                                                                                                                                                    \
+	X(kValuePlayerHome, "Player home")                                                                                                                                                           \
+	X(kValueDungeon, "Dungeon")                                                                                                                                                                  \
+	X(kValueRain, "Rain")                                                                                                                                                                        \
+	X(kValueSnow, "Snow")                                                                                                                                                                        \
+	X(kValueWarmRegion, "Warm region")                                                                                                                                                           \
+	X(kValueCoolRegion, "Cool region")                                                                                                                                                           \
+	X(kValueFreezingRegion, "Freezing region")                                                                                                                                                   \
+	X(kValueInWater, "In water")                                                                                                                                                                 \
+	X(kValueSwimming, "Swimming")                                                                                                                                                                \
+	X(kTipWarmRegion, "Southern forests such as the Rift and Falkreath.")                                                                                                                        \
+	X(kTipCoolRegion, "Plains and hills such as Whiterun and the Reach.\nA mod's land too, unless it often snows there.")                                                                        \
+	X(kTipFreezingRegion, "Snowy lands, high mountains, the northern coast and ice caves.")                                                                                                      \
+	X(kTipInWater, "Any water underfoot, however shallow.")                                                                                                                                      \
+	X(kTipSwimming, "Swimming only, not wading.")                                                                                                                                                \
+	X(kPhraseTown, "a town")                                                                                                                                                                     \
+	X(kPhraseCastle, "a castle")                                                                                                                                                                 \
+	X(kPhrasePlayerHome, "a player home")                                                                                                                                                        \
+	X(kPhraseDungeon, "a dungeon")                                                                                                                                                               \
+	X(kPhraseRain, "rain")                                                                                                                                                                       \
+	X(kPhraseSnow, "snow")                                                                                                                                                                       \
+	X(kPhraseWarmRegion, "a warm region")                                                                                                                                                        \
+	X(kPhraseCoolRegion, "a cool region")                                                                                                                                                        \
+	X(kPhraseFreezingRegion, "a freezing region")                                                                                                                                                \
+	X(kPhraseInWater, "in water")                                                                                                                                                                \
+	X(kPhraseSwimming, "swimming")                                                                                                                                                               \
+	X(kClauseInCombat, "in combat")                                                                                                                                                              \
+	X(kClauseNotInCombat, "not in combat")                                                                                                                                                       \
+	X(kClauseYouInCombat, "while you are in combat")                                                                                                                                             \
+	X(kClauseYouNotInCombat, "while you are not in combat")                                                                                                                                      \
+	X(kClauseSleeping, "sleeping")                                                                                                                                                               \
+	X(kClauseNotSleeping, "not sleeping")                                                                                                                                                        \
+	X(kClauseYouSleeping, "while you are sleeping")                                                                                                                                              \
+	X(kClauseYouNotSleeping, "while you are not sleeping")                                                                                                                                       \
+	X(kClauseWater, "{0}")                                                                                                                                                                       \
+	X(kClauseNotWater, "not {0}")                                                                                                                                                                \
+	X(kClauseYouWater, "while you are {0}")                                                                                                                                                      \
+	X(kClauseYouNotWater, "while you are not {0}")                                                                                                                                               \
+	X(kClauseIndoors, "indoors")                                                                                                                                                                 \
+	X(kClauseOutdoors, "outdoors")                                                                                                                                                               \
+	X(kClauseLocationType, "in {0}")                                                                                                                                                             \
+	X(kClauseNotLocationType, "not in {0}")                                                                                                                                                      \
+	X(kClausePlace, "at {0}")                                                                                                                                                                    \
+	X(kClauseNotPlace, "not at {0}")                                                                                                                                                             \
+	X(kClauseWeather, "in {0}")                                                                                                                                                                  \
+	X(kClauseNotWeather, "not in {0}")                                                                                                                                                           \
+	X(kClauseTime, "from {0} to {1}")                                                                                                                                                            \
+	X(kClauseNotTime, "not from {0} to {1}")                                                                                                                                                     \
+	X(kClauseAnyHour, "at any hour")                                                                                                                                                             \
+	X(kClauseNotAnyHour, "not at any hour")                                                                                                                                                      \
+	X(kClauseSpell, "while {0} is on")                                                                                                                                                           \
+	X(kClauseNotSpell, "not while {0} is on")                                                                                                                                                    \
+	X(kClauseYouSpell, "while {0} is on you")                                                                                                                                                    \
+	X(kClauseYouNotSpell, "not while {0} is on you")                                                                                                                                             \
+	X(kClauseWeaponDrawn, "with a weapon drawn")                                                                                                                                                 \
+	X(kClauseWeaponSheathed, "with weapons sheathed")                                                                                                                                            \
+	X(kClauseYouWeaponDrawn, "while your weapon is drawn")                                                                                                                                       \
+	X(kClauseYouWeaponSheathed, "while your weapons are sheathed")                                                                                                                               \
+	X(kAppliesOr, " or ")                                                                                                                                                                        \
+	X(kAppliesEnd, ".")                                                                                                                                                                          \
+	X(kNeverApplies, "Never applies.")                                                                                                                                                           \
+	X(kNothingSelected, "{0} (nothing selected)")                                                                                                                                                \
+	X(kTimeAm, "{0} AM")                                                                                                                                                                         \
+	X(kTimeAmMinutes, "{0}:{1} AM")                                                                                                                                                              \
+	X(kTimePm, "{0} PM")                                                                                                                                                                         \
+	X(kTimePmMinutes, "{0}:{1} PM")                                                                                                                                                              \
+	X(kForSituations, "For {0}")                                                                                                                                                                 \
+	X(kCopyName, "{0} - Copy")                                                                                                                                                                   \
+	X(kCopyNameNumbered, "{0} - Copy {1}")                                                                                                                                                       \
+	X(kNameEverySituation, "Enter a name for every situation.")                                                                                                                                  \
+	X(kTwoSituationsNamed, "Two situations are named \"{0}\".")                                                                                                                                  \
+	X(kRestoreLineRestored, "{0}: restored")                                                                                                                                                     \
+	X(kRestoreLineName, "{0}: name reset")                                                                                                                                                       \
+	X(kRestoreLineConditions, "{0}: conditions reset")                                                                                                                                           \
+	X(kRestoreLineBoth, "{0}: name and conditions reset")
 
 // Why a write to outfits.json or chests.json was refused or failed, shown in the window and
 // logged.
@@ -513,6 +648,7 @@
 	LIVERY_STRINGS_WARDROBE(X)   \
 	LIVERY_STRINGS_CHESTS(X)     \
 	LIVERY_STRINGS_SITUATIONS(X) \
+	LIVERY_STRINGS_CONDITIONS(X) \
 	LIVERY_STRINGS_FILES(X)      \
 	LIVERY_STRINGS_ITEMS(X)      \
 	LIVERY_STRINGS_CHARACTER(X)  \
@@ -596,6 +732,22 @@ namespace Strings
 				i = close;
 			}
 			return count;
+		}
+
+		// The number of values the text at `a_index` is given: those its English names, and for a
+		// time of day the hour of 24 too, which only a translation names ("{2}:{1}").
+		inline std::size_t ValuesGiven(std::size_t a_index)
+		{
+			constexpr std::size_t kTimeValues = 3;  // the hour of 12, the minutes, the hour of 24
+			switch (static_cast<Text>(a_index)) {
+			case Text::kTimeAm:
+			case Text::kTimeAmMinutes:
+			case Text::kTimePm:
+			case Text::kTimePmMinutes:
+				return kTimeValues;
+			default:
+				return ValueCount(kEntries[a_index].english).value_or(0);
+			}
 		}
 
 		inline void AppendUtf8(std::string& a_out, char32_t a_code)
@@ -761,7 +913,7 @@ namespace Strings
 				}
 				auto       text = Unescape(line.substr(start));
 				const auto values = ValueCount(text);
-				if (!values || *values > *ValueCount(kEntries[found->second].english)) {
+				if (!values || *values > ValuesGiven(found->second)) {
 					result.problems.push_back(std::format("{} has a brace or value its English text has not; the English is kept.", key));
 					continue;
 				}
@@ -853,7 +1005,10 @@ namespace Strings
 
 	// The text as Livery ships it, in English, whatever the chosen language: for the log, and
 	// for a page whose font lacks the language's letters. Safe from any thread.
-	const char* English(Text a_text);
+	inline const char* English(Text a_text)
+	{
+		return Detail::kEnglish[static_cast<std::size_t>(a_text)];
+	}
 
 	// A letter of the chosen language past ASCII (the first in the file's texts, in the
 	// table's order), for testing whether a font draws the language; 0 while every text is
