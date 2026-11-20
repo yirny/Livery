@@ -4,6 +4,7 @@
 #include "sarrai/Theme.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -37,4 +38,17 @@ namespace PieceIcons
 	// Contract: game thread, after Load; when the capture window lists pieces, never per frame
 	// (it tests the armor against every rule and looks up the game's translations).
 	Icon Resolve(const RE::TESObjectARMO& a_armor);
+
+	// The icon left of a spell's name in the Situations page's spell lists: the one SkyUI gives
+	// the spell, power, scroll, potion or ingredient in its menus (PieceIcons.cpp); no I4 rule
+	// is read for it.
+	struct MagicIcon
+	{
+		std::string                  key;    // a File's key; "" when no PNG has the icon
+		std::optional<std::uint32_t> color;  // the tint of the white icon, 0xRRGGBB; none where SkyUI sets none
+	};
+
+	// Contract: game thread, after Load; when the capture window lists spells, never per frame
+	// (it asks the game for the item's costliest effect).
+	MagicIcon ResolveMagic(const RE::MagicItem& a_item);
 }

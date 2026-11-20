@@ -55,6 +55,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -1037,12 +1038,11 @@ namespace CaptureWindow::Internal
 			return a_effectLines.empty() ? head : head + "\n" + a_effectLines;
 		}
 
-		// The effect lines the Add spell popup's lists have for a spell of a row: the same spell,
-		// or one it was merged with (the same name and effects); "" when neither list has it.
-		const std::string& EffectLinesOf(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		// The Add spell popup's entry for a spell of a row: the same spell, or one it was merged
+		// with (the same name and effects); null when no list has it.
+		const SituationRules::SpellChoice* ChoiceFor(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
 		{
-			static const std::string none;
-			const auto               same = [&a_spell](const SituationRules::SpellChoice& a_choice) {
+			const auto same = [&a_spell](const SituationRules::SpellChoice& a_choice) {
 				const auto& spell = a_choice.spell;
 				return SituationRules::SameForm(spell.ref, a_spell.ref) ||
 				       (!a_spell.effects.empty() && spell.effects == a_spell.effects && ExampleMod::CaseInsensitiveEqual(spell.ref.name, a_spell.ref.name));
@@ -1050,13 +1050,62 @@ namespace CaptureWindow::Internal
 			using Choices = std::span<const SituationRules::SpellChoice>;
 			for (const Choices list : { Choices(a_request.spellsWithPlayer), Choices(a_request.spells), a_request.allSpells }) {
 				if (const auto found = std::ranges::find_if(list, same); found != list.end()) {
-					return found->effectLines;
+					return &*found;
 				}
 			}
-			return none;
+			return nullptr;
 		}
 
-		// A Place or Spell row's forms, a line each with a × centred on `a_crossX`, one whose
+		// The effect lines of a row's spell (ChoiceFor); "" when no list has it.
+		const std::string& EffectLinesOf(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		{
+			static const std::string none;
+			const auto*              choice = ChoiceFor(a_request, a_spell);
+			return choice ? choice->effectLines : none;
+		}
+
+		// The icon before a spell's name in the Add spell popup's list.
+		Theme::RowIcon IconOf(const SituationRules::SpellChoice& a_choice)
+		{
+			return { .key = a_choice.icon, .rgb = a_choice.iconColor.value_or(0), .textColor = !a_choice.iconColor };
+		}
+
+		// The icon before a row's spell (ChoiceFor's); no key when no list has the spell or its
+		// plugin is not loaded.
+		// Contract: the window's thread only. A row's lines are drawn every frame, so the search of
+		// the lists is kept per FormID, which a spell's icon follows alone; what was kept is dropped
+		// when the window has read the actor's spells again, for a spell no list had before. It
+		// keeps the key's own text: a list's entries go with that read.
+		Theme::RowIcon RowSpellIcon(const CaptureWindow::Request& a_request, const SituationRules::Spell& a_spell)
+		{
+			struct Kept
+			{
+				std::string                  key;
+				std::optional<std::uint32_t> color;
+			};
+			static std::unordered_map<RE::FormID, Kept> icons;
+			static const void*                          readSpells = nullptr;
+			static std::size_t                          readCount = 0;
+			if (a_spell.formID == 0) {
+				return {};
+			}
+			const auto count = a_request.spells.size() + a_request.spellsWithPlayer.size();
+			if (readSpells != a_request.spells.data() || readCount != count) {
+				icons.clear();
+				readSpells = a_request.spells.data();
+				readCount = count;
+			}
+			auto found = icons.find(a_spell.formID);
+			if (found == icons.end()) {
+				const auto* choice = ChoiceFor(a_request, a_spell);
+				found = icons.emplace(a_spell.formID, choice ? Kept{ choice->icon, choice->iconColor } : Kept{}).first;
+			}
+			const auto& kept = found->second;
+			return { .key = kept.key, .rgb = kept.color.value_or(0), .textColor = !kept.color };
+		}
+
+		// A Place or Spell row's forms, a line each with a × centred on `a_crossX`, a spell after its
+		// icon, one whose
 		// plugin is not loaded greyed and saying so on hover, a spell's effects on hover; then Add
 		// Location... or Add Spell.... Returns true when one was removed; sets `a_add` when the Add
 		// link was pressed.
@@ -1072,7 +1121,11 @@ namespace CaptureWindow::Internal
 				if (!loaded) {
 					ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 				}
-				ImGui::TextUnformatted(SituationRules::FormName(form).c_str());
+				if (place) {
+					ImGui::TextUnformatted(SituationRules::FormName(form).c_str());
+				} else {
+					Theme::IconText(SituationRules::FormName(form).c_str(), RowSpellIcon(a_request, form));
+				}
 				if (!loaded) {
 					ImGui::PopStyleColor();
 					if (ImGui::IsItemHovered()) {
@@ -2050,9 +2103,9 @@ namespace CaptureWindow::Internal
 			return changed;
 		}
 
-		// The Add spell popup's list: the spells SituationForm::spellShown names, a click picking
-		// one, its plugin and FormID on hover to tell the same names apart; past the most it lists,
-		// a line saying how many more.
+		// The Add spell popup's list: the spells SituationForm::spellShown names, each after its
+		// icon, a click picking one, its plugin and FormID on hover to tell the same names apart;
+		// past the most it lists, a line saying how many more.
 		void DrawSpellList(State& a_state)
 		{
 			constexpr std::size_t kMaxListed = 100;   // rows listed; more need a longer search
@@ -2080,7 +2133,8 @@ namespace CaptureWindow::Internal
 					const auto& spell = choice.spell;
 					const bool  picked = form.spellPick && SituationRules::SameForm(form.spellPick->ref, spell.ref);
 					ImGui::PushID(static_cast<int>(i));
-					if (Theme::SelectRow(spell.ref.name.c_str(), picked)) {
+					const auto icon = IconOf(choice);
+					if (Theme::SelectRow(spell.ref.name.c_str(), picked, &icon)) {
 						form.spellPick = spell;
 						QueueMenuSound(kFocusSound);
 					}

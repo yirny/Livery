@@ -122,11 +122,13 @@ namespace SituationRules
 
 	// A spell the Add spell popup offers: the spell, its visible effects resolved, and the lines
 	// its hover lists them in ("- Armor - Stone (ArmorFFSelf25)", the editor ID only when the
-	// game keeps one).
+	// game keeps one); and the icon before its name (PieceIcons::ResolveMagic).
 	struct SpellChoice
 	{
-		Spell       spell;
-		std::string effectLines;
+		Spell                        spell;
+		std::string                  effectLines;
+		std::string                  icon;       // PieceIcons' key; "" for none
+		std::optional<std::uint32_t> iconColor;  // the icon's tint, 0xRRGGBB; none for the text colour
 	};
 
 	namespace Detail

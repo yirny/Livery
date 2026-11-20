@@ -30,6 +30,7 @@
 #include "CaptureWindow.h"
 #include "OutfitPreview.h"
 #include "OutfitRows.h"
+#include "PieceIcons.h"
 #include "RegionClimate.h"
 #include "SituationRules.h"
 #include "SituationStore.h"
@@ -722,10 +723,13 @@ namespace
 		if (effects.empty()) {
 			return std::nullopt;
 		}
+		auto icon = PieceIcons::ResolveMagic(a_item);
 		return SituationRules::SpellChoice{ .spell = { .ref = { std::string{ file->GetFilename() }, a_item.GetLocalFormID(), name },
 												.formID = a_item.GetFormID(),
 												.effects = std::move(effects) },
-			.effectLines = EffectLines(a_item) };
+			.effectLines = EffectLines(a_item),
+			.icon = std::move(icon.key),
+			.iconColor = icon.color };
 	}
 
 	void AddChoice(const RE::MagicItem* a_item, std::vector<SituationRules::SpellChoice>& a_choices)
