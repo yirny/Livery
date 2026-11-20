@@ -26,8 +26,8 @@ bar is hidden until the wheel turns over the list, the mouse is over the bar or 
 dragged; it fades in over 0.2 s, stays while the mouse is in the list, and fades out over
 0.8 s once the mouse has been out of the list for 0.1 s. Fonts at 1080p: Modern's body 20px
 and headings 26px (Jost Book and Medium), Vanilla's 24px and 30px (Oswald), Nordic's 20px and
-26px (Sovngarde). In Vanilla the letters Oswald lacks, drawn from Windows' fonts, are 22/24 of
-those sizes. The palette `[UI] Palette` names picks the skin and its colours
+26px (Sovngarde). The letters a skin's font lacks, drawn from Windows' fonts, are 22/24 of
+those sizes in Modern and 20/24 in Vanilla. The palette `[UI] Palette` names picks the skin and its colours
 (`Theme::Palette`, read from `Data/SKSE/Plugins/Livery/palettes/*.ini` by sarrai-common's `Palettes`); below,
 "the accent", "the selected colour" and "the hover colour" are that palette's. Field labels, their help
 marks, column labels and list headings take the label font: the small font (0.85 of the body),
