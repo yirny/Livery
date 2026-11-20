@@ -297,7 +297,7 @@ namespace SituationRules
 		std::optional<Strings::Text> addTip;      // its row's tooltip in Add Condition...; none where the label says it all
 	};
 
-	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them by label.
+	// Every kind at the index of its Kind (InfoOf); Add Condition... lists them in its own order.
 	inline constexpr std::array<KindInfo, 7> kKinds{ {
 		{ .kind = Kind::kState,
 			.key = "state",

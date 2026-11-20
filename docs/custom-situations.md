@@ -342,7 +342,7 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   this location.` / `Remove this spell.`; one whose plugin is not loaded greyed, saying so on
   hover), then `Add Location...` or `Add Spell...` at the list's left. In Vanilla and Nordic a
   row's dropdowns have the palette's stripe colour behind them, the frame padding at both ends (`FieldStyle::filled`). Then `Add Condition...`, a dropdown with the Add links' plus mark before its text (`FieldIcon::kAdd`), of the
-  kinds by label in the chosen language (`KindsByLabel`, ASCII case ignored), as wide as its widest kind, each kind but Indoors / Outdoors with a one-line tooltip of what it covers (`KindInfo::addTip`), closed by the choice, which adds a row with nothing selected
+  kinds in a fixed order, the same in every language (State, Location type, Specific Location, Indoors / Outdoors, Weather, Time of day, Active Effects), as wide as its widest kind, each kind but Indoors / Outdoors with a one-line tooltip of what it covers (`KindInfo::addTip`), closed by the choice, which adds a row with nothing selected
   (a Place or Spell row opens its Add popup at once; an Indoors / Outdoors row starts as Indoors).
 - `Add Location...` opens the `Add location` popup, its choices read as the window opens
   (`Situations::PlacesAround`): `This Location (<name>)`, the actor's current location; a

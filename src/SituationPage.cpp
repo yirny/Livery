@@ -1460,32 +1460,16 @@ namespace CaptureWindow::Internal
 			return changed ? ConditionEdit::kChanged : ConditionEdit::kNone;
 		}
 
-		// The kinds by label in the chosen language, ASCII case ignored, as Add Condition... lists
-		// them.
-		// Contract: sorted at the first call and kept; the window opens only after Strings::Load, and
-		// the language is the same for the whole game.
-		const std::array<const SituationRules::KindInfo*, SituationRules::kKinds.size()>& KindsByLabel()
-		{
-			static const auto sorted = [] {
-				std::array<const SituationRules::KindInfo*, SituationRules::kKinds.size()> kinds{};
-				for (std::size_t i = 0; i < kinds.size(); ++i) {
-					kinds[i] = &SituationRules::kKinds[i];
-				}
-				const auto lower = [](char a_char) { return a_char >= 'A' && a_char <= 'Z' ? static_cast<char>(a_char - 'A' + 'a') : a_char; };
-				std::ranges::sort(kinds, [&lower](const SituationRules::KindInfo* a_left, const SituationRules::KindInfo* a_right) {
-					return std::ranges::lexicographical_compare(std::string_view(Strings::Get(a_left->label)), std::string_view(Strings::Get(a_right->label)), {},
-						lower, lower);
-				});
-				return kinds;
-			}();
-			return sorted;
-		}
-
-		// Add Condition...: a dropdown of the kinds by label, closed by a choice; returns the one
-		// chosen. As wide as its widest kind needs: the list is as wide as the field, and a
-		// language may word a kind longer than the field's own label.
+		// Add Condition...: a dropdown of the kinds in a fixed order, the same in every language, closed
+		// by a choice; returns the one chosen. As wide as its widest kind needs: the list is as wide
+		// as the field, and a language may word a kind longer than the field's own label.
 		std::optional<SituationRules::Kind> DrawAddCondition()
 		{
+			using Kind = SituationRules::Kind;
+			// The location kinds next to each other.
+			constexpr std::array<Kind, SituationRules::kKinds.size()> kOrder{ Kind::kState, Kind::kLocationType, Kind::kPlace, Kind::kIndoors, Kind::kWeather,
+				Kind::kTimeOfDay, Kind::kSpell };
+
 			const char*             label = Strings::Get(Text::kAddCondition);
 			const Theme::FieldStyle style{ .icon = Theme::FieldIcon::kAdd, .previewIsHint = true };
 			float                   width = Theme::DropdownWidth(label, style);
@@ -1496,8 +1480,9 @@ namespace CaptureWindow::Internal
 			const bool                          open = Theme::BeginCombo("##addCondition", ImGuiComboFlags_HeightLargest, style);
 			std::optional<SituationRules::Kind> added;
 			if (open) {
-				for (const auto* info : KindsByLabel()) {
-					bool chosen = false;
+				for (const Kind kind : kOrder) {
+					const auto* info = &SituationRules::InfoOf(kind);
+					bool        chosen = false;
 					if (Theme::DropdownRow(Strings::Get(info->label), &chosen, false)) {
 						added = info->kind;
 						ImGui::CloseCurrentPopup();
