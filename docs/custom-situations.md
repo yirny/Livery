@@ -323,8 +323,8 @@ Built in 2a to 2c (`src/SituationPage.cpp`, Condition editor); 2d adds the order
   time is`, `The location is`. An Indoors / Outdoors row ends there with one dropdown of
   `Indoors` and `Outdoors` (the row's `not`), no operator. The others have the operator dropdown, as wide as its widest wording so ticking more values
   never widens it: `is` / `is not` with up to one value or form selected, `is any of` / `is none
-  of` with more (as Linear and Airtable word it), Active Effects `has` / `has not`, `has any of` /
-  `has none of`, `between` / `not between` for Time of day; then the values. State's, Location
+  of` with more (as Linear and Airtable word it), Active Effects `is affected by` / `is not
+  affected by`, `is affected by any of` / `is not affected by any of`, `between` / `not between` for Time of day; then the values. State's, Location
   type's and Weather's are a multi-choice dropdown (the Filter field's rows, staying open for
   several ticks; a value with a tip, `Value::tip`, says it while hovered: Freezing region's
   `Snowy lands, high mountains, the northern coast and ice caves.`) whose preview lists the
