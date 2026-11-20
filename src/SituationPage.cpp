@@ -441,7 +441,8 @@ namespace CaptureWindow::Internal
 					.foldable = foldable,
 					.selected = form.selected == index && form.viewedOutfit == 0,  // an outfit's details show in its place
 					.dim = !shows,
-					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar });  // the Default is no situation: no star
+					.icon = a_entry == 0 ? Theme::HeadingIcon::kNone : Theme::HeadingIcon::kStar,  // the Default is no situation: no star
+					.nameTip = a_state.request.situations[a_entry].conditions.c_str() });
 			const float bottom = top + Theme::SituationHeadingHeight();
 			if (form.scrollToSelected && form.selected == index) {
 				ImGui::SetScrollHereY(0.0f);
