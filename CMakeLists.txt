@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 
 project(
     livery
-    VERSION 1.1.1
+    VERSION 1.2.0
     DESCRIPTION "Livery - Outfit Manager"
     LANGUAGES CXX)
 
