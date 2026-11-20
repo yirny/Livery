@@ -250,7 +250,6 @@
 	X(kDefaultWornWhere, "Worn where no {0}situation applies,")                                                                                                                                                      \
 	X(kDefaultWornInCombat, "and in combat.")                                                                                                                                                                        \
 	X(kAlwaysOverrides, "Always overrides {0}.")                                                                                                                                                                     \
-	X(kHeldByNone, "None")                                                                                                                                                                                           \
 	X(kOpenInWardrobe, "Open in Wardrobe")                                                                                                                                                                           \
 	X(kRestorePresets, "Restore Presets")                                                                                                                                                                            \
 	X(kRestorePresetsHelp, "Brings the preset situations back as installed: a removed one returns, empty, and a renamed or edited one gets its name and conditions back.\nTheir order and nobody's outfits change.") \

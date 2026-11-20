@@ -266,7 +266,8 @@ outfit as the outfit list's rows do (§4: as from the outfit list, so the right 
 click on it does nothing. Then `SITUATIONS (#{Name})`, its label starting with the star of the
 Situations tab, a square of the label's line height in its grey, and 6px (`Theme::LabelText`),
 with the rows the page's edits
-give it (`Default, Town`, or `None`), placed as the Applies text is, then its pieces, with the Dress page's icons, under the
+give it (`Default, Town`), placed as the Applies text is; neither the label nor the text while
+no row holds the outfit. Then its pieces, with the Dress page's icons, under the
 `Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
