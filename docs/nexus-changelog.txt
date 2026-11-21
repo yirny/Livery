@@ -3,6 +3,7 @@ Added custom situations. Create your own with conditions for weather, time of da
 Situations can now be edited in their own window, duplicated, and reordered, including presets. Those lower in the list take priority.
 The Situation List now shows which situations apply and their conditions in tooltips.
 The Situations page, its conditions, and dressing messages are now translated too.
+Cold now follows Survival Mode's freezing regions.
 Fixed the window size when the game is upscaled.
 Windows fallback fonts now draw smaller text to match.
 A few minor fixes.
