@@ -3,6 +3,9 @@
 [font=Roboto]Manage what you and your NPCs wear, save their current equipment as outfits, and switch outfits automatically to suit the situation.
 Aim at an NPC and press [b][color=#EAD08F]Shift + V[/color][/b]. Aim anywhere else to open Livery on yourself.[/font]
 
+[font=Roboto][b][color=#a7c17b]NEW in 1.2.0: [/color][/b]Custom Situations are here!
+Dress for crafting, for your favorite home, or for a drunken night at the tavern. Create your own situations, just the way you like them. See the Custom Situations section below for details.[/font]
+
 [center][youtube]epOoD5Fjf04[/youtube][/center]
 
 [center][img]https://raw.githubusercontent.com/yirny/Livery/main/docs/assets/nexus/h2_features.png[/img][/center]
@@ -20,7 +23,8 @@ Aim at an NPC and press [b][color=#EAD08F]Shift + V[/color][/b]. Aim anywhere el
 
 [b][size=4][color=#a7c17b]◆ Situational Outfits ◆[/color][/size][/b]
 
-✧ Assign outfits for Town, Castle, Home, Sleep or Cold (snow or the cold north).
+✧ Assign outfits for situations like Town, Castle, Home, Sleep or Cold.
+✧ Create your own situations with custom conditions [color=#9f9f9f](off by default)[/color]. See Custom Situations below.
 ✧ Livery switches them automatically, with assignments saved per character.
 ✧ Assign several outfits to a situation and Livery picks one at random whenever it becomes active.
 
@@ -147,6 +151,53 @@ Set a button to open Livery on Livery's settings page in SKSE Menu Framework, or
 In the window, the D-pad moves between items, A presses one, B goes back, and the right stick moves the cursor (A then clicks, and drags). The arrow keys, Space and Esc do the same on a keyboard. Typing a name still needs a keyboard.[/font]
 
 
+[center][img]https://raw.githubusercontent.com/yirny/Livery/main/docs/assets/nexus/h2_customsituation.png[/img][/center]
+[font=Roboto]Create your own situations with the in-game editor. Set conditions for when and where an outfit should be worn.[/font]
+
+[b][size=4][color=#a7c17b]◆ Getting Started ◆[/color][/size][/b]
+
+First, turn on [b][color=#EAD08F]Enable custom situations[/color][/b]  in the settings.
+Open the Situations tab, click [b][color=#EAD08F]New Situation...[/color][/b]  and give it a name.
+Add conditions. All conditions must be met, but multiple values within a condition work as alternatives.
+Done! Drag an outfit onto your new situation and see it in action.
+
+- Use the [b][color=#EAD08F]Edit[/color][/b]  button to change a situation anytime.
+- Situations lower in the list take priority.
+
+[b][size=4][color=#a7c17b]◆ Examples ◆[/color][/size][/b]
+
+[b][size=3][color=#a7c17b]Rainy Days[/color][/size][/b]
+[b]Weather[/b]: The weather 《is》《Rain》
+[i]- Love the rain? Dress for it![/i]
+
+[b][size=3][color=#a7c17b]Crafting[/color][/size][/b]
+[b]Crafting[/b]: 《NPC》《is doing》《Smithing》
+[i]- Dress like a true craftsman.[/i]
+- Enchanted crafting gear will work. See [b]Does Livery keep my enchantments and tempering?[/b] in the FAQ for details.
+
+[b][size=3][color=#a7c17b]Your Favorite Place[/color][/size][/b]
+[b]Specific Location[/b]: The location 《is》《YourFavoriteLocation》
+[i]- A special outfit for a special place.[/i]
+- Choose This Cell, This Location, or Parent Location to define where the situation applies.
+
+[b][size=3][color=#a7c17b]Bath Time[/color][/size][/b]
+[b]Location type[/b]: The location type 《is any of》《Inn, Player home》
+AND [b]State[/b]: 《NPC》《is any of》《Wading, Swimming》
+[i]- Time to slip into something more comfortable.[/i]
+- All conditions must be met. Within each condition, any one of its values is enough.
+
+[b][size=3][color=#a7c17b]Magic Wardrobe[/color][/size][/b]
+[b]Active Effects[/b]: 《Player》《is affected by》《Stoneflesh》
+[i]- Cast a spell to give your followers a wardrobe change![/i]
+- The list shows spells the character knows and effects currently on them. Tick Show all spells to search everything, mods included.
+- Choose Player instead of the NPC's name to check your own state.
+
+[b][size=3][color=#a7c17b]One Too Many[/color][/size][/b]
+[b]Active Effects[/b]: 《NPC》《is affected by any of》《Ale, Nord Mead, Wine...》
+AND [b]Location type[/b]: The location type 《is not》《Dungeon》
+[i]- Someone's had a little too much...[/i]
+- Active Effects can include potions, drinks, food, and more-not just spells.
+
 [center][img]https://raw.githubusercontent.com/yirny/Livery/main/docs/assets/nexus/h2_requirements.png[/img][/center]
 [list]
 [*][font=Roboto]Skyrim SE or AE. Built for SE 1.5.97 and AE 1.6.x and 1.7.x.
@@ -223,7 +274,7 @@ Items are stored by plugin name and FormID, so outfits survive a load order chan
 Accented letters type as usual. Japanese, Chinese or Korean go in by paste (Ctrl + V): an IME does not open in the window yet.
 
 [b][color=#a7c17b]Is Livery available in other languages?[/color][/b]
-English and Japanese so far; see Configure Livery to choose one. The Situations page and the dressing messages are still English for now.
+English and Japanese so far; see Configure Livery to choose one.
 To translate Livery, copy [font=Courier New]Data\Interface\Translations\Livery_ENGLISH.txt[/font] as [font=Courier New]Livery_<LANGUAGE>.txt[/font] and translate the text after each tab; keep {0}, {1}... and \n. Translations are welcome: upload yours as a translation file here.
 
 [b][color=#a7c17b]The hotkey only shows "Livery: the window is not available."[/color][/b]
@@ -243,7 +294,6 @@ Please send it with your game version.
 [b][size=4][color=#a7c17b]◆ In progress ◆[/color][/size][/b]
 
 [list]
-[*][font=Roboto][b]Custom situations[/b]: add your own, and edit their conditions.[/font][/*]
 [*][font=Roboto][b]Livery API[/b], so other mods can use its dressing and outfits.[/font][/*]
 [/list]
 

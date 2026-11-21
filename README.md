@@ -1,6 +1,6 @@
 # Livery - Outfit Manager
 
-An SKSE plugin for Skyrim Special Edition / Anniversary Edition that manages what you and your NPCs wear. Save what a character wears as an outfit, dress anyone in a saved outfit, and let Livery switch outfits to suit the situation. Dress as many followers as you like; each keeps their own outfits. No ESP and no Papyrus scripts; see [Uninstall](#uninstall) before you remove it.
+An SKSE plugin for Skyrim Special Edition / Anniversary Edition that manages what you and your NPCs wear. Save what a character wears as an outfit, dress anyone in a saved outfit, and let Livery switch outfits to suit the situation: the preset ones, or situations you define with your own conditions. Dress as many followers as you like; each keeps their own outfits. No ESP and no Papyrus scripts; see [Uninstall](#uninstall) before you remove it.
 
 Building from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
@@ -80,7 +80,28 @@ Drag an outfit back to the list to clear it. Situational outfits are saved per c
 - **Sleep**: going to bed, in it or getting up.
 - **Cold**: in snow, or anywhere in a freezing region: snowy lands, high mountains, the northern coast and ice caves.
 
-The **Default** outfit is worn where no situation applies, and in every fight. A castle or home without an outfit of its own uses the Town one. With **Random Outfit** on, a situation picks one of its outfits each time it begins; click the die beside the situation worn now to switch to another of its outfits at once. You can rename or remove a situation on the same page; **Restore Presets** brings them back.
+The **Default** outfit is worn where no situation applies, and in every fight. A castle or home without an outfit of its own uses the Town one. With **Random Outfit** on, a situation picks one of its outfits each time it begins; click the die beside the situation worn now to switch to another of its outfits at once. **Edit** on a situation's heading renames or removes it; **Restore Presets** brings the presets back as installed.
+
+### Make your own situations
+
+Turn on **Enable custom situations** in the settings first. Situations you made stay in use while it is off.
+
+1. On the **Situations** tab, press **New Situation...** and name it.
+2. Press **Edit** on its heading and add conditions with **Add Condition...**. Every condition must hold; within one condition, any of its values is enough.
+3. Drag an outfit onto it.
+
+A condition reads the NPC, or you when you pick **Player** instead of their name. The kinds:
+
+- **State**: in combat, weapon drawn, wading, swimming or sleeping.
+- **Location type**: a town, castle, inn, player home or dungeon.
+- **Indoors / Outdoors**.
+- **Specific Location**: locations you choose, such as Whiterun or Bleak Falls Barrow. **This Cell**, **This Location** and **Parent Location** add where you stand.
+- **Weather**: rain, snow, or the climate of the region (warm, cool or freezing), read around you.
+- **Time of day**: a range of game time, such as 8 PM to 6 AM.
+- **Active Effects**: a spell, power, shout, potion, food or other effect on the character. Tick **Show all spells** to search everything, mods included.
+- **Crafting**: using a crafting station, mining or chopping wood.
+
+Situations lower in the list take priority; drag one by its heading to move it. A situation is skipped in combat unless **Allow during combat** is ticked. The presets' conditions can be edited the same way, and **Edit** also duplicates a situation.
 
 ### Use item chests
 
@@ -118,6 +139,7 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, created with defaults on first 
 | `General`    | `NpcReaction`          | `1`              | `1` has the NPC turn to you and say a greeting when the window opens with Live Preview on.                                                                                                                                       |
 | `General`    | `UnusedSlots`          | `ExceptHeadgear` | What NPCs in a Livery outfit may equip in slots the outfit doesn't use: `All`, `ExceptHeadgear` (no helmets, hoods or circlets) or `OutfitOnly`; in game **Gear in unused slots**. Their original outfit never goes back on. |
 | `UI`         | `Palette`              | By UI mod        | Look of the window: a file in `Livery\palettes\`, named without `.ini` (see [Palettes](#palettes)).                                                                                                                              |
+| `UI`         | `MenuSounds`           | `1`              | `1` plays the game's menu sounds in the window; in game on the **Appearance** tab.                                                                                                                                               |
 | `Hotkey`     | `Key`                  | `47`             | The hotkey as a DirectInput scan code (`47` = V). In game, click the hotkey button and press a key.                                                                                                                              |
 | `Hotkey`     | `Modifier`             | `42`             | Key to hold together with `Key`: `0` none, `42` Shift, `29` Ctrl, `56` Alt (left or right).                                                                                                                                      |
 | `Hotkey`     | `Gamepad`              | `0`              | A controller button that opens Livery as the hotkey does: an XInput code (`4096` A, `8192` B, `16384` X, `32768` Y), or `0` for none. In game, set it on the settings page, which shows it while a controller is enabled.        |
@@ -128,6 +150,7 @@ Settings live in `Data\SKSE\Plugins\Livery.ini`, created with defaults on first 
 | `Window`     | `ShowPlayerWornPieces` | `0`              | `1` lists the armor you wear there too; `0` leaves it out unless you carry another copy; in game the tick **Exclude equipped items** is its opposite.                                                                            |
 | `Window`     | `ShowSlotColumn`       | `0`              | `1` adds a Slot column to the window's item list: each item's body slots by number.                                                                                                                                              |
 | `Window`     | `ItemChests`           | `0`              | `1` adds the Chests tab and **Add from Chest...** to the window (see [Use item chests](#use-item-chests)); in game the tick **Enable chests**.                                                                                   |
+| `Window`     | `CustomSituations`     | `0`              | `1` lets you create situations and edit the presets' conditions (see [Make your own situations](#make-your-own-situations)); in game the tick **Enable custom situations**.                                                     |
 | `Window`     | `OutfitSort`           | `Name`           | How the outfit lists are sorted: `Icon` or `Name`. Livery saves the column label you last clicked.                                                                                                                               |
 | `Window`     | `OutfitSortDescending` | `0`              | `1` reverses that order.                                                                                                                                                                                                         |
 | `Window`     | `ItemSort`             | `Name`           | How the item lists are sorted: `Name`, `Type` or `Slot`, saved the same way. Without `ShowSlotColumn`, and in an outfit's details, `Slot` sorts by name.                                                                         |
@@ -146,7 +169,7 @@ Each `.ini` in `Data\SKSE\Plugins\Livery\palettes\` sets the window's skin (`Mod
 All in `Data\SKSE\Plugins\Livery\`, shared by every save and character. Back them up with your saves.
 
 - `outfits.json`: the Wardrobe. Items are stored by plugin name and FormID, so outfits survive a load order change.
-- `situations.json`: situation names and removed situations; written only once a situation differs from the installed ones.
+- `situations.json`: your situations, with the presets' names, conditions, order and removals; written only once something differs from the installed ones.
 - `chests.json`: your item chests.
 
 A file that cannot be read is never overwritten; `Livery.log` says why. The log is in `Documents\My Games\Skyrim Special Edition\SKSE\` (`Skyrim Special Edition GOG` for the GOG version).
@@ -163,7 +186,6 @@ Livery's window, HUD messages and settings page come in English and Japanese. Th
 
 - The settings page needs the language's letters in SKSE Menu Framework's font: turn on **Japanese** under **Fonts** in its own settings, or the page stays English and says so.
 - HUD messages use the game's own font, so they read in a game of that language (a Japanese game, or an English game with a Japanese font mod).
-- The Situations page and the messages about dressing are still English for now.
 
 To translate Livery, copy `Data\Interface\Translations\Livery_ENGLISH.txt` as `Livery_<LANGUAGE>.txt` (the game's language names: `FRENCH`, `GERMAN`, `RUSSIAN`, `CHINESE`...) and translate the text after each tab. Keep `{0}`, `{1}`... (their order may change) and `\n` for a line break; save as UTF-16 LE with a byte order mark, or UTF-8. A text the file lacks stays English, and `Livery.log` names any line it could not use.
 
