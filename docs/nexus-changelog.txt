@@ -1,0 +1,16 @@
+Version 1.2.0
+Added custom situations. Create your own with conditions for weather, time of day, place type or specific location, indoors or outdoors, what the character is doing or affected by, and more. Off by default; see Custom Situations.
+Situations can now be edited in their own window, duplicated, and reordered, including presets. Those lower in the list take priority.
+The Situation List now shows which situations apply and their conditions in tooltips.
+The Situations page, its conditions, and dressing messages are now translated too.
+Fixed the window size when the game is upscaled.
+Windows fallback fonts now draw smaller text to match.
+A few minor fixes.
+Version 1.1.1
+Fixed the cursor going missing when another menu closed as Livery opened.
+Fixed the hotkey and its modifier staying held after closing Livery.
+Version 1.1.0
+Added controller support. See Use a controller under Quick Start.
+Added translation support; Japanese is included in the main file. A Japanese game gets it automatically; see Configure Livery to choose a language yourself.
+Names now take accented characters. Japanese, Chinese and Korean text can be pasted with Ctrl + V.
+A few minor fixes.
