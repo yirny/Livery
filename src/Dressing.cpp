@@ -433,7 +433,7 @@ namespace Dressing
 		}
 	}
 
-	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing)
+	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing, bool keepOthers)
 	{
 		Result result;
 		auto*  equipManager = RE::ActorEquipManager::GetSingleton();
@@ -463,7 +463,9 @@ namespace Dressing
 		}
 		// With no piece on, nothing is assigned: they keep what they wear.
 		if (!result.worn.empty()) {
-			TakeOffOthers(actor, result.worn, *equipManager);
+			if (!keepOthers) {
+				TakeOffOthers(actor, result.worn, *equipManager);
+			}
 			for (const auto& key : before) {
 				const auto copy = Find(actor, key);
 				// By armor: a copy a better one replaced is no piece of theirs to put back on.
@@ -511,7 +513,7 @@ namespace Dressing
 		return count;
 	}
 
-	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces, const std::vector<InstanceKey>& lockedCopies)
+	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces, const std::vector<InstanceKey>& lockedCopies, bool keepOthers)
 	{
 		auto* equipManager = RE::ActorEquipManager::GetSingleton();
 		if (!equipManager || pieces.empty()) {
@@ -528,7 +530,7 @@ namespace Dressing
 			}
 		}
 		const auto mode = Settings::UnusedSlotsMode();
-		const auto extra = [&pieces, &lockedCopies, worn, outfit, mode](const Copy& copy) {
+		const auto extra = [&pieces, &lockedCopies, worn, outfit, mode, keepOthers](const Copy& copy) {
 			if (!copy.extra->GetWorn() || !IsGear(*copy.armor)) {
 				return false;
 			}
@@ -538,9 +540,14 @@ namespace Dressing
 			if (IsLocked(*copy.extra) && !(key && Contains(lockedCopies, *key))) {
 				return false;
 			}
-			// An outfit item (any ExtraOutfitItem: their own outfit, or another mod's distributed
-			// one), which the trade menu hides, always comes off; other armor as MayStay says.
-			if (!copy.extra->HasType<RE::ExtraOutfitItem>() && MayStay(copy.armor->GetSlotMask().underlying(), worn, outfit, mode)) {
+			const auto slots = copy.armor->GetSlotMask().underlying();
+			if (keepOthers) {
+				if ((slots & worn) == 0) {
+					return false;  // their own clothes beside the layer
+				}
+			} else if (!copy.extra->HasType<RE::ExtraOutfitItem>() && MayStay(slots, worn, outfit, mode)) {
+				// An outfit item (any ExtraOutfitItem: their own outfit, or another mod's distributed
+				// one), which the trade menu hides, always comes off; other armor as MayStay says.
 				return false;
 			}
 			return !key || !IsPiece(pieces, *key);

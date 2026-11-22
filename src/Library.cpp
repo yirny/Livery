@@ -4,16 +4,20 @@
 //   Constants - file location and version
 //   State     - the outfits as read, the next id, whether the file may be written
 //   File      - parse (all or nothing), serialise; the piece and file helpers are PieceFile's
-//   API       - Load / Outfits / Find / FindByName / LoadedPieces / Create / Update / Remove
+//   API       - Load / Outfits / Find / FindByName / LoadedPieces / HasLoadedPiece / Create / Update /
+//               Remove
 //
-// outfits.json, version 1:
-//   { "version": 1, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard",
-//     "icon": "skyui/icons_item_psychosteve/armor_body", "color": "bone-white",
+// outfits.json, version 1, or 2 while any outfit is a layer:
+//   { "version": 2, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard",
+//     "icon": "skyui/icons_item_psychosteve/armor_body", "color": "bone-white", "layer": true,
 //     "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
 //     "name": "Imperial Light Armor" } ] } ] }
+// "layer" is written only for a layer. A library with none is written as version 1, which a
+// Livery without layers reads and writes as before; one with a layer as version 2, which such
+// a Livery refuses to read or write, so it never drops the flag.
 // An outfit with no "icon" or "color", or one that is not a string, gets the default
 // (OutfitIcons), and so does a "color" that is not a key of OutfitIcons::kColors, so a file
-// edited by hand still reads. Other fields are ignored
+// edited by hand still reads; "layer" that is not true is off. Other fields are ignored
 // and gone at the next write.
 #include "PCH.h"
 
@@ -40,7 +44,8 @@ namespace
 
 	constexpr auto kLibraryFile = L"Data/SKSE/Plugins/Livery/outfits.json";
 	constexpr auto kLibraryName = "outfits.json";  // in the log and the messages
-	constexpr int  kLibraryVersion = 1;            // the "version" field this code reads and writes
+	constexpr int  kLibraryVersion = 1;            // the "version" field of a library with no layer
+	constexpr int  kLayerLibraryVersion = 2;       // the "version" field of one with a layer; both are read
 
 	// Why every write is refused once outfits.json could not be read.
 	std::string UnreadableMessage()
@@ -98,6 +103,8 @@ namespace
 			return "no name";
 		}
 		ReadIcon(a_json, a_outfit.icon);
+		const auto* layer = Field(a_json, "layer");
+		a_outfit.layer = layer && layer->is_boolean() && layer->get<bool>();
 		const auto* pieces = Field(a_json, "pieces");
 		if (!pieces || !pieces->is_array() || pieces->empty()) {
 			return "no pieces";
@@ -118,8 +125,9 @@ namespace
 			return "it is not a JSON object";
 		}
 		const auto* version = Field(a_json, "version");
-		if (!version || !version->is_number_integer() || version->get<std::int64_t>() != kLibraryVersion) {
-			return std::format("its version is not {}", kLibraryVersion);
+		const auto  number = version && version->is_number_integer() ? version->get<std::int64_t>() : 0;
+		if (number != kLibraryVersion && number != kLayerLibraryVersion) {
+			return std::format("its version is not {} or {}", kLibraryVersion, kLayerLibraryVersion);
 		}
 		const auto* outfits = Field(a_json, "outfits");
 		if (!ReadId(Field(a_json, "nextId"), a_nextId) || !outfits || !outfits->is_array()) {
@@ -148,10 +156,15 @@ namespace
 			for (const auto& piece : outfit.pieces) {
 				pieces.push_back(PieceFile::ToJson(piece));
 			}
-			list.push_back({ { "id", outfit.id }, { "name", outfit.name }, { "icon", outfit.icon.key }, { "color", outfit.icon.color },
-				{ "pieces", std::move(pieces) } });
+			nlohmann::ordered_json entry{ { "id", outfit.id }, { "name", outfit.name }, { "icon", outfit.icon.key }, { "color", outfit.icon.color } };
+			if (outfit.layer) {
+				entry["layer"] = true;
+			}
+			entry["pieces"] = std::move(pieces);
+			list.push_back(std::move(entry));
 		}
-		return { { "version", kLibraryVersion }, { "nextId", a_nextId }, { "outfits", std::move(list) } };
+		const bool layers = std::ranges::any_of(a_outfits, &Library::Outfit::layer);
+		return { { "version", layers ? kLayerLibraryVersion : kLibraryVersion }, { "nextId", a_nextId }, { "outfits", std::move(list) } };
 	}
 
 	std::optional<std::string> WriteLibrary(const std::vector<Library::Outfit>& a_outfits, std::uint32_t a_nextId)
@@ -234,9 +247,14 @@ namespace Library
 		return PieceFile::LoadedArmor(a_outfit.pieces, a_unloaded);
 	}
 
+	bool HasLoadedPiece(const Outfit& a_outfit)
+	{
+		return std::ranges::any_of(a_outfit.pieces, [](const PieceRef& a_piece) { return PieceFile::ArmorOf(a_piece) != nullptr; });
+	}
+
 	// Contract: every refusal is checked before anything changes, so no outfit is ever
 	// left without pieces.
-	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon)
+	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon, bool a_layer)
 	{
 		if (!g_writable) {
 			return UnreadableMessage();
@@ -247,7 +265,7 @@ namespace Library
 		if (FindByName(a_name)) {
 			return Strings::Format(Strings::Text::kOutfitNameTaken, a_name);
 		}
-		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .icon = a_icon };
+		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .icon = a_icon, .layer = a_layer };
 		if (auto problem = OutfitPieces(a_armor, outfit.pieces)) {
 			return problem;
 		}
@@ -262,7 +280,8 @@ namespace Library
 	}
 
 	// Contract: as Create; the new pieces and the name are checked before anything changes.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon)
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon,
+		bool a_layer)
 	{
 		if (!g_writable) {
 			return UnreadableMessage();
@@ -285,6 +304,7 @@ namespace Library
 		Outfit updated = *found;
 		updated.name = std::string{ a_name };
 		updated.icon = a_icon;
+		updated.layer = a_layer;
 		// This load order cannot tell what a piece of a missing plugin was, so it stays.
 		std::erase_if(updated.pieces, [](const PieceRef& piece) { return PieceFile::ArmorOf(piece) != nullptr; });
 		updated.pieces.insert(updated.pieces.begin(), pieces.begin(), pieces.end());

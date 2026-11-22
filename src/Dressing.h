@@ -49,10 +49,12 @@ namespace Dressing
 	// tempered, else the one they wear, else plain), else a new plain copy when `addMissing`.
 	// A worn copy another mod locked stays. With `lock`, every piece gets PreventRemoval. Once
 	// a piece is on, worn armor outside the outfit comes off, except non-playable armor and
-	// pieces another mod locked. Every copy worn before is tagged first, so those that are off
-	// at the end, taken off here or by the engine for a slot a piece filled, are listed in
-	// `takenOff`, unless a better copy of the same armor took their place.
-	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing);
+	// pieces another mod locked; with `keepOthers` (a layer over their own clothes) it stays,
+	// but for what the engine takes off for a slot a piece filled. Every copy worn before is
+	// tagged first, so those that are off at the end, taken off here or by the engine for a
+	// slot a piece filled, are listed in `takenOff`, unless a better copy of the same armor
+	// took their place.
+	Result Dress(RE::Actor& actor, const std::vector<RE::TESObjectARMO*>& outfit, bool lock, bool addMissing, bool keepOthers);
 
 	// Puts on again, with PreventRemoval, the pieces they still carry but no longer wear
 	// (another mod took them off, which clears the lock), and locks again a worn piece
@@ -71,8 +73,11 @@ namespace Dressing
 	// pass also fills a slot the outfit leaves empty with armor given to them (a helmet the outfit
 	// has not, or one it leaves off on the row). Other armor only in the slots of pieces they no
 	// longer wear stays. Non-playable armor and a piece another mod locked stay, as in Dress.
-	// Nothing with no pieces (their own clothes). Returns how many came off.
-	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces, const std::vector<InstanceKey>& lockedCopies);
+	// With `keepOthers` (the pieces are a layer over their own clothes, Dress's `keepOthers`)
+	// only armor sharing a body slot with a piece they wear comes off, outfit items included:
+	// the clothes beside the layer are their own outfit's. Nothing with no pieces (their own
+	// clothes). Returns how many came off.
+	std::size_t TakeOffExtras(RE::Actor& actor, const std::vector<Piece>& pieces, const std::vector<InstanceKey>& lockedCopies, bool keepOthers);
 
 	// Whether they carry a copy of any of the pieces, worn or not.
 	bool CarriesAny(RE::Actor& actor, const std::vector<Piece>& pieces);

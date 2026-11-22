@@ -266,7 +266,7 @@ namespace CaptureWindow::Internal
 			}
 			auto&      row = form.entries[a_target].row;
 			const bool arrives = std::ranges::find(row.outfits, a_payload.outfit) == row.outfits.end();
-			OutfitRows::Place(row, a_payload.outfit, row.random ? a_index : 0);
+			OutfitRows::Place(row, a_payload.outfit, row.random ? a_index : 0, [&a_state](std::uint32_t a_outfit) { return IsLayerOutfit(a_state, a_outfit); });
 			if (moved && arrives) {
 				OutfitRows::SetExcluded(row, a_payload.outfit, std::move(carried));
 				OutfitRows::SetChance(row, a_payload.outfit, chance);
@@ -1834,7 +1834,7 @@ namespace CaptureWindow::Internal
 			const std::string randomLabel = Strings::Format(Text::kRandomOutfitFor, name);
 			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
-				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
+				OutfitRows::SetRandom(entry.row, random, [&a_state](std::uint32_t a_outfit) { return IsLayerOutfit(a_state, a_outfit); });  // off keeps the last picks on
 				ScheduleAutosave(a_state);
 				// An outfit the Default wears with random off drops its pieces, as a drop does.
 				if (isDefault && !random && entry.row.chosen != 0) {

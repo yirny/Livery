@@ -538,6 +538,12 @@ namespace CaptureWindow::Internal
 		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
+	bool IsLayerOutfit(const State& a_state, std::uint32_t a_id)
+	{
+		const int index = IndexOfOutfit(a_state, a_id);
+		return index >= 0 && OutfitAt(a_state, index).layer;
+	}
+
 	// The Dress page's list: its ticks, the pieces nobody carries that a Load listed
 	// (State::inventoryShown) under the heading naming where they came from, with the chest
 	// icon while a chest was loaded last.

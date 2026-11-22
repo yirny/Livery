@@ -477,6 +477,7 @@ namespace CaptureWindow::Internal
 	std::vector<std::size_t>             TickedPieces(const State& a_state);
 	const CaptureWindow::ExistingOutfit& OutfitAt(const State& a_state, int a_index);
 	int                                  IndexOfOutfit(const State& a_state, std::uint32_t a_id);
+	bool                                 IsLayerOutfit(const State& a_state, std::uint32_t a_id);  // OutfitRows' `a_isLayer`
 	bool                                 HasPiece(const CaptureWindow::ExistingOutfit& a_outfit, std::size_t a_piece);
 	void                                 QueuePreview(const State& a_state, std::vector<std::size_t> a_pieces);
 	void                                 PreviewOutfitOrTicks(const State& a_state, int a_outfit);

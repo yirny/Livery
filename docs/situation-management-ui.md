@@ -20,8 +20,11 @@ Per actor, per row:
 - `outfits`: library outfit ids, in the user's order. The order means nothing to what is
   worn; it is only how the page lists them.
 - `random`: off by default.
-- `chosen`: the id worn with random off, 0 for none. With random on, the last pick worn,
+- `chosen`: the base worn with random off, 0 for none. With random on, the last base picked,
   recorded by `Assignments` as the row goes on. It is always on `outfits` or 0.
+- `chosenLayer`: the layer worn with random off over the base, 0 for none; with random on,
+  the last layer picked (a draw of none leaves it). Always on `outfits` or 0. Which of the two
+  an outfit is, is read from the library each time (design.md §7 Layers).
 - The Default only: `pieces`, armor not in the wardrobe (what `Assign(pieces, 0)` gives
   today).
 - `excluded`: per outfit on `outfits`, the armor FormIDs it leaves off for this actor
@@ -37,22 +40,25 @@ Per actor, per row:
   situation keep it (the target's own value wins when it has the outfit already); an outfit
   that leaves `outfits` loses it. Kept in the co-save's `CHNC` record (design.md §5).
 
-What a row wears:
+What a row wears (the base and the layer apart; design.md §7 Layers):
 
-- Random off: `chosen`. The Default with `chosen` 0: its `pieces`.
+- Random off: `chosen` and `chosenLayer`. The Default with no base chosen: its `pieces`.
 - Random on: one of `outfits`, picked when the actor starts wearing the row (the resolved
   row changes, edge-triggered as the poll is) and kept until it changes again; the record
   holds the picked id (`wornOutfit`, since `chosen` cannot tell it). The pick is in
   proportion to the chances (`OutfitRows::Pick`): an outfit's chance over the sum of the
   list's, so 200 is picked twice as often as 100 and 0 never; repeats are possible. A row
   with an outfit above 0 always wears one: the chances are ratios, never a chance of
-  nothing. The Default with an empty list, or every outfit at 0: its `pieces`.
+  nothing. The bases are picked among the bases, the layers apart (a list whose layers are
+  all below 100 may wear none: design.md §7 Layers). The Default with no base on its list, or
+  every base at 0: its `pieces`.
 - A row *has an outfit* when it wears something by these rules (`OutfitRows::PicksAny`: a
   random row needs an outfit above 0); `Situations::Applicable` is walked as today, the
   first row that has one is worn, else the Default, else their own clothes. A pick worn
   stays on when its chance is set to 0 while other outfits of the row are above it; with
   every one at 0 the row is passed over at the next dressing.
-- A row *holds* an outfit when it is `chosen` (random off) or on `outfits` (random on).
+- A row *holds* an outfit when it is `chosen` or `chosenLayer` (random off) or on `outfits`
+  (random on).
   "Holds" is what the outfit list's Situation headings and star mark, and Remove's popup
   show.
 
@@ -63,26 +69,29 @@ Changes:
 
 - Giving a row an outfit (Apply, Apply to #{Name}, Create and Apply, a drop on the page; `OutfitRows::Give`, `Place`): random on, it goes to the front
   of `outfits` (a drop: the drop place), or moves there if it is on it already. Random off
-  the list keeps its length: an outfit on it becomes `chosen` where it is; one not on it
-  takes `chosen`'s place, and the replaced outfit leaves the list; with no `chosen` it goes
-  in at the front (a drop: the drop place). Either way it is `chosen`, with no question.
+  the list keeps its length: an outfit on it becomes the chosen one of its kind (`chosen` for
+  a base, `chosenLayer` for a layer) where it is; one not on it takes the place of the one of
+  its kind, and the replaced outfit leaves the list; with none of its kind it goes in at the
+  front (a drop: the drop place). Either way it is the one of its kind, with no question.
   Apply, Apply to #{Name} and Create and Apply then dress the actor; with random on and the row
   worn now, it is worn as the pick.
 - A library outfit made the Default's `chosen` with random off drops the Default's `pieces`.
-- Turning random off (`OutfitRows::SetRandom`) keeps `chosen` on: the last pick worn, or the
-  outfit chosen before random went on; with none, the first of the list.
+- Turning random off (`OutfitRows::SetRandom`) keeps `chosen` and `chosenLayer` on: the last
+  picks worn, or the outfits chosen before random went on; with none, the first base and the
+  first layer of the list.
 - Taking an outfit off a row (a drag off it on the page; `OutfitRows::Take`) takes it off
-  `outfits`; `chosen` becomes 0 if it was that.
+  `outfits`; `chosen` or `chosenLayer` becomes 0 if it was that.
 - The Dress page's Apply popup: `Apply Only (?)`. The ticks
   become the Default's `pieces`, `chosen` 0, random off; `outfits` stays, hidden. Its help:
   `Sets the selected items as #{Name}'s default outfit without adding them to the Wardrobe.`,
   then, while a situation row holds an outfit, `The new default outfit takes effect when no
   situational outfit applies.`
 - Remove (`Assignments::ForgetOutfit`): the outfit leaves every row's `outfits`; a `chosen`
-  that was it becomes 0, so an outfit hidden behind it is not worn. When this leaves the
-  Default wearing nothing (random off: `chosen` was it; random on: it was the only one on
-  the list), the outfit's pieces become the Default's `pieces`, read before
-  `Library::Remove`. Those wearing it are redressed as today (outfit-management-ui.md §5).
+  or `chosenLayer` that was it becomes 0, so an outfit hidden behind it is not worn. When this
+  leaves the Default wearing nothing (random off: `chosen` was it; random on: it was the only
+  one on the list) and it was no layer, the outfit's pieces become the Default's `pieces`,
+  read before `Library::Remove`. Those wearing it, as a layer too, are redressed as today
+  (outfit-management-ui.md §5).
 - Another save's rows still naming a removed outfit keep its id in the co-save, so restoring
   outfits.json brings it back. Until then the id counts as not on the row
   (`OutfitRows::WithoutGone`): the window never shows it or names it, Remove Situation's
@@ -92,10 +101,11 @@ Changes:
 - Update of an outfit: whoever wears it, for any row, wears the new pieces at their next
   redress; the captured actor at once by docs/outfit-management-ui.md §6.
 - A redress forced by a change (`Assignments::Change`, `Refresh`) keeps a random row's pick
-  while it is still on the list, else picks again.
+  while it is still on the list, else picks again; a layer row's draw of none is kept too.
 
 The co-save keeps the rows in the `ASGN` record (version 6, situations by key), the
-items left off in `EXCL` and the selection chances in `CHNC`; the layout is in design.md §5.
+items left off in `EXCL`, the selection chances in `CHNC` and `chosenLayer` in `LAYR`; the
+layout is in design.md §5.
 
 ## 2. Situation data
 

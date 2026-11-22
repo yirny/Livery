@@ -92,7 +92,8 @@ namespace CaptureWindow
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
 		std::size_t   unloadedPieces = 0;
-		std::uint32_t id = 0;  // the library's id, handed back in SaveRequest::outfit
+		std::uint32_t id = 0;         // the library's id, handed back in SaveRequest::outfit
+		bool          layer = false;  // worn over the outfit beneath (Library::Outfit::layer)
 		// Who has it among Livery's assignments in this save, one line each, for Remove's
 		// popup: "Lydia: Default, Town", the actor's FormID when not in memory.
 		std::vector<std::string> users;

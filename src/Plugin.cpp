@@ -119,7 +119,7 @@ namespace
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors, const OutfitIcons::Icon& icon)
 	{
-		if (auto error = Library::Create(name, armors, icon)) {
+		if (auto error = Library::Create(name, armors, icon, false)) {
 			return error;
 		}
 		Notify(Strings::Format(Strings::Text::kHudSaved, name, armors.size()));
@@ -139,7 +139,7 @@ namespace
 	// Contract: game thread; the user confirmed this outfit's update in the Save page's or
 	// the Wardrobe page's popup.
 	// Its pieces whose plugin is not loaded stay in it; the HUD message says how many, and its
-	// old name when it is renamed. Without `icon` it keeps its own.
+	// old name when it is renamed. Without `icon` it keeps its own; its layer flag stays.
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
 		const std::optional<OutfitIcons::Icon>& icon = std::nullopt)
@@ -151,7 +151,7 @@ namespace
 		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
 		Library::LoadedPieces(*outfit, &unloaded);
-		if (auto error = Library::Update(id, name, armors, icon.value_or(outfit->icon))) {
+		if (auto error = Library::Update(id, name, armors, icon.value_or(outfit->icon), outfit->layer)) {
 			return error;
 		}
 		using Strings::Text;
@@ -758,6 +758,7 @@ namespace
 				.name = stored->name,
 				.icon = stored->icon,
 				.id = stored->id,
+				.layer = stored->layer,
 				.users = UserLines(stored->id)
 			};
 			// LoadedPieces lists each form once, so the indices do not repeat.
@@ -997,9 +998,9 @@ namespace
 	{
 		std::uint32_t updated = 0;  // the outfit Update changed; 0 when a situation outfit they wear left the library
 		// Their rows changed already (Assignments::SetRows): dressed for anew
-		// (Assignments::Refresh), the row they wear wearing `pick` when it gained one.
-		bool          refresh = false;
-		std::uint32_t pick = 0;
+		// (Assignments::Refresh), the rows they wear wearing `picks` when they gained them.
+		bool               refresh = false;
+		Assignments::Picks picks;
 	};
 
 	// Actors other than the captured one taken out of a removed situation outfit, or of a
@@ -1020,10 +1021,11 @@ namespace
 		}
 	}
 
-	// Whether Livery has library outfit `id` on the actor now, for any row.
+	// Whether Livery has library outfit `id` on the actor now, for any row, as the base or the
+	// layer.
 	bool WearsOutfit(const std::optional<Assignments::Choices>& choices, std::uint32_t id)
 	{
-		return choices && choices->dressed && id != 0 && choices->wornOutfit == id;
+		return choices && choices->dressed && id != 0 && (choices->wornOutfit == id || choices->layer == id);
 	}
 
 	// Dresses them in library outfit `id` as it is now when they wear it, read from the
@@ -1044,7 +1046,7 @@ namespace
 	void RunRedress(RE::Actor& actor, const PendingRedress& redress)
 	{
 		if (redress.refresh) {
-			Assignments::Refresh(actor, {}, redress.pick);
+			Assignments::Refresh(actor, {}, redress.picks);
 		} else if (redress.updated != 0) {
 			RedressFor(actor, redress.updated);
 		} else {
@@ -1366,12 +1368,13 @@ namespace
 			// Read before Remove, which leaves `stored` stale. The armor forms stay valid.
 			const auto name = stored ? stored->name : std::string{};
 			const auto pieces = stored ? Library::LoadedPieces(*stored) : std::vector<RE::TESObjectARMO*>{};
+			const bool layer = stored && stored->layer;
 			const auto users = Assignments::UsesOf(outfit).size();
 			if (const auto error = Library::Remove(outfit)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}
-			const auto wearing = Assignments::ForgetOutfit(outfit, pieces);
+			const auto wearing = Assignments::ForgetOutfit(outfit, pieces, layer);
 			Notify(Strings::Format(users > 0 ? Strings::Text::kHudRemovedOutfitFrom : Strings::Text::kHudRemovedOutfit, name, users));
 			const auto                                target = handle.get();
 			std::optional<CaptureWindow::ActorPieces> redressed;
@@ -1501,12 +1504,13 @@ namespace
 			const auto                                shown = save.previewPieces ? PickPieces(armors, *save.previewPieces) : std::vector<RE::TESObjectARMO*>{};
 			std::optional<CaptureWindow::ActorPieces> redressed;
 			if (target && (!save.rows.empty() || save.reroll)) {
-				auto pick = save.rows.empty() ? std::optional<std::uint32_t>{ 0 } : Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces);
-				if (pick && save.reroll) {
-					pick = Assignments::PickAnother(actorID);  // after SetRows, from the rows as saved
+				auto picks = save.rows.empty() ? std::optional<Assignments::Picks>{ Assignments::Picks{} } :
+				                                 Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces);
+				if (picks && save.reroll) {
+					picks = Assignments::PickAnother(actorID);  // after SetRows, from the rows as saved
 				}
-				if (pick) {
-					redressed = RedressCaptured(*target, { .refresh = true, .pick = *pick }, armors, offered,
+				if (picks) {
+					redressed = RedressCaptured(*target, { .refresh = true, .picks = *picks }, armors, offered,
 						save.previewPieces ? &shown : nullptr);
 				}
 			}
