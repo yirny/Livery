@@ -14,9 +14,9 @@ there. Step 0 of §11 needs neither.
 - In: non-unique NPCs (bandits, guards) as well as unique ones; conditions Faction, Sex, Race;
   presets; the Groups tab; a group's outfit rows edited on the Situations page.
 - Not in the first version: items left off per row (`OutfitRows::Exclusion`) for a group's rows;
-  what a corpse's loot becomes; any limit on what enemies may wear; choosing another single NPC
-  as the Dress page's target; factions a mod adds, beyond what the picker reads from the
-  window's NPC; a faction whose hostility changes in play.
+  what a corpse's loot becomes; any limit on what enemies may wear; factions a mod adds, beyond
+  what the picker reads from the window's NPC; a faction whose hostility changes in play.
+- Choosing another NPC, or a group, as the window's target: docs/target-switching.md.
 
 ## 2. Names
 
@@ -99,8 +99,9 @@ polled.
   write.
 - Writers: the Groups tab's New popup (a name, no conditions, no outfit), the editor's save of
   the user's edits (name, conditions), a drag in the list (order), the Remove popup, Restore
-  Presets' popup, and the Situations page's save of the rows the user dragged outfits onto
-  while a group is its target. Nothing else writes the file.
+  Presets' popup, the Situations page's save of the rows the user dragged outfits onto while a
+  group is its target, and the Dress page's Apply and Create and Apply while a group is its
+  target (the group's Default; docs/target-switching.md §7). Nothing else writes the file.
 
 ## 5. Who fits
 
@@ -168,7 +169,7 @@ Livery's own `hostile` flag. While the hostile setting is off:
 Under Optional Features on the settings page, both off by default, read when the window opens
 as `ItemChests` is (labels and tooltips to settle before the build):
 
-- `[Window] NpcGroups`: adds the Groups tab and the Situations page's target choice, and lets
+- `[Window] NpcGroups`: adds the Groups tab and the groups in the target dropdown, and lets
   groups dress. Off: members are released (§6); `groups.json` is kept.
 - `[Window] HostileGroups`: §7. Greyed while the first is off.
 
@@ -196,11 +197,13 @@ as `ItemChests` is (labels and tooltips to settle before the build):
     the engine keeps no editor ID for a faction), and the factions the existing groups hold.
     No history is kept.
   - Races: the playable races (`TESRace` `kPlayable`), read at Open.
-- **Situations page target**: with `offersGroups`, the page's title is a dropdown of the
-  window's NPC and the groups not removed (same font and size as the title today). On a
-  group, the rows shown and saved are the group's (§4), through a handler of its own; there is
-  no Live Preview, no dice or reroll, no note on the Default's own items, and the texts that
-  name the NPC name the group. The Dress page has no target choice.
+- **Target**: with `offersGroups`, the target dropdown in the title of the Situations page and
+  of the Dress page lists the groups not removed under its actors
+  (docs/target-switching.md §3). On a group, the Situations page's rows shown and saved are
+  the group's (§4), through a handler of its own; there is no dice or reroll, no note on the
+  Default's own items, and the texts that name the NPC name the group. Live Preview shows a
+  group only on the actor in view, and the Dress page lists that actor's items
+  (docs/target-switching.md §6, §7).
 
 ## 10. Shipped factions and presets
 
@@ -270,7 +273,7 @@ Each step is a branch from `main`, built, checked and merged before the next.
    feature turned off.
 5. The shared editor parts and the picker (§9), behavior unchanged.
 6. The Groups tab, the Edit group popup, the pickers.
-7. The Situations page's target.
+7. A group as the window's target (docs/target-switching.md §10 step 5).
 8. Texts into `LIVERY_STRINGS` with their Japanese lines; docs/design.md, the README and the
    Nexus page; CLAUDE.md §2.1 gains the `groups.json` rules.
 
