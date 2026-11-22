@@ -993,7 +993,7 @@ namespace Situations
 	{
 		Applicable applicable;
 		const auto order = Order();
-		const auto wanted = [&a_rows](Situation a_situation) { return OutfitRows::HoldsAny(a_rows[OutfitRows::RowOf(a_situation)]); };
+		const auto wanted = [&a_rows](Situation a_situation) { return OutfitRows::PicksAny(a_rows[OutfitRows::RowOf(a_situation)]); };
 		if (std::ranges::none_of(order, wanted)) {
 			return applicable;  // nothing to read: no situation they could be dressed for
 		}

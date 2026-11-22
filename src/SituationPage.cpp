@@ -246,19 +246,22 @@ namespace CaptureWindow::Internal
 
 		// An outfit dropped on situation `a_target`, before what it shows at `a_index` (the
 		// front with random off, where only `chosen` shows): from the outfit list a copy, all its
-		// items worn; from a situation moved, off its row first (its `chosen` 0 if it was that)
-		// with the items it left off there, which it leaves off on the new row unless that has
-		// it already, its details following it; or within its own row reordered. An outfit made
-		// the Default's `chosen` drops its pieces, as Assignments does.
+		// items worn, with the default chance; from a situation moved, off its row first (its
+		// `chosen` 0 if it was that) with the items it left off there and its chance, which it
+		// keeps on the new row unless that has it already, its details following it; or within
+		// its own row reordered. An outfit made the Default's `chosen` drops its pieces, as
+		// Assignments does.
 		void DropOnSituation(State& a_state, std::size_t a_target, std::size_t a_index, const OutfitPayload& a_payload)
 		{
 			auto&                      form = a_state.situationForm;
 			const auto                 before = ViewedOutfitPieces(a_state);
 			const bool                 moved = a_payload.from >= 0 && static_cast<std::size_t>(a_payload.from) != a_target;
 			std::vector<std::uint32_t> carried;
+			auto                       chance = OutfitRows::kDefaultChance;
 			if (moved) {
 				auto& source = form.entries[static_cast<std::size_t>(a_payload.from)].row;
 				carried = OutfitRows::ExcludedOf(source, a_payload.outfit);
+				chance = OutfitRows::ChanceOf(source, a_payload.outfit);
 				OutfitRows::Take(source, a_payload.outfit);
 			}
 			auto&      row = form.entries[a_target].row;
@@ -266,6 +269,7 @@ namespace CaptureWindow::Internal
 			OutfitRows::Place(row, a_payload.outfit, row.random ? a_index : 0);
 			if (moved && arrives) {
 				OutfitRows::SetExcluded(row, a_payload.outfit, std::move(carried));
+				OutfitRows::SetChance(row, a_payload.outfit, chance);
 			}
 			if (moved && form.viewedOutfit == a_payload.outfit && form.viewedRow == a_payload.from) {
 				form.viewedRow = static_cast<int>(a_target);
@@ -1891,9 +1895,19 @@ namespace CaptureWindow::Internal
 			const auto edited = EditedRow(form);
 			auto*      row = edited >= 0 ? &form.entries[static_cast<std::size_t>(edited)].row : nullptr;
 			auto       excluded = row ? OutfitRows::ExcludedOf(*row, form.viewedOutfit) : std::vector<std::uint32_t>{};
-			if (DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, form.viewedOutfit), bottom - buttonRow, row ? &excluded : nullptr)) {
+			auto       chance = row ? OutfitRows::ChanceOf(*row, form.viewedOutfit) : OutfitRows::kDefaultChance;
+			const auto edits = DrawOutfitSummary(a_state, a_viewed, HeldRowsText(a_state, form.viewedOutfit), bottom - buttonRow,
+				row ? &excluded : nullptr, row && row->random ? &chance : nullptr);
+			if (edits.excluded) {
 				OutfitRows::SetExcluded(*row, form.viewedOutfit, std::move(excluded));
 				QueuePreview(a_state, ViewedOutfitPieces(a_state));
+				ScheduleAutosave(a_state);
+			}
+			// The slider moves the row's chance as it is dragged; the page saves once it is let go.
+			if (row && chance != OutfitRows::ChanceOf(*row, form.viewedOutfit)) {
+				OutfitRows::SetChance(*row, form.viewedOutfit, chance);
+			}
+			if (edits.chanceDone) {
 				ScheduleAutosave(a_state);
 			}
 			if (stacked) {

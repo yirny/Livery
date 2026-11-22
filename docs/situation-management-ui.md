@@ -3,8 +3,8 @@
 Written 2026-10-21 for the AI that implements it, from the user's draft and the decisions
 made on it; current spec only:
 
-- The rows: per-row outfit lists, the random flag, the chosen outfit (§1); the co-save
-  record that keeps them is in design.md §5.
+- The rows: per-row outfit lists, the random flag, the chosen outfit, the selection
+  chances (§1); the co-save records that keep them are in design.md §5.
 - `situations.json`: situation names, removed situations, the names in sentences (§2); its
   version 2 (the user's situations, conditions, the order) is in docs/custom-situations.md §6.
 - The Situations page (§3-§6).
@@ -30,17 +30,28 @@ Per actor, per row:
   page's Apply and Create and Apply give the outfit with all its items. An outfit that
   leaves `outfits` (taken off, or replaced as `chosen`) loses them. Kept in the co-save's
   `EXCL` record (design.md §5).
+- `chances`: per outfit on `outfits`, its selection chance, 0 to 200, 100 when not set
+  (`OutfitRows::Chance`; only those not 100 are stored). Set only by the Selection Chance
+  slider of an outfit's details opened from the row (§5), saved with the page's edits. A new
+  outfit on the row has 100; a reorder, random off and on again, and a drag to another
+  situation keep it (the target's own value wins when it has the outfit already); an outfit
+  that leaves `outfits` loses it. Kept in the co-save's `CHNC` record (design.md §5).
 
 What a row wears:
 
 - Random off: `chosen`. The Default with `chosen` 0: its `pieces`.
 - Random on: one of `outfits`, picked when the actor starts wearing the row (the resolved
   row changes, edge-triggered as the poll is) and kept until it changes again; the record
-  holds the picked id (`wornOutfit`, since `chosen` cannot tell it). Any outfit of the list
-  may be picked, repeats included. The Default with an empty list: its `pieces`.
-- A row *has an outfit* when it wears something by these rules; `Situations::Applicable`
-  is walked as today, the first row that has one is worn, else the Default, else their own
-  clothes.
+  holds the picked id (`wornOutfit`, since `chosen` cannot tell it). The pick is in
+  proportion to the chances (`OutfitRows::Pick`): an outfit's chance over the sum of the
+  list's, so 200 is picked twice as often as 100 and 0 never; repeats are possible. A row
+  with an outfit above 0 always wears one: the chances are ratios, never a chance of
+  nothing. The Default with an empty list, or every outfit at 0: its `pieces`.
+- A row *has an outfit* when it wears something by these rules (`OutfitRows::PicksAny`: a
+  random row needs an outfit above 0); `Situations::Applicable` is walked as today, the
+  first row that has one is worn, else the Default, else their own clothes. A pick worn
+  stays on when its chance is set to 0 while other outfits of the row are above it; with
+  every one at 0 the row is passed over at the next dressing.
 - A row *holds* an outfit when it is `chosen` (random off) or on `outfits` (random on).
   "Holds" is what the outfit list's Situation headings and star mark, and Remove's popup
   show.
@@ -83,8 +94,8 @@ Changes:
 - A redress forced by a change (`Assignments::Change`, `Refresh`) keeps a random row's pick
   while it is still on the list, else picks again.
 
-The co-save keeps the rows in the `ASGN` record (version 6, situations by key) and the
-items left off in `EXCL`; the layout is in design.md §5.
+The co-save keeps the rows in the `ASGN` record (version 6, situations by key), the
+items left off in `EXCL` and the selection chances in `CHNC`; the layout is in design.md §5.
 
 ## 2. Situation data
 
@@ -195,8 +206,8 @@ outfit for Town any more`.
   (as edited) for it and another is on the list: lit as the chevron while hovered, with `One of these
   outfits is picked at random each time this situation begins. Click to pick another now.` on
   hover. A click saves the page's edits
-  with it (Saving below), then puts on another outfit of the list, picked at random, never
-  the one worn; an outfit's details close, so the preview shows what they wear. Else a click
+  with it (Saving below), then puts on another outfit of the list, picked by the chances
+  (§1), never the one worn or one at 0; an outfit's details close, so the preview shows what they wear. Else a click
   there does nothing, the die stays grey, and hovering it shows the same first sentence, then
   why: `#{Name} is not wearing one of them now.` or `Add another to pick from.`
 - Under a heading, its outfits as rows of the outfit list (name, the form marks but no
@@ -226,7 +237,7 @@ Drag and drop (`ImGui::BeginDragDropSource` / `Target`):
 | --- | --- | --- |
 | an outfit list row (right), or the name row of an outfit's details (§5) | a heading, its rule, its `Items...` line | added at the front (§1) |
 | an outfit list row (right), or the name row of an outfit's details | between two outfit rows of a situation | added there |
-| a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target with the items it left off there, unless the target has it already; its details, when shown from the source, follow it |
+| a situation's outfit row | another situation, as above | moved: off the source row (its `chosen` 0 if it was that), added to the target with the items it left off there and its selection chance, unless the target has it already; its details, when shown from the source, follow it |
 | a situation's outfit row | its own situation | reordered |
 | a situation's outfit row, or `Items not in the Wardrobe` | the right pane | taken off that row (`chosen` 0 if it was that; the `pieces` dropped) |
 
@@ -267,7 +278,12 @@ click on it does nothing. Then `SITUATIONS (#{Name})`, its label starting with t
 Situations tab, a square of the label's line height in its grey, and 6px (`Theme::LabelText`),
 with the rows the page's edits
 give it (`Default, Town`), placed as the Applies text is; neither the label nor the text while
-no row holds the outfit. Then its pieces, with the Dress page's icons, under the
+no row holds the outfit. Then, clicked under a situation's heading with Random Outfit on and
+that row still holding the outfit, `Selection Chance (?)` (`Theme::LabelText`,
+`Theme::LabelHelpMark`; its help `How often this outfit is picked compared with the others on
+the list.` / `200 is picked twice as often as 100, and 0 is never picked.`, a blank line,
+`Default: 100`) over a slider the pane's width, 0 to 200 (§1 `chances`): it moves the row's
+chance as it is dragged, and the page's save waits for it to be let go. Then its pieces, with the Dress page's icons, under the
 `Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
@@ -340,8 +356,9 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   `Home: name reset`, `Cold: conditions reset`, `Sleep: name and conditions reset`); `Restore` / `Cancel`. The page's edits are
   saved first, and a refused save opens no popup. Restore writes `situations.json` (a refused
   or failed write changes nothing and shows the error) and keeps the selection.
-- Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a name entered, a
-  condition, Allow during combat, a situation moved in the order)
+- Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, the Selection
+  Chance slider let go, a name entered, a condition, Allow during combat, a situation moved in
+  the order)
   starts the wait of `kAutosaveDelay` (0.5 s) again, so a burst of edits writes and redresses
   once (`ScheduleAutosave`, `TakeAutosaveDue`). A drag, an open popup (the Edit situation
   popup's edits wait for it to close) or a name being typed holds the save until it ends. The page takes no input while a save runs but keeps its look
@@ -417,6 +434,8 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   new situation; an outfit's details from
   either pane, with Back, Escape and Open in Wardrobe, the labels' sort, both button layouts, and the preview; several drops in a row redressing
   once, about 0.5 s after the last (Live Preview on and off); Random Outfit on, picks at situation changes;
+  Selection Chance shown only for a random row's outfit, a 0 never picked and every one at 0
+  passing the row over, the value kept across a save and load;
   the die of the row worn lit with its tooltip, a click wearing another outfit (Live Preview on and off),
   the other dice unlit with their reasons;
   rename refused when empty or taken; Remove and its popup, the rows gone; Restore Presets brings it back empty; the

@@ -178,7 +178,7 @@ TEST_CASE("Wears gives chosen, or a random row's kept pick, or a new pick", "[ro
 		return a_count - 1;
 	};
 	CHECK(OutfitRows::Wears(random, 9, pickLast) == 1);  // gone from the list: picks again
-	CHECK(asked == 3);
+	CHECK(asked == 3 * OutfitRows::kDefaultChance);
 	CHECK(OutfitRows::Wears(random, 0, pickLast) == 1);
 	CHECK(OutfitRows::Wears(Row{ .random = true }, 0, NoPick) == 0);
 }
@@ -288,4 +288,117 @@ TEST_CASE("WornPieces leaves out the items left off, or none when that leaves no
 	CHECK(OutfitRows::WornPieces(pieces, Ids{ 40 }, self) == pieces);  // an item no longer in the outfit
 	CHECK(OutfitRows::WornPieces(pieces, Ids{ 10, 20, 30 }, self) == pieces);
 	CHECK(OutfitRows::WornPieces(pieces, Ids{}, self) == pieces);
+}
+
+TEST_CASE("SetChance keeps each outfit's chance sorted, drops the default and caps the value", "[rows][chance]")
+{
+	Row row{ .outfits = { 5, 2, 7 }, .random = true };
+	CHECK(OutfitRows::ChanceOf(row, 5) == OutfitRows::kDefaultChance);
+	OutfitRows::SetChance(row, 5, 50);
+	OutfitRows::SetChance(row, 2, 0);
+	OutfitRows::SetChance(row, 7, 255);  // past the top
+	CHECK(row.chances == std::vector<OutfitRows::Chance>{ { .outfit = 2, .value = 0 }, { .outfit = 5, .value = 50 }, { .outfit = 7, .value = OutfitRows::kMaxChance } });
+	CHECK(OutfitRows::ChanceOf(row, 2) == 0);
+
+	OutfitRows::SetChance(row, 5, OutfitRows::kDefaultChance);  // back to the default: not stored
+	CHECK(row.chances.size() == 2);
+	CHECK(OutfitRows::ChanceOf(row, 5) == OutfitRows::kDefaultChance);
+
+	Row same{ .outfits = { 5, 2, 7 }, .random = true };
+	CHECK(same != row);  // the chances count in a row's equality
+	OutfitRows::SetChance(same, 7, OutfitRows::kMaxChance);
+	OutfitRows::SetChance(same, 2, 0);
+	CHECK(same == row);
+}
+
+TEST_CASE("Pick draws in proportion to the chances, never one at 0 or the one left out", "[rows][chance]")
+{
+	Row row{ .outfits = { 1, 2, 3 }, .random = true };
+	OutfitRows::SetChance(row, 1, 200);
+	OutfitRows::SetChance(row, 3, 0);
+	std::size_t total = 0;
+	std::size_t drawn = 0;
+	const auto  draw = [&](std::size_t a_total) {
+		total = a_total;
+		return drawn;
+	};
+	drawn = 0;
+	CHECK(OutfitRows::Pick(row, 0, draw) == 1);
+	CHECK(total == 300);
+	drawn = 199;
+	CHECK(OutfitRows::Pick(row, 0, draw) == 1);
+	drawn = 200;
+	CHECK(OutfitRows::Pick(row, 0, draw) == 2);
+	drawn = 299;
+	CHECK(OutfitRows::Pick(row, 0, draw) == 2);
+
+	drawn = 0;
+	CHECK(OutfitRows::Pick(row, 1, draw) == 2);  // the one worn left out
+	CHECK(total == 100);
+	CHECK(OutfitRows::Pick(row, 2, draw) == 1);  // 3 is at 0: 1 is all that is left
+	CHECK(total == 200);
+	OutfitRows::SetChance(row, 1, 0);
+	CHECK(OutfitRows::Pick(row, 2, NoPick) == 0);  // nothing left to draw from
+	CHECK(OutfitRows::Pick(Row{ .random = true }, 0, NoPick) == 0);
+}
+
+TEST_CASE("A random row whose outfits are all at 0 is passed over but still held", "[rows][chance]")
+{
+	Row zero{ .outfits = { 3, 4 }, .random = true };
+	OutfitRows::SetChance(zero, 3, 0);
+	CHECK(OutfitRows::PicksAny(zero));
+	OutfitRows::SetChance(zero, 4, 0);
+	CHECK_FALSE(OutfitRows::PicksAny(zero));
+	CHECK(OutfitRows::HoldsAny(zero));  // the window still shows its list
+	CHECK(OutfitRows::Wears(zero, 3, NoPick) == 3);  // a pick worn stays on
+	CHECK(OutfitRows::Wears(zero, 0, NoPick) == 0);
+
+	CHECK(OutfitRows::PicksAny(Row{ .outfits = { 3 }, .chosen = 3 }));  // random off: chances do not count
+	OutfitRows::SetRandom(zero, false);
+	CHECK(OutfitRows::PicksAny(zero));
+
+	OutfitRows::Rows rows{};
+	rows[OutfitRows::RowOf(Situation::kDefault)] = { .outfits = { 1 }, .chosen = 1 };
+	rows[OutfitRows::RowOf(Situation::kTown)] = { .outfits = { 2 }, .chosen = 2 };
+	rows[OutfitRows::RowOf(Situation::kCold)] = { .outfits = { 3 }, .random = true };
+	OutfitRows::SetChance(rows[OutfitRows::RowOf(Situation::kCold)], 3, 0);
+	Situations::Applicable now;
+	now.Add(Situation::kCold);
+	now.Add(Situation::kTown);
+	CHECK(OutfitRows::Resolve(rows, now) == Situation::kTown);
+}
+
+TEST_CASE("An outfit keeps its chance on the list and loses it as it leaves", "[rows][chance]")
+{
+	Row random{ .outfits = { 1, 2 }, .random = true };
+	OutfitRows::SetChance(random, 1, 150);
+	OutfitRows::Place(random, 1, 2);  // reordered
+	CHECK(OutfitRows::ChanceOf(random, 1) == 150);
+	OutfitRows::SetRandom(random, false);  // hidden, kept for random on again
+	OutfitRows::SetRandom(random, true);
+	CHECK(OutfitRows::ChanceOf(random, 1) == 150);
+	OutfitRows::Take(random, 1);
+	CHECK(random.chances.empty());
+
+	Row off{ .outfits = { 1 }, .chosen = 1 };
+	OutfitRows::SetChance(off, 1, 40);
+	OutfitRows::Give(off, 2);  // random off: takes 1's place, which leaves with its chance
+	CHECK(off.chances.empty());
+	CHECK(OutfitRows::ChanceOf(off, 2) == OutfitRows::kDefaultChance);
+}
+
+TEST_CASE("WithoutGone hides a gone outfit's chance and KeepGone brings it back", "[rows][chance]")
+{
+	const auto inLibrary = [](std::uint32_t a_outfit) { return a_outfit != 9; };
+	Row        stored{ .outfits = { 1, 9 }, .random = true };
+	OutfitRows::SetChance(stored, 1, 20);
+	OutfitRows::SetChance(stored, 9, 180);
+
+	auto shown = OutfitRows::WithoutGone(stored, inLibrary);
+	CHECK(shown.chances == std::vector<OutfitRows::Chance>{ { .outfit = 1, .value = 20 } });
+
+	OutfitRows::SetChance(shown, 1, 60);  // the edit
+	const auto kept = OutfitRows::KeepGone(shown, stored, inLibrary);
+	CHECK(OutfitRows::ChanceOf(kept, 1) == 60);
+	CHECK(OutfitRows::ChanceOf(kept, 9) == 180);
 }

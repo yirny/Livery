@@ -9,12 +9,17 @@
 #include <vector>
 
 // An actor's rows (docs/situation-management-ui.md §1): the Default and one per situation,
-// each a list of library outfits, a random flag, the outfit worn with random off and the
-// items each outfit leaves off for this actor.
+// each a list of library outfits, a random flag, the outfit worn with random off, the
+// items each outfit leaves off for this actor and each outfit's selection chance.
 // Assignments keeps them in the co-save and the capture window shows them; the rules here
 // need no game, so the unit tests reach them.
 namespace OutfitRows
 {
+	// An outfit's selection chance on a random row: how often it is picked against the others
+	// on the list, 0 never (Pick). Every outfit has the default until the user moves it.
+	inline constexpr std::uint8_t kDefaultChance = 100;
+	inline constexpr std::uint8_t kMaxChance = 200;
+
 	// The items an outfit on a row leaves off for this actor: those unticked in its piece list
 	// on the Wardrobe page (its Apply) or in its details opened from the row on Manage
 	// Situations. Its other items, those added to it later included, are worn.
@@ -24,6 +29,15 @@ namespace OutfitRows
 		std::vector<std::uint32_t> armor;  // armor FormIDs, ascending, each once, never empty
 
 		friend bool operator==(const Exclusion&, const Exclusion&) = default;
+	};
+
+	// An outfit on a row whose selection chance is not kDefaultChance.
+	struct Chance
+	{
+		std::uint32_t outfit = 0;
+		std::uint8_t  value = kDefaultChance;  // 0 to kMaxChance, never kDefaultChance
+
+		friend bool operator==(const Chance&, const Chance&) = default;
 	};
 
 	struct Row
@@ -37,6 +51,9 @@ namespace OutfitRows
 		// (SetExcluded keeps it so, so equal rows compare equal); an outfit not here wears all
 		// its items.
 		std::vector<Exclusion> excluded;
+		// One per outfit on `outfits` whose selection chance is not kDefaultChance, in ascending
+		// outfit order (SetChance keeps it so). Kept with random off, for random on again.
+		std::vector<Chance> chances;
 
 		friend bool operator==(const Row&, const Row&) = default;
 	};
@@ -101,6 +118,26 @@ namespace OutfitRows
 		a_row.excluded.insert(at, { .outfit = a_outfit, .armor = std::move(a_armor) });
 	}
 
+	// `a_outfit`'s selection chance on the row; kDefaultChance for one not set.
+	inline std::uint8_t ChanceOf(const Row& a_row, std::uint32_t a_outfit)
+	{
+		const auto found = std::ranges::find(a_row.chances, a_outfit, &Chance::outfit);
+		return found != a_row.chances.end() ? found->value : kDefaultChance;
+	}
+
+	// From now on `a_outfit` has selection chance `a_value` on the row, kMaxChance at most.
+	// Contract: `a_outfit` is on `outfits`, or `a_value` is kDefaultChance.
+	inline void SetChance(Row& a_row, std::uint32_t a_outfit, std::uint8_t a_value)
+	{
+		std::erase_if(a_row.chances, [a_outfit](const Chance& a_entry) { return a_entry.outfit == a_outfit; });
+		a_value = (std::min)(a_value, kMaxChance);
+		if (a_outfit == 0 || a_value == kDefaultChance) {
+			return;
+		}
+		const auto at = std::ranges::lower_bound(a_row.chances, a_outfit, {}, &Chance::outfit);
+		a_row.chances.insert(at, { .outfit = a_outfit, .value = a_value });
+	}
+
 	// The pieces worn of an outfit's `a_pieces`: those whose armor (`a_armorOf`) `a_excluded`
 	// does not name, or all of them when that leaves none, as a library update that took every
 	// other item out of the outfit would.
@@ -116,8 +153,9 @@ namespace OutfitRows
 	// the outfit at `a_index` of `outfits` (at the end past it), or moves there when on it
 	// already. Random off, the list keeps its length: an outfit on it becomes `chosen` where it
 	// is; one not on it takes `chosen`'s place, which leaves the list (the user replaces the
-	// outfit worn, the items it left off with it); with no `chosen`, it goes in at `a_index`.
-	// Either way it is then `chosen`. An outfit on the list keeps the items it leaves off.
+	// outfit worn, the items it left off and its chance with it); with no `chosen`, it goes in at
+	// `a_index`. Either way it is then `chosen`. An outfit on the list keeps the items it leaves
+	// off and its chance.
 	// the Situations page's drop at a place in a row's list.
 	inline void Place(Row& a_row, std::uint32_t a_outfit, std::size_t a_index)
 	{
@@ -133,6 +171,7 @@ namespace OutfitRows
 			}
 			if (const auto chosen = std::ranges::find(outfits, a_row.chosen); a_row.chosen != 0 && chosen != outfits.end()) {
 				SetExcluded(a_row, a_row.chosen, {});
+				SetChance(a_row, a_row.chosen, kDefaultChance);
 				*chosen = a_outfit;
 				a_row.chosen = a_outfit;
 				return;
@@ -169,26 +208,28 @@ namespace OutfitRows
 		}
 	}
 
-	// Takes `a_outfit` off `outfits`, with the items it left off; `chosen` becomes 0 if it was
-	// that.
+	// Takes `a_outfit` off `outfits`, with the items it left off and its chance; `chosen`
+	// becomes 0 if it was that.
 	inline void Take(Row& a_row, std::uint32_t a_outfit)
 	{
 		std::erase(a_row.outfits, a_outfit);
 		SetExcluded(a_row, a_outfit, {});
+		SetChance(a_row, a_outfit, kDefaultChance);
 		if (a_row.chosen == a_outfit) {
 			a_row.chosen = 0;
 		}
 	}
 
 	// The row without the outfits `a_inLibrary` rejects, which a row from another save still
-	// names after Remove took them out of the library, and the items they left off; `chosen`
-	// becomes 0 if it was one. What the window shows and dressing sees: the co-save keeps them,
-	// so restoring outfits.json brings them back.
+	// names after Remove took them out of the library, the items they left off and their
+	// chances; `chosen` becomes 0 if it was one. What the window shows and dressing sees: the
+	// co-save keeps them, so restoring outfits.json brings them back.
 	template <class Has>
 	Row WithoutGone(Row a_row, Has&& a_inLibrary)
 	{
 		std::erase_if(a_row.outfits, [&a_inLibrary](std::uint32_t a_outfit) { return !a_inLibrary(a_outfit); });
 		std::erase_if(a_row.excluded, [&a_inLibrary](const Exclusion& a_entry) { return !a_inLibrary(a_entry.outfit); });
+		std::erase_if(a_row.chances, [&a_inLibrary](const Chance& a_entry) { return !a_inLibrary(a_entry.outfit); });
 		if (a_row.chosen != 0 && !a_inLibrary(a_row.chosen)) {
 			a_row.chosen = 0;
 		}
@@ -196,9 +237,9 @@ namespace OutfitRows
 	}
 
 	// `a_edited`, made from WithoutGone(a_stored), with `a_stored`'s gone outfits back at the
-	// end of its list, with the items they left off, and its gone `chosen` back while
-	// `a_edited` chose none, so an edit keeps what it could not show. An outfit given in a gone
-	// `chosen`'s place leaves it on the list.
+	// end of its list, with the items they left off and their chances, and its gone `chosen`
+	// back while `a_edited` chose none, so an edit keeps what it could not show. An outfit given
+	// in a gone `chosen`'s place leaves it on the list.
 	template <class Has>
 	Row KeepGone(Row a_edited, const Row& a_stored, Has&& a_inLibrary)
 	{
@@ -206,6 +247,7 @@ namespace OutfitRows
 			if (!a_inLibrary(outfit) && std::ranges::find(a_edited.outfits, outfit) == a_edited.outfits.end()) {
 				a_edited.outfits.push_back(outfit);
 				SetExcluded(a_edited, outfit, ExcludedOf(a_stored, outfit));
+				SetChance(a_edited, outfit, ChanceOf(a_stored, outfit));
 			}
 		}
 		if (a_edited.chosen == 0 && a_stored.chosen != 0 && !a_inLibrary(a_stored.chosen)) {
@@ -224,37 +266,69 @@ namespace OutfitRows
 		return a_row.random ? std::ranges::find(a_row.outfits, a_outfit) != a_row.outfits.end() : a_row.chosen == a_outfit;
 	}
 
-	// Whether the row holds any outfit. A situation row is worn only then.
+	// Whether the row holds any outfit: what the window shows and the record keeps.
 	inline bool HoldsAny(const Row& a_row)
 	{
 		return a_row.random ? !a_row.outfits.empty() : a_row.chosen != 0;
 	}
 
+	// Whether the row has an outfit to wear: `chosen` with random off, an outfit on the list
+	// whose chance is above 0 with random on. A situation row is worn only then (Resolve).
+	inline bool PicksAny(const Row& a_row)
+	{
+		if (!a_row.random) {
+			return a_row.chosen != 0;
+		}
+		return std::ranges::any_of(a_row.outfits, [&a_row](std::uint32_t a_outfit) { return ChanceOf(a_row, a_outfit) > 0; });
+	}
+
+	// An outfit of the row's list other than `a_except` (0 for none), picked in proportion to
+	// the outfits' chances (ChanceOf): one with chance 0 never. 0 when none is left.
+	// Contract: `a_draw(n)` returns a number below n, n above 0.
+	template <class Draw>
+	std::uint32_t Pick(const Row& a_row, std::uint32_t a_except, Draw&& a_draw)
+	{
+		const auto  chanceOf = [&a_row, a_except](std::uint32_t a_outfit) -> std::size_t { return a_outfit != a_except ? ChanceOf(a_row, a_outfit) : 0; };
+		std::size_t total = 0;
+		for (const auto outfit : a_row.outfits) {
+			total += chanceOf(outfit);
+		}
+		if (total == 0) {
+			return 0;
+		}
+		auto drawn = static_cast<std::size_t>(a_draw(total));
+		for (const auto outfit : a_row.outfits) {
+			if (drawn < chanceOf(outfit)) {
+				return outfit;
+			}
+			drawn -= chanceOf(outfit);
+		}
+		return 0;  // only for a draw past the contract
+	}
+
 	// The outfit the row wears, 0 for none (the Default then wears its pieces): `chosen` with
 	// random off; with random on `a_kept` while it is on `outfits` (the pick worn now, or an
-	// outfit just given to the row), else `outfits[a_pick(outfits.size())]`. The caller records
-	// a random row's pick in `chosen` once worn (SetRandom keeps it on).
-	// Contract: `a_pick(n)` returns an index below n.
-	template <class Pick>
-	std::uint32_t Wears(const Row& a_row, std::uint32_t a_kept, Pick&& a_pick)
+	// outfit just given to the row), whatever its chance, else a new pick (Pick). The caller
+	// records a random row's pick in `chosen` once worn (SetRandom keeps it on).
+	// Contract: as Pick's for `a_draw`.
+	template <class Draw>
+	std::uint32_t Wears(const Row& a_row, std::uint32_t a_kept, Draw&& a_draw)
 	{
 		if (!a_row.random) {
 			return a_row.chosen;
 		}
-		if (a_row.outfits.empty()) {
-			return 0;
-		}
 		if (a_kept != 0 && std::ranges::find(a_row.outfits, a_kept) != a_row.outfits.end()) {
 			return a_kept;
 		}
-		return a_row.outfits[a_pick(a_row.outfits.size())];
+		return Pick(a_row, 0, a_draw);
 	}
 
-	// The row worn in `a_now`: the first situation whose row holds an outfit, else the Default.
+	// The row worn in `a_now`: the first situation whose row has an outfit to wear (PicksAny),
+	// else the Default.
 	inline Situations::Situation Resolve(const Rows& a_rows, const Situations::Applicable& a_now)
 	{
 		for (std::size_t i = 0; i < a_now.count; ++i) {
-			if (HoldsAny(a_rows[RowOf(a_now.items[i])])) {
+			if (PicksAny(a_rows[RowOf(a_now.items[i])])) {
 				return a_now.items[i];
 			}
 		}

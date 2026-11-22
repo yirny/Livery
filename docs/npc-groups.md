@@ -77,7 +77,7 @@ polled.
   "rows": {
     "user:1": {
       "Default": { "outfits": [12], "random": false },
-      "Town": { "outfits": [3, 4], "random": true }
+      "Town": { "outfits": [3, 4], "random": true, "chances": { "4": 150 } }
     }
   }
 }
@@ -88,7 +88,9 @@ polled.
   situations.json keeps them.
 - `rows` is apart from the definitions, by group key then situation key (`Situations::Name`,
   as the co-save's rows), so the rows alone can move to the co-save later. A row holds outfit
-  ids and `random`; `chosen` is each member's own and items left off are not stored (§1). An
+  ids, `random` and `chances`, the selection chances other than 100 by outfit id
+  (docs/situation-management-ui.md §1; the object left out when there are none); `chosen` is
+  each member's own and items left off are not stored (§1). An
   outfit id the library no longer has is dropped at load (`OutfitRows::WithoutGone`); a
   situation key the registry does not know is kept and written back.
 - A group's name is unique among groups (ASCII case ignored).
