@@ -37,7 +37,10 @@ Not implemented; nothing below is current behaviour.
   Π(1 − min(c, 100) / 100) over its layers, so one layer at 70 is worn 70% of the time and one
   at 100 or above means a layer is always worn. A draw of no layer is kept as a pick is: the
   record holds the layer's row with no outfit until that situation ends, so a redress (rain,
-  a cell change, a row edit) does not draw again. The die never draws no layer. Its tooltip
+  a cell change, a row edit) does not draw again. A draw of no layer ends the walk for a layer
+  as a pick does: no less specific row's layer is worn in its place, and the walk for the base
+  goes on. Layers all at 0 always draw no layer, and end the walk the same way. The die never
+  draws no layer. Its tooltip
   explains the threshold for a layer only.
 
 ## Open points
