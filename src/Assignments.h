@@ -180,6 +180,8 @@ namespace Assignments
 		// The row the layer over the base is from; nullopt while no row has a layer for them.
 		std::optional<Situations::Situation> layerRow;
 		std::uint32_t                        layer = 0;  // the layer they wear; 0 for none
+		// The layer is on over their own clothes, which stay on (no row has a base for them).
+		bool overOwn = false;
 	};
 
 	// nullopt when Livery does not dress them. Contract: game thread.

@@ -200,7 +200,8 @@ namespace CaptureWindow::Internal
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
 		OutfitIcons::Icon               icon;
 		std::array<char, kNameCapacity> name{};
-		std::vector<std::size_t>        pieces;  // its loaded pieces as edited: indices into request.pieces, ascending
+		std::vector<std::size_t>        pieces;         // its loaded pieces as edited: indices into request.pieces, ascending
+		bool                            layer = false;  // its layer flag as edited (the Layer tick, on this page or the Edit page)
 		// The armor (FormIDs, ascending) of `pieces` unticked in its piece list, which Apply has
 		// the outfit leave off on the row it gives it; never every one of `pieces`. Not an
 		// unsaved edit: selecting an outfit, or SetOutfits, starts it from the actor's rows.
@@ -427,6 +428,7 @@ namespace CaptureWindow::Internal
 		std::array<char, kNameCapacity> updateName{};
 		// The Create tab's icon as chosen in Choose icon; nullopt follows the ticks (CreateIcon).
 		std::optional<OutfitIcons::Icon> createIcon;
+		bool                             createLayer = false;  // the Create tab's Layer tick; a Create unticks it
 	};
 
 	// The piece list a page shows (DrawPieceRows): the Dress page's ticks with the
@@ -464,7 +466,7 @@ namespace CaptureWindow::Internal
 	void        DrawError(const std::string& a_message);
 	void        RequestCancel();
 	bool        DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
-		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName });
+		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName }, bool a_layer = false);
 	bool        BeginModal(const char* a_id, bool* a_centred = nullptr);
 	void        SetGroupHeadings(State& a_state);
 
@@ -510,11 +512,19 @@ namespace CaptureWindow::Internal
 	std::size_t                          RowCount(const State& a_state);
 	const char*                          RowName(const State& a_state, std::size_t a_row);
 	bool                                 HoldsOutfit(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
-	// Whether giving row `a_row` library outfit `a_outfit` (0 for one not saved yet) replaces
-	// what it wears: random off, and another `chosen`, or the Default's pieces with none.
-	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
-	std::string HeldOutfitName(const State& a_state, std::size_t a_row);
-	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
+	// Whether giving row `a_row` library outfit `a_outfit` (0 for one not saved yet), a layer
+	// with `a_layer`, replaces what it wears of that kind: random off, and another base chosen,
+	// or the Default's pieces with none; for a layer, another layer chosen.
+	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit, bool a_layer);
+	std::string HeldOutfitName(const State& a_state, std::size_t a_row, bool a_layer);
+	// The `Layer over the outfit beneath` tick with its "(?)" (docs/outfit-management-ui.md §4).
+	// Returns whether `a_layer` changed.
+	bool DrawLayerTick(bool& a_layer);
+	// `a_layer`'s pieces over `a_base`'s: those of `a_base` sharing no body slot with one of
+	// `a_layer`, and `a_layer`'s, ascending (indices into request.pieces), as a layer is worn
+	// over the outfit beneath (OutfitRows::Uncovered).
+	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer);
+	std::string              QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
 
 	// Leaving a page: Exit, Escape or a tab. With unsaved edits the Wardrobe page first shows the
 	// unsaved-changes alert (kLeavePopup). The Situations page and the chest editor save theirs
@@ -730,21 +740,26 @@ namespace CaptureWindow::Internal
 		SaveFirst   saveFirst = SaveFirst::kNothing;
 		std::string saveFirstHelp;
 		void (*drawSaveLines)(const State&) = nullptr;  // the lines under the question saying what is saved; nullptr for none
+		// It is a layer, as it will be once saved: Apply gives it to a row as its layer, over the
+		// row's base, and compares it with the layer the actor wears.
+		bool layer = false;
 	};
 
 	// The situation row Apply offers to give library outfit `a_outfit` (0 for one not created
 	// yet) beside the Default: the one the actor wears another outfit for now. nullopt when
-	// they wear the Default, nothing of Livery's or that outfit itself.
-	std::optional<std::size_t> OfferedRow(const State& a_state, std::uint32_t a_outfit);
+	// they wear the Default, nothing of Livery's or that outfit itself. For a layer (`a_layer`):
+	// the situation they wear another layer for, or with no layer on, the one their outfit is
+	// worn for.
+	std::optional<std::size_t> OfferedRow(const State& a_state, std::uint32_t a_outfit, bool a_layer);
 
 	// The row Apply gives the outfit when no row is offered (OfferedRow): the situation the
 	// actor wears it for now, which it is dressed again for, else the Default.
-	std::size_t DirectApplyRow(const State& a_state);
+	std::size_t DirectApplyRow(const State& a_state, bool a_layer);
 
 	// Whether Apply of library outfit `a_outfit` (0 for one not created yet) asks first,
-	// library edits aside: a situation row is offered, or the Default's worn outfit would be
-	// replaced.
-	bool ApplyAsksFirst(const State& a_state, std::uint32_t a_outfit);
+	// library edits aside: a situation row is offered, or the Default's worn outfit of its kind
+	// would be replaced.
+	bool ApplyAsksFirst(const State& a_state, std::uint32_t a_outfit, bool a_layer);
 
 	// The body of an Apply popup, inside BeginModal: with a row offered (OfferedRow) Yes, Apply
 	// as Default (?) and Cancel, else `a_subject.applyLabel` and Cancel. Returns the row the
@@ -789,9 +804,12 @@ namespace CaptureWindow::Internal
 
 	// An outfit's icon as the skins draw it. Contract: the key is a view into `a_icon`, so the
 	// result lives no longer than it.
-	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon)
+	// With `a_layer`, under the badge of a layer (Theme::RowIcon::badge).
+	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon, bool a_layer = false)
 	{
-		return { a_icon.key, OutfitIcons::ColorOf(a_icon.color).rgb };
+		Theme::RowIcon icon{ a_icon.key, OutfitIcons::ColorOf(a_icon.color).rgb };
+		icon.badge = a_layer;
+		return icon;
 	}
 
 	// --- names in popup lines -------------------------------------------------
@@ -871,8 +889,9 @@ namespace CaptureWindow::Internal
 	}
 
 	// What row `a_row` wears now with random off, as HeldOutfitName names it, as a line's part.
-	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row);
+	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row, bool a_layer);
 
-	// The outfit the actor wears now (Request::outfitName), as a line's part.
-	Theme::SubtitleRun WornOutfitRun(const State& a_state);
+	// The outfit the actor wears now (Request::outfitName), as a line's part; with `a_layer`,
+	// the layer they wear over it when they wear one.
+	Theme::SubtitleRun WornOutfitRun(const State& a_state, bool a_layer = false);
 }

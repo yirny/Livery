@@ -255,8 +255,25 @@ namespace
 		return stored ? Strings::Format(Strings::Text::kQuotedName, stored->name) : Strings::Get(Strings::Text::kOutfitGone);
 	}
 
+	// What they wear as the HUD names it while a layer is on, `"Cloak" over "Guard"`: the layer
+	// over the base's outfit, the default items, or their own clothes. nullopt with no layer on.
+	std::optional<std::string> LayeredText(RE::Actor& a_actor, const Assignment& a_assignment)
+	{
+		using Strings::Text;
+		if (a_assignment.layer == 0 || a_assignment.pieces.empty()) {
+			return std::nullopt;
+		}
+		std::string base = Strings::Get(Text::kHudDefaultItems);
+		if (a_assignment.overOwn) {
+			base = Strings::Get(a_actor.IsPlayerRef() ? Text::kOwnClothesYour : Text::kOwnClothesTheir);
+		} else if (a_assignment.wornOutfit != 0) {
+			base = QuotedOutfitName(a_assignment.wornOutfit);
+		}
+		return Strings::Format(Text::kOutfitOver, QuotedOutfitName(a_assignment.layer), base);
+	}
+
 	// The HUD line for a redress because a situation began or ended (WearFor): what they wear
-	// now, and the situation it is for.
+	// now, and the situation it is for; with a layer on, both outfits, for the base's situation.
 	std::string SituationChangeText(RE::Actor& a_actor, const Assignment& a_assignment)
 	{
 		using Strings::Text;
@@ -264,6 +281,12 @@ namespace
 		const auto name = NameOf(a_actor);
 		if (a_assignment.pieces.empty()) {
 			return Strings::Format(player ? Text::kHudYouWearOwn : Text::kHudWearsOwn, name);
+		}
+		if (const auto layered = LayeredText(a_actor, a_assignment)) {
+			if (a_assignment.worn == Situation::kDefault || a_assignment.overOwn) {
+				return Strings::Format(player ? Text::kHudYouWearNow : Text::kHudWearsNow, name, *layered);
+			}
+			return Strings::Format(player ? Text::kHudYouWearFor : Text::kHudWearsFor, name, *layered, SituationStore::Name(a_assignment.worn));
 		}
 		if (a_assignment.worn == Situation::kDefault) {
 			return Strings::Format(player ? Text::kHudYouWearDefault : Text::kHudWearsDefault, name);
@@ -1869,6 +1892,7 @@ namespace Assignments
 		const auto worn = assignment->worn;  // read before DropIfEmpty, which may end the record
 		const auto outfit = assignment->wornOutfit;
 		const auto pieces = assignment->pieces.size();
+		const auto layered = LayeredText(a_actor, *assignment);
 		DropIfEmpty(id);
 		SyncManaged();
 		using Strings::Text;
@@ -1877,7 +1901,7 @@ namespace Assignments
 		if (pieces == 0) {
 			text = Strings::Format(Text::kHudOwnClothes, name);
 		} else {
-			const auto wears = outfit ? QuotedOutfitName(outfit) : std::string{ Strings::Get(Text::kHudDefaultItems) };
+			const auto wears = layered ? *layered : (outfit ? QuotedOutfitName(outfit) : std::string{ Strings::Get(Text::kHudDefaultItems) });
 			text = Strings::Format(worn == Situation::kDefault ? Text::kHudWearsOutfit : Text::kHudWearsOutfitFor, name, wears, SituationStore::Name(worn));
 		}
 		Notify(EndOf(result ? WithRedressNotes(std::move(text), a_actor, *result) : text));
@@ -2079,6 +2103,7 @@ namespace Assignments
 			.wornOutfit = assignment->wornOutfit,
 			.layerRow = assignment->layerRow,
 			.layer = assignment->layer,
+			.overOwn = assignment->overOwn,
 		};
 	}
 

@@ -182,6 +182,9 @@ namespace CaptureWindow
 		// The outfit's icon: the Wardrobe page's, or the Create tab's for a new outfit; nullopt
 		// keeps the one it has (the Save page's Update tab).
 		std::optional<OutfitIcons::Icon> icon;
+		// Whether it is a layer (Library::Outfit::layer): the Wardrobe page's tick, or the Create
+		// tab's for a new outfit; nullopt keeps what it is (the Save page's Update tab).
+		std::optional<bool> layer;
 		// The row the outfit goes to, as the Wardrobe page's Apply gives it (the situation the
 		// actor wears another outfit for now, after the user agreed, else the Default); nullopt
 		// for a save that changes no row.
@@ -229,6 +232,11 @@ namespace CaptureWindow
 		// What `wornOutfit` is worn for as a row's key, kDefault for the default: Manage
 		// Wardrobe's Apply offers that situation.
 		Situations::Situation wornFor = Situations::Situation::kDefault;
+		// The library layer Livery has on them over that (docs/design.md §7 Layers), 0 for none,
+		// its name, and the row it is from, which a row that drew no layer names too.
+		std::uint32_t                        wornLayer = 0;
+		std::string                          layerName;
+		std::optional<Situations::Situation> wornLayerFor;
 		// kSituationGroup, one entry per row of `assigned`, in its order. The outfit lists tag
 		// and sort by them.
 		std::vector<CategoryOption>  categories;
@@ -411,6 +419,10 @@ namespace CaptureWindow
 		std::string              wornSituation;   // as Request::wornSituation
 		// As Request::wornFor.
 		Situations::Situation wornFor = Situations::Situation::kDefault;
+		// As Request::wornLayer, layerName and wornLayerFor.
+		std::uint32_t                        wornLayer = 0;
+		std::string                          layerName;
+		std::optional<Situations::Situation> wornLayerFor;
 	};
 
 	// What SetOutfits replaces in the open window's Request, as Open had them.
