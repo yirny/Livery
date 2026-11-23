@@ -612,7 +612,8 @@ shown in the chosen language (`SituationStore::Name`): the window and the HUD sh
 value of whole texts (`Wearing {0} for {1}{2}.`, `Wearing {0} as {1}{2}.` for the Default;
 `Livery: {0} now wears {1} for {2}.`, `Livery: {0} now wears the default outfit.`), and the
 log's own lines keep the key (`Situations::Name`). A removed situation offers no row
-and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
+and nothing wears it. What follows is the base; a layer is chosen, picked and worn apart from
+it (Layers below). Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on, in proportion to the outfits' selection chances (0 never; a row with every outfit at
 0 is passed over), and kept until it changes, a forced redress keeping it while it is on the list,
 and recorded as `chosen`, so turning random off keeps the last pick on. A click on the
@@ -753,7 +754,6 @@ layer comes off when its situation ends, and a layer never goes over a layer.
 - Remove of a layer: the actors wearing it are redressed as for a situation outfit; a Default
   that held it does not get its pieces. Update redresses the actor when they wear it as the
   layer too.
-
 - The window: the flag is ticked on the Save page's Create tab, the Wardrobe page and its Edit
   page (docs/ui-redesign.md §4, docs/outfit-management-ui.md §4) and written by Create and the
   Wardrobe page's Save; a flag changed on an outfit the captured actor has redresses them at
@@ -787,8 +787,30 @@ setting, off by default) and the user-defined situations (docs/custom-situations
 conditions, one order for the presets and the user's, the presets' rules editable, behind the
 `Enable custom situations` setting, off by default). Open:
 
-1. Layer outfits (§7 Layers): written, the window's part included; not yet built on Windows
-   or checked in game.
+1. Layer outfits (§7 Layers): written on the Mac, the window's part included, on branch
+   `feat/layer-outfits`, stacked on `feat/selection-chance` (itself not yet built or merged).
+   Verified there: the `OutfitRows` unit tests and clang-format only. Not yet: the MSVC build
+   of any of it, `ctest` (the translation files were written by a script, not by
+   `[.write-template]`), and everything in game.
+   - `lib/sarrai-common` points at its branch `feat/row-icon-badge` (the icon badge), not yet
+     merged there; Tableau's submodule is not bumped.
+   - Build and check one commit at a time, so a failure is easy to place: `feat: wear layer
+     outfits over the outfit beneath` (data and rules; no window part, so give an outfit
+     `"layer": true` and the file `"version": 2` by hand, and make the four checks of §7
+     Layers here), then `feat: set the layer flag in the window and apply layers`, then `feat:
+     show and apply layers on the Situations and Dress pages`.
+   - In game, beside those four: an existing save wears what it wore, and `outfits.json`
+     stays `"version": 1` until an outfit is a layer and returns to it when none is; the Layer
+     tick on the Create tab, the Wardrobe page and the Edit page (its place on each, and the
+     badge's size), Save's `Layer: on` / `Layer: off` line; Apply to <name> and Create and
+     Apply of a layer, with and without a situation's outfit worn; a layer alone on an NPC
+     Livery does not dress (their clothes stay); the Situations page (a random-off row's two
+     rows, a layer below 100 worn or not, the dice, the Selection Chance help, the headings'
+     colour); the Dress page's layer heading and a layer item unticked, then Apply; `B over
+     A` in the HUD and the summary line; the previews.
+   - Known gaps: a dragged row's copy has no badge; the Edit page's preview does not show a
+     layer over what they wear; the Dress page's layer heading reads `Outfit ("<layer>")`;
+     other actors holding an outfit whose flag changed follow at their next dressing.
 2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit.
