@@ -80,7 +80,7 @@ Drag an outfit back to the list to clear it. Situational outfits are saved per c
 - **Sleep**: going to bed, in it or getting up.
 - **Cold**: in snow, or anywhere in a freezing region: snowy lands, high mountains, the northern coast and ice caves.
 
-The **Default** outfit is worn where no situation applies, and in every fight. A castle or home without an outfit of its own uses the Town one. With **Random Outfit** on, a situation picks one of its outfits each time it begins; click the die beside the situation worn now to switch to another of its outfits at once. **Edit** on a situation's heading renames or removes it; **Restore Presets** brings the presets back as installed.
+The **Default** outfit is worn where no situation applies, and in every fight. A castle or home without an outfit of its own uses the Town one. With **Random Outfit** on, a situation picks one of its outfits each time it begins; click the die beside the situation worn now to switch to another of its outfits at once. In an outfit's details, **Selection Chance** sets how often it is picked compared with the others: 200 twice as often as 100, 0 never. **Edit** on a situation's heading renames or removes it; **Restore Presets** brings the presets back as installed.
 
 ### Make your own situations
 
