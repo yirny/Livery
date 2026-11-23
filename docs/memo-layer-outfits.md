@@ -2,8 +2,9 @@
 
 Decided 2026-10-24, deferred until after the first release. A layer outfit is worn over the
 outfit beneath instead of in its place: a cloak and a hat for Cold over whatever the actor wears
-otherwise, without one full outfit per base and layer pair. Not implemented; nothing below is
-current behaviour.
+otherwise, without one full outfit per base and layer pair. With NPC groups (docs/npc-groups.md)
+it covers what Wet and Cold's gear does: a hood and a cloak over every NPC's clothes in the rain.
+Not implemented; nothing below is current behaviour.
 
 ## Decisions
 
@@ -17,13 +18,17 @@ current behaviour.
 - Dress one merged list through the existing single-layer path: the base's pieces whose biped
   slots do not overlap a layer piece's, then the layer's pieces. A base piece the layer would
   push off is never put on, so `PutBackOn` at 3D load cannot put it back and push the layer off.
+- A layer outfit has a second library flag, off by default (decided 2026-11-21; name and label
+  to settle before the UI): the outfit beneath keeps its items. On, the merged list is the
+  layer's pieces whose biped slots do not overlap a base piece's, then the base's pieces whole,
+  so a guard keeps the helmet and gets only the cloak. Off, the layer wins, as above.
 - Resolution (`OutfitRows::Resolve`): walk the applicable situations, most specific first, and
   take the first row whose outfit is a layer and the first whose outfit is not; the Default ends
   the walk. A Default holding a layer with no base found means the base is the actor's own
   clothes: the layer is dressed with `Dress` told not to take off what is outside the outfit, and
   the own pieces it pushes off go to `takenOff` as today, back on at release.
 - The record keeps the base beside the layer: `wornOutfit` and `worn` plus the base's outfit and
-  row (a new co-save version; 5 is in use, design.md §5); the poll's change check compares
+  row (a new `ASGN` version; 6 is in use, design.md §5); the poll's change check compares
   all four.
 - Selection chance (decided 2026-11-22; docs/situation-management-ui.md §1 `chances`): a random
   row's list may mix layers and non-layers; the non-layers are drawn first, as today, then the
@@ -53,6 +58,6 @@ current behaviour.
 
 ## Files it touches
 
-`src/Library.cpp` / `.h` (the flag, JSON), `src/OutfitRows.h` (resolution), `src/Assignments.cpp`
+`src/Library.cpp` / `.h` (the flags, JSON), `src/OutfitRows.h` (resolution), `src/Assignments.cpp`
 (record, the new co-save version, `ArmorFor` merge, change check), `src/Dressing.cpp` / `.h` (the
 no-strip flag), the window pages that name the worn outfit, `test/`, docs/design.md §2, §5, §7.

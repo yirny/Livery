@@ -2007,6 +2007,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 	SetupLog();
 	// The build's git state tells which build runs (a worktree's, a branch's, one with local edits).
 	logger::info("Livery {} loaded ({} on {})", LIVERY_VERSION, LIVERY_BUILD_DESCRIBE, LIVERY_BUILD_BRANCH);
+	logger::info("Skyrim runtime {}", REL::Module::get().version().string("."));
 	Settings::Load();
 	Assignments::RegisterCoSave();
 	InstallOverlay();
