@@ -1,7 +1,8 @@
 # NPC groups
 
 A group is a named set of conditions on who an NPC is (faction, sex, race). Every NPC that fits
-wears the group's outfit rows (the Default and the situations) without being assigned one by one:
+wears the outfit rows (the Default and the situations) of the groups they fit, merged per row
+(§5), without being assigned one by one:
 every blacksmith in clothes, a hood and a cloak in the rain; every Whiterun guard in another
 armor. Groups are off by default; a setting adds the Groups tab the next time the window opens.
 
@@ -42,7 +43,7 @@ polled.
 - Faction rows may repeat (a Whiterun guard: `IsGuardFaction` AND `CrimeFactionWhiterun`, two
   rows); Sex and Race once each.
 - A form whose plugin is not loaded stays in the file and never holds, as a situation's.
-- A group with no row fits no one.
+- A group with no row fits no one. A group for everyone holds `Sex is any of male, female`.
 - Evaluation takes the sex, the race and a faction predicate as plain values, so the tests need
   no engine (`test/GroupRulesTests.cpp`).
 
@@ -111,12 +112,17 @@ polled.
   asks), not a child, not dead, and not assigned by hand (an assignment without a group
   marker). Someone assigned by hand never fits a group, whatever their rows hold. The hotkey's
   access setting gates the hotkey only and is not asked.
-- Among the groups that can dress and whose conditions hold, the lowest in the list wins, as
-  in the Situation List.
+- An NPC fits every group that can dress and whose conditions hold (decided 2026-11-21). Their
+  rows are merged per row (the Default and each situation): of the groups they fit that hold an
+  outfit in that row, the lowest in the list gives it, as in the Situation List. A guards
+  group's Default and an everyone group's Rain both reach a guard; with layer outfits
+  (docs/memo-layer-outfits.md) the rain gear goes over the armor. The merge takes the groups'
+  rows as plain values, tested without the engine.
 - When: at every 3D load (`TESObjectLoadedEvent`, `loaded`), and for the actors already loaded
   (`ProcessLists::ForEachHighActor`) after a save is loaded, after a write to `groups.json`
   took, and when either setting turns on. A member is judged again at each 3D load: someone
-  who no longer fits, or fits another group, is released first.
+  whose set of groups changed has the rows merged anew, and someone who fits none any more is
+  released.
 - The sink: with the feature off or no group that can dress (one atomic flag), it returns
   before anything else, as today. Otherwise it puts the FormID on a pending list under a lock
   and queues one SKSE task; the event names any reference and its thread is not documented, so
@@ -125,19 +131,20 @@ polled.
 
 ## 6. Members
 
-A member is an ordinary assignment (`Assignments.cpp`) with a group key: its rows are a copy of
-the group's (with its own `chosen` for a random row), its Default with no outfit is what they
-wore when they fitted (`defaultPieces`), and the situation poll, the locks, the death release
-and the trade filter treat it as any other.
+A member is an ordinary assignment (`Assignments.cpp`) with the keys of the groups they fit:
+its rows are those groups' rows merged (§5), with its own `chosen` for a random row, its Default
+with no outfit is what they wore when they fitted (`defaultPieces`), and the situation poll,
+the locks, the death release and the trade filter treat it as any other.
 
-- Rows changed (§4's last writer): every member's copy is replaced; the poll redresses those
-  in memory, one per second.
-- Group removed or no longer able to dress, feature turned off: members in reach are released,
-  one per task; the others keep their record, marked for release, and are released at their
-  next 3D load.
+- Rows changed (§4's last writer): every member of that group has the rows merged anew; the
+  poll redresses those in memory, one per second.
+- Group removed or no longer able to dress: its members who fit another group have the rows
+  merged anew without it. The rest, and every member when the feature is turned off, are
+  released: in reach one per task; the others keep their record, marked for release, and are
+  released at their next 3D load.
 - Apply or a row edit on a member through the window makes the assignment the user's own: the
-  group key goes, and the group never dresses them again while it lasts. There is no other way
-  to leave someone out.
+  group keys go, and no group dresses them again while it lasts. There is no other way to
+  leave someone out.
 - Release everyone releases members as it releases anyone, and groups dress no one from then
   until a save is loaded, so the save made for an uninstall holds no one dressed again.
 - Lifetime, decided by step 0 of §11: when a task queued from the unload event still reaches
@@ -146,10 +153,10 @@ and the trade filter treat it as any other.
   NPCs out of reach at an uninstall. Otherwise members stay dressed as anyone assigned by
   hand, and the README's uninstall section says what stays on NPCs out of reach.
 - Co-save: `ASGN` v6 is unchanged and holds a member as any assignment. A record of its own,
-  written after it, names the members: entry count; per entry the actor FormID and the group
-  key (as a situation key is written). A Livery that does not know it reads the members as
-  assigned by hand. At load, an entry whose group is gone or cannot dress marks the member for
-  release.
+  written after it, names the members: entry count; per entry the actor FormID, a key count
+  and the group keys (each as a situation key is written). A Livery that does not know it reads
+  the members as assigned by hand. At load, a key whose group is gone or cannot dress is
+  dropped and the rows merged anew; an entry with no key left marks the member for release.
 - A member whose reference is dynamic (`TESForm::IsDynamicForm`) is written to neither record:
   the co-save cannot tell such ids apart. After a load they are met at 3D load as someone new.
 
@@ -253,6 +260,8 @@ as `ItemChests` is (labels and tooltips to settle before the build):
   Innkeepers, ... each with its conditions and no outfit) are settled at step 2 of §11, with
   Dawnguard.esm and Dragonborn.esm read the same way.
 - A preset has no outfit, so it dresses no one until the user gives it one.
+- Candidate preset, decided with the rest: Everyone (`Sex is any of male, female`), for rain and
+  cold layers over every NPC.
 
 ## 11. Implementation order
 
@@ -269,8 +278,8 @@ Each step is a branch from `main`, built, checked and merged before the next.
 3. The two settings (§8).
 4. Fitting and members (§5, §6): the sink, the tasks, the group key, the co-save record, the
    release paths, Release everyone. Checked in game with a `groups.json` written by hand:
-   bandits and guards dressed, someone assigned by hand left alone, a save and a load, the
-   feature turned off.
+   bandits and guards dressed, a guard who fits an everyone group too wearing both groups'
+   rows, someone assigned by hand left alone, a save and a load, the feature turned off.
 5. The shared editor parts and the picker (§9), behavior unchanged.
 6. The Groups tab, the Edit group popup, the pickers.
 7. A group as the window's target (docs/target-switching.md §10 step 5).

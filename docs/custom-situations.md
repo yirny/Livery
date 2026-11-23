@@ -141,6 +141,9 @@ Not offered in the first version; added on request. The rule each would use:
   (`LocTypeGuild`).
 - Weather values Clear (`kPleasant`), Cloudy (`kCloudy`), Storm (a weather with `kRainy` and
   lightning or a storm sound; the rule is to be decided).
+- Weather value Ash storm (Solstheim's, Dragonborn.esm), planned. `TESWeather::WeatherDataFlag`
+  has no ash kind (`kPleasant`, `kCloudy`, `kRainy`, `kSnow`, the aurora flags), so the rule
+  reads something else; to be decided.
 - Faction, Worn item, Actor keyword: each is a FormID comparison.
 - Spell kind: any spell sharing a family keyword of the picked spell (`MagicArmorSpell`, `MagicCloak`,
   `MagicWard`, `MagicBlessing`, ...); keywords have no player-facing names, so the choice is derived
