@@ -1227,6 +1227,7 @@ namespace CaptureWindow::Internal
 		const auto& request = a_state.request;
 		auto&       headings = a_state.headings;
 		headings[GroupIndex(Group::kLiveryOutfit)] = Strings::Format(Text::kGroupWornOutfit, request.outfitName);
+		headings[GroupIndex(Group::kLiveryLayer)] = Strings::Format(Text::kGroupWornOutfit, request.layerName);
 		headings[GroupIndex(Group::kNotInLibrary)] = Strings::Get(Text::kGroupNotInWardrobe);
 		headings[GroupIndex(Group::kUnmanaged)] = Strings::Get(Text::kGroupUnmanaged);
 		headings[GroupIndex(Group::kCarried)] = Strings::Get(Text::kGroupInventory);
@@ -1291,6 +1292,7 @@ namespace CaptureWindow::Internal
 		for (const auto index : a_pieces.ticked) {
 			a_state.pieceTicked[index] = true;
 		}
+		a_state.wornPieces = a_pieces.ticked;
 		request.outfitName = a_pieces.outfitName;
 		request.wornOutfit = a_pieces.wornOutfit;
 		request.wornSituation = a_pieces.wornSituation;
@@ -1337,9 +1339,15 @@ namespace CaptureWindow::Internal
 		// The layer over it likewise: its name now, or no layer named once it has left.
 		if (const int layer = IndexOfOutfit(a_state, request.wornLayer); layer >= 0) {
 			request.layerName = OutfitAt(a_state, layer).name;
-		} else {
+		} else if (request.wornLayer != 0) {
 			request.wornLayer = 0;
 			request.layerName.clear();
+			for (auto& piece : request.pieces) {
+				if (piece.group == CaptureWindow::PieceGroup::kLiveryLayer) {
+					piece.group = CaptureWindow::PieceGroup::kNotInLibrary;
+				}
+			}
+			SortPieces(a_state);
 		}
 		if (request.wornOutfit == 0) {
 			return;
@@ -1698,27 +1706,95 @@ namespace CaptureWindow::Internal
 		return a_state.request.wornOutfit != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
-	// The id of the outfit last loaded when the ticks are exactly its pieces; 0 otherwise.
+	// The loaded pieces of the layer the actor wears (Request::wornLayer), which the Dress page
+	// lists and applies apart from the rest (docs/ui-redesign.md §5); none with no layer worn.
+	const std::vector<std::size_t>& WornLayerPieces(const State& a_state)
+	{
+		static const std::vector<std::size_t> none;
+		const int                             layer = IndexOfOutfit(a_state, a_state.request.wornLayer);
+		return layer >= 0 ? OutfitAt(a_state, layer).pieces : none;
+	}
+
+	// `a_pieces` less the pieces of the layer they wear: what Apply takes as their outfit.
+	std::vector<std::size_t> WithoutLayer(const State& a_state, std::vector<std::size_t> a_pieces)
+	{
+		const auto& layer = WornLayerPieces(a_state);
+		std::erase_if(a_pieces, [&layer](std::size_t a_piece) { return std::ranges::binary_search(layer, a_piece); });
+		return a_pieces;
+	}
+
+	// The ticks less the pieces of the layer they wear.
+	std::vector<std::size_t> BaseTicks(const State& a_state)
+	{
+		return WithoutLayer(a_state, TickedPieces(a_state));
+	}
+
+	// The body slots the ticked pieces of the layer they wear take: a piece of their outfit in
+	// one of them is under the layer, not left unticked.
+	std::uint32_t TickedLayerSlots(const State& a_state)
+	{
+		std::uint32_t slots = 0;
+		for (const auto piece : WornLayerPieces(a_state)) {
+			if (a_state.pieceTicked[piece]) {
+				slots |= a_state.request.pieces[piece].slots;
+			}
+		}
+		return slots;
+	}
+
+	// What the ticks of the layer's pieces ask (CaptureWindow::LayerApply): the armor of those
+	// left unticked, unless there is no layer or every one is unticked; `only` with no library
+	// outfit under it and the other ticks as they wear them.
+	CaptureWindow::LayerApply LayerApplyOf(const State& a_state)
+	{
+		CaptureWindow::LayerApply  apply;
+		const auto&                layer = WornLayerPieces(a_state);
+		std::vector<std::uint32_t> unticked;
+		for (const auto piece : layer) {
+			if (!a_state.pieceTicked[piece]) {
+				unticked.push_back(a_state.request.pieces[piece].armor);
+			}
+		}
+		if (layer.empty() || unticked.size() == layer.size()) {
+			return apply;
+		}
+		apply.excluded = std::move(unticked);
+		apply.only = WornOutfitIndex(a_state) < 0 && BaseTicks(a_state) == WithoutLayer(a_state, a_state.wornPieces);
+		return apply;
+	}
+
+	// The id of the outfit last loaded when the ticks, less the layer's, are exactly its pieces;
+	// 0 otherwise.
 	std::uint32_t TickedOutfitId(const State& a_state)
 	{
 		const int loaded = a_state.loadedOutfit;
-		return loaded >= 0 && TickedPieces(a_state) == OutfitAt(a_state, loaded).pieces ? OutfitAt(a_state, loaded).id : 0;
+		return loaded >= 0 && BaseTicks(a_state) == OutfitAt(a_state, loaded).pieces ? OutfitAt(a_state, loaded).id : 0;
 	}
 
-	// When the ticks are all or some of the pieces of `a_worn` (WornOutfitIndex) and nothing
-	// else: the armor (FormIDs) of its pieces left unticked, empty for none. nullopt otherwise.
+	// When the ticks, less the layer's, are all or some of the pieces of `a_worn`
+	// (WornOutfitIndex) and nothing else: the armor (FormIDs) of its pieces left unticked, empty
+	// for none. nullopt otherwise. A piece under a ticked piece of the layer (it shares a body
+	// slot) is not left unticked, unless the row leaves it off already.
 	std::optional<std::vector<std::uint32_t>> UntickedOfWorn(const State& a_state, int a_worn)
 	{
-		const auto& pieces = OutfitAt(a_state, a_worn).pieces;
-		const auto  ticked = TickedPieces(a_state);
+		const auto& outfit = OutfitAt(a_state, a_worn);
+		const auto& pieces = outfit.pieces;
+		const auto  ticked = BaseTicks(a_state);
 		const auto  inOutfit = [&pieces](std::size_t a_piece) { return std::ranges::binary_search(pieces, a_piece); };
 		if (!std::ranges::all_of(ticked, inOutfit)) {
 			return std::nullopt;
 		}
+		const auto                 covered = TickedLayerSlots(a_state);
+		const auto&                rows = a_state.request.assigned;
+		const auto                 found = std::ranges::find(a_state.request.situations, a_state.request.wornFor, &CaptureWindow::SituationInfo::situation);
+		const auto                 row = static_cast<std::size_t>(found - a_state.request.situations.begin());
+		const auto                 leftOff = row < rows.size() ? OutfitRows::ExcludedOf(rows[row].row, outfit.id) : std::vector<std::uint32_t>{};
 		std::vector<std::uint32_t> unticked;
 		for (const auto piece : pieces) {
-			if (!std::ranges::binary_search(ticked, piece)) {
-				unticked.push_back(a_state.request.pieces[piece].armor);
+			const auto& listed = a_state.request.pieces[piece];
+			const bool  under = (listed.slots & covered) != 0 && std::ranges::find(leftOff, listed.armor) == leftOff.end();
+			if (!std::ranges::binary_search(ticked, piece) && !under) {
+				unticked.push_back(listed.armor);
 			}
 		}
 		return unticked;
@@ -1806,12 +1882,13 @@ namespace CaptureWindow::Internal
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
-		auto pieces = TickedPieces(a_state);
+		auto pieces = BaseTicks(a_state);
 		auto fromPlayer = TickedFromPlayer(a_state);
+		auto layer = LayerApplyOf(a_state);
 		auto onApply = a_state.request.onApply;
 		SKSE::GetTaskInterface()->AddTask(
-			[onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn, excluded = std::move(a_excluded)] {
-				onApply(pieces, fromPlayer, a_outfit, a_updateWorn, excluded);
+			[onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn, excluded = std::move(a_excluded), layer = std::move(layer)] {
+				onApply(pieces, fromPlayer, a_outfit, a_updateWorn, excluded, layer);
 			});
 	}
 
@@ -1831,7 +1908,8 @@ namespace CaptureWindow::Internal
 			}
 		}
 		const auto loaded = TickedOutfitId(a_state);
-		if (worn < 0 || loaded != 0) {
+		// With nothing ticked but the layer's items, there is no outfit to update either.
+		if (worn < 0 || loaded != 0 || BaseTicks(a_state).empty()) {
 			RequestApply(a_state, loaded, false);
 			return;
 		}
@@ -2650,8 +2728,12 @@ namespace CaptureWindow
 			const std::scoped_lock lock(state.mutex);
 			state.request = std::move(a_request);
 			state.pieceTicked = std::make_unique<bool[]>(state.request.pieces.size());
+			state.wornPieces.clear();
 			for (std::size_t i = 0; i < state.request.pieces.size(); ++i) {
 				state.pieceTicked[i] = state.request.pieces[i].selected;
+				if (state.request.pieces[i].selected) {
+					state.wornPieces.push_back(i);
+				}
 			}
 			// The Update tab's name is filled when an outfit is chosen (ChooseOutfit).
 			RestartCreateTab(state);

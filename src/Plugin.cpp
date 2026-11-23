@@ -657,7 +657,10 @@ namespace
 	// The group of a piece the actor carries: worn and put on by Livery from the library
 	// outfit `livery` (or not a library one), worn as an outfit item (WornOutfitItem), or
 	// carried, worn or not: an item they were given and put on is listed with their inventory.
-	CaptureWindow::PieceGroup OwnPieceGroup(const InventoryArmor& piece, const std::optional<Assignments::Choices>& choices, const Library::Outfit* livery)
+	// A piece Livery put on from the layer over that outfit (`layer`, WornLibraryLayer) is listed
+	// under the layer's own heading.
+	CaptureWindow::PieceGroup OwnPieceGroup(const InventoryArmor& piece, const std::optional<Assignments::Choices>& choices, const Library::Outfit* livery,
+		const Library::Outfit* layer)
 	{
 		using Group = CaptureWindow::PieceGroup;
 		if (!piece.worn) {
@@ -666,6 +669,9 @@ namespace
 		const bool byLivery = choices && std::ranges::find(choices->wornArmor, piece.armor->GetFormID()) != choices->wornArmor.end();
 		if (!byLivery) {
 			return piece.wornOutfitItem ? Group::kUnmanaged : Group::kCarried;
+		}
+		if (layer && std::ranges::any_of(layer->pieces, [&piece](const Library::PieceRef& ref) { return PieceFile::ArmorOf(ref) == piece.armor; })) {
+			return Group::kLiveryLayer;
 		}
 		return livery ? Group::kLiveryOutfit : Group::kNotInLibrary;
 	}
@@ -1105,7 +1111,7 @@ namespace
 				pieces.groups[i] = std::ranges::find(offered, armors[i]) != offered.end() ? Group::kPlayer : Group::kNotCarried;
 				continue;
 			}
-			pieces.groups[i] = OwnPieceGroup(*own, choices, livery);
+			pieces.groups[i] = OwnPieceGroup(*own, choices, livery, WornLibraryLayer(choices));
 			if (own->worn) {
 				pieces.ticked.push_back(i);
 			}
@@ -1299,7 +1305,7 @@ namespace
 		request.carriedOnly = actor.IsPlayerRef() && !Settings::PlayerAddsMissingPieces();
 		request.onApply = [handle, actorID, armors, offered, name = request.actorName](const std::vector<std::size_t>& pieces,
 							  const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn,
-							  const std::vector<std::uint32_t>& excluded) {
+							  const std::vector<std::uint32_t>& excluded, const CaptureWindow::LayerApply& layer) {
 			const auto target = handle.get();
 			if (!target) {
 				CaptureWindow::SetError(Strings::Format(Strings::Text::kNoLongerHere, name));
@@ -1325,6 +1331,9 @@ namespace
 			}
 			const auto dress = [&] {
 				const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
+				// The layer's unticked items are left off on its row first, so the one dressing
+				// below wears it so (docs/ui-redesign.md §5).
+				const bool layerChanged = layer.excluded && Assignments::SetLayerExcluded(actorID, *layer.excluded);
 				// A situation outfit is read from the library, so the update is what goes on;
 				// the default is not touched.
 				if (updateWorn && forSituation) {
@@ -1335,7 +1344,21 @@ namespace
 					Assignments::Change(*target, { .outfit = outfit, .assign = { wornRow }, .leaveOut = notMoved, .excluded = excluded });
 					return;
 				}
+				// Only the layer's items changed, over what is no library outfit (their own
+				// clothes, the Default's items): nothing is made their Default.
+				if (layer.only || picked.empty()) {
+					if (layerChanged) {
+						Assignments::Refresh(*target, notMoved);
+					}
+					return;
+				}
 				AssignMoved(*target, picked, notMoved, outfit);
+				// A new Default waits for its turn under a situation's outfit, so nothing was
+				// dressed: the layer's change goes on now.
+				const auto after = Assignments::ChoicesOf(actorID);
+				if (layerChanged && forSituation && after && after->layerRow != Situations::Situation::kDefault) {
+					Assignments::Refresh(*target, notMoved);
+				}
 			};
 			auto dressed = DressCaptured(*target, dress, armors, offered, nullptr);
 			auto list = CurrentOutfitList(actorID, armors);  // after the dressing
@@ -1537,7 +1560,7 @@ namespace
 				auto picks = save.rows.empty() ? std::optional<Assignments::Picks>{ Assignments::Picks{} } :
 				                                 Assignments::SetRows(*target, RowsWith(actorID, save.rows), save.dropDefaultPieces);
 				if (picks && save.reroll) {
-					picks = Assignments::PickAnother(actorID);  // after SetRows, from the rows as saved
+					picks = Assignments::PickAnother(actorID, *save.reroll);  // after SetRows, from the rows as saved
 				}
 				if (picks) {
 					redressed = RedressCaptured(*target, { .refresh = true, .picks = *picks }, armors, offered,
@@ -1737,7 +1760,7 @@ namespace
 		std::vector<RE::TESObjectARMO*> armors;
 		armors.reserve(inventory.size());
 		for (const auto& piece : inventory) {
-			request.pieces.push_back(MakePiece(*piece.armor, OwnPieceGroup(piece, choices, livery), piece.worn, piece.marks));
+			request.pieces.push_back(MakePiece(*piece.armor, OwnPieceGroup(piece, choices, livery, WornLibraryLayer(choices)), piece.worn, piece.marks));
 			armors.push_back(piece.armor);
 		}
 		const auto offered = saveOnly ? std::vector<RE::TESObjectARMO*>{} : AddPlayerPieces(actor, armors, request.pieces);

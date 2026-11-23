@@ -21,7 +21,7 @@
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
 //                 inventory), MenuOpenCloseEvent (also logs menus opening or closing while
 //                 the window is open)
-//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
+//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / SetLayerExcluded / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc /
 //                 TakeOffAfterPass
@@ -1873,6 +1873,21 @@ namespace Assignments
 		return picks;
 	}
 
+	bool SetLayerExcluded(RE::FormID a_actor, const std::vector<RE::FormID>& a_excluded)
+	{
+		auto* assignment = FindAssignment(a_actor);
+		if (!assignment || assignment->layer == 0 || !assignment->layerRow || assignment->pieces.empty()) {
+			return false;
+		}
+		auto& row = assignment->rows[RowOf(*assignment->layerRow)];
+		if (std::ranges::find(row.outfits, assignment->layer) == row.outfits.end()) {
+			return false;  // SetExcluded's contract: the outfit is on the row
+		}
+		const auto before = row.excluded;
+		OutfitRows::SetExcluded(row, assignment->layer, a_excluded);
+		return row.excluded != before;
+	}
+
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, const Picks& a_picks)
 	{
 		const auto id = a_actor.GetFormID();
@@ -1907,19 +1922,23 @@ namespace Assignments
 		Notify(EndOf(result ? WithRedressNotes(std::move(text), a_actor, *result) : text));
 	}
 
-	Picks PickAnother(RE::FormID a_actor)
+	Picks PickAnother(RE::FormID a_actor, Situations::Situation a_row)
 	{
 		Picks       picks;
 		const auto* assignment = FindAssignment(a_actor);
 		if (!assignment || assignment->pieces.empty()) {
 			return picks;
 		}
-		const auto rows = LiveRows(*assignment);
-		if (const auto& row = rows[RowOf(assignment->worn)]; row.random) {
+		const auto  rows = LiveRows(*assignment);
+		const auto& row = rows[RowOf(a_row)];
+		if (!row.random) {
+			return picks;
+		}
+		if (assignment->worn == a_row) {
 			picks.base = OutfitRows::Pick(row, assignment->wornOutfit, RandomBelow, [](std::uint32_t a_outfit) { return !IsLayerOutfit(a_outfit); });
 		}
-		if (const auto layerRow = assignment->layerRow; layerRow && rows[RowOf(*layerRow)].random) {
-			picks.layer = OutfitRows::DrawLayer(rows[RowOf(*layerRow)], RandomBelow, [](std::uint32_t a_outfit) { return IsLayerOutfit(a_outfit) && WearableLayer(a_outfit); });
+		if (assignment->layerRow == a_row) {
+			picks.layer = OutfitRows::DrawLayer(row, RandomBelow, [](std::uint32_t a_outfit) { return IsLayerOutfit(a_outfit) && WearableLayer(a_outfit); });
 		}
 		return picks;
 	}

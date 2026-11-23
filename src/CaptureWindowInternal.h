@@ -347,6 +347,7 @@ namespace CaptureWindow::Internal
 		Status                   status = Status::kClosed;
 		CaptureWindow::Request   request;
 		std::unique_ptr<bool[]>  pieceTicked;        // one per request.pieces; bool[] because Theme::TickRow needs bool*
+		std::vector<std::size_t> wornPieces;         // the pieces they wear, as the window opened or their last dressing left them: indices into request.pieces, ascending
 		bool                     updateTab = false;  // the Save page shows the Update tab
 		int                      chosenOutfit = -1;  // the Update tab's outfit: index into request.existingOutfits, -1 for none
 		std::string              situationsLabel;    // "SITUATIONS (#{Name})", over the Situations page's outfit details
@@ -524,6 +525,9 @@ namespace CaptureWindow::Internal
 	// `a_layer`, and `a_layer`'s, ascending (indices into request.pieces), as a layer is worn
 	// over the outfit beneath (OutfitRows::Uncovered).
 	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer);
+	// A layer on the preview: its pieces `a_worn` over the Dress page's ticks, what the actor
+	// wears now, less the layer's own pieces `a_own` among them (LayeredOver).
+	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn);
 	std::string              QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
 
 	// Leaving a page: Exit, Escape or a tab. With unsaved edits the Wardrobe page first shows the
@@ -794,7 +798,8 @@ namespace CaptureWindow::Internal
 	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit);
 
 	// The pieces of the outfit whose details show (SituationForm::viewedOutfit), less those its
-	// row leaves off when they were opened from a row that holds it; empty with none showing.
+	// row leaves off when they were opened from a row that holds it, a layer's over what the
+	// actor wears now (OverWorn): what the preview shows. Empty with none showing.
 	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state);
 
 	// Drags the outfit row just laid out, carrying `a_payload`, shown as a see-through copy of

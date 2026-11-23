@@ -55,7 +55,10 @@ makes that sort the one every page's list starts in when the window opens, writt
 - One category group, Situation: the captured actor's rows (`SITUATIONS (#{Name})`) that
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
   the library.
-- Each row: the outfit's icon and name, one line high.
+- Each row: the outfit's icon and name, one line high. A layer's icon (design.md §7 Layers)
+  carries a badge, two overlapping squares over its lower right corner (`Theme::RowIcon::badge`,
+  `RowIconOf`), wherever the icon shows: the lists, a drag's copy aside, the name over the
+  details, the icon field.
 - Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
   colour, graded as a selected row's fill; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
@@ -78,7 +81,7 @@ makes that sort the one every page's list starts in when the window opens, writt
   (after Nordic's arrow), then the label; Modern a check mark at its right end.
 - Marks at the right end of each row's name line, in LabelText's grey, the name cut short
   of them: a dressed form (a gown on the stand) for the outfit the actor wears now
-  (`Request::wornOutfit`), else a bare form (the Dress tab's icon) for one their
+  (`Request::wornOutfit`) and the layer over it (`Request::wornLayer`), else a bare form (the Dress tab's icon) for one their
   Default holds; a star (point down, lines from its centre to its inner corners, the upper left face filled) for an outfit the
   actor has for a situation (never Default alone). Each shows a tooltip while the mouse is
   over it: `Current Outfit` (and `Default Outfit` on a second line when their Default holds
@@ -251,6 +254,11 @@ makes that sort the one every page's list starts in when the window opens, writt
     colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
     leaves it. Nothing is written until Save. The Save page's Create tab opens the same
     popup for the new outfit's icon (docs/ui-redesign.md).
+  - `Layer over the outfit beneath (?)` (`DrawLayerTick`; its help `Worn over another outfit
+    instead of replacing it.` / `The outfit beneath leaves off its items in the same body
+    slots.`): the outfit's layer flag as edited, an edit as a rename is (Save's popup lists it
+    as `Layer: on` or `Layer: off`). Apply and its popup treat the outfit as what the tick says,
+    since the edits are saved first.
   - 4px of extra room, then its pieces under `Name` and `Type` column labels
     (`Theme::HeaderRow`), which sort them as the Dress page's do: a click sorts by the column,
     a second reverses it, from the item sort at each open (docs/ui-redesign.md; Name ascending
@@ -280,7 +288,9 @@ makes that sort the one every page's list starts in when the window opens, writt
   edits change (as Save's popup lists them, the item count that of the edited items), then
   `Discard changes` / `Keep editing`.
 - The preview shows the selected outfit as edited, less its unticked pieces; with none
-  selected, the Dress page's ticks.
+  selected, the Dress page's ticks. A layer shows over the Dress page's ticks, what they wear
+  now, less the layer's own pieces among them: the ticks sharing a body slot with one of its
+  pieces give way (`OverWorn`, `LayeredOver`).
 - Buttons `Apply to #{Name}` (dressed form before its label), `Exit`, then `Remove` (§5) at the row's right
   end, a link drawn as Restore is, without the `(?)` (`Theme::LineLink`). `Save` is in the right column, above.
   - Save: writes the outfit as edited less its unticked pieces: the ticked pieces become its
@@ -325,6 +335,15 @@ makes that sort the one every page's list starts in when the window opens, writt
       library edits (a tooltip: the names quoted).
     - They wear it for a situation now: that row, dressed again.
     - Else (the Default, nothing of Livery's, or a situation removed since): the Default.
+    - A layer (the tick as edited) goes to a row as its layer, over the row's outfit, and
+      never replaces that. The rows above are then read for the layer: the situation they wear
+      another layer for (`Request::wornLayerFor`), or with no layer on the one their outfit is
+      worn for, is offered with `Make A their new Town layer?` when that row has a layer chosen
+      (random off), `Wear A over their Town outfit?` when it has none, and the random-on
+      questions as they are; Apply as Default's help: `Sets "A" as #{Name}'s default layer.` /
+      `It is worn wherever no situation has a layer of its own.` (`..., replacing "C".`). The
+      popup with no row offered asks `Wear A over their Default outfit?` (`... their Town
+      outfit?`), and `This replaces C.` names only a layer the Default has chosen.
     - In the last two cases it asks first (`Apply outfit?`) only with library edits or a
     Default whose worn outfit it replaces, random off: `Apply #{Outfit} as #{Name}'s
     Default?` (`... to #{Name} for Town?`), with library edits `Save changes and apply
@@ -357,7 +376,8 @@ makes that sort the one every page's list starts in when the window opens, writt
 - Title `Edit <outfit icon> #{Outfit}` (`Theme::HeadingRunText`), the icon and the name in the
   palette's emphasis, the name and icon as edited on the Wardrobe page (the saved name while its
   field is empty), no summary line, no tab column. It has the window's Live Preview
-  tick; the preview shows this page's ticks.
+  tick; the preview shows this page's ticks. On that tick's line, the Wardrobe page's Layer
+  tick: the same edit, which Back does not take back.
 - The count line ends in `Add from Wardrobe...`, as on the Dress page (§2): the
   Load page opens, and Load adds the selected outfit's pieces to this page's ticks instead
   of replacing them: a ticked piece sharing a body slot with one of them is unticked, as a

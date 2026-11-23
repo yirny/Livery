@@ -79,6 +79,13 @@ namespace Assignments
 	// Contract: game thread.
 	std::optional<Picks> SetRows(RE::Actor& a_actor, const OutfitRows::Rows& a_rows, bool a_dropDefaultPieces);
 
+	// From now on the layer they wear leaves `a_excluded` (armor FormIDs) off on the row it is
+	// from (OutfitRows::Exclusion), all its items worn with none. Nobody is dressed here: their
+	// next dressing wears it so. Returns whether that changed anything; false too while they
+	// wear no layer. The Dress page's Apply, by the ticks of the layer's items.
+	// Contract: game thread.
+	bool SetLayerExcluded(RE::FormID a_actor, const std::vector<RE::FormID>& a_excluded);
+
 	// Dresses them anew for their situations now, even in the outfit they already wear, so a
 	// library outfit whose pieces just changed goes on at once; a random row keeps its pick
 	// while it is on the list, or with `a_picks` (SetRows, PickAnother) the rows they wear wear
@@ -88,13 +95,13 @@ namespace Assignments
 	// Contract: game thread; no preview is on (OutfitPreview::End ran).
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, const Picks& a_picks = {});
 
-	// New picks for the random rows they wear now (their outfits gone from the library left
-	// out), for Refresh: another base of the row of their base, by the selection chances
+	// New picks for random row `a_row` while they wear for it (its outfits gone from the library
+	// left out), for Refresh: when their base is from it another base, by the selection chances
 	// (OutfitRows::Pick), never the one they wear or one with chance 0 (0 when there is none);
-	// a new draw of the row of their layer (OutfitRows::DrawLayer), none or the same one
-	// included. Each only while that row is random; nothing while Livery has nothing on them.
+	// when their layer is from it a new draw (OutfitRows::DrawLayer), none or the same one
+	// included. Nothing while Livery has nothing on them or the row is not random.
 	// Contract: game thread.
-	Picks PickAnother(RE::FormID a_actor);
+	Picks PickAnother(RE::FormID a_actor, Situations::Situation a_row);
 
 	// Dresses them for `a_now` when that means another base or layer than they wear: the base of
 	// the first situation whose row has one to wear, else the Default's (OutfitRows::Resolve),

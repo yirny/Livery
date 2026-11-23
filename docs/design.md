@@ -736,9 +736,9 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   the time and one at 100 or above means a layer always. A draw of none is kept as a pick is:
   the record holds the layer row with layer 0 until that row stops being the layer row, so a
   redress (rain, a cell change, a row edit) does not draw again. A layer gained by the row of
-  the base or of the layer is worn as its pick (`Assignments::SetRows`). The die
-  (`Assignments::PickAnother`) picks another base and draws the layer anew, none or the same
-  one included.
+  the base or of the layer is worn as its pick (`Assignments::SetRows`). A row's die
+  (`Assignments::PickAnother`) picks another base when their base is from it, and draws the
+  layer anew, none or the same one included, when their layer is.
 - Dressing (`Assignments` `Wear`): one list through the existing path, the base's pieces
   whose body slots no layer piece takes (`OutfitRows::Uncovered`), then the layer's. A base
   piece the layer would push off is never put on, so `PutBackOn` at 3D load cannot put it back
@@ -753,6 +753,17 @@ layer comes off when its situation ends, and a layer never goes over a layer.
 - Remove of a layer: the actors wearing it are redressed as for a situation outfit; a Default
   that held it does not get its pieces. Update redresses the actor when they wear it as the
   layer too.
+
+- The window: the flag is ticked on the Save page's Create tab, the Wardrobe page and its Edit
+  page (docs/ui-redesign.md §4, docs/outfit-management-ui.md §4) and written by Create and the
+  Wardrobe page's Save; a flag changed on an outfit the captured actor has redresses them at
+  once when another outfit is due, the others at their next dressing. A layer's icon has a
+  badge. Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
+  page lists and applies the worn layer's items apart (docs/ui-redesign.md §5); the previews
+  show a layer over what they wear. The summary line and the HUD name both outfits, `B over
+  A` (`Livery: {0} now wears {1} for {2}.` with it for the base's situation, `Livery: {0} now
+  wears {1}.` over the Default's or their own clothes), and a layer over their own clothes
+  counts none of those as extra items.
 
 In-game checks the design rests on (not yet made):
 
@@ -776,8 +787,8 @@ setting, off by default) and the user-defined situations (docs/custom-situations
 conditions, one order for the presets and the user's, the presets' rules editable, behind the
 `Enable custom situations` setting, off by default). Open:
 
-1. Layer outfits (§7 Layers): the data and rules are built; the window's part (the flag, the
-   Situations page, the HUD and the preview) and the in-game checks are open.
+1. Layer outfits (§7 Layers): written, the window's part included; not yet built on Windows
+   or checked in game.
 2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit.

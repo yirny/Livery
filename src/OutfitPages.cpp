@@ -761,6 +761,13 @@ namespace CaptureWindow::Internal
 		return worn;
 	}
 
+	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn)
+	{
+		auto base = TickedPieces(a_state);
+		std::erase_if(base, [&a_own](std::size_t a_piece) { return std::ranges::find(a_own, a_piece) != a_own.end(); });
+		return LayeredOver(a_state, base, a_worn);
+	}
+
 	std::uint32_t ManagedOutfitId(const State& a_state)
 	{
 		return OutfitAt(a_state, a_state.manage.outfit).id;
@@ -791,12 +798,17 @@ namespace CaptureWindow::Internal
 		return WornOf(a_state, a_state.manage.pieces, a_state.manage.excluded);
 	}
 
-	// What the preview shows of the selected outfit: ManagedWorn, for a layer over the Dress
-	// page's ticks, what they wear now (LayeredOver).
+	// What the preview shows of the selected outfit: ManagedWorn, for a layer over what they
+	// wear now (OverWorn), less its own pieces as the library and the edits have them.
 	std::vector<std::size_t> ManagedPreview(const State& a_state)
 	{
 		auto worn = ManagedWorn(a_state);
-		return a_state.manage.layer ? LayeredOver(a_state, TickedPieces(a_state), worn) : worn;
+		if (!a_state.manage.layer) {
+			return worn;
+		}
+		auto own = OutfitAt(a_state, a_state.manage.outfit).pieces;
+		own.insert(own.end(), a_state.manage.pieces.begin(), a_state.manage.pieces.end());
+		return OverWorn(a_state, own, worn);
 	}
 
 	void FillManageForm(State& a_state, int a_index)

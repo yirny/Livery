@@ -192,8 +192,9 @@ outfit for Town any more`.
   and `Edit` at the pane's right end, in the small heading style, lit as the chevron is. A heading
   without a chevron is never folded: random off shows its one outfit; a heading with nothing
   under it wears nothing and its name is greyed. Every heading is open when the page opens.
-  The name and star of the situation worn now (the lowest that applies, or the Default while
-  none does) are in the palette's `Positive` colour; those of a situation met now but outranked
+  The name and star of the situation worn now (the one the base is from: the lowest that
+  applies and has a base, or the Default; and the one the layer is from, `EntriesWornNow`, by
+  the rows as edited) are in the palette's `Positive` colour; those of a situation met now but outranked
   by a lower one, in that colour at half opacity; a heading wearing nothing stays greyed; the
   never-worn error colour wins (`SituationHeadingLook::nameColor`). While the page shows the
   list, the window asks `Request::onCheckSituations` what applies now, at once and every 0.5 s
@@ -217,9 +218,14 @@ outfit for Town any more`.
   outfits is picked at random each time this situation begins. Click to pick another now.` on
   hover. A click saves the page's edits
   with it (Saving below), then puts on another outfit of the list, picked by the chances
-  (§1), never the one worn or one at 0; an outfit's details close, so the preview shows what they wear. Else a click
+  (§1), never the one worn or one at 0 (a row their layer is from draws the layer anew, none or
+  the same one included; the die is lit for a row their base is from with two bases on its
+  list, or one their layer is from with a layer on it; `SituationSave::reroll` names the row); an outfit's details close, so the preview shows what they wear. Else a click
   there does nothing, the die stays grey, and hovering it shows the same first sentence, then
   why: `#{Name} is not wearing one of them now.` or `Add another to pick from.`
+- Random off, a heading shows the base it wears, then the layer over it; a Default holding no
+  base shows its `Items not in the Wardrobe` line first, a layer or not. A drop replaces only
+  the outfit of its own kind (§1).
 - Under a heading, its outfits as rows of the outfit list (name, the form marks but no
   star, since each is chosen for a situation), each with a drag grip: two columns of three
   dots, in LabelText's grey at low alpha, here level with the headings' names (`Theme::Grip::kName`), in the right pane's
@@ -292,7 +298,9 @@ no row holds the outfit. Then, clicked under a situation's heading with Random O
 that row still holding the outfit, `Selection Chance (?)` (`Theme::LabelText`,
 `Theme::LabelHelpMark`; its help `How often this outfit is picked compared with the others on
 the list.` / `200 is picked twice as often as 100, and 0 is never picked.`, a blank line,
-`Default: 100`) over a slider the pane's width, 0 to 200 (§1 `chances`): it moves the row's
+`Default: 100`; for a layer `How often this layer is worn compared with the other layers on
+the list.` / `Below 100, it may not be worn at all: alone at 70, it is worn 70% of the time.`
+and the rest) over a slider the pane's width, 0 to 200 (§1 `chances`): it moves the row's
 chance as it is dragged, and the page's save waits for it to be let go. Then its pieces, with the Dress page's icons, under the
 `Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
