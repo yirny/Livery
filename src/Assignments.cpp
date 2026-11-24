@@ -368,6 +368,21 @@ namespace
 		return a_armor->GetSlotMask().underlying();
 	}
 
+	// Whether layer `a_outfit` keeps the items beneath (Library::Outfit::keepBeneath).
+	bool KeepsBeneath(std::uint32_t a_outfit)
+	{
+		const auto* outfit = Library::Find(a_outfit);
+		return outfit && outfit->keepBeneath;
+	}
+
+	// The layer's pieces kept over `a_beneath` (OutfitRows::LayerOver), what they wear beneath it:
+	// the base's pieces, or their own clothes.
+	OutfitRows::Layered<RE::TESObjectARMO*> LayerOver(const std::vector<RE::TESObjectARMO*>& a_beneath, const std::vector<RE::TESObjectARMO*>& a_layer, std::uint32_t a_outfit)
+	{
+		constexpr auto kBody = std::to_underlying(RE::BIPED_MODEL::BipedObjectSlot::kBody);
+		return OutfitRows::LayerOver(a_beneath, a_layer, KeepsBeneath(a_outfit), kBody, SlotsOf);
+	}
+
 	// RedressOptions for outfit `a_outfit` just given to `a_rows`: as their base, or as their
 	// layer when it is one.
 	RedressOptions GivenTo(std::uint32_t a_outfit, std::vector<Situation> a_rows)
@@ -487,9 +502,11 @@ namespace
 	};
 
 	// Puts `a_due` on them in place of what Livery has on them, less `a_leaveOut`: the base's
-	// pieces whose body slots no layer piece takes, then the layer's (OutfitRows::Uncovered).
-	// With no base but a layer, the layer goes over their own clothes, which stay on. Their own
-	// pieces from before go back on first, so they are what this dressing takes off and notes.
+	// pieces and the layer's that LayerOver keeps, the base's first. With no base but a layer, the
+	// layer goes over their own clothes, which stay on, and LayerOver reads them as the base, so
+	// a layer that keeps the items beneath leaves out its pieces in the slots of their clothes.
+	// Their own pieces from before go back on first, so they are what this dressing takes off
+	// and notes.
 	// With no armor for the rows they end up in their own clothes. An NPC's outfit copies are
 	// locked again once pieces are on. A random row's picks are recorded as its `chosen` and
 	// `chosenLayer`, which turning random off keeps on (OutfitRows::SetRandom).
@@ -506,11 +523,26 @@ namespace
 			return a_armor;
 		};
 		const auto base = without(ArmorFor(a_assignment, a_due.row, a_due.outfit));
-		const auto layer = a_due.layerRow && a_due.layer != 0 ? without(ArmorFor(a_assignment, *a_due.layerRow, a_due.layer)) : std::vector<RE::TESObjectARMO*>{};
-		const auto uncovered = OutfitRows::Uncovered(base, layer, SlotsOf);
-		auto       armor = uncovered;
-		armor.insert(armor.end(), layer.begin(), layer.end());
+		auto       layer = a_due.layerRow && a_due.layer != 0 ? without(ArmorFor(a_assignment, *a_due.layerRow, a_due.layer)) : std::vector<RE::TESObjectARMO*>{};
 		const bool overOwn = base.empty() && !layer.empty();
+		auto       uncovered = base;
+		if (overOwn) {
+			// Their clothes as Release and PutBack left them: what Livery had on them and the
+			// layer's own armor are no clothes of theirs beneath it.
+			auto own = Dressing::WornArmor(a_actor);
+			std::erase_if(own, [&](const RE::TESObjectARMO* a_piece) {
+				const auto id = a_piece->GetFormID();
+				return std::ranges::find(layer, a_piece) != layer.end() ||
+				       std::ranges::any_of(a_assignment.pieces, [id](const Dressing::Piece& a_worn) { return a_worn.key.armor == id; });
+			});
+			layer = LayerOver(own, layer, a_due.layer).layer;
+		} else if (!layer.empty()) {
+			auto layered = LayerOver(base, layer, a_due.layer);
+			uncovered = std::move(layered.base);
+			layer = std::move(layered.layer);
+		}
+		auto armor = uncovered;
+		armor.insert(armor.end(), layer.begin(), layer.end());
 		const bool isPlayer = a_actor.IsPlayerRef();
 		Worn       worn{ .result = Dressing::Dress(a_actor, armor, !isPlayer, !isPlayer || Settings::PlayerAddsMissingPieces(), overOwn) };
 		const auto inBase = [&uncovered](const RE::TESObjectARMO* a_piece) { return std::ranges::find(uncovered, a_piece) != uncovered.end(); };

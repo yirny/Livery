@@ -736,22 +736,47 @@ namespace CaptureWindow::Internal
 		return changed;
 	}
 
-	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer)
+	bool DrawKeepBeneathTick(bool& a_keepBeneath, bool a_layer)
 	{
-		const auto& pieces = a_state.request.pieces;
-		auto        worn = OutfitRows::Uncovered(a_base, a_layer, [&pieces](std::size_t a_piece) { return pieces[a_piece].slots; });
-		worn.insert(worn.end(), a_layer.begin(), a_layer.end());
+		ImGui::BeginDisabled(!a_layer);
+		const bool changed = Theme::Checkbox(Strings::Get(Text::kKeepBeneathTick), &a_keepBeneath);
+		ImGui::EndDisabled();
+		if (changed) {
+			QueueMenuSound(kFocusSound);
+		}
+		// Outside the greyed tick, so its help reads while the Layer tick is off too.
+		ImGui::SameLine();
+		ImGui::TextDisabled("(?)");
+		const bool helpHovered = ImGui::IsItemHovered();
+		if (FocusStandIn("##keepBeneathHelp") || helpHovered) {
+			DrawHelpTooltip(Strings::Get(Text::kKeepBeneathTickHelp));
+		}
+		return changed;
+	}
+
+	OutfitRows::Layered<std::size_t> LayerPieces(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer, bool a_keepBeneath)
+	{
+		constexpr auto kBody = std::to_underlying(RE::BIPED_MODEL::BipedObjectSlot::kBody);
+		const auto&    pieces = a_state.request.pieces;
+		return OutfitRows::LayerOver(a_base, a_layer, a_keepBeneath, kBody, [&pieces](std::size_t a_piece) { return pieces[a_piece].slots; });
+	}
+
+	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer, bool a_keepBeneath)
+	{
+		auto layered = LayerPieces(a_state, a_base, a_layer, a_keepBeneath);
+		auto worn = std::move(layered.base);
+		worn.insert(worn.end(), layered.layer.begin(), layered.layer.end());
 		std::ranges::sort(worn);
 		const auto repeats = std::ranges::unique(worn);
 		worn.erase(repeats.begin(), repeats.end());
 		return worn;
 	}
 
-	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn)
+	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn, bool a_keepBeneath)
 	{
 		auto base = TickedPieces(a_state);
 		std::erase_if(base, [&a_own](std::size_t a_piece) { return std::ranges::find(a_own, a_piece) != a_own.end(); });
-		return LayeredOver(a_state, base, a_worn);
+		return LayeredOver(a_state, base, a_worn, a_keepBeneath);
 	}
 
 	std::uint32_t ManagedOutfitId(const State& a_state)
@@ -794,7 +819,7 @@ namespace CaptureWindow::Internal
 		}
 		auto own = OutfitAt(a_state, a_state.manage.outfit).pieces;
 		own.insert(own.end(), a_state.manage.pieces.begin(), a_state.manage.pieces.end());
-		return OverWorn(a_state, own, worn);
+		return OverWorn(a_state, own, worn, a_state.manage.keepBeneath);
 	}
 
 	void FillManageForm(State& a_state, int a_index)
@@ -814,6 +839,7 @@ namespace CaptureWindow::Internal
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
 		form.pieces = outfit.pieces;
 		form.layer = outfit.layer;
+		form.keepBeneath = outfit.keepBeneath;
 		form.excluded = StoredExcluded(a_state, outfit.id, form.pieces);
 		a_state.manageApplyTip = ApplyTooltip(a_state);
 	}
@@ -826,13 +852,20 @@ namespace CaptureWindow::Internal
 		QueuePreview(a_state, a_index >= 0 ? ManagedPreview(a_state) : TickedPieces(a_state));
 	}
 
-	// The selected outfit's edited icon, trimmed name or layer flag, or `a_pieces`, differ from
+	// The Keep items beneath flag as the edits would write it: off for no layer (Library::Update).
+	bool EditedKeepBeneath(const ManageForm& a_form)
+	{
+		return a_form.layer && a_form.keepBeneath;
+	}
+
+	// The selected outfit's edited icon, trimmed name or layer flags, or `a_pieces`, differ from
 	// the library's.
 	bool DiffersFromLibrary(const State& a_state, const std::vector<std::size_t>& a_pieces)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		return form.icon != outfit.icon || Trimmed(form.name.data()) != outfit.name || form.layer != outfit.layer || a_pieces != outfit.pieces;
+		return form.icon != outfit.icon || Trimmed(form.name.data()) != outfit.name || form.layer != outfit.layer || EditedKeepBeneath(form) != outfit.keepBeneath ||
+		       a_pieces != outfit.pieces;
 	}
 
 	// The selected outfit's edits differ from the library: its icon, trimmed name or loaded pieces.
@@ -904,6 +937,9 @@ namespace CaptureWindow::Internal
 		// it is ticked, so its tooltip follows.
 		if (DrawLayerTick(form.layer)) {
 			a_state.manageApplyTip = ApplyTooltip(a_state);
+			QueuePreview(a_state, ManagedPreview(a_state));
+		}
+		if (DrawKeepBeneathTick(form.keepBeneath, form.layer)) {
 			QueuePreview(a_state, ManagedPreview(a_state));
 		}
 		Theme::AfterFieldGap();
@@ -1134,6 +1170,10 @@ namespace CaptureWindow::Internal
 		}
 		if (form.layer != outfit.layer) {
 			ImGui::TextUnformatted(Strings::Get(form.layer ? Text::kLayerOn : Text::kLayerOff));
+		}
+		// Layered outfit: off says this one goes off too.
+		if (form.layer && EditedKeepBeneath(form) != outfit.keepBeneath) {
+			ImGui::TextUnformatted(Strings::Get(form.keepBeneath ? Text::kKeepBeneathOn : Text::kKeepBeneathOff));
 		}
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", Strings::Format(Text::kUnloadedItemsStay, outfit.unloadedPieces).c_str());
@@ -1425,7 +1465,8 @@ namespace CaptureWindow::Internal
 			.name = Trimmed(form.name.data()),
 			.pieces = a_applyRow ? form.pieces : ManagedWorn(a_state),
 			.icon = form.icon,
-			.layer = form.layer };
+			.layer = form.layer,
+			.keepBeneath = EditedKeepBeneath(form) };
 		edit.applyRow = a_applyRow;
 		if (a_applyRow) {
 			edit.excluded = form.excluded;
@@ -1883,10 +1924,11 @@ namespace CaptureWindow::Internal
 		DrawPieceRows(a_state, list);
 		const auto links = DrawPieceCount(a_state, list, true);
 		DrawPreviewToggle(a_state, list);
-		// The Wardrobe page's Layer tick, on the Live Preview tick's line: the same edit, which
-		// Back does not take back.
+		// The Wardrobe page's Layer tick, on the Live Preview tick's line, and its Keep items
+		// beneath tick under them: the same edits, which Back does not take back.
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.x * 2.0f);
 		DrawLayerTick(a_state.manage.layer);
+		DrawKeepBeneathTick(a_state.manage.keepBeneath, a_state.manage.layer);
 		const char* useLabel = Strings::Get(Text::kUseSelectedItems);
 		BeginButtonRow({ useLabel, Strings::Get(Text::kBack) });
 		const auto ticked = Ticked(a_state, list);

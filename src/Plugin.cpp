@@ -117,9 +117,10 @@ namespace
 	// Contract: game thread. Library::Create checks every refusal before it changes
 	// anything, so a refusal never leaves an empty outfit.
 	// Returns an error message, or nullopt on success (HUD message shown).
-	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors, const OutfitIcons::Icon& icon, bool layer)
+	std::optional<std::string> SaveOutfit(const std::string& name, const std::vector<RE::TESObjectARMO*>& armors, const OutfitIcons::Icon& icon, bool layer,
+		bool keepBeneath)
 	{
-		if (auto error = Library::Create(name, armors, icon, layer)) {
+		if (auto error = Library::Create(name, armors, icon, layer, keepBeneath)) {
 			return error;
 		}
 		Notify(Strings::Format(Strings::Text::kHudSaved, name, armors.size()));
@@ -140,10 +141,10 @@ namespace
 	// the Wardrobe page's popup.
 	// Its pieces whose plugin is not loaded stay in it; the HUD message says how many, and its
 	// old name when it is renamed. Without `icon` it keeps its own, without `layer` its layer
-	// flag, which only the Wardrobe page's Save hands over (CLAUDE.md §2.1).
+	// flags, which only the Wardrobe page's Save hands over (CLAUDE.md §2.1).
 	// Returns an error message, or nullopt on success (HUD message shown).
 	std::optional<std::string> UpdateOutfit(std::uint32_t id, const std::string& name, const std::vector<RE::TESObjectARMO*>& armors,
-		const std::optional<OutfitIcons::Icon>& icon = std::nullopt, std::optional<bool> layer = std::nullopt)
+		const std::optional<OutfitIcons::Icon>& icon = std::nullopt, std::optional<bool> layer = std::nullopt, std::optional<bool> keepBeneath = std::nullopt)
 	{
 		const auto* outfit = Library::Find(id);
 		if (!outfit) {
@@ -152,7 +153,8 @@ namespace
 		const auto  oldName = outfit->name;  // the update leaves `outfit` stale
 		std::size_t unloaded = 0;
 		Library::LoadedPieces(*outfit, &unloaded);
-		if (auto error = Library::Update(id, name, armors, icon.value_or(outfit->icon), layer.value_or(outfit->layer))) {
+		const bool keeps = layer ? keepBeneath.value_or(false) : outfit->keepBeneath;
+		if (auto error = Library::Update(id, name, armors, icon.value_or(outfit->icon), layer.value_or(outfit->layer), keeps)) {
 			return error;
 		}
 		using Strings::Text;
@@ -766,6 +768,7 @@ namespace
 				.icon = stored->icon,
 				.id = stored->id,
 				.layer = stored->layer,
+				.keepBeneath = stored->keepBeneath,
 				.users = UserLines(stored->id)
 			};
 			// LoadedPieces lists each form once, so the indices do not repeat.
@@ -1257,7 +1260,7 @@ namespace
 			const auto picked = PickPieces(armors, save.pieces);
 			// The Update tab hands no layer flag over, so the outfit keeps its own.
 			const auto error = save.outfit ? UpdateOutfit(save.outfit, save.name, picked, save.icon) :
-			                                 SaveOutfit(save.name, picked, save.icon.value_or(OutfitIcons::Icon{}), save.layer.value_or(false));
+			                                 SaveOutfit(save.name, picked, save.icon.value_or(OutfitIcons::Icon{}), save.layer.value_or(false), save.keepBeneath.value_or(false));
 			if (error) {
 				CaptureWindow::SetError(*error);
 				return;
@@ -1404,7 +1407,7 @@ namespace
 		// as Apply does (ApplyOutfit).
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
-			if (const auto error = UpdateOutfit(edit.outfit, edit.name, picked, edit.icon, edit.layer)) {
+			if (const auto error = UpdateOutfit(edit.outfit, edit.name, picked, edit.icon, edit.layer, edit.keepBeneath)) {
 				CaptureWindow::SetError(*error);
 				return;
 			}

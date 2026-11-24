@@ -103,9 +103,9 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   in several events; the window turns them into UTF-8 (`RecordChar`).
 - `Create New Outfit`: the icon field and the name, as the Wardrobe page's (its `Choose icon`
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
-  NNN`, then the Wardrobe page's `Layer over the outfit beneath (?)` tick, off as the tab
-  starts and after a Create (`State::createLayer`; Create and Apply then gives the new outfit
-  as a layer), then the ticked pieces read only, with the Dress page's icons, under their count
+  NNN`, then the Wardrobe page's `Layered outfit (?)` and `Keep items beneath (?)` ticks, off
+  as the tab starts and after a Create (`State::createLayer`, `createKeepBeneath`; Create and
+  Apply then gives the new outfit as a layer), then the ticked pieces read only, with the Dress page's icons, under their count
   line, as the Wardrobe page shows an outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
 - The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it until
   a Create or the window's close (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
@@ -141,7 +141,7 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   first.
 - The name may be changed: a name must be unused, ASCII case ignored, by any other outfit
   (CLAUDE.md §2.1); `Library::Update` takes the name. The Update tab keeps the outfit's
-  layer flag.
+  layer flags.
 - Update's confirm popup (`Replace items?`): `Replace A's N items with the M selected
   items?`, a line for the pieces of unloaded plugins that stay in it and one for a
   rename (`New name: B`), then `Confirm` / `Cancel`. No row changes.
@@ -193,12 +193,15 @@ and stays on the Save page with its error.
   under a heading of their own, `Outfit ("<layer>")` (`PieceGroup::kLiveryLayer`), and Apply
   takes them apart from the rest (`LayerApplyOf`): the layer's items left unticked are left
   off on the row the layer is from (`Assignments::SetLayerExcluded`, before the one dressing);
-  with every one unticked the layer comes off (`Assignments::TakeOffLayer`): random off, it
-  leaves that row; random on, the row's draw becomes none, kept as a draw of none is.
-  Everything above then reads the ticks less
-  the layer's items (`BaseTicks`): an item of X under a ticked item of the layer (it shares a
-  body slot) is not left unticked, unless that row leaves it off already; Update and Apply Only
-  take the ticks less the layer's. With no library outfit under the layer and the other ticks
+  with none ticked and one unticked that the row does not leave off already (or every one
+  unticked) the layer comes off (`Assignments::TakeOffLayer`): random off, it leaves that row;
+  random on, the row's draw becomes none, kept as a draw of none is. A layer item the ticked
+  items beneath keep off (`LayerPieces` with it ticked, design.md §7 Layers) is not left
+  unticked, unless that row leaves it off already, so Apply keeps a layer whose items all
+  stay off. Everything above then reads the ticks less the layer's items (`BaseTicks`): an
+  item of X the ticked items of the layer keep off (`LayerPieces` with it ticked) is not left
+  unticked, unless that row leaves it off already; Update and Apply Only take the ticks less
+  the layer's. With no library outfit under the layer and the other ticks
   as they wear them, only the layer changes and nothing is made their Default.
 - Apply is greyed with no ticked piece (`kNeedPiece`).
 

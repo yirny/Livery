@@ -162,8 +162,8 @@ namespace OutfitRows
 
 	// The base's pieces worn under a layer: those of `a_base` whose body slots (`a_slotsOf`, a
 	// mask) no piece of `a_layer` takes, as equipping the layer would push the others off. The
-	// dressing puts these on with the layer's pieces, so no base piece it would push off is
-	// ever on to be put back.
+	// dressing puts these on with the layer's pieces (LayerOver), so no base piece it would push
+	// off is ever on to be put back.
 	template <class Piece, class SlotsOf>
 	std::vector<Piece> Uncovered(const std::vector<Piece>& a_base, const std::vector<Piece>& a_layer, SlotsOf&& a_slotsOf)
 	{
@@ -178,6 +178,45 @@ namespace OutfitRows
 			}
 		}
 		return uncovered;
+	}
+
+	// The pieces worn of a base and a layer over it, each in its own order (LayerOver).
+	template <class Piece>
+	struct Layered
+	{
+		std::vector<Piece> base;
+		std::vector<Piece> layer;
+	};
+
+	// `a_layer` over `a_base`, by body slots (`a_slotsOf`, a mask), so no piece of one is put on
+	// where the other would push it off: a base piece that stays leaves off every layer piece
+	// sharing a slot with it, then the layer pieces kept leave off the base pieces under them
+	// (Uncovered). With `a_keepBeneath` (Library::Outfit::keepBeneath) every base piece stays;
+	// without, only one in `a_bodySlots` while no layer piece takes one, so a layer of gloves
+	// never leaves them without the cuirass that takes the forearms too.
+	template <class Piece, class SlotsOf>
+	Layered<Piece> LayerOver(const std::vector<Piece>& a_base, const std::vector<Piece>& a_layer, bool a_keepBeneath, std::uint32_t a_bodySlots, SlotsOf&& a_slotsOf)
+	{
+		std::uint32_t layerSlots = 0;
+		for (const auto& piece : a_layer) {
+			layerSlots |= a_slotsOf(piece);
+		}
+		const bool    layerBody = (layerSlots & a_bodySlots) != 0;
+		std::uint32_t staying = 0;  // the slots of the base pieces that stay
+		for (const auto& piece : a_base) {
+			const auto slots = a_slotsOf(piece);
+			if (a_keepBeneath || (!layerBody && (slots & a_bodySlots) != 0)) {
+				staying |= slots;
+			}
+		}
+		Layered<Piece> layered;
+		for (const auto& piece : a_layer) {
+			if ((a_slotsOf(piece) & staying) == 0) {
+				layered.layer.push_back(piece);
+			}
+		}
+		layered.base = Uncovered(a_base, layered.layer, a_slotsOf);
+		return layered;
 	}
 
 	// The outfit of one kind the row wears with random off, a layer with `a_layer`, else the

@@ -1461,16 +1461,17 @@ namespace CaptureWindow::Internal
 
 	// Height of the piece list with every listed piece and heading in view, capped as
 	// ListHeight caps it with what the Dress and Edit pages have under it: the count line, the
-	// Add from Chest... line and the Live Preview line, a frame's height each at most.
+	// Add from Chest... line and the Live Preview line, and on the Edit page the Keep items
+	// beneath line, a frame's height each at most.
 	// Contract: called with the list's row spacing pushed.
 	float PieceListHeight(const State& a_state, const PieceList& a_list)
 	{
-		constexpr float kLinesUnder = 3.0f;
+		const float linesUnder = a_state.page == Page::kEdit ? 4.0f : 3.0f;
 
 		const float spacing = ImGui::GetStyle().ItemSpacing.y;
 		const float rowsHeight = static_cast<float>(CountListedPieces(a_state, a_list)) * (ImGui::GetFrameHeight() + spacing) +
 		                         static_cast<float>(CountListedGroups(a_state, a_list)) * (Theme::ListHeadingHeight() + spacing);
-		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing(), kLinesUnder * (ImGui::GetFrameHeight() + g_pageSpacingY));
+		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing(), linesUnder * (ImGui::GetFrameHeight() + g_pageSpacingY));
 	}
 
 	// The column labels, then the listed pieces under their groups' headings, a tick row
@@ -1729,36 +1730,66 @@ namespace CaptureWindow::Internal
 		return WithoutLayer(a_state, TickedPieces(a_state));
 	}
 
-	// The body slots the ticked pieces of the layer they wear take: a piece of their outfit in
-	// one of them is under the layer, not left unticked.
-	std::uint32_t TickedLayerSlots(const State& a_state)
+	// The ticked pieces of the layer they wear.
+	std::vector<std::size_t> TickedLayer(const State& a_state)
 	{
-		std::uint32_t slots = 0;
-		for (const auto piece : WornLayerPieces(a_state)) {
-			if (a_state.pieceTicked[piece]) {
-				slots |= a_state.request.pieces[piece].slots;
-			}
-		}
-		return slots;
+		auto pieces = WornLayerPieces(a_state);
+		std::erase_if(pieces, [&a_state](std::size_t a_piece) { return !a_state.pieceTicked[a_piece]; });
+		return pieces;
+	}
+
+	// Whether the layer they wear keeps the items beneath (ExistingOutfit::keepBeneath).
+	bool WornLayerKeepsBeneath(const State& a_state)
+	{
+		const int layer = IndexOfOutfit(a_state, a_state.request.wornLayer);
+		return layer >= 0 && OutfitAt(a_state, layer).keepBeneath;
+	}
+
+	// The armor (FormIDs) row `a_row` (an id of request.situations, nullopt for none) has
+	// library outfit `a_outfit` leave off.
+	std::vector<std::uint32_t> LeftOffOn(const State& a_state, std::optional<Situations::Situation> a_row, std::uint32_t a_outfit)
+	{
+		const auto& rows = a_state.request.assigned;
+		const auto  found = a_row ? std::ranges::find(a_state.request.situations, *a_row, &CaptureWindow::SituationInfo::situation) : a_state.request.situations.end();
+		const auto  row = static_cast<std::size_t>(found - a_state.request.situations.begin());
+		return row < rows.size() ? OutfitRows::ExcludedOf(rows[row].row, a_outfit) : std::vector<std::uint32_t>{};
 	}
 
 	// What the ticks of the layer's pieces ask (CaptureWindow::LayerApply): the armor of those
-	// left unticked, or with every one unticked that the layer comes off; nothing with no layer.
+	// left unticked, or that the layer comes off with none of them ticked and one unticked the
+	// row did not leave off already (or every one); nothing with no layer. A piece the ticked
+	// pieces beneath keep off (LayerPieces) is not left unticked, unless the row leaves it off
+	// already, so Apply keeps a layer whose pieces they all keep off.
 	// `only` with no library outfit under it and the other ticks as they wear them.
 	CaptureWindow::LayerApply LayerApplyOf(const State& a_state)
 	{
-		CaptureWindow::LayerApply  apply;
-		const auto&                layer = WornLayerPieces(a_state);
-		std::vector<std::uint32_t> unticked;
-		for (const auto piece : layer) {
-			if (!a_state.pieceTicked[piece]) {
-				unticked.push_back(a_state.request.pieces[piece].armor);
-			}
-		}
+		CaptureWindow::LayerApply apply;
+		const auto&               layer = WornLayerPieces(a_state);
 		if (layer.empty()) {
 			return apply;
 		}
-		if (unticked.size() == layer.size()) {
+		const auto                 beneath = BaseTicks(a_state);
+		const auto                 ticked = TickedLayer(a_state);
+		const bool                 keeps = WornLayerKeepsBeneath(a_state);
+		const auto                 leftOff = LeftOffOn(a_state, a_state.request.wornLayerFor, a_state.request.wornLayer);
+		std::vector<std::uint32_t> unticked;
+		bool                       newlyUnticked = false;
+		for (const auto piece : layer) {
+			if (a_state.pieceTicked[piece]) {
+				continue;
+			}
+			const auto armor = a_state.request.pieces[piece].armor;
+			const bool wasLeftOff = std::ranges::find(leftOff, armor) != leftOff.end();
+			auto       with = ticked;
+			with.push_back(piece);
+			const auto worn = LayerPieces(a_state, beneath, with, keeps).layer;
+			const bool keptOff = std::ranges::find(worn, piece) == worn.end();
+			if (!keptOff || wasLeftOff) {
+				unticked.push_back(armor);
+				newlyUnticked = newlyUnticked || !wasLeftOff;
+			}
+		}
+		if (ticked.empty() && (newlyUnticked || unticked.size() == layer.size())) {
 			apply.takeOff = true;
 		} else {
 			apply.excluded = std::move(unticked);
@@ -1777,8 +1808,8 @@ namespace CaptureWindow::Internal
 
 	// When the ticks, less the layer's, are all or some of the pieces of `a_worn`
 	// (WornOutfitIndex) and nothing else: the armor (FormIDs) of its pieces left unticked, empty
-	// for none. nullopt otherwise. A piece under a ticked piece of the layer (it shares a body
-	// slot) is not left unticked, unless the row leaves it off already.
+	// for none. nullopt otherwise. A piece the ticked pieces of the layer keep off (LayerPieces)
+	// is not left unticked, unless the row leaves it off already.
 	std::optional<std::vector<std::uint32_t>> UntickedOfWorn(const State& a_state, int a_worn)
 	{
 		const auto& outfit = OutfitAt(a_state, a_worn);
@@ -1788,16 +1819,20 @@ namespace CaptureWindow::Internal
 		if (!std::ranges::all_of(ticked, inOutfit)) {
 			return std::nullopt;
 		}
-		const auto                 covered = TickedLayerSlots(a_state);
-		const auto&                rows = a_state.request.assigned;
-		const auto                 found = std::ranges::find(a_state.request.situations, a_state.request.wornFor, &CaptureWindow::SituationInfo::situation);
-		const auto                 row = static_cast<std::size_t>(found - a_state.request.situations.begin());
-		const auto                 leftOff = row < rows.size() ? OutfitRows::ExcludedOf(rows[row].row, outfit.id) : std::vector<std::uint32_t>{};
+		const auto                 layer = TickedLayer(a_state);
+		const bool                 keeps = WornLayerKeepsBeneath(a_state);
+		const auto                 leftOff = LeftOffOn(a_state, a_state.request.wornFor, outfit.id);
 		std::vector<std::uint32_t> unticked;
 		for (const auto piece : pieces) {
+			if (std::ranges::binary_search(ticked, piece)) {
+				continue;
+			}
 			const auto& listed = a_state.request.pieces[piece];
-			const bool  under = (listed.slots & covered) != 0 && std::ranges::find(leftOff, listed.armor) == leftOff.end();
-			if (!std::ranges::binary_search(ticked, piece) && !under) {
+			auto        with = ticked;
+			with.push_back(piece);
+			const auto worn = LayerPieces(a_state, with, layer, keeps).base;
+			const bool under = std::ranges::find(worn, piece) == worn.end() && std::ranges::find(leftOff, listed.armor) == leftOff.end();
+			if (!under) {
 				unticked.push_back(listed.armor);
 			}
 		}
@@ -2341,6 +2376,7 @@ namespace CaptureWindow::Internal
 		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked, Strings::Get(Text::kOutfitName), a_state.createLayer);
 		Theme::AfterFieldGap();
 		DrawLayerTick(a_state.createLayer);
+		DrawKeepBeneathTick(a_state.createKeepBeneath, a_state.createLayer);
 		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(pieces.size(), 0).c_str());
 		DrawPieceNames(a_state, pieces);
@@ -2519,6 +2555,7 @@ namespace CaptureWindow::Internal
 		std::strncpy(a_state.createName.data(), a_state.request.suggestedName.c_str(), kNameCapacity - 1);
 		a_state.createIcon.reset();
 		a_state.createLayer = false;
+		a_state.createKeepBeneath = false;
 	}
 
 	// Hands the save to onSave; `a_applyRow` (Create and Apply) is the row the new outfit goes
@@ -2536,6 +2573,7 @@ namespace CaptureWindow::Internal
 		if (!a_state.updateTab) {
 			save.icon = CreateIcon(a_state, save.pieces);
 			save.layer = a_state.createLayer;
+			save.keepBeneath = a_state.createLayer && a_state.createKeepBeneath;
 		}
 		if (a_applyRow) {
 			save.fromPlayer = TickedFromPlayer(a_state);
@@ -2846,6 +2884,7 @@ namespace CaptureWindow
 			state.createName = {};
 			state.createIcon.reset();
 			state.createLayer = false;
+			state.createKeepBeneath = false;
 			state.updateName = {};
 			state.manage = {};
 			state.situationForm = {};

@@ -200,8 +200,9 @@ namespace CaptureWindow::Internal
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
 		OutfitIcons::Icon               icon;
 		std::array<char, kNameCapacity> name{};
-		std::vector<std::size_t>        pieces;         // its loaded pieces as edited: indices into request.pieces, ascending
-		bool                            layer = false;  // its layer flag as edited (the Layer tick, on this page or the Edit page)
+		std::vector<std::size_t>        pieces;               // its loaded pieces as edited: indices into request.pieces, ascending
+		bool                            layer = false;        // its layer flag as edited (the Layer tick, on this page or the Edit page)
+		bool                            keepBeneath = false;  // its Keep items beneath tick as edited, which counts only with `layer`
 		// The armor (FormIDs, ascending) of `pieces` unticked in its piece list, which Apply has
 		// the outfit leave off on the row it gives it; never every one of `pieces`. Not an
 		// unsaved edit: selecting an outfit, or SetOutfits, starts it from the actor's rows.
@@ -433,7 +434,8 @@ namespace CaptureWindow::Internal
 		std::array<char, kNameCapacity> updateName{};
 		// The Create tab's icon as chosen in Choose icon; nullopt follows the ticks (CreateIcon).
 		std::optional<OutfitIcons::Icon> createIcon;
-		bool                             createLayer = false;  // the Create tab's Layer tick; a Create unticks it
+		bool                             createLayer = false;        // the Create tab's Layer tick; a Create unticks it
+		bool                             createKeepBeneath = false;  // the Create tab's Keep items beneath tick, as createLayer
 	};
 
 	// The piece list a page shows (DrawPieceRows): the Dress page's ticks with the
@@ -522,16 +524,22 @@ namespace CaptureWindow::Internal
 	// or the Default's pieces with none; for a layer, another layer chosen.
 	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit, bool a_layer);
 	std::string HeldOutfitName(const State& a_state, std::size_t a_row, bool a_layer);
-	// The `Layer over the outfit beneath` tick with its "(?)" (docs/outfit-management-ui.md §4).
+	// The `Layered outfit` tick with its "(?)" (docs/outfit-management-ui.md §4).
 	// Returns whether `a_layer` changed.
 	bool DrawLayerTick(bool& a_layer);
-	// `a_layer`'s pieces over `a_base`'s: those of `a_base` sharing no body slot with one of
-	// `a_layer`, and `a_layer`'s, ascending (indices into request.pieces), as a layer is worn
-	// over the outfit beneath (OutfitRows::Uncovered).
-	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer);
+	// The `Keep items beneath` tick with its "(?)", under the Layer tick, greyed while `a_layer`
+	// is off. Returns whether `a_keepBeneath` changed.
+	bool DrawKeepBeneathTick(bool& a_keepBeneath, bool a_layer);
+	// The pieces of layer `a_layer` and of `a_base` beneath it that are worn together
+	// (OutfitRows::LayerOver, indices into request.pieces), the layer keeping the items beneath
+	// with `a_keepBeneath`.
+	OutfitRows::Layered<std::size_t> LayerPieces(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer, bool a_keepBeneath);
+	// The pieces of LayerPieces in one list, ascending, as the preview shows a layer over the
+	// outfit beneath.
+	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer, bool a_keepBeneath);
 	// A layer on the preview: its pieces `a_worn` over the Dress page's ticks, what the actor
 	// wears now, less the layer's own pieces `a_own` among them (LayeredOver).
-	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn);
+	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn, bool a_keepBeneath);
 	std::string              QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
 
 	// Leaving a page: Exit, Escape or a tab. With unsaved edits the Wardrobe page first shows the

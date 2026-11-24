@@ -169,62 +169,66 @@
 // The Wardrobe page, its popups and the Apply popup it shares with Create and Apply. An Apply
 // question's values: {0} the outfit, {1} the situation (Offer) or the character (ApplyAs,
 // ApplyFor), {2} the situation; "Create" and "Edits" forms save the outfit or the changes first.
-#define LIVERY_STRINGS_WARDROBE(X)                                                                                                                              \
-	X(kSelectOutfitToEdit, "Select an outfit to edit")                                                                                                          \
-	X(kItemsSelectedUnloaded, "{0} of {1} items selected, {2} not loaded")                                                                                      \
-	X(kUnsavedChangesTo, "Unsaved changes to {0}.")                                                                                                             \
-	X(kWardrobeApplyOffer, "Dress {0} in this outfit as their {1} outfit, or make it their default outfit.")                                                    \
-	X(kWardrobeApplyDefault, "Dress {0} in this outfit as their default outfit.")                                                                               \
-	X(kWardrobeApplyFor, "Dress {0} in this outfit for {1}.")                                                                                                   \
-	X(kChangesLost, "Changes to {0} will be lost.")                                                                                                             \
-	X(kDiscardEdits, "Discard changes")                                                                                                                         \
-	X(kKeepEditing, "Keep editing")                                                                                                                             \
-	X(kItemsChange, "Items: {0} to {1}")                                                                                                                        \
-	X(kIconChanged, "Icon: changed")                                                                                                                            \
-	X(kLayerOn, "Layer: on")                                                                                                                                    \
-	X(kLayerOff, "Layer: off")                                                                                                                                  \
-	X(kLayerTick, "Layer over the outfit beneath")                                                                                                              \
-	X(kLayerTickHelp, "Worn over another outfit instead of replacing it.\nThe outfit beneath leaves off its items in the same body slots.")                     \
-	X(kRemoveItemsTitle, "Remove items from the outfit?")                                                                                                       \
-	X(kUnselectedRemoved, "These unselected items will be removed from {0}:")                                                                                   \
-	X(kKeepItemsHint, "To keep these items in the outfit, choose {0} instead.")                                                                                 \
-	X(kSaveChangesTo, "Save your changes to {0}?")                                                                                                              \
-	X(kSaveAndApply, "Save and Apply")                                                                                                                          \
-	X(kSavedFirstHelp, "Your changes are saved first.")                                                                                                         \
-	X(kOfferMake, "Make {0} their new {1} outfit?")                                                                                                             \
-	X(kOfferMakeCreate, "Create {0}, then make it their new {1} outfit?")                                                                                       \
-	X(kOfferMakeEdits, "Save changes and make {0} their new {1} outfit?")                                                                                       \
-	X(kOfferSwitch, "Switch to {0} for {1}?")                                                                                                                   \
-	X(kOfferSwitchCreate, "Create {0}, then switch to it for {1}?")                                                                                             \
-	X(kOfferSwitchEdits, "Save changes and switch to {0} for {1}?")                                                                                             \
-	X(kOfferAdd, "Add {0} to their {1} outfits and dress them in it?")                                                                                          \
-	X(kOfferAddCreate, "Create {0}, add it to their {1} outfits, and dress them in it?")                                                                        \
-	X(kOfferAddEdits, "Save changes, add {0} to their {1} outfits, and dress them in it?")                                                                      \
-	X(kOfferOver, "Wear {0} over their {1} outfit?")                                                                                                            \
-	X(kOfferOverCreate, "Create {0}, then wear it over their {1} outfit?")                                                                                      \
-	X(kOfferOverEdits, "Save changes and wear {0} over their {1} outfit?")                                                                                      \
-	X(kOfferLayer, "Make {0} their new {1} layer?")                                                                                                             \
-	X(kOfferLayerCreate, "Create {0}, then make it their new {1} layer?")                                                                                       \
-	X(kOfferLayerEdits, "Save changes and make {0} their new {1} layer?")                                                                                       \
-	X(kApplyAs, "Apply {0} as {1}'s {2}?")                                                                                                                      \
-	X(kApplyAsCreate, "Create {0}, then apply it as {1}'s {2}?")                                                                                                \
-	X(kApplyAsEdits, "Save changes and apply {0} as {1}'s {2}?")                                                                                                \
-	X(kApplyFor, "Apply {0} to {1} for {2}?")                                                                                                                   \
-	X(kApplyForCreate, "Create {0}, then apply it to {1} for {2}?")                                                                                             \
-	X(kApplyForEdits, "Save changes and apply {0} to {1} for {2}?")                                                                                             \
-	X(kWearingFor, "{0} is wearing {1} for {2}.")                                                                                                               \
-	X(kWearingOneOf, "{0} is wearing {1}, one of their {2} outfits.")                                                                                           \
-	X(kApplyAsDefault, "Apply as Default")                                                                                                                      \
-	X(kAsDefaultHelp, "Sets \"{0}\" as {1}'s default outfit.\nTheir current situational outfit stays equipped.")                                                \
-	X(kAsDefaultHelpReplacing, "Sets \"{0}\" as {1}'s default outfit, replacing {2}.\nTheir current situational outfit stays equipped.")                        \
-	X(kAsDefaultLayerHelp, "Sets \"{0}\" as {1}'s default layer.\nIt is worn wherever no situation has a layer of its own.")                                    \
-	X(kAsDefaultLayerHelpReplacing, "Sets \"{0}\" as {1}'s default layer, replacing {2}.\nIt is worn wherever no situation has a layer of its own.")            \
-	X(kThisReplaces, "This replaces {0}.")                                                                                                                      \
-	X(kRemoveFromWardrobe, "Remove {0} from the Wardrobe?")                                                                                                     \
-	X(kUsedBy, "Used by:")                                                                                                                                      \
-	X(kRemoveFallback, "Situations using it fall back to the default outfit. Where it is the default outfit, its items stay as an outfit not in the Wardrobe.") \
-	X(kNotCarriedFrom, "You don't carry these items from {0}:")                                                                                                 \
-	X(kOnlyCarriedEquipped, "Only carried items will be equipped.")                                                                                             \
+#define LIVERY_STRINGS_WARDROBE(X)                                                                                                                                                              \
+	X(kSelectOutfitToEdit, "Select an outfit to edit")                                                                                                                                          \
+	X(kItemsSelectedUnloaded, "{0} of {1} items selected, {2} not loaded")                                                                                                                      \
+	X(kUnsavedChangesTo, "Unsaved changes to {0}.")                                                                                                                                             \
+	X(kWardrobeApplyOffer, "Dress {0} in this outfit as their {1} outfit, or make it their default outfit.")                                                                                    \
+	X(kWardrobeApplyDefault, "Dress {0} in this outfit as their default outfit.")                                                                                                               \
+	X(kWardrobeApplyFor, "Dress {0} in this outfit for {1}.")                                                                                                                                   \
+	X(kChangesLost, "Changes to {0} will be lost.")                                                                                                                                             \
+	X(kDiscardEdits, "Discard changes")                                                                                                                                                         \
+	X(kKeepEditing, "Keep editing")                                                                                                                                                             \
+	X(kItemsChange, "Items: {0} to {1}")                                                                                                                                                        \
+	X(kIconChanged, "Icon: changed")                                                                                                                                                            \
+	X(kLayerOn, "Layered outfit: on")                                                                                                                                                           \
+	X(kLayerOff, "Layered outfit: off")                                                                                                                                                         \
+	X(kLayerTick, "Layered outfit")                                                                                                                                                             \
+	X(kLayerTickHelp, "Wear this outfit over the current one instead of replacing it.")                                                                                                         \
+	X(kKeepBeneathOn, "Keep items beneath: on")                                                                                                                                                 \
+	X(kKeepBeneathOff, "Keep items beneath: off")                                                                                                                                               \
+	X(kKeepBeneathTick, "Keep items beneath")                                                                                                                                                   \
+	X(kKeepBeneathTickHelp, "When items occupy the same body slots:\nOn: Keep the items beneath and skip those in this outfit.\nOff: Equip the items in this outfit, replacing those beneath.") \
+	X(kRemoveItemsTitle, "Remove items from the outfit?")                                                                                                                                       \
+	X(kUnselectedRemoved, "These unselected items will be removed from {0}:")                                                                                                                   \
+	X(kKeepItemsHint, "To keep these items in the outfit, choose {0} instead.")                                                                                                                 \
+	X(kSaveChangesTo, "Save your changes to {0}?")                                                                                                                                              \
+	X(kSaveAndApply, "Save and Apply")                                                                                                                                                          \
+	X(kSavedFirstHelp, "Your changes are saved first.")                                                                                                                                         \
+	X(kOfferMake, "Make {0} their new {1} outfit?")                                                                                                                                             \
+	X(kOfferMakeCreate, "Create {0}, then make it their new {1} outfit?")                                                                                                                       \
+	X(kOfferMakeEdits, "Save changes and make {0} their new {1} outfit?")                                                                                                                       \
+	X(kOfferSwitch, "Switch to {0} for {1}?")                                                                                                                                                   \
+	X(kOfferSwitchCreate, "Create {0}, then switch to it for {1}?")                                                                                                                             \
+	X(kOfferSwitchEdits, "Save changes and switch to {0} for {1}?")                                                                                                                             \
+	X(kOfferAdd, "Add {0} to their {1} outfits and dress them in it?")                                                                                                                          \
+	X(kOfferAddCreate, "Create {0}, add it to their {1} outfits, and dress them in it?")                                                                                                        \
+	X(kOfferAddEdits, "Save changes, add {0} to their {1} outfits, and dress them in it?")                                                                                                      \
+	X(kOfferOver, "Wear {0} over their {1} outfit?")                                                                                                                                            \
+	X(kOfferOverCreate, "Create {0}, then wear it over their {1} outfit?")                                                                                                                      \
+	X(kOfferOverEdits, "Save changes and wear {0} over their {1} outfit?")                                                                                                                      \
+	X(kOfferLayer, "Make {0} their new {1} layer?")                                                                                                                                             \
+	X(kOfferLayerCreate, "Create {0}, then make it their new {1} layer?")                                                                                                                       \
+	X(kOfferLayerEdits, "Save changes and make {0} their new {1} layer?")                                                                                                                       \
+	X(kApplyAs, "Apply {0} as {1}'s {2}?")                                                                                                                                                      \
+	X(kApplyAsCreate, "Create {0}, then apply it as {1}'s {2}?")                                                                                                                                \
+	X(kApplyAsEdits, "Save changes and apply {0} as {1}'s {2}?")                                                                                                                                \
+	X(kApplyFor, "Apply {0} to {1} for {2}?")                                                                                                                                                   \
+	X(kApplyForCreate, "Create {0}, then apply it to {1} for {2}?")                                                                                                                             \
+	X(kApplyForEdits, "Save changes and apply {0} to {1} for {2}?")                                                                                                                             \
+	X(kWearingFor, "{0} is wearing {1} for {2}.")                                                                                                                                               \
+	X(kWearingOneOf, "{0} is wearing {1}, one of their {2} outfits.")                                                                                                                           \
+	X(kApplyAsDefault, "Apply as Default")                                                                                                                                                      \
+	X(kAsDefaultHelp, "Sets \"{0}\" as {1}'s default outfit.\nTheir current situational outfit stays equipped.")                                                                                \
+	X(kAsDefaultHelpReplacing, "Sets \"{0}\" as {1}'s default outfit, replacing {2}.\nTheir current situational outfit stays equipped.")                                                        \
+	X(kAsDefaultLayerHelp, "Sets \"{0}\" as {1}'s default layer.\nIt is worn wherever no situation has a layer of its own.")                                                                    \
+	X(kAsDefaultLayerHelpReplacing, "Sets \"{0}\" as {1}'s default layer, replacing {2}.\nIt is worn wherever no situation has a layer of its own.")                                            \
+	X(kThisReplaces, "This replaces {0}.")                                                                                                                                                      \
+	X(kRemoveFromWardrobe, "Remove {0} from the Wardrobe?")                                                                                                                                     \
+	X(kUsedBy, "Used by:")                                                                                                                                                                      \
+	X(kRemoveFallback, "Situations using it fall back to the default outfit. Where it is the default outfit, its items stay as an outfit not in the Wardrobe.")                                 \
+	X(kNotCarriedFrom, "You don't carry these items from {0}:")                                                                                                                                 \
+	X(kOnlyCarriedEquipped, "Only carried items will be equipped.")                                                                                                                             \
 	X(kCarryNone, "You carry none of these items.")
 
 // The Chests page, its New chest and Remove popups, and the chest editor.

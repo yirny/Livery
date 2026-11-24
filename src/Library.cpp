@@ -10,14 +10,15 @@
 // outfits.json, version 1, or 2 while any outfit is a layer:
 //   { "version": 2, "nextId": 3, "outfits": [ { "id": 1, "name": "Guard",
 //     "icon": "skyui/icons_item_psychosteve/armor_body", "color": "bone-white", "layer": true,
-//     "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
+//     "keepBeneath": true, "pieces": [ { "plugin": "Skyrim.esm", "formId": "0x013921",
 //     "name": "Imperial Light Armor" } ] } ] }
-// "layer" is written only for a layer. A library with none is written as version 1, which a
+// "layer" is written only for a layer, "keepBeneath" only for a layer with it on and read only
+// beside "layer". A library with no layer is written as version 1, which a
 // Livery without layers reads and writes as before; one with a layer as version 2, which such
 // a Livery refuses to read or write, so it never drops the flag.
 // An outfit with no "icon" or "color", or one that is not a string, gets the default
 // (OutfitIcons), and so does a "color" that is not a key of OutfitIcons::kColors, so a file
-// edited by hand still reads; "layer" that is not true is off. Other fields are ignored
+// edited by hand still reads; "layer" or "keepBeneath" that is not true is off. Other fields are ignored
 // and gone at the next write.
 #include "PCH.h"
 
@@ -103,8 +104,12 @@ namespace
 			return "no name";
 		}
 		ReadIcon(a_json, a_outfit.icon);
-		const auto* layer = Field(a_json, "layer");
-		a_outfit.layer = layer && layer->is_boolean() && layer->get<bool>();
+		const auto isTrue = [&a_json](const char* a_name) {
+			const auto* field = Field(a_json, a_name);
+			return field && field->is_boolean() && field->get<bool>();
+		};
+		a_outfit.layer = isTrue("layer");
+		a_outfit.keepBeneath = a_outfit.layer && isTrue("keepBeneath");
 		const auto* pieces = Field(a_json, "pieces");
 		if (!pieces || !pieces->is_array() || pieces->empty()) {
 			return "no pieces";
@@ -159,6 +164,9 @@ namespace
 			nlohmann::ordered_json entry{ { "id", outfit.id }, { "name", outfit.name }, { "icon", outfit.icon.key }, { "color", outfit.icon.color } };
 			if (outfit.layer) {
 				entry["layer"] = true;
+			}
+			if (outfit.layer && outfit.keepBeneath) {
+				entry["keepBeneath"] = true;
 			}
 			entry["pieces"] = std::move(pieces);
 			list.push_back(std::move(entry));
@@ -254,7 +262,8 @@ namespace Library
 
 	// Contract: every refusal is checked before anything changes, so no outfit is ever
 	// left without pieces.
-	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon, bool a_layer)
+	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon, bool a_layer,
+		bool a_keepBeneath)
 	{
 		if (!g_writable) {
 			return UnreadableMessage();
@@ -265,7 +274,7 @@ namespace Library
 		if (FindByName(a_name)) {
 			return Strings::Format(Strings::Text::kOutfitNameTaken, a_name);
 		}
-		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .icon = a_icon, .layer = a_layer };
+		Outfit outfit{ .id = g_nextId, .name = std::string{ a_name }, .icon = a_icon, .layer = a_layer, .keepBeneath = a_layer && a_keepBeneath };
 		if (auto problem = OutfitPieces(a_armor, outfit.pieces)) {
 			return problem;
 		}
@@ -281,7 +290,7 @@ namespace Library
 
 	// Contract: as Create; the new pieces and the name are checked before anything changes.
 	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon,
-		bool a_layer)
+		bool a_layer, bool a_keepBeneath)
 	{
 		if (!g_writable) {
 			return UnreadableMessage();
@@ -305,6 +314,7 @@ namespace Library
 		updated.name = std::string{ a_name };
 		updated.icon = a_icon;
 		updated.layer = a_layer;
+		updated.keepBeneath = a_layer && a_keepBeneath;
 		// This load order cannot tell what a piece of a missing plugin was, so it stays.
 		std::erase_if(updated.pieces, [](const PieceRef& piece) { return PieceFile::ArmorOf(piece) != nullptr; });
 		updated.pieces.insert(updated.pieces.begin(), pieces.begin(), pieces.end());

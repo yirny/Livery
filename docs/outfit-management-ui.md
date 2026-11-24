@@ -254,11 +254,17 @@ makes that sort the one every page's list starts in when the window opens, writt
     colour. OK makes the choice the edited icon, an edit as a rename is; Cancel or Escape
     leaves it. Nothing is written until Save. The Save page's Create tab opens the same
     popup for the new outfit's icon (docs/ui-redesign.md).
-  - `Layer over the outfit beneath (?)` (`DrawLayerTick`; its help `Worn over another outfit
-    instead of replacing it.` / `The outfit beneath leaves off its items in the same body
-    slots.`): the outfit's layer flag as edited, an edit as a rename is (Save's popup lists it
-    as `Layer: on` or `Layer: off`). Apply and its popup treat the outfit as what the tick says,
-    since the edits are saved first.
+  - `Layered outfit (?)` (`DrawLayerTick`; its help `Wear this outfit over the current one
+    instead of replacing it.`): the outfit's layer flag as edited, an edit as a rename is
+    (Save's popup lists it as `Layered outfit: on` or `Layered outfit: off`). Apply and its
+    popup treat the outfit as what the tick says, since the edits are saved first.
+  - `Keep items beneath (?)` under it (`DrawKeepBeneathTick`, greyed while `Layered outfit`
+    is off; its help `When items occupy the same body slots:` / `On: Keep the items beneath and
+    skip those in this outfit.` / `Off: Equip the items in this outfit, replacing those
+    beneath.`): the outfit's `keepBeneath` as edited (design.md §7 Layers), an edit while
+    `Layered outfit` is on (Save's popup lists it as `Keep items beneath: on` or `off`, unless
+    `Layered outfit` goes off). The Edit page shows both ticks too: `Layered outfit` on the
+    Live Preview line, `Keep items beneath` under it.
   - 4px of extra room, then its pieces under `Name` and `Type` column labels
     (`Theme::HeaderRow`), which sort them as the Dress page's do: a click sorts by the column,
     a second reverses it, from the item sort at each open (docs/ui-redesign.md; Name ascending

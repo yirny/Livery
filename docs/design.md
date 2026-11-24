@@ -418,12 +418,13 @@ would have to be kept in step).
   that has it. A missing or unreadable one, or a colour key the table does not have, is the
   default (`OutfitIcons::kDefaultKey`, `bone-white`), so a file edited by hand still reads; `Library::Create` takes the Save page's Create tab's icon.
 - An outfit may be a layer, `"layer": true` (written only when on), worn over the outfit
-  beneath (§7 Layers). A library with no layer is written as version 1, one with a layer as
-  version 2; both are read. A Livery without layers refuses version 2, so it never writes the
-  flag away.
-- `Library::Update` replaces pieces, name, icon and the layer flag; a name is taken when
+  beneath (§7 Layers), and a layer may keep the items beneath, `"keepBeneath": true` (written
+  only for a layer with it on, read only beside `"layer"`). A library with no layer is written
+  as version 1, one with a layer as version 2; both are read. A Livery without layers refuses
+  version 2, so it never writes the flags away.
+- `Library::Update` replaces pieces, name, icon and the layer flags; a name is taken when
   another outfit has it (ASCII case ignored). The Save page's Update keeps the icon and the
-  flag.
+  flags.
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
   then takes it off every row in this save (a `chosen` or `chosenLayer` that was it becomes
   0), and a Default this leaves wearing nothing gets the outfit's pieces, read before the
@@ -744,35 +745,48 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   (`Assignments::PickAnother`) picks another base when their base is from it, and draws the
   layer anew, none or the same one included, when their layer is.
 - Dressing (`Assignments` `Wear`): one list through the existing path, the base's pieces
-  whose body slots no layer piece takes (`OutfitRows::Uncovered`), then the layer's. A base
-  piece the layer would push off is never put on, so `PutBackOn` at 3D load cannot put it back
-  and push the layer off. The items a row leaves off apply to the layer as to a base.
+  and the layer's that `OutfitRows::LayerOver` keeps, the base's first. A base piece that
+  stays leaves off every layer piece sharing a body slot with it; then the layer pieces kept
+  leave off the base pieces under them (`OutfitRows::Uncovered`). Every base piece stays when
+  the layer keeps the items beneath (`Library::Outfit::keepBeneath`, the `Keep items beneath`
+  tick); else only body armor (slot 32) while the layer has none, so a layer of gloves leaves
+  on the cuirass that takes the forearms too, and its gloves stay off. A piece pushed off by
+  either is never put on, so `PutBackOn` at 3D load cannot put it back and push the other
+  off. The items a row leaves off apply to the layer as to a base, before `LayerOver`. A layer
+  whose pieces all stay off still counts as worn (the summary line and the HUD name it).
 - No base (no row has one, and the Default has no pieces): the layer goes over their own
-  clothes (`overOwn`). `Dressing::Dress` then takes nothing else off (`keepOthers`); the own
-  pieces the engine pushes off for the layer's slots are noted in `takenOff` and go back on at
-  the next dressing or release. `Dressing::TakeOffExtras` takes off only armor sharing a body
-  slot with a worn piece, outfit items included, since their clothes are their own outfit's.
+  clothes (`overOwn`). `LayerOver` reads as the base the armor they wear once their own pieces
+  are back on (`Dressing::WornArmor`), less Livery's pieces from before and the layer's own
+  armor. `Dressing::Dress` then takes nothing else off (`keepOthers`); the own pieces the
+  engine pushes off for the layer's slots are noted in `takenOff` and go back on at the next
+  dressing or release. `Dressing::TakeOffExtras` takes off only armor sharing a body slot with
+  a worn piece, outfit items included, since their clothes are their own outfit's.
 - A situation's base that puts nothing on falls back to the Default's under the same layer;
   a layer that puts nothing on (not carried, refused) is no fallback.
 - Remove of a layer: the actors wearing it are redressed as for a situation outfit; a Default
   that held it does not get its pieces. Update redresses the actor when they wear it as the
   layer too.
-- The window: the flag is ticked on the Save page's Create tab, the Wardrobe page and its Edit
-  page (docs/ui-redesign.md §4, docs/outfit-management-ui.md §4) and written by Create and the
+- The window: the flags are ticked on the Save page's Create tab, the Wardrobe page and its
+  Edit page (`Layered outfit`, then `Keep items beneath` under it, greyed while the first is
+  off; docs/ui-redesign.md §4, docs/outfit-management-ui.md §4) and written by Create and the
   Wardrobe page's Save; a flag changed on an outfit the captured actor has redresses them at
-  once when another outfit is due, the others at their next dressing. A layer's icon has a
+  once when another outfit is due, the others at their next dressing. The `Keep items beneath`
+  tooltip leaves the body armor rule above unsaid. A layer's icon has a
   badge. Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
-  page lists and applies the worn layer's items apart, and with every one unticked takes the
-  layer off: random off off its row, random on as a draw of none (docs/ui-redesign.md §5,
-  `Assignments::TakeOffLayer`); the previews
-  show a layer over what they wear. The summary line and the HUD name both outfits, `B over
+  page lists and applies the worn layer's items apart, and with none ticked and one unticked
+  the row does not leave off already (or every one) takes the layer off: random off off its
+  row, random on as a draw of none (docs/ui-redesign.md §5, `Assignments::TakeOffLayer`). An
+  unticked piece the ticked pieces beneath keep off (`LayerOver` with it ticked) is not left
+  off on the row, a layer's or a base's, unless the row leaves it off already, so Apply keeps a
+  layer whose pieces they all keep off. The previews show a layer over what they wear, by the
+  same `LayerOver`. The summary line and the HUD name both outfits, `B over
   A` (`Livery: {0} now wears {1} for {2}.` with it for the base's situation, `Livery: {0} now
   wears {1}.` over the Default's or their own clothes), and a layer over their own clothes
   counts none of those as extra items.
 
 In-game checks the design rests on (not yet made):
 
-1. The engine pushes off a worn piece by body-slot overlap, so `Uncovered` matches what
+1. The engine pushes off a worn piece by body-slot overlap, so `LayerOver` matches what
    equipping the layer piece would do.
 2. A layer over their own clothes: an own piece the layer pushed off (unlocked, in the
    inventory) is not put back by the engine's best-gear pass through a slot the layer leaves
@@ -781,6 +795,8 @@ In-game checks the design rests on (not yet made):
 3. A layer over their own clothes stays with those clothes across a 3D reload and a cell
    reset.
 4. The feel of an outfit whose layer flag changed after rows were given it (Kinds above).
+5. `Dressing::WornArmor` reads the clothes beneath a layer over their own clothes as worn
+   while their 3D is not loaded.
 
 ## 8. Plan
 
@@ -792,25 +808,24 @@ setting, off by default) and the user-defined situations (docs/custom-situations
 conditions, one order for the presets and the user's, the presets' rules editable, behind the
 `Enable custom situations` setting, off by default). Open:
 
-1. Layer outfits (§7 Layers): on branch `feat/layer-outfits`, `main` merged in; not yet
-   checked in game. Tableau's `lib/sarrai-common` is not bumped to the icon badge.
-   - Not yet written, decided before the code: a layer outfit's second library flag, off by
-     default (name and label to settle before the UI): the outfit beneath keeps its items. On,
-     the merged list is the layer's pieces whose body slots no base piece takes, then the
-     base's pieces whole, so a guard keeps the helmet and gets only the cloak. Off, the layer
-     wins, as in Dressing above.
-   - In game, beside the four checks of §7 Layers: an existing save wears what it wore, and `outfits.json`
-     stays `"version": 1` until an outfit is a layer and returns to it when none is; the Layer
-     tick on the Create tab, the Wardrobe page and the Edit page (its place on each, and the
-     badge's size), Save's `Layer: on` / `Layer: off` line; Apply to <name> and Create and
-     Apply of a layer, with and without a situation's outfit worn; a layer alone on an NPC
-     Livery does not dress (their clothes stay); the Situations page (a random-off row's two
-     rows, a layer below 100 worn or not, the dice, a layer's share in Selection Chances, the headings'
-     colour); the Dress page's layer heading and a layer item unticked, then Apply; `B over
-     A` in the HUD and the summary line; the previews.
+1. Layer outfits (§7 Layers): on branch `feat/layer-outfits`, `main` merged in; checked in
+   game: an existing save, a situation's layer and `B over A`, its end, the draws and
+   Selection Chances, the Dress page's layer heading and its items unticked, the Wardrobe
+   page's preview after Apply or Save. Tableau's `lib/sarrai-common` is not bumped to the icon
+   badge.
+   - In game, open: the five checks of §7 Layers; `outfits.json` stays `"version": 1` until an
+     outfit is a layer and returns to it when none is; the `Layered outfit` and `Keep items
+     beneath` ticks on the Create tab, the Wardrobe page and the Edit page (their place on
+     each, and the badge's size), Save's `Layered outfit: on` / `off` and `Keep items beneath:
+     on` / `off` lines; a hood layer over a base with a helmet keeps the helmet with `Keep items
+     beneath` on and puts the hood on with it off, over their own clothes too; a gloves layer
+     with it off leaves on a cuirass that takes the forearms; the Dress page's Apply keeps a
+     layer whose items all stay off; Apply to <name> and Create and Apply of a layer, with and
+     without a situation's outfit worn; a layer alone on an NPC Livery does not dress (their
+     clothes stay); the dice; the other previews.
    - Known gaps: a dragged row's copy has no badge; the Edit page's preview does not show a
      layer over what they wear; the Dress page's layer heading reads `Outfit ("<layer>")`;
-     other actors holding an outfit whose flag changed follow at their next dressing.
+     other actors holding an outfit whose layer flags changed follow at their next dressing.
 2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit.

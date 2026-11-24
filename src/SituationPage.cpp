@@ -3033,7 +3033,7 @@ namespace CaptureWindow::Internal
 		const auto  edited = EditedRow(form);
 		auto        worn = edited >= 0 ? WornOf(a_state, pieces, OutfitRows::ExcludedOf(form.entries[static_cast<std::size_t>(edited)].row, form.viewedOutfit)) : pieces;
 		// A layer shows over what they wear now.
-		return outfit.layer ? OverWorn(a_state, pieces, worn) : worn;
+		return outfit.layer ? OverWorn(a_state, pieces, worn, outfit.keepBeneath) : worn;
 	}
 
 	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon)

@@ -93,8 +93,9 @@ namespace CaptureWindow
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
 		std::size_t   unloadedPieces = 0;
-		std::uint32_t id = 0;         // the library's id, handed back in SaveRequest::outfit
-		bool          layer = false;  // worn over the outfit beneath (Library::Outfit::layer)
+		std::uint32_t id = 0;               // the library's id, handed back in SaveRequest::outfit
+		bool          layer = false;        // worn over the outfit beneath (Library::Outfit::layer)
+		bool          keepBeneath = false;  // a layer that keeps the items beneath (Library::Outfit::keepBeneath)
 		// Who has it among Livery's assignments in this save, one line each, for Remove's
 		// popup: "Lydia: Default, Town", the actor's FormID when not in memory.
 		std::vector<std::string> users;
@@ -200,6 +201,9 @@ namespace CaptureWindow
 		// Whether it is a layer (Library::Outfit::layer): the Wardrobe page's tick, or the Create
 		// tab's for a new outfit; nullopt keeps what it is (the Save page's Update tab).
 		std::optional<bool> layer;
+		// With `layer`: whether it keeps the items beneath (Library::Outfit::keepBeneath), by the
+		// tick under the Layer tick.
+		std::optional<bool> keepBeneath;
 		// The row the outfit goes to, as the Wardrobe page's Apply gives it (the situation the
 		// actor wears another outfit for now, after the user agreed, else the Default); nullopt
 		// for a save that changes no row.

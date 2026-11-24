@@ -680,3 +680,37 @@ TEST_CASE("Uncovered leaves out the base pieces sharing a body slot with a layer
 	CHECK(OutfitRows::Uncovered(base, Ids{}, slots) == base);
 	CHECK(OutfitRows::Uncovered(base, Ids{ 0b1111 }, slots).empty());
 }
+
+TEST_CASE("LayerOver lets the layer win unless the base keeps its items", "[rows][layer]")
+{
+	const auto              slots = [](std::uint32_t a_mask) { return a_mask; };  // each piece is its slot mask
+	constexpr std::uint32_t body = 0b0100;
+	const Ids               base{ 0b0001, 0b1000 };    // a helmet, boots
+	const Ids               layer{ 0b0001, 0b10000 };  // a hood, a cloak
+
+	const auto over = OutfitRows::LayerOver(base, layer, false, body, slots);
+	CHECK(over.base == Ids{ 0b1000 });
+	CHECK(over.layer == layer);
+
+	const auto kept = OutfitRows::LayerOver(base, layer, true, body, slots);
+	CHECK(kept.base == base);
+	CHECK(kept.layer == Ids{ 0b10000 });
+
+	const auto alone = OutfitRows::LayerOver(Ids{}, layer, true, body, slots);
+	CHECK(alone.layer == layer);
+}
+
+TEST_CASE("LayerOver keeps the body armor beneath a layer that has none", "[rows][layer]")
+{
+	const auto              slots = [](std::uint32_t a_mask) { return a_mask; };
+	constexpr std::uint32_t body = 0b0100;
+	const Ids               base{ 0b0110, 0b0001 };  // a cuirass taking the forearms, a helmet
+
+	const auto gloves = OutfitRows::LayerOver(base, Ids{ 0b0010, 0b0001 }, false, body, slots);
+	CHECK(gloves.base == Ids{ 0b0110 });   // the hood takes the helmet's place
+	CHECK(gloves.layer == Ids{ 0b0001 });  // the gloves stay off
+
+	const auto robe = OutfitRows::LayerOver(base, Ids{ 0b0100, 0b0010 }, false, body, slots);
+	CHECK(robe.base == Ids{ 0b0001 });  // a layer with body armor wins
+	CHECK(robe.layer == Ids{ 0b0100, 0b0010 });
+}
