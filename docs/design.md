@@ -822,7 +822,7 @@ setting, off by default) and the user-defined situations (docs/custom-situations
 conditions, one order for the presets and the user's, the presets' rules editable, behind the
 `Enable custom situations` setting, off by default). Open:
 
-1. Layer outfits (§7 Layers): on branch `feat/layer-outfits`, `main` merged in; checked in
+1. Layer outfits (§7 Layers): in `main` since 2026-11-24 (not pushed); checked in
    game: an existing save, a situation's layer and `B over A`, its end, the draws and
    Selection Chances, the Dress page's layer heading and its items unticked, the Wardrobe
    page's preview after Apply or Save, `Keep items beneath` (on and off, over a base and over
