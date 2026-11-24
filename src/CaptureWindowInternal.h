@@ -261,7 +261,8 @@ namespace CaptureWindow::Internal
 		// (ImGui::GetTime() seconds) and scrolled to while `editorScroll` frames remain, its
 		// height as last drawn; whether a popup was open over it at the end of the last frame (its
 		// Escape closed that, not the editor); whether it is still centred on the screen
-		// (BeginModal), not yet dragged; its height besides the conditions' area, as last drawn.
+		// (BeginModal), not yet dragged; its height under its columns' content (the button row and
+		// the padding), as last drawn, which its scroll areas leave room for (EditorAreaCap).
 		float  paneWidth = 0.0f;
 		float  columnGap = 0.0f;
 		int    editorFocus = -1;
@@ -270,7 +271,10 @@ namespace CaptureWindow::Internal
 		float  editorFocusHeight = 0.0f;
 		bool   editorPopupAbove = false;
 		bool   editorCentred = true;
-		float  editorOtherHeight = 0.0f;
+		float  editorBelow = 0.0f;
+		// The outfit whose slider is open under its row in the Edit situation popup's Selection
+		// Chances list; 0 for none.
+		std::uint32_t chancesOpen = 0;
 		// The Add place popup's choice, in the order it shows them (request.places.At).
 		int placePick = 0;
 		// The Add spell popup: its search, Show all spells, Show player spells, the spells it lists

@@ -277,6 +277,9 @@
 	X(kTurnOnCustom, "Turn on custom situations in the settings to edit.")                                                                                                                                           \
 	X(kRandomOutfitFor, "Random Outfit (for {0})")                                                                                                                                                                   \
 	X(kRandomOutfitHelp, "On: Each time this situation begins, {0} wears a random outfit from the list until it ends.")                                                                                              \
+	X(kSelectionChance, "Selection Chances")                                                                                                                                                                         \
+	X(kSelectionChanceHelp, "The chance each outfit is picked.\nClick an outfit to set its weight with the slider.\nAn outfit with a weight of 0 is never picked.")                                                  \
+	X(kSelectionWeightValue, "Selection Weight: {0}")                                                                                                                                                                \
 	X(kDone, "Done")                                                                                                                                                                                                 \
 	X(kRemoveSituation, "Remove Situation")                                                                                                                                                                          \
 	X(kDuplicateSituation, "Duplicate Situation")                                                                                                                                                                    \

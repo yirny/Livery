@@ -15,7 +15,8 @@
 //   Co-save     - save, load (version 6; the rows of situations removed in situations.json
 //                 or unknown to this version dropped, but a user's situation's kept while
 //                 situations.json cannot be read),
-//                 the items the rows' outfits leave off in a record of their own, revert
+//                 the items the rows' outfits leave off and their selection chances in records
+//                 of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
 //                 inventory), MenuOpenCloseEvent (also logs menus opening or closing while
 //                 the window is open)
@@ -38,7 +39,6 @@
 #include <algorithm>
 #include <atomic>
 #include <format>
-#include <iterator>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -62,6 +62,8 @@ namespace
 	constexpr std::uint32_t kAssignmentsVersion = 6;  // the only version read
 	constexpr std::uint32_t kExclusionsRecord = 'EXCL';
 	constexpr std::uint32_t kExclusionsVersion = 2;  // the only version read
+	constexpr std::uint32_t kChancesRecord = 'CHNC';
+	constexpr std::uint32_t kChancesVersion = 1;  // the only version read
 
 	// --- Records --------------------------------------------------------------
 
@@ -272,7 +274,9 @@ namespace
 	//
 	// Contract: game thread, all.
 
-	std::size_t RandomIndex(std::size_t a_count)
+	// A number below `a_count`, for OutfitRows::Pick's draw.
+	// Contract: `a_count` is above 0.
+	std::size_t RandomBelow(std::size_t a_count)
 	{
 		return std::uniform_int_distribution<std::size_t>{ 0, a_count - 1 }(g_random);
 	}
@@ -325,7 +329,7 @@ namespace
 	{
 		const bool given = a_options.given != 0 && std::ranges::find(a_options.givenRows, a_row) != a_options.givenRows.end();
 		const auto kept = given ? a_options.given : (a_assignment.worn == a_row ? a_assignment.wornOutfit : 0);
-		return OutfitRows::Wears(a_rows[RowOf(a_row)], kept, RandomIndex);
+		return OutfitRows::Wears(a_rows[RowOf(a_row)], kept, RandomBelow);
 	}
 
 	// The armor row `a_row` wears as `a_outfit`: the library outfit's loaded pieces less those
@@ -802,28 +806,38 @@ namespace
 		return written;
 	}
 
+	// Calls `a_call(actor, key, row)` for every row stored, kept rows included, as the records
+	// of a row's outfits (EXCL, CHNC) name them: by the actor and the situation's key.
+	template <class Call>
+	void ForEachStoredRow(Call&& a_call)
+	{
+		for (const auto& assignment : g_assignments) {
+			for (std::size_t i = 0; i < assignment.rows.size(); ++i) {
+				a_call(assignment.actor, Situations::Name(static_cast<Situation>(i)), assignment.rows[i]);
+			}
+			for (const auto& [key, row] : assignment.kept) {
+				a_call(assignment.actor, std::string_view{ key }, row);
+			}
+		}
+	}
+
+	// The entries of every stored row's `a_list` (Row::excluded, Row::chances).
+	template <class Entry>
+	std::uint32_t CountRowEntries(std::vector<Entry> OutfitRows::Row::* a_list)
+	{
+		std::uint32_t count = 0;
+		ForEachStoredRow([&count, a_list](RE::FormID, std::string_view, const OutfitRows::Row& a_row) { count += static_cast<std::uint32_t>((a_row.*a_list).size()); });
+		return count;
+	}
+
 	// Record EXCL v2, written after ASGN while a row's outfit leaves items off
 	// (OutfitRows::Exclusion): entry count; per entry the actor FormID, the row's situation (by
 	// its key, as in ASGN), the outfit id, the armor count and the armor FormIDs. A record
 	// of its own, so a Livery that does not know EXCL skips it and dresses every item.
 
-	std::uint32_t CountExclusions()
-	{
-		std::uint32_t count = 0;
-		for (const auto& assignment : g_assignments) {
-			for (const auto& row : assignment.rows) {
-				count += static_cast<std::uint32_t>(row.excluded.size());
-			}
-			for (const auto& kept : assignment.kept) {
-				count += static_cast<std::uint32_t>(kept.row.excluded.size());
-			}
-		}
-		return count;
-	}
-
 	void SaveExclusions(SKSE::SerializationInterface* a_intfc)
 	{
-		const auto count = CountExclusions();
+		const auto count = CountRowEntries(&OutfitRows::Row::excluded);
 		if (count == 0) {
 			return;
 		}
@@ -831,8 +845,8 @@ namespace
 			logger::error("Could not open the co-save record of the items left off");
 			return;
 		}
-		bool       written = Write(*a_intfc, count);
-		const auto writeRow = [&written, a_intfc](RE::FormID a_actor, std::string_view a_key, const OutfitRows::Row& a_row) {
+		bool written = Write(*a_intfc, count);
+		ForEachStoredRow([&written, a_intfc](RE::FormID a_actor, std::string_view a_key, const OutfitRows::Row& a_row) {
 			for (const auto& [outfit, armor] : a_row.excluded) {
 				written = written && Write(*a_intfc, a_actor) && WriteSituationKey(*a_intfc, a_key) && Write(*a_intfc, outfit) &&
 				          Write(*a_intfc, static_cast<std::uint32_t>(armor.size()));
@@ -840,17 +854,35 @@ namespace
 					written = written && Write(*a_intfc, id);
 				}
 			}
-		};
-		for (const auto& assignment : g_assignments) {
-			for (std::size_t i = 0; i < assignment.rows.size(); ++i) {
-				writeRow(assignment.actor, Situations::Name(static_cast<Situation>(i)), assignment.rows[i]);
-			}
-			for (const auto& [key, row] : assignment.kept) {
-				writeRow(assignment.actor, key, row);
-			}
-		}
+		});
 		if (!written) {
 			logger::error("Could not write the co-save record of the items left off");
+		}
+	}
+
+	// Record CHNC v1, written after ASGN while a row's outfit has a selection chance other than
+	// the default (OutfitRows::Chance): entry count; per entry the actor FormID, the row's
+	// situation (by its key, as in ASGN), the outfit id and the chance (one byte). A record of
+	// its own, so a Livery that does not know CHNC skips it and every outfit has the default.
+
+	void SaveChances(SKSE::SerializationInterface* a_intfc)
+	{
+		const auto count = CountRowEntries(&OutfitRows::Row::chances);
+		if (count == 0) {
+			return;
+		}
+		if (!a_intfc->OpenRecord(kChancesRecord, kChancesVersion)) {
+			logger::error("Could not open the co-save record of the selection chances");
+			return;
+		}
+		bool written = Write(*a_intfc, count);
+		ForEachStoredRow([&written, a_intfc](RE::FormID a_actor, std::string_view a_key, const OutfitRows::Row& a_row) {
+			for (const auto& [outfit, value] : a_row.chances) {
+				written = written && Write(*a_intfc, a_actor) && WriteSituationKey(*a_intfc, a_key) && Write(*a_intfc, outfit) && Write(*a_intfc, value);
+			}
+		});
+		if (!written) {
+			logger::error("Could not write the co-save record of the selection chances");
 		}
 	}
 
@@ -871,6 +903,7 @@ namespace
 			logger::error("Could not write the co-save record");
 		}
 		SaveExclusions(a_intfc);
+		SaveChances(a_intfc);
 	}
 
 	bool ReadPiece(const SKSE::SerializationInterface& a_intfc, Dressing::Piece& a_piece, bool& a_resolved)
@@ -1092,9 +1125,43 @@ namespace
 		return entries;
 	}
 
-	// The row an exclusion entry belongs to: a situation's, or a kept row stored under its key;
-	// nullptr for neither.
-	OutfitRows::Row* EntryRow(Assignment& a_assignment, const StoredExclusion& a_entry)
+	// A CHNC entry as read, its actor's FormID fixed for the current load order.
+	struct StoredChance
+	{
+		RE::FormID               actor = 0;
+		std::optional<Situation> row;  // nullopt for a situation this session does not have
+		std::string              key;  // the row's situation as stored, for a kept row (Assignment::kept)
+		std::uint32_t            outfit = 0;
+		std::uint8_t             value = OutfitRows::kDefaultChance;
+	};
+
+	// Reads the CHNC record. An entry whose actor's plugin is gone is dropped.
+	std::vector<StoredChance> ReadChances(const SKSE::SerializationInterface& a_intfc)
+	{
+		std::vector<StoredChance> entries;
+		std::uint32_t             count = 0;
+		if (!Read(a_intfc, count)) {
+			logger::error("The co-save record of the selection chances is cut short");
+			return entries;
+		}
+		for (; count > 0; --count) {
+			StoredChance entry;
+			if (!Read(a_intfc, entry.actor) || !ReadSituationKey(a_intfc, entry.key) || !Read(a_intfc, entry.outfit) || !Read(a_intfc, entry.value)) {
+				logger::error("The co-save record of the selection chances is cut short");
+				return entries;
+			}
+			entry.row = Situations::FromKey(entry.key);
+			if (a_intfc.ResolveFormID(entry.actor, entry.actor)) {
+				entries.push_back(std::move(entry));
+			}
+		}
+		return entries;
+	}
+
+	// The row an EXCL or CHNC entry belongs to: a situation's, or a kept row stored under its
+	// key; nullptr for neither.
+	template <class Entry>
+	OutfitRows::Row* EntryRow(Assignment& a_assignment, const Entry& a_entry)
 	{
 		if (a_entry.row) {
 			return &a_assignment.rows[RowOf(*a_entry.row)];
@@ -1122,13 +1189,36 @@ namespace
 		}
 	}
 
+	// Gives the assignments read their rows' outfits' selection chances, kept rows included,
+	// dropping the entries AttachExclusions would.
+	// Contract: after the ASGN record was read, in whichever order the records came.
+	void AttachChances(const std::vector<StoredChance>& a_entries)
+	{
+		for (const auto& entry : a_entries) {
+			auto* assignment = FindAssignment(entry.actor);
+			auto* row = assignment ? EntryRow(*assignment, entry) : nullptr;
+			if (row && std::ranges::find(row->outfits, entry.outfit) != row->outfits.end()) {
+				OutfitRows::SetChance(*row, entry.outfit, entry.value);
+			}
+		}
+	}
+
 	void OnLoad(SKSE::SerializationInterface* a_intfc)
 	{
 		std::uint32_t                type = 0;
 		std::uint32_t                version = 0;
 		std::uint32_t                length = 0;
 		std::vector<StoredExclusion> exclusions;
+		std::vector<StoredChance>    chances;
 		while (a_intfc->GetNextRecordInfo(type, version, length)) {
+			if (type == kChancesRecord) {
+				if (version != kChancesVersion) {
+					logger::warn("Co-save record CHNC version {} is not {}; every outfit has the default selection chance", version, kChancesVersion);
+					continue;
+				}
+				chances = ReadChances(*a_intfc);
+				continue;
+			}
 			if (type == kExclusionsRecord) {
 				if (version != kExclusionsVersion) {
 					logger::warn("Co-save record EXCL version {} is not {}; every outfit wears all its items", version, kExclusionsVersion);
@@ -1148,6 +1238,7 @@ namespace
 			logger::info("Read co-save record version {}", version);
 		}
 		AttachExclusions(exclusions);
+		AttachChances(chances);
 		SyncManaged();
 		logger::info("Loaded {} assignment(s) from the co-save", g_assignments.size());
 	}
@@ -1476,9 +1567,7 @@ namespace Assignments
 		if (!row.random) {
 			return 0;
 		}
-		std::vector<std::uint32_t> others;
-		std::ranges::copy_if(row.outfits, std::back_inserter(others), [assignment](std::uint32_t a_outfit) { return a_outfit != assignment->wornOutfit; });
-		return others.empty() ? 0 : others[RandomIndex(others.size())];
+		return OutfitRows::Pick(row, assignment->wornOutfit, RandomBelow);
 	}
 
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now)

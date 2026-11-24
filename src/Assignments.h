@@ -79,14 +79,16 @@ namespace Assignments
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, std::uint32_t a_pick = 0);
 
 	// Another outfit of the random row they wear now (its outfits gone from the library left
-	// out), picked at random, for Refresh's `a_pick`: never the one they wear; 0 when that row
-	// is not random or has no other outfit, or Livery has nothing on them.
+	// out), picked by the outfits' selection chances (OutfitRows::Pick), for Refresh's `a_pick`:
+	// never the one they wear or one with chance 0; 0 when that row is not random or has no
+	// other such outfit, or Livery has nothing on them.
 	// Contract: game thread.
 	std::uint32_t PickAnother(RE::FormID a_actor);
 
 	// Dresses them for `a_now` when that means another outfit than the one they wear: the
-	// first situation whose row holds an outfit, else the Default (OutfitRows::Resolve). A
-	// random row picks as it goes on and keeps the pick while it stays worn and on the list.
+	// first situation whose row has an outfit to wear, else the Default (OutfitRows::Resolve). A
+	// random row picks as it goes on, by the outfits' selection chances, and keeps the pick
+	// while it stays worn and on the list.
 	// A situation outfit that puts nothing on falls back to the Default. An outfit that left
 	// the library (another save's row) counts as not on its row (OutfitRows::WithoutGone). An
 	// assignment left with nothing on them and no situation row holding an outfit ends.
@@ -99,7 +101,7 @@ namespace Assignments
 	// Contract: game thread.
 	bool WouldRedress(RE::Actor& a_actor, const Situations::Applicable& a_now);
 
-	// The situations they are in now among those their rows hold an outfit for
+	// The situations they are in now among those their rows have an outfit to wear for
 	// (Situations::Evaluate); empty for an actor Livery does not dress.
 	// Contract: game thread.
 	Situations::Applicable SituationsNow(RE::Actor& a_actor);

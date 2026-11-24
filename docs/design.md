@@ -455,14 +455,14 @@ would have to be kept in step).
 
 ## 5. Co-save
 
-Co-save id `LVRY`, records `ASGN` (version 6) and `EXCL` (version 2), read in the SKSE load
+Co-save id `LVRY`, records `ASGN` (version 6), `EXCL` (version 2) and `CHNC` (version 1), read in the SKSE load
 callback, cleared on revert; a record of another version is skipped with a log line. A
 situation is stored by its key (`Situations::Name`, the key `situations.json` uses): a
 length byte and its characters, so situations can be added or removed without a new
 version. A key the session does not have drops its row with a log line, or reads a row worn
 as the Default; but while `situations.json` cannot be read, a user's situation's row
 (`user:<n>`, `SituationTable::KeepsUnknownRow`) is kept as read (`Assignment::kept`, never worn
-or shown), the items it leaves off included, and written back at the next save after the
+or shown), the items it leaves off and the selection chances included, and written back at the next save after the
 known rows, so the row returns once the file can be read again. `ForgetOutfit` takes the
 outfit off kept rows too, and a kept row then holding nothing goes.
 
@@ -492,6 +492,11 @@ outfit off kept rows too, and a kept row then holding nothing goes.
   it and dresses every item. At load, after `ASGN`, an
   entry for an actor without an assignment, a row the session neither knows nor kept, or an outfit
   no longer on that row is dropped, and so is an armor form whose plugin is gone.
+- `CHNC`, written after `ASGN` while any row's outfit has a selection chance other than
+  100 (docs/situation-management-ui.md §1): a count, and per entry the actor FormID, the
+  row's situation, the library outfit id and the chance (one byte, 0 to 200; a larger one
+  reads as 200). A record of its own, so a Livery that does not know `CHNC` skips it and
+  every outfit has 100. At load, after `ASGN`, an entry is dropped as an `EXCL` one is.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
 can come later if sharing across characters is wanted.
@@ -582,8 +587,9 @@ can come later if sharing across characters is wanted.
 An assigned actor has a row per situation, the presets Town, Castle, Home, Cold, Sleep and
 those the user defines, in the window's order (docs/custom-situations.md §8,
 `Situations::Order()`), and the Default, what the window's Apply gives, worn where
-none of them applies. A row is a list of library outfit ids, a random flag and the one
-chosen (docs/situation-management-ui.md §1, `src/OutfitRows.h`); the Default also keeps
+none of them applies. A row is a list of library outfit ids, a random flag, the one
+chosen and each outfit's selection chance (docs/situation-management-ui.md §1,
+`src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
 on. Each situation's name comes from `situations.json` (§4), a preset still named as installed
 shown in the chosen language (`SituationStore::Name`): the window and the HUD show it as a
@@ -591,9 +597,10 @@ value of whole texts (`Wearing {0} for {1}{2}.`, `Wearing {0} as {1}{2}.` for th
 `Livery: {0} now wears {1} for {2}.`, `Livery: {0} now wears the default outfit.`), and the
 log's own lines keep the key (`Situations::Name`). A removed situation offers no row
 and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
-goes on and kept until it changes, a forced redress keeping it while it is on the list,
+goes on, in proportion to the outfits' selection chances (0 never; a row with every outfit at
+0 is passed over), and kept until it changes, a forced redress keeping it while it is on the list,
 and recorded as `chosen`, so turning random off keeps the last pick on. A click on the
-die of the row worn on the Situations page picks again, never the outfit worn
+die of the row worn on the Situations page picks again, never the outfit worn or one at 0
 (`Assignments::PickAnother`), and puts the pick on at once. Giving a row an
 outfit (`OutfitRows::Give`) with random on puts it at the front of the list; with random
 off it becomes `chosen` in the place of the outfit it replaces, which leaves the list, so

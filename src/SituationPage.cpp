@@ -246,19 +246,22 @@ namespace CaptureWindow::Internal
 
 		// An outfit dropped on situation `a_target`, before what it shows at `a_index` (the
 		// front with random off, where only `chosen` shows): from the outfit list a copy, all its
-		// items worn; from a situation moved, off its row first (its `chosen` 0 if it was that)
-		// with the items it left off there, which it leaves off on the new row unless that has
-		// it already, its details following it; or within its own row reordered. An outfit made
-		// the Default's `chosen` drops its pieces, as Assignments does.
+		// items worn, with the default chance; from a situation moved, off its row first (its
+		// `chosen` 0 if it was that) with the items it left off there and its chance, which it
+		// keeps on the new row unless that has it already, its details following it; or within
+		// its own row reordered. An outfit made the Default's `chosen` drops its pieces, as
+		// Assignments does.
 		void DropOnSituation(State& a_state, std::size_t a_target, std::size_t a_index, const OutfitPayload& a_payload)
 		{
 			auto&                      form = a_state.situationForm;
 			const auto                 before = ViewedOutfitPieces(a_state);
 			const bool                 moved = a_payload.from >= 0 && static_cast<std::size_t>(a_payload.from) != a_target;
 			std::vector<std::uint32_t> carried;
+			auto                       chance = OutfitRows::kDefaultChance;
 			if (moved) {
 				auto& source = form.entries[static_cast<std::size_t>(a_payload.from)].row;
 				carried = OutfitRows::ExcludedOf(source, a_payload.outfit);
+				chance = OutfitRows::ChanceOf(source, a_payload.outfit);
 				OutfitRows::Take(source, a_payload.outfit);
 			}
 			auto&      row = form.entries[a_target].row;
@@ -266,6 +269,7 @@ namespace CaptureWindow::Internal
 			OutfitRows::Place(row, a_payload.outfit, row.random ? a_index : 0);
 			if (moved && arrives) {
 				OutfitRows::SetExcluded(row, a_payload.outfit, std::move(carried));
+				OutfitRows::SetChance(row, a_payload.outfit, chance);
 			}
 			if (moved && form.viewedOutfit == a_payload.outfit && form.viewedRow == a_payload.from) {
 				form.viewedRow = static_cast<int>(a_target);
@@ -1781,12 +1785,130 @@ namespace CaptureWindow::Internal
 			return editable && clicked >= 0 ? clicked / 2 : -1;
 		}
 
+		// The most an Edit situation popup's scroll area or list starting at the cursor may take,
+		// so the popup stays within kMaxWindowHeightRatio of the screen: from the popup's top to the
+		// cursor and the room under its columns (SituationForm::editorBelow) left out. Each
+		// column's area goes by its own top, whichever column is the taller.
+		// Contract: inside the popup, outside any list, at the area's top.
+		float EditorAreaCap(const SituationForm& a_form)
+		{
+			const float top = ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y;
+			return ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - top - a_form.editorBelow;
+		}
+
+		// The bottom of what was laid out last (screen Y), the item spacing under it left out.
+		float LaidOutBottom()
+		{
+			return ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
+		}
+
+		// The chance slider's frame padding above and below its text: a frame's, less half of
+		// kShrink.
+		float ChanceSliderPadY()
+		{
+			constexpr float kShrink = 8.0f;  // the slider's height under a frame's (pixels at 1080p)
+			return (std::max)(0.0f, ImGui::GetStyle().FramePadding.y - kShrink * 0.5f * Theme::Scale());
+		}
+
+		// The Selection Weight slider over `a_chance` (an outfit's selection chance on a row,
+		// OutfitRows::kMaxChance at most) from the cursor to `a_right` (screen X), its padding
+		// ChanceSliderPadY, its grab in the scroll bar's grey (the label colour while dragged),
+		// with `Selection Weight: 100` on it. Returns true when it moved.
+		bool DrawChanceSlider(std::uint8_t& a_chance, float a_right)
+		{
+			const auto& style = ImGui::GetStyle();
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(style.FramePadding.x, ChanceSliderPadY()));
+			ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImGui::GetStyleColorVec4(ImGuiCol_ScrollbarGrab));
+			ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			// ImGui's format: the text with its % doubled, %d where its value goes.
+			std::string format;
+			for (const auto& piece : Strings::Pieces(Text::kSelectionWeightValue)) {
+				if (piece.value >= 0) {
+					format += "%d";
+					continue;
+				}
+				for (const char* c = piece.words; *c != '\0'; ++c) {
+					if (*c == '%') {
+						format += '%';
+					}
+					format += *c;
+				}
+			}
+			int value = a_chance;
+			ImGui::SetNextItemWidth((std::max)(1.0f, a_right - ImGui::GetCursorScreenPos().x));
+			const bool moved = ImGui::SliderInt("##chance", &value, 0, OutfitRows::kMaxChance, format.empty() ? "%d" : format.c_str(), ImGuiSliderFlags_AlwaysClamp);
+			if (moved) {
+				a_chance = static_cast<std::uint8_t>(value);
+			}
+			ImGui::PopStyleColor(2);
+			ImGui::PopStyleVar();
+			return moved;
+		}
+
+		// The Edit situation popup's `Selection Chances (?)`, under Random Outfit while it is on
+		// and the row has an outfit: the row's outfits in its order as the outfit list's rows,
+		// with no grip and, in place of their marks, the chance a new pick is that outfit
+		// (OutfitRows::ChanceTotal, as Pick draws), to one decimal place. A click opens the
+		// outfit's chance slider (DrawChanceSlider) under its row, drawn selected, and closes
+		// the one open; a click on the open one closes it. The list scrolls to keep the popup
+		// within kMaxWindowHeightRatio of the screen. A move of a slider edits the row, saved once
+		// the popup closes (TakeAutosaveDue waits for it).
+		void DrawSelectionChances(State& a_state, OutfitRows::Row& a_row)
+		{
+			auto& form = a_state.situationForm;
+			Theme::LabelText(Strings::Get(Text::kSelectionChance));
+			if (Theme::LabelHelpMark()) {
+				DrawHelpTooltip(Strings::Get(Text::kSelectionChanceHelp));
+			}
+			const float gap = ImGui::GetStyle().ItemSpacing.y;  // above and below an open slider
+			const float rowHeight = Theme::OutfitRowHeight();
+			const bool  open = std::ranges::find(a_row.outfits, form.chancesOpen) != a_row.outfits.end();
+			const float slider = open ? gap * 2.0f + ImGui::GetFontSize() + ChanceSliderPadY() * 2.0f : 0.0f;
+			const float full = static_cast<float>(a_row.outfits.size()) * rowHeight + slider + Theme::ListPaddingY() * 2.0f;
+			const float height = std::ceil((std::max)(rowHeight, (std::min)(full, EditorAreaCap(form))));
+			// No gap under a row, as the outfit list has none (Theme::OutfitRow).
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
+			if (Theme::BeginList("chances", height)) {
+				const auto total = OutfitRows::ChanceTotal(a_row);
+				for (std::size_t k = 0; k < a_row.outfits.size(); ++k) {
+					const auto id = a_row.outfits[k];
+					const int  index = IndexOfOutfit(a_state, id);
+					if (index < 0) {
+						continue;
+					}
+					const auto  chance = OutfitRows::ChanceOf(a_row, id);
+					const auto  share = std::format("{:.1f}%", total > 0 ? 100.0 * chance / static_cast<double>(total) : 0.0);
+					const auto& outfit = OutfitAt(a_state, index);
+					const auto  icon = RowIconOf(outfit.icon);
+					ImGui::PushID(static_cast<int>(k));
+					if (Theme::OutfitRow(outfit.name.c_str(), id == form.chancesOpen, { .trailing = share.c_str() }, k % 2 == 1, Theme::Grip::kNone, &icon)) {
+						QueueMenuSound(kFocusSound);
+						form.chancesOpen = id == form.chancesOpen ? 0 : id;
+					}
+					if (id == form.chancesOpen) {
+						ImGui::Dummy(ImVec2(0.0f, gap));
+						auto        edited = chance;
+						const float right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x - ImGui::GetStyle().FramePadding.x;
+						if (DrawChanceSlider(edited, right)) {
+							OutfitRows::SetChance(a_row, id, edited);
+							ScheduleAutosave(a_state);
+						}
+						ImGui::Dummy(ImVec2(0.0f, gap));
+					}
+					ImGui::PopID();
+				}
+			}
+			ImGui::PopStyleVar();
+			Theme::EndList();
+		}
+
 		// The Edit situation popup's settings, its left column: the name (the Default says what it
 		// is under it), why it is never
 		// worn, the situations it always overrides, `Applies` over the conditions, the Default's
 		// read only, another's Applies text (DrawAppliesLinks) with the label's help, greyed and
 		// read only unless the page offers the editor (Request::customSituations); then Random
-		// Outfit (for #{Name}). Returns the condition clicked in the Applies text (index into
+		// Outfit (for #{Name}), and while it is on, the row's Selection Chances
+		// (DrawSelectionChances). Returns the condition clicked in the Applies text (index into
 		// rules.rows), or -1.
 		int DrawSituationSettings(State& a_state, std::size_t a_entry)
 		{
@@ -1842,6 +1964,9 @@ namespace CaptureWindow::Internal
 			const bool helpHovered = ImGui::IsItemHovered();
 			if (FocusStandIn("##randomHelp") || helpHovered) {
 				DrawHelpTooltip(Strings::Format(Text::kRandomOutfitHelp, name));
+			}
+			if (entry.row.random && !entry.row.outfits.empty()) {
+				DrawSelectionChances(a_state, entry.row);
 			}
 			return clicked;
 		}
@@ -2579,24 +2704,22 @@ namespace CaptureWindow::Internal
 
 		// The Edit situation popup's right column: `Conditions` (with the Applies help) over the
 		// condition editor (DrawConditionEditor) in an area that scrolls to keep the whole popup within
-		// kMaxWindowHeightRatio of the screen. Returns the area's height as shown; sets
-		// `a_addForm` as DrawConditionEditor does.
-		float DrawConditionsColumn(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
+		// kMaxWindowHeightRatio of the screen (EditorAreaCap). Sets `a_addForm` as
+		// DrawConditionEditor does.
+		void DrawConditionsColumn(State& a_state, SituationRules::Rules& a_rules, bool& a_addForm)
 		{
 			auto& form = a_state.situationForm;
 			Theme::LabelText(Strings::Get(Text::kConditions));
 			if (Theme::LabelHelpMark()) {
 				DrawHelpTooltip(Strings::Get(Text::kConditionsHelp));
 			}
-			const float areaHeight = ImGui::GetIO().DisplaySize.y * kMaxWindowHeightRatio - form.editorOtherHeight;
-			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), areaHeight))) {
+			if (Theme::BeginScrollArea("conditions", (std::max)(ImGui::GetFrameHeight(), EditorAreaCap(form)))) {
 				if (DrawConditionEditor(a_state, a_rules, a_addForm)) {
 					form.neverWornStale = true;
 					ScheduleAutosave(a_state);
 				}
 			}
 			Theme::EndScrollArea();
-			return ImGui::GetItemRectSize().y;
 		}
 
 		// The Edit situation popup (docs/situation-management-ui.md §5, docs/custom-situations.md
@@ -2636,7 +2759,8 @@ namespace CaptureWindow::Internal
 				form.editorFocusHeight = 0.0f;
 				form.editorPopupAbove = false;
 				form.editorCentred = true;
-				form.editorOtherHeight = 0.0f;
+				form.editorBelow = 0.0f;
+				form.chancesOpen = 0;
 				form.checkedRows.clear();  // asked again at once, nothing coloured until answered
 				form.conditionsHeld.clear();
 				// Contract: ImGui 1.92.7 centres the popup (BeginModal's pivot) at the first frame
@@ -2657,9 +2781,10 @@ namespace CaptureWindow::Internal
 			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { SituationRun(title.c_str(), selected == 0) }).Parts());
 			ImGui::PushID(form.selected);
 			bool  addForm = false;
-			float areaShown = 0.0f;
+			float columnsBottom = 0.0f;  // the lower column's content's bottom, screen Y; 0 while not laid out
 			if (!conditions) {
 				DrawSituationSettings(a_state, selected);  // no link to click: the Default's, or greyed
+				columnsBottom = LaidOutBottom();
 			} else if (BeginColumns("edit", 2, form.paneWidth)) {
 				NextColumn();
 				if (const int clicked = DrawSituationSettings(a_state, selected); clicked >= 0) {
@@ -2668,9 +2793,11 @@ namespace CaptureWindow::Internal
 					form.editorFocusFrom = ImGui::GetTime();
 					form.editorScroll = 1;
 				}
+				columnsBottom = LaidOutBottom();
 				NextColumn();
 				ResetCellBaseline();
-				areaShown = DrawConditionsColumn(a_state, entry.rules, addForm);
+				DrawConditionsColumn(a_state, entry.rules, addForm);
+				columnsBottom = (std::max)(columnsBottom, LaidOutBottom());
 				EndColumns();
 			}
 			ImGui::PopID();
@@ -2697,9 +2824,11 @@ namespace CaptureWindow::Internal
 				ImGui::CloseCurrentPopup();
 			}
 			form.editorPopupAbove = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-			// The popup fits its content: its height is the content's bottom and the padding under it.
-			const auto* window = ImGui::GetCurrentWindow();
-			form.editorOtherHeight = window->DC.CursorMaxPos.y - window->Pos.y + ImGui::GetStyle().WindowPadding.y - areaShown;
+			// The popup fits its content: its bottom is the content's and the padding under it.
+			if (columnsBottom > 0.0f) {
+				const auto* window = ImGui::GetCurrentWindow();
+				form.editorBelow = window->DC.CursorMaxPos.y + ImGui::GetStyle().WindowPadding.y - columnsBottom;
+			}
 			ImGui::EndPopup();
 			return remove ? EditAction::kRemove : duplicate ? EditAction::kDuplicate :
 			                                                  EditAction::kNone;

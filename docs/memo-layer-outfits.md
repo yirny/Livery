@@ -30,11 +30,21 @@ Not implemented; nothing below is current behaviour.
 - The record keeps the base beside the layer: `wornOutfit` and `worn` plus the base's outfit and
   row (a new `ASGN` version; 6 is in use, design.md §5); the poll's change check compares
   all four.
+- Selection chance (decided 2026-11-22; docs/situation-management-ui.md §1 `chances`): a random
+  row's list may mix layers and non-layers; the non-layers are drawn first, as today, then the
+  layers apart from them. Among the layers the chances are ratios as for the base, but a list
+  whose layers are all below 100 may wear no layer: that happens with probability
+  Π(1 − min(c, 100) / 100) over its layers, so one layer at 70 is worn 70% of the time and one
+  at 100 or above means a layer is always worn. A draw of no layer is kept as a pick is: the
+  record holds the layer's row with no outfit until that situation ends, so a redress (rain,
+  a cell change, a row edit) does not draw again. A draw of no layer ends the walk for a layer
+  as a pick does: no less specific row's layer is worn in its place, and the walk for the base
+  goes on. Layers all at 0 always draw no layer, and end the walk the same way. The die never
+  draws no layer. Its tooltip
+  explains the threshold for a layer only.
 
 ## Open points
 
-- A random row whose list mixes layers and non-layers: the pick decides the layer type, or the
-  window refuses the mix (the Situations page's drops). Decide before the UI.
 - Every place that names the worn outfit shows two: piece headings, HUD messages, the
   Wardrobe page's Apply popup, Remove's who-wears-it list, `Assignments::Choices`.
 - The preview of a layer outfit should show it over the current base.
