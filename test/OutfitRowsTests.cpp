@@ -360,7 +360,7 @@ TEST_CASE("A random row whose outfits are all at 0 is passed over but still held
 	CHECK(OutfitRows::PicksAny(zero));
 	OutfitRows::SetChance(zero, 4, 0);
 	CHECK_FALSE(OutfitRows::PicksAny(zero));
-	CHECK(OutfitRows::HoldsAny(zero));  // the window still shows its list
+	CHECK(OutfitRows::HoldsAny(zero));               // the window still shows its list
 	CHECK(OutfitRows::Wears(zero, 3, NoPick) == 3);  // a pick worn stays on
 	CHECK(OutfitRows::Wears(zero, 0, NoPick) == 0);
 
