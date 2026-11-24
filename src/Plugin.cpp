@@ -1000,6 +1000,12 @@ namespace
 		return Library::Find(id) != nullptr;
 	}
 
+	bool IsLayerOutfit(std::uint32_t id)
+	{
+		const auto* outfit = Library::Find(id);
+		return outfit && outfit->layer;
+	}
+
 	// The actor's rows as they have them now, in RowSituation's order, without the outfits
 	// gone from the library (OutfitRows::WithoutGone), which RowsWith keeps.
 	std::vector<CaptureWindow::RowAssignment> AssignedRows(const std::optional<Assignments::Choices>& choices)
@@ -1192,8 +1198,9 @@ namespace
 	// window chose: the situation they wear another outfit for now, after the user agreed in
 	// its popup, the one they wear it for, or the Default, leaving `excluded` off there; then
 	// they are dressed for their situations now with the window open (DressCaptured): the
-	// preview begins again on `pieces` less `excluded`, the outfit as the Wardrobe page shows it.
-	// Returns their pieces for the window (SetOutfits).
+	// preview begins again on `pieces` less `excluded`, the outfit as the Wardrobe page shows it;
+	// for a layer on what they wear now, the layer over the rest. Returns their pieces for the
+	// window (SetOutfits).
 	// Contract: as DressCaptured's.
 	CaptureWindow::ActorPieces ApplyOutfit(RE::Actor& actor, std::uint32_t outfit, std::size_t row, const std::vector<std::uint32_t>& excluded,
 		const std::vector<RE::TESObjectARMO*>& armors, const std::vector<RE::TESObjectARMO*>& offered, const std::vector<RE::TESObjectARMO*>& pieces)
@@ -1202,7 +1209,7 @@ namespace
 			Assignments::Change(actor, { .outfit = outfit, .assign = { RowSituation(row) }, .excluded = excluded });
 		};
 		const auto shown = OutfitRows::WornPieces(pieces, excluded, [](const RE::TESObjectARMO* a_piece) { return a_piece->GetFormID(); });
-		return DressCaptured(actor, dress, armors, offered, &shown);
+		return DressCaptured(actor, dress, armors, offered, IsLayerOutfit(outfit) ? nullptr : &shown);
 	}
 
 	// What the open window shows of the library and of the actor's rows now (SetOutfits).
@@ -1390,7 +1397,7 @@ namespace
 		const auto actorID = actor.GetFormID();
 		// When they wear the outfit, it is dressed again as RedressFor does, at once, Live
 		// Preview on or off (RedressCaptured keeps the preview in step, on the outfit as edited,
-		// and the Dress page follows what they wear). Save and Apply instead dresses them
+		// a layer on what they wear, and the Dress page follows what they wear). Save and Apply instead dresses them
 		// as Apply does (ApplyOutfit).
 		request.onManageUpdate = [handle, actorID, armors, offered](const CaptureWindow::SaveRequest& edit, bool apply) {
 			const auto picked = PickPieces(armors, edit.pieces);
@@ -1403,7 +1410,7 @@ namespace
 			if (target && apply && edit.applyRow) {
 				redressed = ApplyOutfit(*target, edit.outfit, *edit.applyRow, edit.excluded, armors, offered, picked);
 			} else if (target && !apply && WearsOutfit(Assignments::ChoicesOf(actorID), edit.outfit)) {
-				redressed = RedressCaptured(*target, { .updated = edit.outfit }, armors, offered, &picked);
+				redressed = RedressCaptured(*target, { .updated = edit.outfit }, armors, offered, IsLayerOutfit(edit.outfit) ? nullptr : &picked);
 			} else if (target && !apply && !target->IsDead() && Assignments::WouldRedress(*target, Assignments::SituationsNow(*target))) {
 				// Its layer flag changed on a row they do not wear it for: what is due for them now
 				// goes on, as the poll would put it on. The others follow at their next dressing.
