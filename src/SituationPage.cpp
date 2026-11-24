@@ -266,7 +266,7 @@ namespace CaptureWindow::Internal
 			}
 			auto&      row = form.entries[a_target].row;
 			const bool arrives = std::ranges::find(row.outfits, a_payload.outfit) == row.outfits.end();
-			OutfitRows::Place(row, a_payload.outfit, row.random ? a_index : 0);
+			OutfitRows::Place(row, a_payload.outfit, row.random ? a_index : 0, [&a_state](std::uint32_t a_outfit) { return IsLayerOutfit(a_state, a_outfit); });
 			if (moved && arrives) {
 				OutfitRows::SetExcluded(row, a_payload.outfit, std::move(carried));
 				OutfitRows::SetChance(row, a_payload.outfit, chance);
@@ -274,7 +274,8 @@ namespace CaptureWindow::Internal
 			if (moved && form.viewedOutfit == a_payload.outfit && form.viewedRow == a_payload.from) {
 				form.viewedRow = static_cast<int>(a_target);
 			}
-			if (a_target == 0 && !row.random) {
+			// A base made the Default's `chosen` drops its pieces; a layer goes over them.
+			if (a_target == 0 && !row.random && !IsLayerOutfit(a_state, a_payload.outfit)) {
 				form.defaultPieces = false;
 			}
 			FollowViewedPieces(a_state, before);
@@ -489,39 +490,82 @@ namespace CaptureWindow::Internal
 			kOutranked  // met now, but a lower situation is worn
 		};
 
+		// OutfitRows' `a_isLayer` and `a_wearable` by the window's outfit list: whether an outfit
+		// is a layer, and whether it has an item loaded.
+		bool IsLayer(const State& a_state, std::uint32_t a_outfit)
+		{
+			return IsLayerOutfit(a_state, a_outfit);
+		}
+
+		bool HasLoadedItem(const State& a_state, std::uint32_t a_outfit)
+		{
+			const int index = IndexOfOutfit(a_state, a_outfit);
+			return index >= 0 && !OutfitAt(a_state, index).pieces.empty();
+		}
+
+		// Which entries the situations met now are worn from, by the rows as edited (design.md §7
+		// Layers): the base from the first met entry that has one, else the Default (0); the
+		// layer from the first met entry that has one, else the Default when it has one, else
+		// none (-1).
+		struct WornNow
+		{
+			std::size_t base = 0;
+			int         layer = -1;
+		};
+
+		WornNow EntriesWornNow(const State& a_state)
+		{
+			const auto& form = a_state.situationForm;
+			const auto& situations = a_state.request.situations;
+			const auto  isLayer = [&a_state](std::uint32_t a_outfit) { return IsLayer(a_state, a_outfit); };
+			const auto  loaded = [&a_state](std::uint32_t a_outfit) { return HasLoadedItem(a_state, a_outfit); };
+			WornNow     worn;
+			bool        baseFound = false;
+			for (std::size_t k = 0; form.situationsKnown && k < form.situationsNow.count; ++k) {
+				const auto found = std::ranges::find(situations, form.situationsNow.items[k], &CaptureWindow::SituationInfo::situation);
+				const auto entry = static_cast<std::size_t>(found - situations.begin());
+				if (found == situations.end() || entry >= form.entries.size()) {
+					continue;
+				}
+				const auto& row = form.entries[entry].row;
+				if (!baseFound && OutfitRows::PicksBase(row, isLayer)) {
+					worn.base = entry;
+					baseFound = true;
+				}
+				if (worn.layer < 0 && OutfitRows::PicksLayer(row, isLayer, loaded)) {
+					worn.layer = static_cast<int>(entry);
+				}
+			}
+			if (worn.layer < 0 && !form.entries.empty() && OutfitRows::PicksLayer(form.entries[0].row, isLayer, loaded)) {
+				worn.layer = 0;
+			}
+			return worn;
+		}
+
+		// A met entry is worn when the base or the layer is from it; the Default is met always.
 		NowState StateNow(const State& a_state, std::size_t a_entry)
 		{
 			const auto& form = a_state.situationForm;
 			if (!form.situationsKnown) {
 				return NowState::kNone;
 			}
-			const auto& now = form.situationsNow;
-			if (a_entry == 0) {
-				return now.count == 0 ? NowState::kWorn : NowState::kNone;
+			const auto worn = EntriesWornNow(a_state);
+			if (worn.base == a_entry || worn.layer == static_cast<int>(a_entry)) {
+				return NowState::kWorn;
 			}
-			const auto situation = a_state.request.situations[a_entry].situation;
-			const auto items = std::span(now.items.data(), now.count);
-			const auto found = std::ranges::find(items, situation);
-			if (found == items.end()) {
+			if (a_entry == 0) {
 				return NowState::kNone;
 			}
-			return found == items.begin() ? NowState::kWorn : NowState::kOutranked;
+			const auto situation = a_state.request.situations[a_entry].situation;
+			const auto items = std::span(form.situationsNow.items.data(), form.situationsNow.count);
+			return std::ranges::find(items, situation) != items.end() ? NowState::kOutranked : NowState::kNone;
 		}
 
-		// The entry worn now (StateNow's kWorn) by the last answer; 0, the Default, until an answer.
+		// The entry the base is worn from now (EntriesWornNow) by the last answer; 0, the Default,
+		// until an answer.
 		std::size_t EntryWornNow(const State& a_state)
 		{
-			const auto& form = a_state.situationForm;
-			if (!form.situationsKnown || form.situationsNow.count == 0) {
-				return 0;
-			}
-			const auto& situations = a_state.request.situations;
-			for (std::size_t i = 1; i < situations.size(); ++i) {
-				if (situations[i].situation == form.situationsNow.items[0]) {
-					return i;
-				}
-			}
-			return 0;
+			return EntriesWornNow(a_state).base;
 		}
 
 		// The last answer taken (CheckConditions) while it is `a_rules`' own, kept while the same
@@ -644,27 +688,44 @@ namespace CaptureWindow::Internal
 			return OutfitRows::Holds(a_form.entries[static_cast<std::size_t>(row)].row, a_form.viewedOutfit) ? row : -1;
 		}
 
-		// What a heading shows under it: every outfit on the list with random on, `chosen`
-		// alone with it off.
-		std::vector<std::uint32_t> ShownOutfits(const OutfitRows::Row& a_row)
+		// What a heading shows under it: every outfit on the list with random on; with it off
+		// the base it wears, then the layer over it (OutfitRows::ChosenOf).
+		std::vector<std::uint32_t> ShownOutfits(const State& a_state, const OutfitRows::Row& a_row)
 		{
 			if (a_row.random) {
 				return a_row.outfits;
 			}
-			return a_row.chosen != 0 ? std::vector<std::uint32_t>{ a_row.chosen } : std::vector<std::uint32_t>{};
+			const auto                 isLayer = [&a_state](std::uint32_t a_outfit) { return IsLayer(a_state, a_outfit); };
+			std::vector<std::uint32_t> shown;
+			for (const bool layer : { false, true }) {
+				if (const auto outfit = OutfitRows::ChosenOf(a_row, layer, isLayer); outfit != 0) {
+					shown.push_back(outfit);
+				}
+			}
+			return shown;
 		}
 
-		// The Default wears its pieces not in the wardrobe: it has them and shows no outfit.
-		bool ShowsPieces(const SituationForm& a_form, std::size_t a_entry)
+		// The Default wears its pieces not in the wardrobe: it has them and holds no base, a
+		// layer or not (random on: no base on its list).
+		bool ShowsPieces(const State& a_state, std::size_t a_entry)
 		{
-			return a_entry == 0 && a_form.defaultPieces && !OutfitRows::HoldsAny(a_form.entries[0].row);
+			const auto& form = a_state.situationForm;
+			if (a_entry != 0 || !form.defaultPieces) {
+				return false;
+			}
+			const auto& row = form.entries[0].row;
+			const auto  isLayer = [&a_state](std::uint32_t a_outfit) { return IsLayer(a_state, a_outfit); };
+			if (row.random) {
+				return std::ranges::all_of(row.outfits, isLayer);
+			}
+			return OutfitRows::ChosenOf(row, false, isLayer) == 0;
 		}
 
 		// Something shows under situation `a_entry`'s heading: an outfit, or the Default's
 		// pieces. One with nothing wears nothing: its heading has a greyed name.
-		bool ShowsAnything(const SituationForm& a_form, std::size_t a_entry)
+		bool ShowsAnything(const State& a_state, std::size_t a_entry)
 		{
-			return OutfitRows::HoldsAny(a_form.entries[a_entry].row) || ShowsPieces(a_form, a_entry);
+			return OutfitRows::HoldsAny(a_state.situationForm.entries[a_entry].row) || ShowsPieces(a_state, a_entry);
 		}
 
 		// A grey line in an outfit row's place (kPiecesLine), with no icon.
@@ -686,26 +747,23 @@ namespace CaptureWindow::Internal
 			float       rows = form.entries.size() > 1 ? Theme::ListHeadingHeight() : 0.0f;  // the order's caption
 			for (std::size_t i = 0; i < form.entries.size(); ++i) {
 				rows += Theme::SituationHeadingHeight();
-				if (ShowsPieces(form, i)) {
+				if (ShowsPieces(a_state, i)) {
 					rows += Theme::OutfitRowHeight();
 				}
-				rows += static_cast<float>(ShownOutfits(form.entries[i].row).size()) * Theme::OutfitRowHeight();
+				rows += static_cast<float>(ShownOutfits(a_state, form.entries[i].row).size()) * Theme::OutfitRowHeight();
 			}
 			return (std::max)(FittedListHeight(rows, Theme::SituationHeadingHeight()), form.outfitPaneHeight - a_top);
 		}
 
 		// The outfits situation `a_entry` shows, each with a grip, dragged to move it, and a drop
 		// place: before it on its upper half, after it on its lower half (random on; the front
-		// with it off). With none, the Default's pieces line, which drags to the outfit list and
-		// takes a drop at the front, or nothing.
+		// with it off). Before them, while the Default holds no base, its pieces line, which drags
+		// to the outfit list and takes a drop at the front.
 		void DrawShownOutfits(State& a_state, std::size_t a_entry)
 		{
 			auto&      form = a_state.situationForm;
-			const auto shown = ShownOutfits(form.entries[a_entry].row);
-			if (shown.empty()) {
-				if (!ShowsPieces(form, a_entry)) {
-					return;
-				}
+			const auto shown = ShownOutfits(a_state, form.entries[a_entry].row);
+			if (ShowsPieces(a_state, a_entry)) {
 				const float top = ImGui::GetCursorScreenPos().y;
 				DrawLineRow(kPiecesLine, Theme::Grip::kLine);
 				// The copy greyed as the line is.
@@ -717,7 +775,6 @@ namespace CaptureWindow::Internal
 						DropOnSituation(a_state, a_entry, 0, *dropped);
 					}
 				}
-				return;
 			}
 			const bool random = form.entries[a_entry].row.random;
 			for (std::size_t k = 0; k < shown.size(); ++k) {
@@ -738,7 +795,7 @@ namespace CaptureWindow::Internal
 				}
 				const float bottom = ImGui::GetItemRectMax().y;
 				const auto& outfit = OutfitAt(a_state, index);
-				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, outfit.name.c_str(), Theme::Grip::kName, &outfit.icon);
+				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, outfit.name.c_str(), Theme::Grip::kName, &outfit.icon, outfit.layer);
 				if (ImGui::BeginDragDropTarget()) {
 					const bool after = random && ImGui::GetMousePos().y >= (top + bottom) * 0.5f;
 					if (const auto dropped = AcceptOnSituation(after ? bottom : top)) {
@@ -758,17 +815,24 @@ namespace CaptureWindow::Internal
 			std::string tip;
 		};
 
+		// The actor wears for it when their base is from it, or their layer (a draw of none too);
+		// a click then picks the base anew, which needs two on the list, or draws the layer anew,
+		// which needs one (Assignments::PickAnother).
 		Dice DiceOf(const State& a_state, std::size_t a_entry)
 		{
 			const auto& request = a_state.request;
 			const auto& outfits = a_state.situationForm.entries[a_entry].row.outfits;
-			const bool  wears = request.wornOutfit != 0 && request.situations[a_entry].situation == request.wornFor &&
-			                    std::ranges::find(outfits, request.wornOutfit) != outfits.end();
+			const auto  situation = request.situations[a_entry].situation;
+			const auto  onList = [&outfits](std::uint32_t a_outfit) { return std::ranges::find(outfits, a_outfit) != outfits.end(); };
+			const auto  layers = std::ranges::count_if(outfits, [&a_state](std::uint32_t a_outfit) { return IsLayer(a_state, a_outfit); });
+			const bool  wearsBase = request.wornOutfit != 0 && situation == request.wornFor && onList(request.wornOutfit);
+			const bool  wearsLayer = request.wornLayerFor == situation && (request.wornLayer == 0 || onList(request.wornLayer));
 			const char* line = Strings::Get(Text::kRandomLine);
-			if (!wears) {
+			if (!wearsBase && !wearsLayer) {
 				return { .tip = std::format("{}\n{}", line, Strings::Format(Text::kRandomNotWearing, request.actorName)) };
 			}
-			if (outfits.size() < 2) {
+			const bool another = (wearsBase && static_cast<std::ptrdiff_t>(outfits.size()) - layers >= 2) || (wearsLayer && layers >= 1);
+			if (!another) {
 				return { .tip = std::format("{}\n{}", line, Strings::Get(Text::kRandomAddAnother)) };
 			}
 			return { .button = true, .tip = std::format("{}\n{}", line, Strings::Get(Text::kRandomClick)) };
@@ -797,7 +861,7 @@ namespace CaptureWindow::Internal
 			auto&      entry = form.entries[a_entry];
 			const int  index = static_cast<int>(a_entry);
 			const int  editedNow = form.editing ? form.selected : -1;
-			const bool shows = ShowsAnything(form, a_entry);
+			const bool shows = ShowsAnything(a_state, a_entry);
 			const bool foldable = shows && entry.row.random;
 			if (!foldable) {
 				entry.folded = false;
@@ -916,8 +980,8 @@ namespace CaptureWindow::Internal
 		// What a click in the Situation List asks of the page.
 		struct ListClick
 		{
-			bool dice = false;  // a heading's die: another outfit of the row worn
-			int  edit = -1;     // a heading's Edit: the entry to open the Edit situation popup on; -1 for none
+			int dice = -1;  // a heading's die: the entry whose row picks again; -1 for none
+			int edit = -1;  // a heading's Edit: the entry to open the Edit situation popup on; -1 for none
 		};
 
 		// The left pane: the Situation List (?) label over the Default's heading, a rule, then a
@@ -944,7 +1008,7 @@ namespace CaptureWindow::Internal
 			ListClick  result;
 			const auto take = [&result](Theme::HeadingClick a_click, std::size_t a_entry) {
 				if (a_click == Theme::HeadingClick::kDice) {
-					result.dice = true;
+					result.dice = static_cast<int>(a_entry);
 				} else if (a_click == Theme::HeadingClick::kEdit) {
 					result.edit = static_cast<int>(a_entry);
 				}
@@ -1848,7 +1912,8 @@ namespace CaptureWindow::Internal
 		// The Edit situation popup's `Selection Chances (?)`, under Random Outfit while it is on
 		// and the row has an outfit: the row's outfits in its order as the outfit list's rows,
 		// with no grip and, in place of their marks, the chance a new pick is that outfit
-		// (OutfitRows::ChanceTotal, as Pick draws), to one decimal place. A click opens the
+		// (OutfitRows::ChanceTotal, as Pick draws; for a layer, times LayerDrawChance), to one
+		// decimal place. A click opens the
 		// outfit's chance slider (DrawChanceSlider) under its row, drawn selected, and closes
 		// the one open; a click on the open one closes it. The list scrolls to keep the popup
 		// within kMaxWindowHeightRatio of the screen. A move of a slider edits the row, saved once
@@ -1869,17 +1934,29 @@ namespace CaptureWindow::Internal
 			// No gap under a row, as the outfit list has none (Theme::OutfitRow).
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
 			if (Theme::BeginList("chances", height)) {
-				const auto total = OutfitRows::ChanceTotal(a_row);
+				// Bases and layers are drawn apart (design.md §7 Layers): a base among the bases; a
+				// layer among the wearable layers, after the draw of any layer at all.
+				const auto isBase = [&a_state](std::uint32_t a_outfit) { return !IsLayer(a_state, a_outfit); };
+				const auto isLayer = [&a_state](std::uint32_t a_outfit) { return IsLayer(a_state, a_outfit) && HasLoadedItem(a_state, a_outfit); };
+				const auto baseTotal = OutfitRows::ChanceTotal(a_row, isBase);
+				const auto layerTotal = OutfitRows::ChanceTotal(a_row, isLayer);
+				const auto layerDrawn = OutfitRows::LayerDrawChance(a_row, isLayer);
 				for (std::size_t k = 0; k < a_row.outfits.size(); ++k) {
 					const auto id = a_row.outfits[k];
 					const int  index = IndexOfOutfit(a_state, id);
 					if (index < 0) {
 						continue;
 					}
-					const auto  chance = OutfitRows::ChanceOf(a_row, id);
-					const auto  share = std::format("{:.1f}%", total > 0 ? 100.0 * chance / static_cast<double>(total) : 0.0);
+					const auto chance = OutfitRows::ChanceOf(a_row, id);
+					double     percent = 0.0;
+					if (isBase(id) && baseTotal > 0) {
+						percent = 100.0 * chance / static_cast<double>(baseTotal);
+					} else if (isLayer(id) && layerTotal > 0) {
+						percent = 100.0 * layerDrawn * chance / static_cast<double>(layerTotal);
+					}
+					const auto  share = std::format("{:.1f}%", percent);
 					const auto& outfit = OutfitAt(a_state, index);
-					const auto  icon = RowIconOf(outfit.icon);
+					const auto  icon = RowIconOf(outfit);
 					ImGui::PushID(static_cast<int>(k));
 					if (Theme::OutfitRow(outfit.name.c_str(), id == form.chancesOpen, { .trailing = share.c_str() }, k % 2 == 1, Theme::Grip::kNone, &icon)) {
 						QueueMenuSound(kFocusSound);
@@ -1952,7 +2029,7 @@ namespace CaptureWindow::Internal
 			const std::string randomLabel = Strings::Format(Text::kRandomOutfitFor, name);
 			if (Theme::Checkbox(randomLabel.c_str(), &random)) {
 				QueueMenuSound(kFocusSound);
-				OutfitRows::SetRandom(entry.row, random);  // off keeps the last pick on
+				OutfitRows::SetRandom(entry.row, random, [&a_state](std::uint32_t a_outfit) { return IsLayerOutfit(a_state, a_outfit); });  // off keeps the last picks on
 				ScheduleAutosave(a_state);
 				// An outfit the Default wears with random off drops its pieces, as a drop does.
 				if (isDefault && !random && entry.row.chosen != 0) {
@@ -2555,11 +2632,12 @@ namespace CaptureWindow::Internal
 
 		// Hands the page's edits to onSituationsSave: the names that changed, every row
 		// when any changed, and the outfit whose details show, which stays on
-		// the preview; with `a_reroll`, a die's click (SituationSave::reroll). Until the handler
-		// ends with SetOutfits or SetError the page takes no input.
+		// the preview; with `a_reroll`, a die's click on that situation's heading
+		// (SituationSave::reroll). Until the handler ends with SetOutfits or SetError the page takes
+		// no input.
 		// Contract: the handler writes situations.json first and changes no row for a refused
 		// or failed write (CLAUDE.md §2.1).
-		void RequestSituationsSave(State& a_state, bool a_reroll = false)
+		void RequestSituationsSave(State& a_state, std::optional<Situations::Situation> a_reroll = std::nullopt)
 		{
 			const auto&                  form = a_state.situationForm;
 			const auto&                  request = a_state.request;
@@ -2601,16 +2679,16 @@ namespace CaptureWindow::Internal
 		// handler ends with SetOutfits or SetError.
 		// Contract: the handler writes situations.json first and changes no row for a refused
 		// or failed write (CLAUDE.md §2.1).
-		// A die's click (DiceOf): the page's edits are saved with it, then another outfit of the
-		// row the actor wears, picked at random, goes on. An outfit's details close without a
+		// A die's click on entry `a_entry`'s heading (DiceOf): the page's edits are saved with it,
+		// then that row's picks are made again and go on. An outfit's details close without a
 		// preview of their own: the redress begins the preview again on what they wear.
-		void RequestReroll(State& a_state)
+		void RequestReroll(State& a_state, std::size_t a_entry)
 		{
 			auto& form = a_state.situationForm;
 			EndNameEditing(form);
 			form.viewedOutfit = 0;
 			form.viewedRow = -1;
-			RequestSituationsSave(a_state, true);
+			RequestSituationsSave(a_state, a_state.request.situations[a_entry].situation);
 		}
 
 		void RequestSituationRemove(State& a_state)
@@ -2950,18 +3028,21 @@ namespace CaptureWindow::Internal
 		if (viewed < 0) {
 			return {};
 		}
-		const auto& pieces = OutfitAt(a_state, viewed).pieces;
+		const auto& outfit = OutfitAt(a_state, viewed);
+		const auto& pieces = outfit.pieces;
 		const auto  edited = EditedRow(form);
-		return edited >= 0 ? WornOf(a_state, pieces, OutfitRows::ExcludedOf(form.entries[static_cast<std::size_t>(edited)].row, form.viewedOutfit)) : pieces;
+		auto        worn = edited >= 0 ? WornOf(a_state, pieces, OutfitRows::ExcludedOf(form.entries[static_cast<std::size_t>(edited)].row, form.viewedOutfit)) : pieces;
+		// A layer shows over what they wear now.
+		return outfit.layer ? OverWorn(a_state, pieces, worn, outfit.keepBeneath) : worn;
 	}
 
-	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon)
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon, bool a_layer)
 	{
 		if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoPreviewTooltip)) {
 			return;
 		}
 		ImGui::SetDragDropPayload(kOutfitPayload, &a_payload, sizeof(a_payload));
-		const auto icon = a_icon ? RowIconOf(*a_icon) : Theme::RowIcon{};
+		const auto icon = a_icon ? RowIconOf(*a_icon, a_layer) : Theme::RowIcon{};
 		Theme::OutfitDragGhost(a_label, a_grip, a_icon ? &icon : nullptr);
 		ImGui::EndDragDropSource();
 	}
@@ -3021,9 +3102,9 @@ namespace CaptureWindow::Internal
 			return;
 		}
 
-		if (list.dice) {
+		if (list.dice >= 0) {
 			QueueMenuSound(kOkSound);
-			RequestReroll(a_state);
+			RequestReroll(a_state, static_cast<std::size_t>(list.dice));
 			DrawSituationPopups(a_state);
 			return;
 		}

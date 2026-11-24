@@ -255,6 +255,26 @@ TEST_CASE("Icon sort: the icon's order, then its colour's, then the name", "[bro
 	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare", "iron set", "Town Dress", "Scout", "Guard Uniform" });
 }
 
+TEST_CASE("Icon sort puts the layers after the other outfits, whatever their icons", "[browser]")
+{
+	auto request = MakeRequest();
+	request.existingOutfits[0].icon = IconOf(4, 2);  // iron set: body, pink
+	request.existingOutfits[1].icon = IconOf(0, 0);  // Guard Uniform: helmet, white
+	request.existingOutfits[1].layer = true;         // first by its icon, but a layer
+	request.existingOutfits[2].icon = IconOf(4, 0);  // Town Dress: body, white
+	request.existingOutfits[3].icon = IconOf(0, 0);  // Bare: helmet, white
+	request.existingOutfits[3].layer = true;
+	// Scout keeps the default: body, white, as Town Dress has.
+	OutfitBrowser::State state;
+	OutfitBrowser::Reset(state, request);
+	Sort(state, request, OutfitBrowser::SortKey::kIcon);
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Scout", "Town Dress", "iron set", "Bare", "Guard Uniform" });
+	Sort(state, request, OutfitBrowser::SortKey::kIcon, true);
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Guard Uniform", "Bare", "iron set", "Town Dress", "Scout" });
+	Sort(state, request, OutfitBrowser::SortKey::kName);  // Name pays no heed to it
+	CHECK(VisibleNames(state, request) == std::vector<std::string>{ "Bare", "Guard Uniform", "iron set", "Scout", "Town Dress" });
+}
+
 TEST_CASE("Rebuild keeps the search and sort for changed outfits and rows", "[browser]")
 {
 	auto                 request = MakeRequest();

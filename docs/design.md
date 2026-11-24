@@ -124,7 +124,8 @@ says so), so a lock would be needed anyway.
   (`Assignments::IsDressedNpc`; an NPC in their own clothes whose situation rows wait is not
   one) and for the NPC the window's Live Preview shows, assigned or not
   (`OutfitPreview::IsPreviewedNpc`, an atomic id), so their outfit items stay off while they
-  wear Livery's pieces or the preview's; the rest of the pass, its best-armor step included,
+  wear Livery's pieces or the preview's (under a layer over their own clothes Livery puts them
+  on itself, §7 Layers); the rest of the pass, its best-armor step included,
   runs as before. The pass is not always on the game thread (§6), so the hook only reads those
   two and queues an SKSE task that runs after the pass. While the window's Live Preview shows them, the preview dresses
   them in its pieces again (`OutfitPreview::Reapply`), which takes off what it does not show;
@@ -152,7 +153,8 @@ says so), so a lock would be needed anyway.
   so the best-armor step leaves it in the inventory (§6) and the pass needs no take-off. They
   are locked after each dressing that puts pieces on, and the copies that came since (another
   mod's outfit change, a copy the take-off just took off) after each 3D load, menu close and
-  take-off after the pass that took something off. Livery takes those locks off
+  take-off after the pass that took something off. Not under a layer over their own clothes
+  (§7 Layers): their outfit items are those clothes. Livery takes those locks off
   (`Dressing::UnlockOutfitCopies`) before anything puts their own copies on, since a locked
   unworn copy cannot be equipped: at each dressing (before their own pieces go back on), at
   Restore, at death, at Release everyone, and for the live preview (`SuspendLocks`; locked
@@ -417,12 +419,18 @@ would have to be kept in step).
   `OutfitIcons::kColors` (`glass-teal-light`), so a tint changed there shows on every outfit
   that has it. A missing or unreadable one, or a colour key the table does not have, is the
   default (`OutfitIcons::kDefaultKey`, `bone-white`), so a file edited by hand still reads; `Library::Create` takes the Save page's Create tab's icon.
-- `Library::Update` replaces pieces, name and icon; a name is taken when another outfit
-  has it (ASCII case ignored). The Save page's Update keeps the icon.
+- An outfit may be a layer, `"layer": true` (written only when on), worn over the outfit
+  beneath (§7 Layers), and a layer may keep the items beneath, `"keepBeneath": true` (written
+  only for a layer with it on, read only beside `"layer"`). A library with no layer is written
+  as version 1, one with a layer as version 2; both are read. A Livery without layers refuses
+  version 2, so it never writes the flags away.
+- `Library::Update` replaces pieces, name, icon and the layer flags; a name is taken when
+  another outfit has it (ASCII case ignored). The Save page's Update keeps the icon and the
+  flags.
 - `Library::Remove` takes an outfit out; ids are never reused. `Assignments::ForgetOutfit`
-  then takes it off every row in this save (a `chosen` that was it becomes 0), and a Default
-  this leaves wearing nothing gets the outfit's pieces, read before the remove, as its
-  pieces. Other saves' rows naming it keep the id, which counts as not on the row and never
+  then takes it off every row in this save (a `chosen` or `chosenLayer` that was it becomes
+  0), and a Default this leaves wearing nothing gets the outfit's pieces, read before the
+  remove, as its pieces, unless it was a layer. Other saves' rows naming it keep the id, which counts as not on the row and never
   shows (docs/situation-management-ui.md §1); restoring outfits.json brings it back.
 - Situation data: `situations.json` beside the library (`src/SituationStore.cpp`; the
   presets, the file's parse and write and the name rules in `src/SituationTable.h`): every
@@ -455,7 +463,7 @@ would have to be kept in step).
 
 ## 5. Co-save
 
-Co-save id `LVRY`, records `ASGN` (version 6), `EXCL` (version 2) and `CHNC` (version 1), read in the SKSE load
+Co-save id `LVRY`, records `ASGN` (version 6), `EXCL` (version 2), `CHNC` (version 1) and `LAYR` (version 1), read in the SKSE load
 callback, cleared on revert; a record of another version is skipped with a log line. A
 situation is stored by its key (`Situations::Name`, the key `situations.json` uses): a
 length byte and its characters, so situations can be added or removed without a new
@@ -475,8 +483,9 @@ outfit off kept rows too, and a kept row then holding nothing goes.
   copies Livery locked unworn (§2 Keeping the outfit on), each a count and the keys.
 - The Default's pieces: armor FormIDs not in the wardrobe, worn while the Default's row
   wears no outfit (docs/situation-management-ui.md §1). Then the situation of the row the
-  pieces are for, and the rows (`OutfitRows`): a count, and per row its situation, random,
-  `chosen` and its library outfit ids. Every row
+  base is for, and the rows (`OutfitRows`): a count, and per row its situation, random,
+  `chosen` and its library outfit ids. `wornOutfit` is the base; the layer's pieces are among
+  the pieces, and the rest of the layer is in `LAYR`. Every row
   reads its outfit from the library each time it goes on; the window names the outfits
   from the ids. A row for a situation the session does not know is dropped with a log line,
   or kept as above.
@@ -497,6 +506,16 @@ outfit off kept rows too, and a kept row then holding nothing goes.
   row's situation, the library outfit id and the chance (one byte, 0 to 200; a larger one
   reads as 200). A record of its own, so a Livery that does not know `CHNC` skips it and
   every outfit has 100. At load, after `ASGN`, an entry is dropped as an `EXCL` one is.
+- `LAYR`, written after `ASGN` while an assignment has a layer row or a layer over their own
+  clothes, or a row has a layer chosen (§7 Layers): a count, and per assignment the actor
+  FormID, whether it has a layer row and whether the layer is over their own clothes (a byte
+  each), then with a layer row its situation and the layer worn (0 for a draw of none); then a
+  count, and per row with a layer chosen the actor FormID, the row's situation and
+  `chosenLayer`. A record of its own, so a Livery that does not know `LAYR` skips it: the
+  layers wait on their rows' lists. At load, after `ASGN`, a layer row this session does not
+  have is dropped (the next dressing draws anew), and a row entry as an `EXCL` one is. An
+  assignment, or a kept row, that holds nothing is dropped only after every record is read,
+  since `LAYR` may give a row its layer.
 
 Per character and per save by construction. An export/import of assignment sets (JSON)
 can come later if sharing across characters is wanted.
@@ -587,8 +606,8 @@ can come later if sharing across characters is wanted.
 An assigned actor has a row per situation, the presets Town, Castle, Home, Cold, Sleep and
 those the user defines, in the window's order (docs/custom-situations.md §8,
 `Situations::Order()`), and the Default, what the window's Apply gives, worn where
-none of them applies. A row is a list of library outfit ids, a random flag, the one
-chosen and each outfit's selection chance (docs/situation-management-ui.md §1,
+none of them applies. A row is a list of library outfit ids, a random flag, the base and the
+layer chosen and each outfit's selection chance (docs/situation-management-ui.md §1,
 `src/OutfitRows.h`); the Default also keeps
 pieces not in the wardrobe. Every row reads its outfit from the library each time it goes
 on. Each situation's name comes from `situations.json` (§4), a preset still named as installed
@@ -596,7 +615,8 @@ shown in the chosen language (`SituationStore::Name`): the window and the HUD sh
 value of whole texts (`Wearing {0} for {1}{2}.`, `Wearing {0} as {1}{2}.` for the Default;
 `Livery: {0} now wears {1} for {2}.`, `Livery: {0} now wears the default outfit.`), and the
 log's own lines keep the key (`Situations::Name`). A removed situation offers no row
-and nothing wears it. Random off, the row wears `chosen`; random on, one of the list is picked as the row
+and nothing wears it. What follows is the base; a layer is chosen, picked and worn apart from
+it (Layers below). Random off, the row wears `chosen`; random on, one of the list is picked as the row
 goes on, in proportion to the outfits' selection chances (0 never; a row with every outfit at
 0 is passed over), and kept until it changes, a forced redress keeping it while it is on the list,
 and recorded as `chosen`, so turning random off keeps the last pick on. A click on the
@@ -627,8 +647,9 @@ player has the same rows.
 ### Detection (`Situations::Evaluate`)
 
 The situations an actor is in, the lowest in the window's list first
-(`Situations::Applicable`); the first one whose row holds an outfit is worn, else the
-Default (`OutfitRows::Resolve`). Every situation is its rules (docs/custom-situations.md
+(`Situations::Applicable`); the first one whose row has a base to wear gives the base, else
+the Default (`OutfitRows::Resolve`), and the first one whose row has a layer gives the layer,
+else the Default's, if any (`OutfitRows::ResolveLayer`, Layers below). Every situation is its rules (docs/custom-situations.md
 §2-§5, §8): the presets' as installed are below, edited like the user's. Evaluate reads only
 the situations whose row holds an outfit for the actor. In combat a situation applies only
 with `Allow during combat` on or with a State condition of In combat alone
@@ -674,10 +695,11 @@ The conditions of the user's situations are in docs/custom-situations.md §3.
 A thread (`std::jthread`, no hook) queues one SKSE task per second. The task does nothing
 while the game is paused, the loading menu is up, the capture window is open or a preview
 is on, since a redress would undo the preview's restore. For each actor with a situation
-outfit, or still wearing one whose row a Remove cleared, who is 3D-loaded and alive, the player not in beast form (a race that is not
+outfit, or still wearing one whose row a Remove cleared (a layer the Default had too), who is 3D-loaded and alive, the player not in beast form (a race that is not
 playable: werewolf, Vampire Lord; the transformation takes the gear off and puts it back
 on), it evaluates the situations and, when they differ from the last poll's, calls `Assignments::WearFor`, which redresses only when the resolved
-row or the outfit it wears differs from the one worn (`worn`, `wornOutfit` in the record). One redress per poll: when the
+rows or the base or layer they wear differ from those worn (`worn`, `wornOutfit`, `layerRow`,
+`layer` in the record). One redress per poll: when the
 weather turns for everyone, the others follow at the next polls. The poll redresses an
 actor at most once in 3 seconds; a change it holds back is not marked seen, so it is
 evaluated again at a later poll. A change is acted on
@@ -695,6 +717,101 @@ conditions or order dresses the captured actor at once when another row or outfi
 stay as they are. The record's `pieces` describe whatever is worn,
 so a situation outfit is kept on, locked and put back at 3D load like the default.
 
+### Layers
+
+A layer (`Library::Outfit::layer`) is worn over the outfit beneath, the base: a cloak and a
+hat for Cold over whatever the actor wears otherwise. Each dressing derives the base and the
+layer from the rows anew, so a base change keeps the layer while its situation applies, a
+layer comes off when its situation ends, and a layer never goes over a layer.
+
+- Kinds: whether an outfit is a layer is read from the library each time (`a_isLayer` of
+  `OutfitRows`), so an outfit whose flag changed is worn as what it is now. Random off, a row
+  wears `chosen` as the base and `chosenLayer` as the layer, each read by what it is now
+  (`ChosenOf`): a field holding the other kind counts for that kind, and of two of one kind
+  one is worn. Giving a row an outfit replaces only the one of its kind (`Place`, after
+  `SortChosen` puts each in its own field).
+- Resolution: the base row and the layer row are found apart (Detection above). A row has a
+  layer when, random off, its layer has an item loaded, or, random on, a layer with an item
+  loaded is on its list, at any chance: layers all at 0 draw none and end the walk as a draw
+  of none does. A layer with nothing loaded is passed over, so a lower row's or another of the
+  list is worn.
+- Random: the bases are picked as before, among the bases only. The layers apart:
+  no layer with probability Π(1 − min(c, 100) / 100) over the list's layers, else one in
+  proportion to their chances (`OutfitRows::DrawLayer`), so one layer at 70 is worn 70% of
+  the time and one at 100 or above means a layer always. A draw of none is kept as a pick is:
+  the record holds the layer row with layer 0 until that row stops being the layer row, so a
+  redress (rain, a cell change, a row edit) does not draw again. A layer worn stays on when its
+  chance is set to 0 while another wearable layer of the list is above it; with every one at 0
+  the row wears none at the next dressing (`OutfitRows::WearsLayer`). A layer gained by the row of
+  the base or of the layer is worn as its pick (`Assignments::SetRows`). A row's die
+  (`Assignments::PickAnother`) picks the base anew, the same one included, when their base is
+  from it, and draws the layer anew, none or the same one included, when their layer is.
+- Dressing (`Assignments` `Wear`): one list through the existing path, the base's pieces
+  and the layer's that `OutfitRows::LayerOver` keeps, the base's first. A base piece that
+  stays leaves off every layer piece sharing a body slot with it; then the layer pieces kept
+  leave off the base pieces under them (`OutfitRows::Uncovered`). Every base piece stays when
+  the layer keeps the items beneath (`Library::Outfit::keepBeneath`, the `Keep items beneath`
+  tick); else only body armor (slot 32) while the layer has none, so a layer of gloves leaves
+  on the cuirass that takes the forearms too, and its gloves stay off. A piece pushed off by
+  either is never put on, so `PutBackOn` at 3D load cannot put it back and push the other
+  off. The items a row leaves off apply to the layer as to a base, before `LayerOver`. A layer
+  whose pieces all stay off still counts as worn (the summary line and the HUD name it).
+- No base (no row has one, and the Default has no pieces): the layer goes over their own
+  clothes (`overOwn`). `LayerOver` reads as the base the armor they wear once their own pieces
+  from before and then their outfit items, in the slots left free (`Dressing::PutOnOutfitItems`),
+  are back on (`Dressing::WornArmor`), less Livery's pieces from before and the layer's own
+  armor; so a dressing right after their 3D load, ahead of `PutOwnClothesOn` below, reads
+  their outfit items too. `Dressing::Dress` then takes nothing else off (`keepOthers`); the own pieces the
+  engine pushes off for the layer's slots are noted in `takenOff` and go back on at the next
+  dressing or release. `Dressing::TakeOffExtras` takes off only armor sharing a body slot with
+  a worn piece, outfit items included, since their clothes are their own outfit's. Their
+  outfit copies are not locked. Their 3D load takes their outfit items off and OwnOutfitGuard
+  leaves out the pass's call that would put them on again (seen in game, 2026-11-24), so at
+  their 3D load (after `PutBackOn`) and after each pass Livery puts them on in the slots no
+  worn armor takes (`Assignments` `PutOwnClothesOn`, `Dressing::PutOnOutfitItems`), the
+  copies an earlier build locked unlocked first; never from the trade menu's equip sink.
+- A situation's base that puts nothing on falls back to the Default's under the same layer;
+  a layer that puts nothing on (not carried, refused) is no fallback.
+- Remove of a layer: the actors wearing it are redressed as for a situation outfit; a Default
+  that held it does not get its pieces. Update redresses the actor when they wear it as the
+  layer too.
+- The window: the flags are ticked on the Save page's Create tab, the Wardrobe page and its
+  Edit page (`Layered outfit`, then `Keep items beneath` under its label, greyed while the
+  first is off; docs/ui-redesign.md §4, docs/outfit-management-ui.md §4) and written by Create and the
+  Wardrobe page's Save; a flag changed on an outfit the captured actor has redresses them at
+  once when another outfit is due, the others at their next dressing. The `Keep items beneath`
+  tooltip leaves the body armor rule above unsaid. A layer's icon carries a
+  badge wherever an outfit's icon shows, its name is light blue there, and the icon
+  shows `Layered outfit` on hover (docs/outfit-management-ui.md §1). Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
+  page lists and applies the worn layer's items apart, and with none ticked and one unticked
+  the row does not leave off already (or every one) takes the layer off: random off off its
+  row, random on as a draw of none (docs/ui-redesign.md §5, `Assignments::TakeOffLayer`). An
+  unticked piece the ticked pieces beneath keep off (`LayerOver` with it ticked) is not left
+  off on the row, a layer's or a base's, unless the row leaves it off already, so Apply keeps a
+  layer whose pieces they all keep off. The previews show a layer over what they wear, by the
+  same `LayerOver`. The summary line and the HUD name both outfits, `B over
+  A` (`Livery: {0} now wears {1} for {2}.` with it for the base's situation, `Livery: {0} now
+  wears {1}.` over the Default's or their own clothes), and a layer over their own clothes
+  counts none of those as extra items.
+
+Checks the design rests on:
+
+1. The engine pushes off a worn piece by body-slot overlap, so `LayerOver` matches what
+   equipping the layer piece would do (checked in game, 2026-11-24).
+2. A layer over their own clothes: an own piece the layer pushed off (unlocked, in the
+   inventory) is not put back by the engine's best-gear pass through a slot the layer leaves
+   free (checked in game, 2026-11-24). An NPC's own outfit items are locked unworn
+   (`LockOutfitCopies`); other own armor is not.
+3. A layer over their own clothes stays with those clothes across a 3D reload and a cell
+   reset (2026-11-24: their outfit items came off at a 3D reload and were locked; they stay
+   since `PutOwnClothesOn`, checked in game).
+4. The feel of an outfit whose layer flag changed after rows were given it (Kinds above;
+   checked in game, 2026-11-24).
+5. `Dressing::WornArmor` needs no 3D: it reads their inventory's worn flags, and every
+   dressing is of an actor whose 3D is loaded (the poll and the redress at the window's close
+   pass over the others, the window dresses the captured actor or the player); checked in the
+   code, 2026-11-24.
+
 ## 8. Plan
 
 Built and checked in game: the dressing core (§2), the library and the capture window
@@ -705,7 +822,26 @@ setting, off by default) and the user-defined situations (docs/custom-situations
 conditions, one order for the presets and the user's, the presets' rules editable, behind the
 `Enable custom situations` setting, off by default). Open:
 
-1. Layer outfits (docs/memo-layer-outfits.md).
+1. Layer outfits (§7 Layers): on branch `feat/layer-outfits`, `main` merged in; checked in
+   game: an existing save, a situation's layer and `B over A`, its end, the draws and
+   Selection Chances, the Dress page's layer heading and its items unticked, the Wardrobe
+   page's preview after Apply or Save, `Keep items beneath` (on and off, over a base and over
+   their own clothes, the body armor rule, the Dress page's Apply), a layer over their own
+   clothes across a 3D reload, checks 1, 2 and 4 of §7 Layers, the diamond badge on every
+   outfit icon, a size larger, with the layer's name light blue and `Layered outfit` over the
+   icon on hover, the Edit page's preview of a layer, the dice picking the one worn again at
+   times, the Save page's ticks, the `Layered outfit` tick's example line, a layer over their
+   own clothes after its situation changed while they were away. Tableau's `lib/sarrai-common` is not bumped to the icon
+   badge.
+   - In game, open: the Icon sort's layers after the other outfits; `outfits.json` stays `"version": 1` until an
+     outfit is a layer and returns to it when none is; the `Layered outfit` and `Keep items
+     beneath` ticks on the Create tab, the Wardrobe page and the Edit page (their place on
+     each, and the badge's size), Save's `Layered outfit: on` / `off` and `Keep items beneath:
+     on` / `off` lines; Apply to <name> and Create and Apply of a layer, with and
+     without a situation's outfit worn; a layer alone on an NPC Livery does not dress (their
+     clothes stay); the other previews.
+   - Known gap: other actors holding an outfit whose layer flags changed follow at their next
+     dressing.
 2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit.

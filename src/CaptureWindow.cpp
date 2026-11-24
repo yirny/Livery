@@ -538,6 +538,12 @@ namespace CaptureWindow::Internal
 		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
+	bool IsLayerOutfit(const State& a_state, std::uint32_t a_id)
+	{
+		const int index = IndexOfOutfit(a_state, a_id);
+		return index >= 0 && OutfitAt(a_state, index).layer;
+	}
+
 	// The Dress page's list: its ticks, the pieces nobody carries that a Load listed
 	// (State::inventoryShown) under the heading naming where they came from, with the chest
 	// icon while a chest was loaded last.
@@ -920,13 +926,13 @@ namespace CaptureWindow::Internal
 	}
 
 	// The pieces a tab page keeps on the preview in place of the Dress page's ticks:
-	// the Wardrobe page's selected outfit as edited, less its unticked items, the Situations page's
-	// outfit whose details show (ViewedOutfitPieces); nullopt while it shows the ticks. A page
-	// that gets a preview of its own adds it here.
+	// the Wardrobe page's selected outfit (ManagedPreview), the Situations page's outfit whose
+	// details show (ViewedOutfitPieces); nullopt while it shows the ticks. A page that gets a
+	// preview of its own adds it here.
 	std::optional<std::vector<std::size_t>> PagePreview(const State& a_state, Page a_page)
 	{
 		if (a_page == Page::kManage && a_state.manage.outfit >= 0) {
-			return WornOf(a_state, a_state.manage.pieces, a_state.manage.excluded);
+			return ManagedPreview(a_state);
 		}
 		if (a_page == Page::kSituations && IndexOfOutfit(a_state, a_state.situationForm.viewedOutfit) >= 0) {
 			return ViewedOutfitPieces(a_state);
@@ -1028,7 +1034,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, a_summary.lead.c_str());
 			return;
 		}
-		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey };
+		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey, .badge = a_summary.iconBadge, .rgb = a_summary.iconBadge ? kLayerNameRgb : 0, .iconTooltip = a_summary.iconBadge ? Strings::Get(Text::kLayerIconTip) : nullptr };
 		const auto               runs = RunsOf(a_summary.text, { outfit, SituationRun(a_summary.situation.c_str(), a_summary.situationIsDefault), TextRun(a_summary.gaps.c_str()) });
 		Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, runs.Parts());
 	}
@@ -1049,7 +1055,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(Theme::HeadingIcon::kStar, a_state.situationsTitle.c_str());
 			break;
 		case Page::kEdit:
-			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { OutfitRun(a_state.editTitle, a_state.manage.icon) }).Parts());
+			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { OutfitRun(a_state.editTitle, a_state.manage.icon, a_state.manage.layer) }).Parts());
 			break;
 		case Page::kChests:
 			{
@@ -1221,6 +1227,7 @@ namespace CaptureWindow::Internal
 		const auto& request = a_state.request;
 		auto&       headings = a_state.headings;
 		headings[GroupIndex(Group::kLiveryOutfit)] = Strings::Format(Text::kGroupWornOutfit, request.outfitName);
+		headings[GroupIndex(Group::kLiveryLayer)] = Strings::Format(Text::kGroupWornLayer, request.layerName);
 		headings[GroupIndex(Group::kNotInLibrary)] = Strings::Get(Text::kGroupNotInWardrobe);
 		headings[GroupIndex(Group::kUnmanaged)] = Strings::Get(Text::kGroupUnmanaged);
 		headings[GroupIndex(Group::kCarried)] = Strings::Get(Text::kGroupInventory);
@@ -1285,10 +1292,14 @@ namespace CaptureWindow::Internal
 		for (const auto index : a_pieces.ticked) {
 			a_state.pieceTicked[index] = true;
 		}
+		a_state.wornPieces = a_pieces.ticked;
 		request.outfitName = a_pieces.outfitName;
 		request.wornOutfit = a_pieces.wornOutfit;
 		request.wornSituation = a_pieces.wornSituation;
 		request.wornFor = a_pieces.wornFor;
+		request.wornLayer = a_pieces.wornLayer;
+		request.layerName = a_pieces.layerName;
+		request.wornLayerFor = a_pieces.wornLayerFor;
 		a_state.loadedOutfit = -1;
 		a_state.inventorySources.clear();
 		SetInventoryShown(a_state);
@@ -1325,6 +1336,19 @@ namespace CaptureWindow::Internal
 	void FollowWornOutfit(State& a_state)
 	{
 		auto& request = a_state.request;
+		// The layer over it likewise: its name now, or no layer named once it has left.
+		if (const int layer = IndexOfOutfit(a_state, request.wornLayer); layer >= 0) {
+			request.layerName = OutfitAt(a_state, layer).name;
+		} else if (request.wornLayer != 0) {
+			request.wornLayer = 0;
+			request.layerName.clear();
+			for (auto& piece : request.pieces) {
+				if (piece.group == CaptureWindow::PieceGroup::kLiveryLayer) {
+					piece.group = CaptureWindow::PieceGroup::kNotInLibrary;
+				}
+			}
+			SortPieces(a_state);
+		}
 		if (request.wornOutfit == 0) {
 			return;
 		}
@@ -1437,16 +1461,17 @@ namespace CaptureWindow::Internal
 
 	// Height of the piece list with every listed piece and heading in view, capped as
 	// ListHeight caps it with what the Dress and Edit pages have under it: the count line, the
-	// Add from Chest... line and the Live Preview line, a frame's height each at most.
+	// Add from Chest... line and the Live Preview line, and on the Edit page the Keep items
+	// beneath line, a frame's height each at most.
 	// Contract: called with the list's row spacing pushed.
 	float PieceListHeight(const State& a_state, const PieceList& a_list)
 	{
-		constexpr float kLinesUnder = 3.0f;
+		const float linesUnder = a_state.page == Page::kEdit ? 4.0f : 3.0f;
 
 		const float spacing = ImGui::GetStyle().ItemSpacing.y;
 		const float rowsHeight = static_cast<float>(CountListedPieces(a_state, a_list)) * (ImGui::GetFrameHeight() + spacing) +
 		                         static_cast<float>(CountListedGroups(a_state, a_list)) * (Theme::ListHeadingHeight() + spacing);
-		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing(), kLinesUnder * (ImGui::GetFrameHeight() + g_pageSpacingY));
+		return FittedListHeight(rowsHeight, ImGui::GetFrameHeightWithSpacing(), linesUnder * (ImGui::GetFrameHeight() + g_pageSpacingY));
 	}
 
 	// The column labels, then the listed pieces under their groups' headings, a tick row
@@ -1456,8 +1481,9 @@ namespace CaptureWindow::Internal
 	// Contract: a piece that is not listed is never ticked: on the Dress page only Load
 	// ticks a piece nobody carries, and the next Load sets every tick again; the Edit page
 	// lists every edited piece it opened with.
-	void DrawPieceRows(State& a_state, const PieceList& a_list)
+	bool DrawPieceRows(State& a_state, const PieceList& a_list, bool a_eachPiece)
 	{
+		bool              anyToggled = false;
 		const auto&       pieces = a_state.request.pieces;
 		const auto&       onToggled = a_state.request.onPieceToggled;
 		const bool        locked = a_state.request.saveOnly;
@@ -1513,10 +1539,11 @@ namespace CaptureWindow::Internal
 				}
 				if (toggled) {
 					QueueMenuSound(kFocusSound);
+					anyToggled = true;
 					if (a_list.ticked[i]) {
 						UntickSharingSlots(a_state, a_list, i);
 					}
-					if (onToggled) {
+					if (onToggled && a_eachPiece) {
 						SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_list.ticked[i]] { onToggled(i, ticked); });
 					}
 				}
@@ -1525,6 +1552,7 @@ namespace CaptureWindow::Internal
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
+		return anyToggled;
 	}
 
 	// A link of the count line, greyed with `a_reason` (shown on hover or keyboard focus).
@@ -1639,10 +1667,10 @@ namespace CaptureWindow::Internal
 	}
 
 	// The Live Preview tick: greyed, with the reason on hover, when the preview
-	// cannot be on; each click queues ApplyPreviewToggle with the list's ticked
+	// cannot be on; each click queues ApplyPreviewToggle with the list's ticked (or `a_shown`'s)
 	// pieces of that moment, so the piece clicks queued after it apply on top. A
 	// "(?)" beside it explains the preview and its camera controls on hover.
-	void DrawPreviewToggle(State& a_state, const PieceList& a_list)
+	void DrawPreviewToggle(State& a_state, const PieceList& a_list, std::vector<std::size_t> (*a_shown)(const State&))
 	{
 		const auto& note = a_state.request.previewNote;
 		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
@@ -1670,7 +1698,7 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kFocusSound);
 			a_state.previewBusy = true;
 			SKSE::GetTaskInterface()->AddTask(
-				[session = a_state.session, on, pieces = Ticked(a_state, a_list)] { ApplyPreviewToggle(session, on, pieces); });
+				[session = a_state.session, on, pieces = a_shown ? a_shown(a_state) : Ticked(a_state, a_list)] { ApplyPreviewToggle(session, on, pieces); });
 		}
 	}
 
@@ -1682,27 +1710,133 @@ namespace CaptureWindow::Internal
 		return a_state.request.wornOutfit != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
-	// The id of the outfit last loaded when the ticks are exactly its pieces; 0 otherwise.
+	// The loaded pieces of the layer the actor wears (Request::wornLayer), which the Dress page
+	// lists and applies apart from the rest (docs/ui-redesign.md §5); none with no layer worn.
+	const std::vector<std::size_t>& WornLayerPieces(const State& a_state)
+	{
+		static const std::vector<std::size_t> none;
+		const int                             layer = IndexOfOutfit(a_state, a_state.request.wornLayer);
+		return layer >= 0 ? OutfitAt(a_state, layer).pieces : none;
+	}
+
+	// `a_pieces` less the pieces of the layer they wear: what Apply takes as their outfit.
+	std::vector<std::size_t> WithoutLayer(const State& a_state, std::vector<std::size_t> a_pieces)
+	{
+		const auto& layer = WornLayerPieces(a_state);
+		std::erase_if(a_pieces, [&layer](std::size_t a_piece) { return std::ranges::binary_search(layer, a_piece); });
+		return a_pieces;
+	}
+
+	// The ticks less the pieces of the layer they wear.
+	std::vector<std::size_t> BaseTicks(const State& a_state)
+	{
+		return WithoutLayer(a_state, TickedPieces(a_state));
+	}
+
+	// The ticked pieces of the layer they wear.
+	std::vector<std::size_t> TickedLayer(const State& a_state)
+	{
+		auto pieces = WornLayerPieces(a_state);
+		std::erase_if(pieces, [&a_state](std::size_t a_piece) { return !a_state.pieceTicked[a_piece]; });
+		return pieces;
+	}
+
+	// Whether the layer they wear keeps the items beneath (ExistingOutfit::keepBeneath).
+	bool WornLayerKeepsBeneath(const State& a_state)
+	{
+		const int layer = IndexOfOutfit(a_state, a_state.request.wornLayer);
+		return layer >= 0 && OutfitAt(a_state, layer).keepBeneath;
+	}
+
+	// The armor (FormIDs) row `a_row` (an id of request.situations, nullopt for none) has
+	// library outfit `a_outfit` leave off.
+	std::vector<std::uint32_t> LeftOffOn(const State& a_state, std::optional<Situations::Situation> a_row, std::uint32_t a_outfit)
+	{
+		const auto& rows = a_state.request.assigned;
+		const auto  found = a_row ? std::ranges::find(a_state.request.situations, *a_row, &CaptureWindow::SituationInfo::situation) : a_state.request.situations.end();
+		const auto  row = static_cast<std::size_t>(found - a_state.request.situations.begin());
+		return row < rows.size() ? OutfitRows::ExcludedOf(rows[row].row, a_outfit) : std::vector<std::uint32_t>{};
+	}
+
+	// What the ticks of the layer's pieces ask (CaptureWindow::LayerApply): the armor of those
+	// left unticked, or that the layer comes off with none of them ticked and one unticked the
+	// row did not leave off already (or every one); nothing with no layer. A piece the ticked
+	// pieces beneath keep off (LayerPieces) is not left unticked, unless the row leaves it off
+	// already, so Apply keeps a layer whose pieces they all keep off.
+	// `only` with no library outfit under it and the other ticks as they wear them.
+	CaptureWindow::LayerApply LayerApplyOf(const State& a_state)
+	{
+		CaptureWindow::LayerApply apply;
+		const auto&               layer = WornLayerPieces(a_state);
+		if (layer.empty()) {
+			return apply;
+		}
+		const auto                 beneath = BaseTicks(a_state);
+		const auto                 ticked = TickedLayer(a_state);
+		const bool                 keeps = WornLayerKeepsBeneath(a_state);
+		const auto                 leftOff = LeftOffOn(a_state, a_state.request.wornLayerFor, a_state.request.wornLayer);
+		std::vector<std::uint32_t> unticked;
+		bool                       newlyUnticked = false;
+		for (const auto piece : layer) {
+			if (a_state.pieceTicked[piece]) {
+				continue;
+			}
+			const auto armor = a_state.request.pieces[piece].armor;
+			const bool wasLeftOff = std::ranges::find(leftOff, armor) != leftOff.end();
+			auto       with = ticked;
+			with.push_back(piece);
+			const auto worn = LayerPieces(a_state, beneath, with, keeps).layer;
+			const bool keptOff = std::ranges::find(worn, piece) == worn.end();
+			if (!keptOff || wasLeftOff) {
+				unticked.push_back(armor);
+				newlyUnticked = newlyUnticked || !wasLeftOff;
+			}
+		}
+		if (ticked.empty() && (newlyUnticked || unticked.size() == layer.size())) {
+			apply.takeOff = true;
+		} else {
+			apply.excluded = std::move(unticked);
+		}
+		apply.only = WornOutfitIndex(a_state) < 0 && BaseTicks(a_state) == WithoutLayer(a_state, a_state.wornPieces);
+		return apply;
+	}
+
+	// The id of the outfit last loaded when the ticks, less the layer's, are exactly its pieces;
+	// 0 otherwise.
 	std::uint32_t TickedOutfitId(const State& a_state)
 	{
 		const int loaded = a_state.loadedOutfit;
-		return loaded >= 0 && TickedPieces(a_state) == OutfitAt(a_state, loaded).pieces ? OutfitAt(a_state, loaded).id : 0;
+		return loaded >= 0 && BaseTicks(a_state) == OutfitAt(a_state, loaded).pieces ? OutfitAt(a_state, loaded).id : 0;
 	}
 
-	// When the ticks are all or some of the pieces of `a_worn` (WornOutfitIndex) and nothing
-	// else: the armor (FormIDs) of its pieces left unticked, empty for none. nullopt otherwise.
+	// When the ticks, less the layer's, are all or some of the pieces of `a_worn`
+	// (WornOutfitIndex) and nothing else: the armor (FormIDs) of its pieces left unticked, empty
+	// for none. nullopt otherwise. A piece the ticked pieces of the layer keep off (LayerPieces)
+	// is not left unticked, unless the row leaves it off already.
 	std::optional<std::vector<std::uint32_t>> UntickedOfWorn(const State& a_state, int a_worn)
 	{
-		const auto& pieces = OutfitAt(a_state, a_worn).pieces;
-		const auto  ticked = TickedPieces(a_state);
+		const auto& outfit = OutfitAt(a_state, a_worn);
+		const auto& pieces = outfit.pieces;
+		const auto  ticked = BaseTicks(a_state);
 		const auto  inOutfit = [&pieces](std::size_t a_piece) { return std::ranges::binary_search(pieces, a_piece); };
 		if (!std::ranges::all_of(ticked, inOutfit)) {
 			return std::nullopt;
 		}
+		const auto                 layer = TickedLayer(a_state);
+		const bool                 keeps = WornLayerKeepsBeneath(a_state);
+		const auto                 leftOff = LeftOffOn(a_state, a_state.request.wornFor, outfit.id);
 		std::vector<std::uint32_t> unticked;
 		for (const auto piece : pieces) {
-			if (!std::ranges::binary_search(ticked, piece)) {
-				unticked.push_back(a_state.request.pieces[piece].armor);
+			if (std::ranges::binary_search(ticked, piece)) {
+				continue;
+			}
+			const auto& listed = a_state.request.pieces[piece];
+			auto        with = ticked;
+			with.push_back(piece);
+			const auto worn = LayerPieces(a_state, with, layer, keeps).base;
+			const bool under = std::ranges::find(worn, piece) == worn.end() && std::ranges::find(leftOff, listed.armor) == leftOff.end();
+			if (!under) {
+				unticked.push_back(listed.armor);
 			}
 		}
 		return unticked;
@@ -1790,12 +1924,13 @@ namespace CaptureWindow::Internal
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
-		auto pieces = TickedPieces(a_state);
+		auto pieces = BaseTicks(a_state);
 		auto fromPlayer = TickedFromPlayer(a_state);
+		auto layer = LayerApplyOf(a_state);
 		auto onApply = a_state.request.onApply;
 		SKSE::GetTaskInterface()->AddTask(
-			[onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn, excluded = std::move(a_excluded)] {
-				onApply(pieces, fromPlayer, a_outfit, a_updateWorn, excluded);
+			[onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn, excluded = std::move(a_excluded), layer = std::move(layer)] {
+				onApply(pieces, fromPlayer, a_outfit, a_updateWorn, excluded, layer);
 			});
 	}
 
@@ -1815,7 +1950,8 @@ namespace CaptureWindow::Internal
 			}
 		}
 		const auto loaded = TickedOutfitId(a_state);
-		if (worn < 0 || loaded != 0) {
+		// With nothing ticked but the layer's items, there is no outfit to update either.
+		if (worn < 0 || loaded != 0 || BaseTicks(a_state).empty()) {
 			RequestApply(a_state, loaded, false);
 			return;
 		}
@@ -1853,7 +1989,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto& request = a_state.request;
 		const auto& outfit = OutfitAt(a_state, worn);
-		RunLine(Text::kUpdateWithSelected, { OutfitRun(outfit.name, outfit.icon) });
+		RunLine(Text::kUpdateWithSelected, { OutfitRun(outfit) });
 		if (!request.wornSituation.empty()) {
 			RunLine(Text::kWornForSituation, { TextRun(request.actorName.c_str()), SituationRun(request.wornSituation.c_str()) });
 		}
@@ -1926,6 +2062,16 @@ namespace CaptureWindow::Internal
 		return restore;
 	}
 
+	// The Save page's ticks (State::saveTicked) start as the Dress page's each time it opens.
+	void StartSaveTicks(State& a_state)
+	{
+		a_state.saveShown = TickedPieces(a_state);
+		std::fill_n(a_state.saveTicked.get(), a_state.request.pieces.size(), false);
+		for (const auto piece : a_state.saveShown) {
+			a_state.saveTicked[piece] = true;
+		}
+	}
+
 	void DrawCapturePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -1967,6 +2113,7 @@ namespace CaptureWindow::Internal
 			break;
 		case CaptureAction::kSavePage:
 			QueueMenuSound(kOkSound);
+			StartSaveTicks(a_state);
 			if (a_state.updateTab) {
 				PreviewOutfitOrTicks(a_state, a_state.chosenOutfit);  // the tab shows its outfit again
 			}
@@ -2028,6 +2175,53 @@ namespace CaptureWindow::Internal
 		return a_state.updateTab ? a_state.updateName : a_state.createName;
 	}
 
+	// The pieces the Save page lists that are ticked there, ascending: what Create and Update
+	// save, which leaves the Dress page's ticks as they are.
+	std::vector<std::size_t> SavePieces(const State& a_state)
+	{
+		auto pieces = a_state.saveShown;
+		std::erase_if(pieces, [&a_state](std::size_t a_piece) { return !a_state.saveTicked[a_piece]; });
+		return pieces;
+	}
+
+	// Under its count line, the pieces the Save page lists, in the Dress page's order, a tick row
+	// each with the Dress page's icon; one nobody carries is faded as there. A tick changes only
+	// what Create and Update save (SavePieces): never the preview or the Dress page's ticks.
+	void DrawSaveTicks(State& a_state)
+	{
+		const auto& shown = a_state.saveShown;
+		Theme::CountText(Strings::Format(Text::kItemsSelected, SavePieces(a_state).size(), shown.size()).c_str());
+		PushListRowSpacing();  // as the outfit list beside it
+		const float rowHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
+		if (Theme::BeginList("savePieces", ListHeight(shown.size(), rowHeight))) {
+			const float columnX[] = { Theme::RowIconRoom() };
+			for (const auto index : a_state.pieceOrder) {
+				if (!std::ranges::binary_search(shown, index)) {
+					continue;
+				}
+				const auto& piece = a_state.request.pieces[index];
+				const bool  faded = FadesNotCarried(a_state, index);
+				if (faded) {
+					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
+				}
+				ImGui::PushID(static_cast<int>(index));
+				const char* cells[] = { piece.name.c_str() };
+				if (Theme::TickRow(cells, columnX, &a_state.saveTicked[index], { piece.icon, piece.iconColor })) {
+					QueueMenuSound(kFocusSound);
+				}
+				ImGui::PopID();
+				if (faded) {
+					ImGui::PopStyleVar();
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(kNotCarriedHint);
+					}
+				}
+			}
+		}
+		ImGui::PopStyleVar();
+		Theme::EndList();
+	}
+
 	// The Create tab's icon for the ticked pieces `a_ticked`: the one chosen in Choose icon,
 	// else the one they suggest (OutfitIcons::SuggestKey) in white, which follows the ticks.
 	OutfitIcons::Icon CreateIcon(const State& a_state, const std::vector<std::size_t>& a_ticked)
@@ -2056,13 +2250,23 @@ namespace CaptureWindow::Internal
 		return OutfitRows::Holds(a_state.request.assigned[a_row].row, a_outfit);
 	}
 
-	bool IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit)
+	// The outfit of one kind row `a_row` wears with random off (OutfitRows::ChosenOf); 0 for none.
+	std::uint32_t ChosenOnRow(const State& a_state, std::size_t a_row, bool a_layer)
+	{
+		return OutfitRows::ChosenOf(a_state.request.assigned[a_row].row, a_layer, [&a_state](std::uint32_t a_outfit) { return IsLayerOutfit(a_state, a_outfit); });
+	}
+
+	bool IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit, bool a_layer)
 	{
 		const auto& [row, pieces] = a_state.request.assigned[a_row];
 		if (row.random) {
 			return false;  // the outfit joins the list
 		}
-		return row.chosen != 0 ? row.chosen != a_outfit : pieces;
+		const auto chosen = ChosenOnRow(a_state, a_row, a_layer);
+		if (a_layer) {
+			return chosen != 0 && chosen != a_outfit;  // a layer goes over the Default's pieces
+		}
+		return chosen != 0 ? chosen != a_outfit : pieces;
 	}
 
 	// A library outfit as a tooltip names it, quoted, or says it is gone.
@@ -2074,28 +2278,32 @@ namespace CaptureWindow::Internal
 	}
 
 	// What row `a_row` wears now with random off, as Apply as Default's help names it.
-	std::string HeldOutfitName(const State& a_state, std::size_t a_row)
+	std::string HeldOutfitName(const State& a_state, std::size_t a_row, bool a_layer)
 	{
-		const auto outfit = a_state.request.assigned[a_row].row.chosen;
+		const auto outfit = ChosenOnRow(a_state, a_row, a_layer);
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string(Strings::Get(Text::kItemsNotSaved));
 	}
 
-	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row)
+	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row, bool a_layer)
 	{
-		const auto outfit = a_state.request.assigned[a_row].row.chosen;
+		const auto outfit = ChosenOnRow(a_state, a_row, a_layer);
 		if (outfit == 0) {
 			return TextRun(Strings::Get(Text::kItemsNotSaved));
 		}
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, outfit, &CaptureWindow::ExistingOutfit::id);
-		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun(Strings::Get(Text::kOutfitGone));
+		return found != outfits.end() ? OutfitRun(*found) : TextRun(Strings::Get(Text::kOutfitGone));
 	}
 
-	Theme::SubtitleRun WornOutfitRun(const State& a_state)
+	Theme::SubtitleRun WornOutfitRun(const State& a_state, bool a_layer)
 	{
+		if (const int layer = a_layer ? IndexOfOutfit(a_state, a_state.request.wornLayer) : -1; layer >= 0) {
+			const auto& outfit = OutfitAt(a_state, layer);
+			return OutfitRun(outfit);
+		}
 		if (const int worn = WornOutfitIndex(a_state); worn >= 0) {
 			const auto& outfit = OutfitAt(a_state, worn);
-			return OutfitRun(outfit.name, outfit.icon);
+			return OutfitRun(outfit);
 		}
 		return { .text = a_state.request.outfitName.c_str(), .rowIconKey = OutfitIcons::kDefaultKey };
 	}
@@ -2135,11 +2343,15 @@ namespace CaptureWindow::Internal
 	// the line: with `a_iconClicked` (the Wardrobe page, the Create tab) it says `Outfit Icon` on
 	// hover and `*a_iconClicked` says whether it was clicked; without (the Update tab, which
 	// keeps the outfit's icon) it only shows the icon.
-	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked, const char* a_hint)
+	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked, const char* a_hint, bool a_layer)
 	{
 		Theme::SectionGap();  // a field with no label
 		if (a_icon) {
-			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon), a_iconClicked != nullptr);
+			auto icon = RowIconOf(*a_icon, a_layer);
+			if (a_iconClicked) {
+				icon.tooltip = nullptr;  // a field that opens Choose icon keeps its own tooltip
+			}
+			const bool clicked = Theme::IconField("##outfitIcon", icon, a_iconClicked != nullptr);
 			if (a_iconClicked) {
 				if (ImGui::IsItemHovered()) {
 					Theme::Tooltip(Strings::Get(Text::kOutfitIcon));
@@ -2219,17 +2431,19 @@ namespace CaptureWindow::Internal
 	};
 
 	// The Create tab's fields: the icon (CreateIcon) and name, as the Wardrobe page's, then the
-	// ticked pieces read only under their count line, as the Wardrobe page shows an outfit's.
+	// Save page's ticks under their count line (DrawSaveTicks).
 	CreateTabInput DrawCreateTab(State& a_state)
 	{
 		CreateTabInput input;
 		ImGui::PushID("create");
-		const auto pieces = TickedPieces(a_state);
-		const auto icon = CreateIcon(a_state, pieces);
-		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked);
+		const auto icon = CreateIcon(a_state, SavePieces(a_state));
+		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked, Strings::Get(Text::kOutfitName), a_state.createLayer);
 		Theme::AfterFieldGap();
-		Theme::CountText(PieceCountText(pieces.size(), 0).c_str());
-		DrawPieceNames(a_state, pieces);
+		float layerLabelX = 0.0f;
+		DrawLayerTick(a_state.createLayer, layerLabelX);
+		DrawKeepBeneathTick(a_state.createKeepBeneath, a_state.createLayer, layerLabelX);
+		Theme::AfterFieldGap();
+		DrawSaveTicks(a_state);
 		ImGui::PopID();
 		return input;
 	}
@@ -2258,7 +2472,7 @@ namespace CaptureWindow::Internal
 	// The Update tab's fields: the chosen outfit's icon, shown only, and the name (both greyed,
 	// the icon the default one, while no outfit is chosen), then three columns: the wardrobe's
 	// outfits with their search and Sort, the chosen outfit's pieces as the library has them,
-	// and the ticked pieces that replace them.
+	// and the Save page's ticks, whose ticked pieces replace them (DrawSaveTicks).
 	UpdateTabInput DrawUpdateTab(State& a_state)
 	{
 		UpdateTabInput input;
@@ -2268,8 +2482,9 @@ namespace CaptureWindow::Internal
 			a_state.focusNameField = false;  // a greyed field takes no focus
 		}
 		const OutfitIcons::Icon icon = chosen ? OutfitAt(a_state, a_state.chosenOutfit).icon : OutfitIcons::Icon{};
+		const bool              layer = chosen && OutfitAt(a_state, a_state.chosenOutfit).layer;
 		ImGui::BeginDisabled(!chosen);
-		input.enter = DrawNameField(a_state, a_state.updateName, &icon);
+		input.enter = DrawNameField(a_state, a_state.updateName, &icon, nullptr, Strings::Get(Text::kOutfitName), layer);
 		ImGui::EndDisabled();
 		Theme::AfterFieldGap();
 		if (BeginColumns("columns", 3)) {
@@ -2285,7 +2500,11 @@ namespace CaptureWindow::Internal
 				ResetCellBaseline();
 				Theme::LabelText(Strings::Get(Text::kSelectOutfitToUpdate));
 			}
-			DrawPieceColumn(a_state, Strings::Get(Text::kNewItems), TickedPieces(a_state), 0);
+			NextColumn();
+			ResetCellBaseline();
+			Theme::LabelText(Strings::Get(Text::kNewItems));
+			Theme::AfterFieldGap();
+			DrawSaveTicks(a_state);
 			EndColumns(3);
 		}
 		ImGui::PopID();
@@ -2322,6 +2541,8 @@ namespace CaptureWindow::Internal
 		const char* reason = nullptr;
 		if (a_state.updateTab && !chosen) {
 			reason = kNeedOutfit;
+		} else if (SavePieces(a_state).empty()) {
+			reason = kNeedPiece;
 		} else if (Trimmed(ActiveName(a_state).data()).empty()) {
 			reason = kNeedName;
 		}
@@ -2357,7 +2578,7 @@ namespace CaptureWindow::Internal
 			return std::nullopt;
 		}
 		const auto name = Trimmed(a_state.createName.data());
-		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = Strings::Get(Text::kCreateAndApply), .saveFirst = ApplySubject::SaveFirst::kCreate });
+		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, SavePieces(a_state)), .applyLabel = Strings::Get(Text::kCreateAndApply), .saveFirst = ApplySubject::SaveFirst::kCreate, .layer = a_state.createLayer });
 		ImGui::EndPopup();
 		return row;
 	}
@@ -2376,13 +2597,13 @@ namespace CaptureWindow::Internal
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
 		const auto  current = std::to_string(outfit.pieces.size());
-		const auto  selected = std::to_string(CountTickedPieces(a_state));
-		RunLine(Text::kReplaceItems, { OutfitRun(outfit.name, outfit.icon), TextRun(current.c_str()), TextRun(selected.c_str()) });
+		const auto  selected = std::to_string(SavePieces(a_state).size());
+		RunLine(Text::kReplaceItems, { OutfitRun(outfit), TextRun(current.c_str()), TextRun(selected.c_str()) });
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", Strings::Format(Text::kUnloadedItemsStay, outfit.unloadedPieces).c_str());
 		}
 		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
-			RunLine(Text::kNewName, { OutfitRun(name, outfit.icon) });
+			RunLine(Text::kNewName, { OutfitRun(name, outfit.icon, outfit.layer) });
 		}
 		BeginButtonRow({ Strings::Get(Text::kConfirm), Strings::Get(Text::kCancel) });
 		const bool confirm = Theme::Button(Strings::Get(Text::kConfirm));
@@ -2404,10 +2625,12 @@ namespace CaptureWindow::Internal
 		a_state.createName.fill('\0');
 		std::strncpy(a_state.createName.data(), a_state.request.suggestedName.c_str(), kNameCapacity - 1);
 		a_state.createIcon.reset();
+		a_state.createLayer = false;
+		a_state.createKeepBeneath = false;
 	}
 
 	// Hands the save to onSave; `a_applyRow` (Create and Apply) is the row the new outfit goes
-	// to and is worn for, the ticked pieces under Player's Inventory moving first.
+	// to and is worn for, the saved pieces under Player's Inventory moving first.
 	// Contract: the onSave handler writes the library before it assigns anything, and a
 	// refused or failed write assigns nothing (CLAUDE.md §2.1).
 	void RequestSave(State& a_state, std::optional<std::size_t> a_applyRow)
@@ -2416,13 +2639,16 @@ namespace CaptureWindow::Internal
 		a_state.error.clear();
 		CaptureWindow::SaveRequest save{ .outfit = TargetOutfit(a_state),
 			.name = Trimmed(ActiveName(a_state).data()),
-			.pieces = TickedPieces(a_state),
+			.pieces = SavePieces(a_state),
 			.applyRow = a_applyRow };
 		if (!a_state.updateTab) {
 			save.icon = CreateIcon(a_state, save.pieces);
+			save.layer = a_state.createLayer;
+			save.keepBeneath = a_state.createLayer && a_state.createKeepBeneath;
 		}
 		if (a_applyRow) {
-			save.fromPlayer = TickedFromPlayer(a_state);
+			save.fromPlayer = save.pieces;
+			std::erase_if(save.fromPlayer, [&a_state](std::size_t a_piece) { return a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kPlayer; });
 		}
 		auto onSave = a_state.request.onSave;
 		SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
@@ -2434,18 +2660,19 @@ namespace CaptureWindow::Internal
 	// Contract: called in the window's own ID scope, as DrawCreateApplyPopup is.
 	void BeginCreateAndApply(State& a_state)
 	{
-		if (ApplyAsksFirst(a_state, 0)) {
+		if (ApplyAsksFirst(a_state, 0, a_state.createLayer)) {
 			ImGui::OpenPopup(kCreateApplyPopup);
 			return;
 		}
-		RequestSave(a_state, DirectApplyRow(a_state));
+		RequestSave(a_state, DirectApplyRow(a_state, a_state.createLayer));
 	}
 
-	// Reached only with at least one piece ticked, which onSave relies on; the ticks cannot
-	// change here. Each tab keeps its name while the window is open, the Update tab its outfit,
-	// the Create tab an icon chosen in Choose icon, until a Create starts that tab again
-	// (SetOutfits). Create saves at once; Update asks in its confirm popup first. A save that
-	// took goes back to the Dress page (SetOutfits).
+	// Contract: its own ticks (StartSaveTicks) are all Create and Update save, and both are greyed
+	// while none is ticked, which onSave relies on (CLAUDE.md §2.1: no empty outfit); the Dress
+	// page's ticks and the preview never change for a tick. Each tab keeps its name while the
+	// window is open, the Update tab its outfit, the Create tab an icon chosen in Choose icon,
+	// until a Create starts that tab again (SetOutfits). Create saves at once; Update asks in its
+	// confirm popup first. A save that took goes back to the Dress page (SetOutfits).
 	void DrawSavePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -2486,7 +2713,7 @@ namespace CaptureWindow::Internal
 			ChooseOutfit(a_state, input.clicked == a_state.chosenOutfit ? -1 : input.clicked);
 		} else if (iconClicked) {
 			QueueMenuSound(kOkSound);
-			a_state.iconPicker = { .pick = CreateIcon(a_state, TickedPieces(a_state)) };
+			a_state.iconPicker = { .pick = CreateIcon(a_state, SavePieces(a_state)) };
 			ImGui::OpenPopup(kIconPopup);
 		} else if (action == SaveAction::kSave) {
 			QueueMenuSound(kOkSound);
@@ -2616,8 +2843,12 @@ namespace CaptureWindow
 			const std::scoped_lock lock(state.mutex);
 			state.request = std::move(a_request);
 			state.pieceTicked = std::make_unique<bool[]>(state.request.pieces.size());
+			state.wornPieces.clear();
 			for (std::size_t i = 0; i < state.request.pieces.size(); ++i) {
 				state.pieceTicked[i] = state.request.pieces[i].selected;
+				if (state.request.pieces[i].selected) {
+					state.wornPieces.push_back(i);
+				}
 			}
 			// The Update tab's name is filled when an outfit is chosen (ChooseOutfit).
 			RestartCreateTab(state);
@@ -2672,6 +2903,8 @@ namespace CaptureWindow
 			state.manageApplyTip.clear();
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
 			state.editShown.clear();
+			state.saveTicked = std::make_unique<bool[]>(state.request.pieces.size());
+			state.saveShown.clear();
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
 			++state.session;
@@ -2725,6 +2958,8 @@ namespace CaptureWindow
 			state.request = {};
 			state.createName = {};
 			state.createIcon.reset();
+			state.createLayer = false;
+			state.createKeepBeneath = false;
 			state.updateName = {};
 			state.manage = {};
 			state.situationForm = {};
@@ -3099,6 +3334,7 @@ namespace CaptureWindow
 		}
 		RetryNavMoveWide(state);
 		ImGui::End();
+		Theme::ShowIconTooltip();  // after every tooltip of the frame, popups' included
 		FadeBehindModal();
 		ForwardViewInput(state);
 	}

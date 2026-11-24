@@ -118,7 +118,7 @@ polled.
   rows are merged per row (the Default and each situation): of the groups they fit that hold an
   outfit in that row, the lowest in the list gives it, as in the Situation List. A guards
   group's Default and an everyone group's Rain both reach a guard; with layer outfits
-  (docs/memo-layer-outfits.md) the rain gear goes over the armor. The merge takes the groups'
+  (docs/design.md §7 Layers) the rain gear goes over the armor. The merge takes the groups'
   rows as plain values, tested without the engine.
 - When: at every 3D load (`TESObjectLoadedEvent`, `loaded`), and for the actors already loaded
   (`ProcessLists::ForEachHighActor`) after a save is loaded, after a write to `groups.json`

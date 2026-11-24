@@ -55,6 +55,7 @@ namespace CaptureWindow
 	enum class PieceGroup
 	{
 		kLiveryOutfit,  // worn, put on by Livery from the library outfit Request::outfitName names
+		kLiveryLayer,   // worn, put on by Livery from the library layer Request::layerName names, over that outfit
 		kNotInLibrary,  // worn, put on by Livery, not a library outfit (outfit id 0, or the outfit left the library); "Not in Wardrobe"
 		kUnmanaged,     // worn, not put on by Livery, an outfit item (ExtraOutfitItem of any outfit)
 		kCarried,       // in the actor's inventory, not worn, or worn but neither put on by Livery nor an outfit item
@@ -92,7 +93,9 @@ namespace CaptureWindow
 		// Its pieces whose plugin is not loaded. They have no armor form to list, so an
 		// update leaves them in the outfit.
 		std::size_t   unloadedPieces = 0;
-		std::uint32_t id = 0;  // the library's id, handed back in SaveRequest::outfit
+		std::uint32_t id = 0;               // the library's id, handed back in SaveRequest::outfit
+		bool          layer = false;        // worn over the outfit beneath (Library::Outfit::layer)
+		bool          keepBeneath = false;  // a layer that keeps the items beneath (Library::Outfit::keepBeneath)
 		// Who has it among Livery's assignments in this save, one line each, for Remove's
 		// popup: "Lydia: Default, Town", the actor's FormID when not in memory.
 		std::vector<std::string> users;
@@ -165,9 +168,23 @@ namespace CaptureWindow
 		// off, as indices into Request::pieces: a preview begun again after the redress shows
 		// it; nullopt for what the actor wears then.
 		std::optional<std::vector<std::size_t>> previewPieces;
-		// The die of the random row the actor wears now was clicked: after `rows`, another
-		// outfit of that row, picked at random, goes on (Assignments::PickAnother).
-		bool reroll = false;
+		// The die of this situation's random row, which the actor wears now, was clicked: after
+		// `rows`, that row's picks are made again and go on (Assignments::PickAnother).
+		std::optional<Situations::Situation> reroll;
+	};
+
+	// What the Dress page's Apply asks of the layer the actor wears (Request::wornLayer), by
+	// the ticks of the layer's pieces.
+	struct LayerApply
+	{
+		// The armor (FormIDs) of the layer's pieces left unticked, which it is to leave off on the
+		// row it is from; nullopt with no layer worn, or with every one unticked (`takeOff`).
+		std::optional<std::vector<std::uint32_t>> excluded;
+		// Every piece of the layer is unticked: the layer comes off (Assignments::TakeOffLayer).
+		bool takeOff = false;
+		// The other ticks are what they wear outside a library outfit, unchanged: only the layer
+		// changes, and nothing is made their Default.
+		bool only = false;
 	};
 
 	// What the Save page and the Wardrobe page's Save hand over: the outfit to write, and for
@@ -177,10 +194,16 @@ namespace CaptureWindow
 	{
 		std::uint32_t            outfit = 0;  // the outfit the Update tab replaces; 0 for Create
 		std::string              name;        // trimmed, non-empty
-		std::vector<std::size_t> pieces;      // ticked indices into Request::pieces, ascending, never empty
+		std::vector<std::size_t> pieces;      // the Save page's ticked indices into Request::pieces, ascending, never empty
 		// The outfit's icon: the Wardrobe page's, or the Create tab's for a new outfit; nullopt
 		// keeps the one it has (the Save page's Update tab).
 		std::optional<OutfitIcons::Icon> icon;
+		// Whether it is a layer (Library::Outfit::layer): the Wardrobe page's tick, or the Create
+		// tab's for a new outfit; nullopt keeps what it is (the Save page's Update tab).
+		std::optional<bool> layer;
+		// With `layer`: whether it keeps the items beneath (Library::Outfit::keepBeneath), by the
+		// tick under the Layer tick.
+		std::optional<bool> keepBeneath;
 		// The row the outfit goes to, as the Wardrobe page's Apply gives it (the situation the
 		// actor wears another outfit for now, after the user agreed, else the Default); nullopt
 		// for a save that changes no row.
@@ -204,7 +227,8 @@ namespace CaptureWindow
 		std::string   lead;
 		Strings::Text text{};
 		std::string   outfit;
-		std::string   iconKey;  // OutfitIcons::Icon::key
+		std::string   iconKey;            // OutfitIcons::Icon::key
+		bool          iconBadge = false;  // the icon is a layer's: under its badge, `outfit` in the layer's colour
 		std::string   situation;
 		bool          situationIsDefault = false;  // marked with the Default's form, not the situations' star
 		std::string   gaps;                        // `, 1 item not worn`, `, 2 extra items worn`, both, or ""
@@ -228,6 +252,11 @@ namespace CaptureWindow
 		// What `wornOutfit` is worn for as a row's key, kDefault for the default: Manage
 		// Wardrobe's Apply offers that situation.
 		Situations::Situation wornFor = Situations::Situation::kDefault;
+		// The library layer Livery has on them over that (docs/design.md §7 Layers), 0 for none,
+		// its name, and the row it is from, which a row that drew no layer names too.
+		std::uint32_t                        wornLayer = 0;
+		std::string                          layerName;
+		std::optional<Situations::Situation> wornLayerFor;
 		// kSituationGroup, one entry per row of `assigned`, in its order. The outfit lists tag
 		// and sort by them.
 		std::vector<CategoryOption>  categories;
@@ -292,10 +321,12 @@ namespace CaptureWindow
 		// pieces of first; else `wornOutfit` when the ticks are all or some of its pieces and
 		// nothing else, `excluded` holding the armor (FormIDs) of those left unticked, which it
 		// is to leave off on the row it is worn for; else the outfit last loaded when the ticks
-		// are exactly its pieces, or 0. The window stays open: it must end by calling
+		// are exactly its pieces, or 0. While they wear a layer (`wornLayer`), `pieces` and all of
+		// that are the ticks less the layer's pieces, which may leave none, and `layer` says what
+		// the layer's ticks ask (LayerApply). The window stays open: it must end by calling
 		// SetOutfits(), with the actor's pieces as they are dressed now, or SetError().
 		std::function<void(const std::vector<std::size_t>& pieces, const std::vector<std::size_t>& fromPlayer, std::uint32_t outfit, bool updateWorn,
-			const std::vector<std::uint32_t>& excluded)>
+			const std::vector<std::uint32_t>& excluded, const LayerApply& layer)>
 			onApply;
 
 		// Runs on the game thread when the user presses Restore, shown while
@@ -410,6 +441,10 @@ namespace CaptureWindow
 		std::string              wornSituation;   // as Request::wornSituation
 		// As Request::wornFor.
 		Situations::Situation wornFor = Situations::Situation::kDefault;
+		// As Request::wornLayer, layerName and wornLayerFor.
+		std::uint32_t                        wornLayer = 0;
+		std::string                          layerName;
+		std::optional<Situations::Situation> wornLayerFor;
 	};
 
 	// What SetOutfits replaces in the open window's Request, as Open had them.

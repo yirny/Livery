@@ -69,6 +69,9 @@ namespace CaptureWindow::Internal
 	// and its hover text. Shared by the piece lists of CaptureWindow.cpp and OutfitPages.cpp.
 	constexpr float        kNotCarriedAlpha = 0.5f;
 	constexpr Strings::Ref kNotCarriedHint{ Strings::Text::kNotCarriedHint };
+	// A layer's name, 0xRRGGBB, wherever its icon carries the badge (RowIconOf, OutfitRun and the
+	// summary line).
+	constexpr std::uint32_t kLayerNameRgb = 0xA4C4EA;
 
 	// A greyed button's reason (one of the texts above) while `a_when`, else nullptr.
 	inline const char* ReasonIf(bool a_when, const char* a_reason)
@@ -200,7 +203,9 @@ namespace CaptureWindow::Internal
 		int                             outfit = -1;  // index into request.existingOutfits; -1 for none selected
 		OutfitIcons::Icon               icon;
 		std::array<char, kNameCapacity> name{};
-		std::vector<std::size_t>        pieces;  // its loaded pieces as edited: indices into request.pieces, ascending
+		std::vector<std::size_t>        pieces;               // its loaded pieces as edited: indices into request.pieces, ascending
+		bool                            layer = false;        // its layer flag as edited (the Layer tick, on this page or the Edit page)
+		bool                            keepBeneath = false;  // its Keep items beneath tick as edited, which counts only with `layer`
 		// The armor (FormIDs, ascending) of `pieces` unticked in its piece list, which Apply has
 		// the outfit leave off on the row it gives it; never every one of `pieces`. Not an
 		// unsaved edit: selecting an outfit, or SetOutfits, starts it from the actor's rows.
@@ -350,6 +355,7 @@ namespace CaptureWindow::Internal
 		Status                   status = Status::kClosed;
 		CaptureWindow::Request   request;
 		std::unique_ptr<bool[]>  pieceTicked;        // one per request.pieces; bool[] because Theme::TickRow needs bool*
+		std::vector<std::size_t> wornPieces;         // the pieces they wear, as the window opened or their last dressing left them: indices into request.pieces, ascending
 		bool                     updateTab = false;  // the Save page shows the Update tab
 		int                      chosenOutfit = -1;  // the Update tab's outfit: index into request.existingOutfits, -1 for none
 		std::string              situationsLabel;    // "SITUATIONS (#{Name})", over the Situations page's outfit details
@@ -390,6 +396,8 @@ namespace CaptureWindow::Internal
 		std::string              editTitle;                   // the name in its title (OpenEditPage)
 		std::vector<std::string> editOutfitNames;             // the outfits those come from: the edited one, then those loaded that brought one
 		bool                     editShownFromChest = false;  // a chest brought one last, so that heading has the chest icon
+		std::unique_ptr<bool[]>  saveTicked;                  // the Save page's ticks, one per request.pieces: what Create and Update save (SavePieces)
+		std::vector<std::size_t> saveShown;                   // the pieces the Save page lists: the Dress page's ticks as it opened, ascending
 		std::string              editShownHeading;            // over those nobody carries: "\"#{Outfit}\", \"#{Loaded}\""
 		OutfitBrowser::State     situationBrowser;            // the Situations page's outfit list
 		SituationForm            situationForm;
@@ -431,6 +439,8 @@ namespace CaptureWindow::Internal
 		std::array<char, kNameCapacity> updateName{};
 		// The Create tab's icon as chosen in Choose icon; nullopt follows the ticks (CreateIcon).
 		std::optional<OutfitIcons::Icon> createIcon;
+		bool                             createLayer = false;        // the Create tab's Layer tick; a Create unticks it
+		bool                             createKeepBeneath = false;  // the Create tab's Keep items beneath tick, as createLayer
 	};
 
 	// The piece list a page shows (DrawPieceRows): the Dress page's ticks with the
@@ -458,17 +468,20 @@ namespace CaptureWindow::Internal
 	PieceList                InventoryPieces(const State& a_state);
 	void                     SetInventoryShown(State& a_state);  // State::inventoryShown and the heading over it, from State::inventorySources
 	std::vector<std::size_t> Ticked(const State& a_state, const PieceList& a_list);
-	void                     DrawPieceRows(State& a_state, const PieceList& a_list);
-	CountLinks               DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
+	// Returns whether a tick toggled. With `a_eachPiece` off, a tick goes to no
+	// onPieceToggled: the caller shows the whole preview anew.
+	bool       DrawPieceRows(State& a_state, const PieceList& a_list, bool a_eachPiece = true);
+	CountLinks DrawPieceCount(const State& a_state, const PieceList& a_list, bool a_withLinks = false);
 	// A link under a list (Theme::LabelLink), greyed with `a_reason` (its hover text):
 	// "[+] Add from <a_icon> <a_name>", with the Wardrobe tab's wardrobe or the Chests tab's chest.
-	bool        DrawCountLink(const State& a_state, const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame);
-	void        DrawPreviewToggle(State& a_state, const PieceList& a_list);
+	bool DrawCountLink(const State& a_state, const char* a_name, const char* a_reason, Theme::HeadingIcon a_icon, Theme::LinkLine a_line = Theme::LinkLine::kSame);
+	// With `a_shown`, turning it on shows what that returns in place of the list's ticks.
+	void        DrawPreviewToggle(State& a_state, const PieceList& a_list, std::vector<std::size_t> (*a_shown)(const State&) = nullptr);
 	std::string Trimmed(const char* a_text);
 	void        DrawError(const std::string& a_message);
 	void        RequestCancel();
 	bool        DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon = nullptr,
-		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName });
+		bool* a_iconClicked = nullptr, const char* a_hint = Strings::Ref{ Strings::Text::kOutfitName }, bool a_layer = false);
 	bool        BeginModal(const char* a_id, bool* a_centred = nullptr);
 	void        SetGroupHeadings(State& a_state);
 
@@ -481,6 +494,7 @@ namespace CaptureWindow::Internal
 	std::vector<std::size_t>             TickedPieces(const State& a_state);
 	const CaptureWindow::ExistingOutfit& OutfitAt(const State& a_state, int a_index);
 	int                                  IndexOfOutfit(const State& a_state, std::uint32_t a_id);
+	bool                                 IsLayerOutfit(const State& a_state, std::uint32_t a_id);  // OutfitRows' `a_isLayer`
 	bool                                 HasPiece(const CaptureWindow::ExistingOutfit& a_outfit, std::size_t a_piece);
 	void                                 QueuePreview(const State& a_state, std::vector<std::size_t> a_pieces);
 	void                                 PreviewOutfitOrTicks(const State& a_state, int a_outfit);
@@ -513,11 +527,29 @@ namespace CaptureWindow::Internal
 	std::size_t                          RowCount(const State& a_state);
 	const char*                          RowName(const State& a_state, std::size_t a_row);
 	bool                                 HoldsOutfit(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
-	// Whether giving row `a_row` library outfit `a_outfit` (0 for one not saved yet) replaces
-	// what it wears: random off, and another `chosen`, or the Default's pieces with none.
-	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit);
-	std::string HeldOutfitName(const State& a_state, std::size_t a_row);
-	std::string QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
+	// Whether giving row `a_row` library outfit `a_outfit` (0 for one not saved yet), a layer
+	// with `a_layer`, replaces what it wears of that kind: random off, and another base chosen,
+	// or the Default's pieces with none; for a layer, another layer chosen.
+	bool        IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit, bool a_layer);
+	std::string HeldOutfitName(const State& a_state, std::size_t a_row, bool a_layer);
+	// The `Layered outfit` tick with its "(?)" (docs/outfit-management-ui.md §4).
+	// Returns whether `a_layer` changed; `a_labelX` gets the screen x its label starts at.
+	bool DrawLayerTick(bool& a_layer, float& a_labelX);
+	// The `Keep items beneath` tick with its "(?)", on the next line with its box at `a_x` (the
+	// Layer tick's label, DrawLayerTick), greyed while `a_layer` is off. Returns whether
+	// `a_keepBeneath` changed.
+	bool DrawKeepBeneathTick(bool& a_keepBeneath, bool a_layer, float a_x);
+	// The pieces of layer `a_layer` and of `a_base` beneath it that are worn together
+	// (OutfitRows::LayerOver, indices into request.pieces), the layer keeping the items beneath
+	// with `a_keepBeneath`.
+	OutfitRows::Layered<std::size_t> LayerPieces(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer, bool a_keepBeneath);
+	// The pieces of LayerPieces in one list, ascending, as the preview shows a layer over the
+	// outfit beneath.
+	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer, bool a_keepBeneath);
+	// A layer on the preview: its pieces `a_worn` over the Dress page's ticks, what the actor
+	// wears now, less the layer's own pieces `a_own` among them (LayeredOver).
+	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn, bool a_keepBeneath);
+	std::string              QuotedOutfitName(const State& a_state, std::uint32_t a_outfit);
 
 	// Leaving a page: Exit, Escape or a tab. With unsaved edits the Wardrobe page first shows the
 	// unsaved-changes alert (kLeavePopup). The Situations page and the chest editor save theirs
@@ -725,21 +757,26 @@ namespace CaptureWindow::Internal
 		SaveFirst   saveFirst = SaveFirst::kNothing;
 		std::string saveFirstHelp;
 		void (*drawSaveLines)(const State&) = nullptr;  // the lines under the question saying what is saved; nullptr for none
+		// It is a layer, as it will be once saved: Apply gives it to a row as its layer, over the
+		// row's base, and compares it with the layer the actor wears.
+		bool layer = false;
 	};
 
 	// The situation row Apply offers to give library outfit `a_outfit` (0 for one not created
 	// yet) beside the Default: the one the actor wears another outfit for now. nullopt when
-	// they wear the Default, nothing of Livery's or that outfit itself.
-	std::optional<std::size_t> OfferedRow(const State& a_state, std::uint32_t a_outfit);
+	// they wear the Default, nothing of Livery's or that outfit itself. For a layer (`a_layer`):
+	// the situation they wear another layer for, or with no layer on, the one their outfit is
+	// worn for.
+	std::optional<std::size_t> OfferedRow(const State& a_state, std::uint32_t a_outfit, bool a_layer);
 
 	// The row Apply gives the outfit when no row is offered (OfferedRow): the situation the
 	// actor wears it for now, which it is dressed again for, else the Default.
-	std::size_t DirectApplyRow(const State& a_state);
+	std::size_t DirectApplyRow(const State& a_state, bool a_layer);
 
 	// Whether Apply of library outfit `a_outfit` (0 for one not created yet) asks first,
-	// library edits aside: a situation row is offered, or the Default's worn outfit would be
-	// replaced.
-	bool ApplyAsksFirst(const State& a_state, std::uint32_t a_outfit);
+	// library edits aside: a situation row is offered, or the Default's worn outfit of its kind
+	// would be replaced.
+	bool ApplyAsksFirst(const State& a_state, std::uint32_t a_outfit, bool a_layer);
 
 	// The body of an Apply popup, inside BeginModal: with a row offered (OfferedRow) Yes, Apply
 	// as Default (?) and Cancel, else `a_subject.applyLabel` and Cancel. Returns the row the
@@ -774,19 +811,37 @@ namespace CaptureWindow::Internal
 	std::string EditedSituationsText(const State& a_state, std::uint32_t a_outfit);
 
 	// The pieces of the outfit whose details show (SituationForm::viewedOutfit), less those its
-	// row leaves off when they were opened from a row that holds it; empty with none showing.
+	// row leaves off when they were opened from a row that holds it, a layer's over what the
+	// actor wears now (OverWorn): what the preview shows. Empty with none showing.
 	std::vector<std::size_t> ViewedOutfitPieces(const State& a_state);
+
+	// What the preview shows of the Wardrobe page's selected outfit: as edited, less its unticked
+	// items, a layer's over what the actor wears now (OverWorn). Contract: an outfit is selected.
+	std::vector<std::size_t> ManagedPreview(const State& a_state);
 
 	// Drags the outfit row just laid out, carrying `a_payload`, shown as a see-through copy of
 	// the row (Theme::OutfitDragGhost) named `a_label`, with its `a_grip` and `a_icon` (nullptr
-	// for none).
-	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon);
+	// for none), under a layer's badge with `a_layer`.
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon, bool a_layer = false);
 
 	// An outfit's icon as the skins draw it. Contract: the key is a view into `a_icon`, so the
 	// result lives no longer than it.
-	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon)
+	// With `a_layer`, under the badge of a layer (Theme::RowIcon::badge), its name in
+	// kLayerNameRgb and `Layered outfit` over the icon on hover: every outfit icon shows them for
+	// a layer, but for an icon field that opens Choose icon (DrawNameField), which keeps its own
+	// tooltip.
+	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon, bool a_layer)
 	{
-		return { a_icon.key, OutfitIcons::ColorOf(a_icon.color).rgb };
+		Theme::RowIcon icon{ a_icon.key, OutfitIcons::ColorOf(a_icon.color).rgb };
+		icon.badge = a_layer;
+		icon.nameRgb = a_layer ? kLayerNameRgb : 0;
+		icon.tooltip = a_layer ? Strings::Get(Strings::Text::kLayerIconTip) : nullptr;
+		return icon;
+	}
+
+	inline Theme::RowIcon RowIconOf(const CaptureWindow::ExistingOutfit& a_outfit)
+	{
+		return RowIconOf(a_outfit.icon, a_outfit.layer);
 	}
 
 	// --- names in popup lines -------------------------------------------------
@@ -800,9 +855,20 @@ namespace CaptureWindow::Internal
 		return { .text = a_text };
 	}
 
-	inline Theme::SubtitleRun OutfitRun(const std::string& a_name, const OutfitIcons::Icon& a_icon)
+	// With `a_layer`, as RowIconOf: its icon under a layer's badge with its tooltip, its name in
+	// kLayerNameRgb.
+	inline Theme::SubtitleRun OutfitRun(const std::string& a_name, const OutfitIcons::Icon& a_icon, bool a_layer)
 	{
-		return { .text = a_name.c_str(), .rowIconKey = a_icon.key };
+		return { .text = a_name.c_str(),
+			.rowIconKey = a_icon.key,
+			.badge = a_layer,
+			.rgb = a_layer ? kLayerNameRgb : 0,
+			.iconTooltip = a_layer ? Strings::Get(Strings::Text::kLayerIconTip) : nullptr };
+	}
+
+	inline Theme::SubtitleRun OutfitRun(const CaptureWindow::ExistingOutfit& a_outfit)
+	{
+		return OutfitRun(a_outfit.name, a_outfit.icon, a_outfit.layer);
 	}
 
 	// A situation's name after its star; with `a_default`, the Default's form.
@@ -866,8 +932,9 @@ namespace CaptureWindow::Internal
 	}
 
 	// What row `a_row` wears now with random off, as HeldOutfitName names it, as a line's part.
-	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row);
+	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row, bool a_layer);
 
-	// The outfit the actor wears now (Request::outfitName), as a line's part.
-	Theme::SubtitleRun WornOutfitRun(const State& a_state);
+	// The outfit the actor wears now (Request::outfitName), as a line's part; with `a_layer`,
+	// the layer they wear over it when they wear one.
+	Theme::SubtitleRun WornOutfitRun(const State& a_state, bool a_layer = false);
 }
