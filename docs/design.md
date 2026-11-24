@@ -758,8 +758,10 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   whose pieces all stay off still counts as worn (the summary line and the HUD name it).
 - No base (no row has one, and the Default has no pieces): the layer goes over their own
   clothes (`overOwn`). `LayerOver` reads as the base the armor they wear once their own pieces
+  from before and then their outfit items, in the slots left free (`Dressing::PutOnOutfitItems`),
   are back on (`Dressing::WornArmor`), less Livery's pieces from before and the layer's own
-  armor. `Dressing::Dress` then takes nothing else off (`keepOthers`); the own pieces the
+  armor; so a dressing right after their 3D load, ahead of `PutOwnClothesOn` below, reads
+  their outfit items too. `Dressing::Dress` then takes nothing else off (`keepOthers`); the own pieces the
   engine pushes off for the layer's slots are noted in `takenOff` and go back on at the next
   dressing or release. `Dressing::TakeOffExtras` takes off only armor sharing a body slot with
   a worn piece, outfit items included, since their clothes are their own outfit's. Their
@@ -791,20 +793,23 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   wears {1}.` over the Default's or their own clothes), and a layer over their own clothes
   counts none of those as extra items.
 
-In-game checks the design rests on (not yet made):
+Checks the design rests on:
 
 1. The engine pushes off a worn piece by body-slot overlap, so `LayerOver` matches what
-   equipping the layer piece would do.
+   equipping the layer piece would do (checked in game, 2026-11-24).
 2. A layer over their own clothes: an own piece the layer pushed off (unlocked, in the
    inventory) is not put back by the engine's best-gear pass through a slot the layer leaves
-   free. An NPC's own outfit items are locked unworn (`LockOutfitCopies`); other own armor is
-   not.
+   free (checked in game, 2026-11-24). An NPC's own outfit items are locked unworn
+   (`LockOutfitCopies`); other own armor is not.
 3. A layer over their own clothes stays with those clothes across a 3D reload and a cell
    reset (2026-11-24: their outfit items came off at a 3D reload and were locked; they stay
    since `PutOwnClothesOn`, checked in game).
-4. The feel of an outfit whose layer flag changed after rows were given it (Kinds above).
-5. `Dressing::WornArmor` reads the clothes beneath a layer over their own clothes as worn
-   while their 3D is not loaded.
+4. The feel of an outfit whose layer flag changed after rows were given it (Kinds above;
+   checked in game, 2026-11-24).
+5. `Dressing::WornArmor` needs no 3D: it reads their inventory's worn flags, and every
+   dressing is of an actor whose 3D is loaded (the poll and the redress at the window's close
+   pass over the others, the window dresses the captured actor or the player); checked in the
+   code, 2026-11-24.
 
 ## 8. Plan
 
@@ -821,17 +826,19 @@ conditions, one order for the presets and the user's, the presets' rules editabl
    Selection Chances, the Dress page's layer heading and its items unticked, the Wardrobe
    page's preview after Apply or Save, `Keep items beneath` (on and off, over a base and over
    their own clothes, the body armor rule, the Dress page's Apply), a layer over their own
-   clothes across a 3D reload. Tableau's `lib/sarrai-common` is not bumped to the icon
+   clothes across a 3D reload, checks 1, 2 and 4 of §7 Layers, the diamond badge on every
+   outfit icon, the Edit page's preview of a layer, the dice picking the one worn again at
+   times, the Save page's ticks. Tableau's `lib/sarrai-common` is not bumped to the icon
    badge.
-   - In game, open: checks 1, 2, 4 and 5 of §7 Layers; `outfits.json` stays `"version": 1` until an
+   - In game, open: a layer over their own clothes after its situation changed while they
+     were away (their outfit items read beneath it, `PutOnOutfitItems` in `Wear`); the badge
+     a size larger; `outfits.json` stays `"version": 1` until an
      outfit is a layer and returns to it when none is; the `Layered outfit` and `Keep items
      beneath` ticks on the Create tab, the Wardrobe page and the Edit page (their place on
      each, and the badge's size), Save's `Layered outfit: on` / `off` and `Keep items beneath:
      on` / `off` lines; Apply to <name> and Create and Apply of a layer, with and
      without a situation's outfit worn; a layer alone on an NPC Livery does not dress (their
-     clothes stay); the dice, the one worn picked again at times; the diamond badge on every
-     outfit icon (Selection Chances, a dragged copy, popup lines, the summary line); the Edit
-     page's preview of a layer; the Save page's ticks; the other previews.
+     clothes stay); the other previews.
    - Known gap: other actors holding an outfit whose layer flags changed follow at their next
      dressing.
 2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand

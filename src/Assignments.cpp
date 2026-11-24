@@ -526,8 +526,8 @@ namespace
 	// pieces and the layer's that LayerOver keeps, the base's first. With no base but a layer, the
 	// layer goes over their own clothes, which stay on, and LayerOver reads them as the base, so
 	// a layer that keeps the items beneath leaves out its pieces in the slots of their clothes.
-	// Their own pieces from before go back on first, so they are what this dressing takes off
-	// and notes.
+	// Their own pieces from before go back on first, then under such a layer their outfit items
+	// in the slots left free, so they are what this dressing takes off and notes.
 	// With no armor for the rows they end up in their own clothes. An NPC's outfit copies are
 	// locked again once pieces are on. A random row's picks are recorded as its `chosen` and
 	// `chosenLayer`, which turning random off keeps on (OutfitRows::SetRandom).
@@ -548,8 +548,14 @@ namespace
 		const bool overOwn = base.empty() && !layer.empty();
 		auto       uncovered = base;
 		if (overOwn) {
-			// Their clothes as Release and PutBack left them: what Livery had on them and the
-			// layer's own armor are no clothes of theirs beneath it.
+			// Their outfit items first, in the slots Release and PutBack left free, as their 3D
+			// load's PutOwnClothesOn would: a dressing that runs ahead of that task (the poll right
+			// after a 3D load) would read them as not worn otherwise.
+			if (!a_actor.IsPlayerRef()) {
+				Dressing::PutOnOutfitItems(a_actor);
+			}
+			// Their clothes as that left them: what Livery had on them and the layer's own armor
+			// are no clothes of theirs beneath it.
 			auto own = Dressing::WornArmor(a_actor);
 			std::erase_if(own, [&](const RE::TESObjectARMO* a_piece) {
 				const auto id = a_piece->GetFormID();
