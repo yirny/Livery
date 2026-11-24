@@ -173,7 +173,13 @@ namespace OutfitBrowser
 		const auto before = [&](int a, int b) {
 			const auto& left = outfits[static_cast<std::size_t>(a)];
 			const auto& right = outfits[static_cast<std::size_t>(b)];
-			auto        order = byIcon ? CompareIcons(left.icon, right.icon) : std::weak_ordering::equivalent;
+			auto        order = std::weak_ordering::equivalent;
+			if (byIcon) {
+				order = left.layer <=> right.layer;  // the outfits before the layers
+				if (order == 0) {
+					order = CompareIcons(left.icon, right.icon);
+				}
+			}
 			if (order == 0) {
 				order = CompareNames(left.name, right.name);
 			}

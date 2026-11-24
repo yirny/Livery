@@ -828,14 +828,12 @@ conditions, one order for the presets and the user's, the presets' rules editabl
    page's preview after Apply or Save, `Keep items beneath` (on and off, over a base and over
    their own clothes, the body armor rule, the Dress page's Apply), a layer over their own
    clothes across a 3D reload, checks 1, 2 and 4 of §7 Layers, the diamond badge on every
-   outfit icon, the Edit page's preview of a layer, the dice picking the one worn again at
-   times, the Save page's ticks. Tableau's `lib/sarrai-common` is not bumped to the icon
+   outfit icon, a size larger, with the layer's name light blue and `Layered outfit` over the
+   icon on hover, the Edit page's preview of a layer, the dice picking the one worn again at
+   times, the Save page's ticks, the `Layered outfit` tick's example line, a layer over their
+   own clothes after its situation changed while they were away. Tableau's `lib/sarrai-common` is not bumped to the icon
    badge.
-   - In game, open: a layer over their own clothes after its situation changed while they
-     were away (their outfit items read beneath it, `PutOnOutfitItems` in `Wear`); the badge
-     a size larger; a layer's name light blue wherever its icon has the badge; `Layered outfit` over a layer's
-     icon on hover, over other tooltips, but for the icon fields that open `Choose icon`; the
-     `Layered outfit` tick's example line and the Dress page's layer heading's "(?)"; `outfits.json` stays `"version": 1` until an
+   - In game, open: the Icon sort's layers after the other outfits; `outfits.json` stays `"version": 1` until an
      outfit is a layer and returns to it when none is; the `Layered outfit` and `Keep items
      beneath` ticks on the Create tab, the Wardrobe page and the Edit page (their place on
      each, and the badge's size), Save's `Layered outfit: on` / `off` and `Keep items beneath:

@@ -22,7 +22,7 @@ namespace OutfitBrowser
 	// The outfit lists' columns, in their order (the header's).
 	enum class SortKey
 	{
-		kIcon,  // OutfitIcons' key order, then its colour order, then the name
+		kIcon,  // the outfits before the layers, then OutfitIcons' key order, its colour order, the name
 		kName   // the name, ASCII case ignored
 	};
 

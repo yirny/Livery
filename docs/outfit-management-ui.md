@@ -111,8 +111,9 @@ makes that sort the one every page's list starts in when the window opens, writt
   over the down one, 2px between their bases, faded until hovered, with the tooltip `Sort by
   icon`. Its click area is a row icon's height and reaches on either side to where `NAME`
   starts.
-  Icon sorts by `OutfitIcons::kKeys`' order, then `kColors`' order, then the name (icons
-  and colours not in the tables last); Name by the name, ASCII case ignored; descending
+  Icon sorts the outfits before the layers (design.md §7 Layers), then by
+  `OutfitIcons::kKeys`' order, then `kColors`' order, then the name (icons and colours not
+  in the tables last); Name by the name, ASCII case ignored; descending
   reverses the whole order. Each page's list starts in the sort last clicked on any of them
   (Name ascending until one is).
 - The count line under the list, as the piece list's: `12 outfits in the Wardrobe`, or

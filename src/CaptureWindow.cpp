@@ -1445,14 +1445,6 @@ namespace CaptureWindow::Internal
 		const bool  notCarried = a_group == CaptureWindow::PieceGroup::kNotCarried;
 		const auto& heading = notCarried ? *a_list.heading : a_state.headings[GroupIndex(a_group)];
 		const auto  icon = notCarried ? a_list.shownIcon : GroupIcon(a_group);
-		if (a_group == CaptureWindow::PieceGroup::kLiveryLayer) {
-			// The Layered outfit tick's help, as what heads the layer's items.
-			const bool hovered = Theme::ListHeadingHelp(heading.c_str(), icon);
-			if (FocusStandIn("##layerHeadingHelp") || hovered) {
-				DrawHelpTooltip(Strings::Get(Text::kLayerTickHelp));
-			}
-			return;
-		}
 		if (a_group != CaptureWindow::PieceGroup::kPlayer) {
 			Theme::ListHeading(heading.c_str(), icon);
 			return;
