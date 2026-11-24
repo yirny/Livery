@@ -63,7 +63,11 @@ makes that sort the one every page's list starts in when the window opens, writt
   the Edit page's heading and the summary line. Its name there is light blue (`#a4c4ea`,
   `kLayerNameRgb`; `RowIcon::nameRgb`, `SubtitleRun::rgb`), but for the name field beside an
   icon field, which keeps the field's colour; a popup line's icon keeps the emphasis, and the
-  summary line's `B over A` follows the base's icon.
+  summary line's `B over A` follows the base's icon. The mouse over such an icon shows
+  `Layered outfit` (`kLayerIconTip`; `RowIcon::tooltip`, `SubtitleRun::iconTooltip`), in
+  place of any other tooltip of the frame (`Theme::ShowIconTooltip`, called after the window
+  ends); the name keeps its own, an icon field that opens `Choose icon` keeps `Outfit Icon`,
+  and a drag's copy shows none.
 - Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
   colour, graded as a selected row's fill; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
@@ -260,7 +264,7 @@ makes that sort the one every page's list starts in when the window opens, writt
     leaves it. Nothing is written until Save. The Save page's Create tab opens the same
     popup for the new outfit's icon (docs/ui-redesign.md).
   - `Layered outfit (?)` (`DrawLayerTick`; its help `Wear this outfit over the current one
-    instead of replacing it.`): the outfit's layer flag as edited, an edit as a rename is
+    instead of replacing it.` / `For example, a hood and cloak for the Cold situation.`): the outfit's layer flag as edited, an edit as a rename is
     (Save's popup lists it as `Layered outfit: on` or `Layered outfit: off`). Apply and its
     popup treat the outfit as what the tick says, since the edits are saved first.
   - `Keep items beneath (?)` under it, its box under the `Layered outfit` label

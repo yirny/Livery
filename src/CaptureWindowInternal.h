@@ -827,12 +827,15 @@ namespace CaptureWindow::Internal
 	// An outfit's icon as the skins draw it. Contract: the key is a view into `a_icon`, so the
 	// result lives no longer than it.
 	// With `a_layer`, under the badge of a layer (Theme::RowIcon::badge), its name in
-	// kLayerNameRgb: every outfit icon shows them for a layer.
+	// kLayerNameRgb and `Layered outfit` over the icon on hover: every outfit icon shows them for
+	// a layer, but for an icon field that opens Choose icon (DrawNameField), which keeps its own
+	// tooltip.
 	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon, bool a_layer)
 	{
 		Theme::RowIcon icon{ a_icon.key, OutfitIcons::ColorOf(a_icon.color).rgb };
 		icon.badge = a_layer;
 		icon.nameRgb = a_layer ? kLayerNameRgb : 0;
+		icon.tooltip = a_layer ? Strings::Get(Strings::Text::kLayerIconTip) : nullptr;
 		return icon;
 	}
 
@@ -852,10 +855,15 @@ namespace CaptureWindow::Internal
 		return { .text = a_text };
 	}
 
-	// With `a_layer`, its icon under a layer's badge and its name in kLayerNameRgb.
+	// With `a_layer`, as RowIconOf: its icon under a layer's badge with its tooltip, its name in
+	// kLayerNameRgb.
 	inline Theme::SubtitleRun OutfitRun(const std::string& a_name, const OutfitIcons::Icon& a_icon, bool a_layer)
 	{
-		return { .text = a_name.c_str(), .rowIconKey = a_icon.key, .badge = a_layer, .rgb = a_layer ? kLayerNameRgb : 0 };
+		return { .text = a_name.c_str(),
+			.rowIconKey = a_icon.key,
+			.badge = a_layer,
+			.rgb = a_layer ? kLayerNameRgb : 0,
+			.iconTooltip = a_layer ? Strings::Get(Strings::Text::kLayerIconTip) : nullptr };
 	}
 
 	inline Theme::SubtitleRun OutfitRun(const CaptureWindow::ExistingOutfit& a_outfit)

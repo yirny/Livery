@@ -185,7 +185,8 @@
 	X(kLayerOn, "Layered outfit: on")                                                                                                                                                           \
 	X(kLayerOff, "Layered outfit: off")                                                                                                                                                         \
 	X(kLayerTick, "Layered outfit")                                                                                                                                                             \
-	X(kLayerTickHelp, "Wear this outfit over the current one instead of replacing it.")                                                                                                         \
+	X(kLayerTickHelp, "Wear this outfit over the current one instead of replacing it.\nFor example, a hood and cloak for the Cold situation.")                                                  \
+	X(kLayerIconTip, "Layered outfit")                                                                                                                                                          \
 	X(kKeepBeneathOn, "Keep items beneath: on")                                                                                                                                                 \
 	X(kKeepBeneathOff, "Keep items beneath: off")                                                                                                                                               \
 	X(kKeepBeneathTick, "Keep items beneath")                                                                                                                                                   \

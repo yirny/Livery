@@ -1034,7 +1034,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, a_summary.lead.c_str());
 			return;
 		}
-		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey, .badge = a_summary.iconBadge, .rgb = a_summary.iconBadge ? kLayerNameRgb : 0 };
+		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey, .badge = a_summary.iconBadge, .rgb = a_summary.iconBadge ? kLayerNameRgb : 0, .iconTooltip = a_summary.iconBadge ? Strings::Get(Text::kLayerIconTip) : nullptr };
 		const auto               runs = RunsOf(a_summary.text, { outfit, SituationRun(a_summary.situation.c_str(), a_summary.situationIsDefault), TextRun(a_summary.gaps.c_str()) });
 		Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, runs.Parts());
 	}
@@ -1445,6 +1445,14 @@ namespace CaptureWindow::Internal
 		const bool  notCarried = a_group == CaptureWindow::PieceGroup::kNotCarried;
 		const auto& heading = notCarried ? *a_list.heading : a_state.headings[GroupIndex(a_group)];
 		const auto  icon = notCarried ? a_list.shownIcon : GroupIcon(a_group);
+		if (a_group == CaptureWindow::PieceGroup::kLiveryLayer) {
+			// The Layered outfit tick's help, as what heads the layer's items.
+			const bool hovered = Theme::ListHeadingHelp(heading.c_str(), icon);
+			if (FocusStandIn("##layerHeadingHelp") || hovered) {
+				DrawHelpTooltip(Strings::Get(Text::kLayerTickHelp));
+			}
+			return;
+		}
 		if (a_group != CaptureWindow::PieceGroup::kPlayer) {
 			Theme::ListHeading(heading.c_str(), icon);
 			return;
@@ -2347,7 +2355,11 @@ namespace CaptureWindow::Internal
 	{
 		Theme::SectionGap();  // a field with no label
 		if (a_icon) {
-			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon, a_layer), a_iconClicked != nullptr);
+			auto icon = RowIconOf(*a_icon, a_layer);
+			if (a_iconClicked) {
+				icon.tooltip = nullptr;  // a field that opens Choose icon keeps its own tooltip
+			}
+			const bool clicked = Theme::IconField("##outfitIcon", icon, a_iconClicked != nullptr);
 			if (a_iconClicked) {
 				if (ImGui::IsItemHovered()) {
 					Theme::Tooltip(Strings::Get(Text::kOutfitIcon));
@@ -3330,6 +3342,7 @@ namespace CaptureWindow
 		}
 		RetryNavMoveWide(state);
 		ImGui::End();
+		Theme::ShowIconTooltip();  // after every tooltip of the frame, popups' included
 		FadeBehindModal();
 		ForwardViewInput(state);
 	}
