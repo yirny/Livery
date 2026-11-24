@@ -2062,6 +2062,16 @@ namespace CaptureWindow::Internal
 		return restore;
 	}
 
+	// The Save page's ticks (State::saveTicked) start as the Dress page's each time it opens.
+	void StartSaveTicks(State& a_state)
+	{
+		a_state.saveShown = TickedPieces(a_state);
+		std::fill_n(a_state.saveTicked.get(), a_state.request.pieces.size(), false);
+		for (const auto piece : a_state.saveShown) {
+			a_state.saveTicked[piece] = true;
+		}
+	}
+
 	void DrawCapturePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -2103,6 +2113,7 @@ namespace CaptureWindow::Internal
 			break;
 		case CaptureAction::kSavePage:
 			QueueMenuSound(kOkSound);
+			StartSaveTicks(a_state);
 			if (a_state.updateTab) {
 				PreviewOutfitOrTicks(a_state, a_state.chosenOutfit);  // the tab shows its outfit again
 			}
@@ -2162,6 +2173,53 @@ namespace CaptureWindow::Internal
 	const std::array<char, kNameCapacity>& ActiveName(const State& a_state)
 	{
 		return a_state.updateTab ? a_state.updateName : a_state.createName;
+	}
+
+	// The pieces the Save page lists that are ticked there, ascending: what Create and Update
+	// save, which leaves the Dress page's ticks as they are.
+	std::vector<std::size_t> SavePieces(const State& a_state)
+	{
+		auto pieces = a_state.saveShown;
+		std::erase_if(pieces, [&a_state](std::size_t a_piece) { return !a_state.saveTicked[a_piece]; });
+		return pieces;
+	}
+
+	// Under its count line, the pieces the Save page lists, in the Dress page's order, a tick row
+	// each with the Dress page's icon; one nobody carries is faded as there. A tick changes only
+	// what Create and Update save (SavePieces): never the preview or the Dress page's ticks.
+	void DrawSaveTicks(State& a_state)
+	{
+		const auto& shown = a_state.saveShown;
+		Theme::CountText(Strings::Format(Text::kItemsSelected, SavePieces(a_state).size(), shown.size()).c_str());
+		PushListRowSpacing();  // as the outfit list beside it
+		const float rowHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
+		if (Theme::BeginList("savePieces", ListHeight(shown.size(), rowHeight))) {
+			const float columnX[] = { Theme::RowIconRoom() };
+			for (const auto index : a_state.pieceOrder) {
+				if (!std::ranges::binary_search(shown, index)) {
+					continue;
+				}
+				const auto& piece = a_state.request.pieces[index];
+				const bool  faded = FadesNotCarried(a_state, index);
+				if (faded) {
+					ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * kNotCarriedAlpha);
+				}
+				ImGui::PushID(static_cast<int>(index));
+				const char* cells[] = { piece.name.c_str() };
+				if (Theme::TickRow(cells, columnX, &a_state.saveTicked[index], { piece.icon, piece.iconColor })) {
+					QueueMenuSound(kFocusSound);
+				}
+				ImGui::PopID();
+				if (faded) {
+					ImGui::PopStyleVar();
+					if (ImGui::IsItemHovered()) {
+						Theme::Tooltip(kNotCarriedHint);
+					}
+				}
+			}
+		}
+		ImGui::PopStyleVar();
+		Theme::EndList();
 	}
 
 	// The Create tab's icon for the ticked pieces `a_ticked`: the one chosen in Choose icon,
@@ -2369,21 +2427,19 @@ namespace CaptureWindow::Internal
 	};
 
 	// The Create tab's fields: the icon (CreateIcon) and name, as the Wardrobe page's, then the
-	// ticked pieces read only under their count line, as the Wardrobe page shows an outfit's.
+	// Save page's ticks under their count line (DrawSaveTicks).
 	CreateTabInput DrawCreateTab(State& a_state)
 	{
 		CreateTabInput input;
 		ImGui::PushID("create");
-		const auto pieces = TickedPieces(a_state);
-		const auto icon = CreateIcon(a_state, pieces);
+		const auto icon = CreateIcon(a_state, SavePieces(a_state));
 		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked, Strings::Get(Text::kOutfitName), a_state.createLayer);
 		Theme::AfterFieldGap();
 		float layerLabelX = 0.0f;
 		DrawLayerTick(a_state.createLayer, layerLabelX);
 		DrawKeepBeneathTick(a_state.createKeepBeneath, a_state.createLayer, layerLabelX);
 		Theme::AfterFieldGap();
-		Theme::CountText(PieceCountText(pieces.size(), 0).c_str());
-		DrawPieceNames(a_state, pieces);
+		DrawSaveTicks(a_state);
 		ImGui::PopID();
 		return input;
 	}
@@ -2412,7 +2468,7 @@ namespace CaptureWindow::Internal
 	// The Update tab's fields: the chosen outfit's icon, shown only, and the name (both greyed,
 	// the icon the default one, while no outfit is chosen), then three columns: the wardrobe's
 	// outfits with their search and Sort, the chosen outfit's pieces as the library has them,
-	// and the ticked pieces that replace them.
+	// and the Save page's ticks, whose ticked pieces replace them (DrawSaveTicks).
 	UpdateTabInput DrawUpdateTab(State& a_state)
 	{
 		UpdateTabInput input;
@@ -2440,7 +2496,11 @@ namespace CaptureWindow::Internal
 				ResetCellBaseline();
 				Theme::LabelText(Strings::Get(Text::kSelectOutfitToUpdate));
 			}
-			DrawPieceColumn(a_state, Strings::Get(Text::kNewItems), TickedPieces(a_state), 0);
+			NextColumn();
+			ResetCellBaseline();
+			Theme::LabelText(Strings::Get(Text::kNewItems));
+			Theme::AfterFieldGap();
+			DrawSaveTicks(a_state);
 			EndColumns(3);
 		}
 		ImGui::PopID();
@@ -2477,6 +2537,8 @@ namespace CaptureWindow::Internal
 		const char* reason = nullptr;
 		if (a_state.updateTab && !chosen) {
 			reason = kNeedOutfit;
+		} else if (SavePieces(a_state).empty()) {
+			reason = kNeedPiece;
 		} else if (Trimmed(ActiveName(a_state).data()).empty()) {
 			reason = kNeedName;
 		}
@@ -2512,7 +2574,7 @@ namespace CaptureWindow::Internal
 			return std::nullopt;
 		}
 		const auto name = Trimmed(a_state.createName.data());
-		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = Strings::Get(Text::kCreateAndApply), .saveFirst = ApplySubject::SaveFirst::kCreate, .layer = a_state.createLayer });
+		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, SavePieces(a_state)), .applyLabel = Strings::Get(Text::kCreateAndApply), .saveFirst = ApplySubject::SaveFirst::kCreate, .layer = a_state.createLayer });
 		ImGui::EndPopup();
 		return row;
 	}
@@ -2531,7 +2593,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
 		const auto  current = std::to_string(outfit.pieces.size());
-		const auto  selected = std::to_string(CountTickedPieces(a_state));
+		const auto  selected = std::to_string(SavePieces(a_state).size());
 		RunLine(Text::kReplaceItems, { OutfitRun(outfit), TextRun(current.c_str()), TextRun(selected.c_str()) });
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", Strings::Format(Text::kUnloadedItemsStay, outfit.unloadedPieces).c_str());
@@ -2564,7 +2626,7 @@ namespace CaptureWindow::Internal
 	}
 
 	// Hands the save to onSave; `a_applyRow` (Create and Apply) is the row the new outfit goes
-	// to and is worn for, the ticked pieces under Player's Inventory moving first.
+	// to and is worn for, the saved pieces under Player's Inventory moving first.
 	// Contract: the onSave handler writes the library before it assigns anything, and a
 	// refused or failed write assigns nothing (CLAUDE.md §2.1).
 	void RequestSave(State& a_state, std::optional<std::size_t> a_applyRow)
@@ -2573,7 +2635,7 @@ namespace CaptureWindow::Internal
 		a_state.error.clear();
 		CaptureWindow::SaveRequest save{ .outfit = TargetOutfit(a_state),
 			.name = Trimmed(ActiveName(a_state).data()),
-			.pieces = TickedPieces(a_state),
+			.pieces = SavePieces(a_state),
 			.applyRow = a_applyRow };
 		if (!a_state.updateTab) {
 			save.icon = CreateIcon(a_state, save.pieces);
@@ -2581,7 +2643,8 @@ namespace CaptureWindow::Internal
 			save.keepBeneath = a_state.createLayer && a_state.createKeepBeneath;
 		}
 		if (a_applyRow) {
-			save.fromPlayer = TickedFromPlayer(a_state);
+			save.fromPlayer = save.pieces;
+			std::erase_if(save.fromPlayer, [&a_state](std::size_t a_piece) { return a_state.request.pieces[a_piece].group != CaptureWindow::PieceGroup::kPlayer; });
 		}
 		auto onSave = a_state.request.onSave;
 		SKSE::GetTaskInterface()->AddTask([onSave, save = std::move(save)] { onSave(save); });
@@ -2600,11 +2663,12 @@ namespace CaptureWindow::Internal
 		RequestSave(a_state, DirectApplyRow(a_state, a_state.createLayer));
 	}
 
-	// Reached only with at least one piece ticked, which onSave relies on; the ticks cannot
-	// change here. Each tab keeps its name while the window is open, the Update tab its outfit,
-	// the Create tab an icon chosen in Choose icon, until a Create starts that tab again
-	// (SetOutfits). Create saves at once; Update asks in its confirm popup first. A save that
-	// took goes back to the Dress page (SetOutfits).
+	// Contract: its own ticks (StartSaveTicks) are all Create and Update save, and both are greyed
+	// while none is ticked, which onSave relies on (CLAUDE.md §2.1: no empty outfit); the Dress
+	// page's ticks and the preview never change for a tick. Each tab keeps its name while the
+	// window is open, the Update tab its outfit, the Create tab an icon chosen in Choose icon,
+	// until a Create starts that tab again (SetOutfits). Create saves at once; Update asks in its
+	// confirm popup first. A save that took goes back to the Dress page (SetOutfits).
 	void DrawSavePage(State& a_state)
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
@@ -2645,7 +2709,7 @@ namespace CaptureWindow::Internal
 			ChooseOutfit(a_state, input.clicked == a_state.chosenOutfit ? -1 : input.clicked);
 		} else if (iconClicked) {
 			QueueMenuSound(kOkSound);
-			a_state.iconPicker = { .pick = CreateIcon(a_state, TickedPieces(a_state)) };
+			a_state.iconPicker = { .pick = CreateIcon(a_state, SavePieces(a_state)) };
 			ImGui::OpenPopup(kIconPopup);
 		} else if (action == SaveAction::kSave) {
 			QueueMenuSound(kOkSound);
@@ -2835,6 +2899,8 @@ namespace CaptureWindow
 			state.manageApplyTip.clear();
 			state.editTicked = std::make_unique<bool[]>(state.request.pieces.size());
 			state.editShown.clear();
+			state.saveTicked = std::make_unique<bool[]>(state.request.pieces.size());
+			state.saveShown.clear();
 			state.recentreFrames = kRecentreFrames;
 			state.placeCentre.reset();  // the start place
 			++state.session;

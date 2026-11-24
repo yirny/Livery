@@ -393,6 +393,8 @@ namespace CaptureWindow::Internal
 		std::string              editTitle;                   // the name in its title (OpenEditPage)
 		std::vector<std::string> editOutfitNames;             // the outfits those come from: the edited one, then those loaded that brought one
 		bool                     editShownFromChest = false;  // a chest brought one last, so that heading has the chest icon
+		std::unique_ptr<bool[]>  saveTicked;                  // the Save page's ticks, one per request.pieces: what Create and Update save (SavePieces)
+		std::vector<std::size_t> saveShown;                   // the pieces the Save page lists: the Dress page's ticks as it opened, ascending
 		std::string              editShownHeading;            // over those nobody carries: "\"#{Outfit}\", \"#{Loaded}\""
 		OutfitBrowser::State     situationBrowser;            // the Situations page's outfit list
 		SituationForm            situationForm;

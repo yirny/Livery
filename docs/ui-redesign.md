@@ -86,7 +86,12 @@ listed; the HUD counts moved pieces; the NPC keeps the piece after Restore.
 
 ## 4. Save page
 
-Reached from `Save to Wardrobe...` with the ticked pieces, which both tabs save. The page
+Reached from `Save to Wardrobe...` with the ticked pieces. Both tabs list them with ticks of
+the page's own (`State::saveTicked`, `saveShown`), all ticked each time the page opens
+(`StartSaveTicks`); the pieces still ticked there are what both tabs save (`SavePieces`), so
+a layer of a cloak alone is saved without taking the rest off first. A tick changes neither
+the Dress page's ticks nor the preview, and `Create`, `Create and Apply` and `Update` are
+greyed with `kNeedPiece` while none is ticked. The page
 writes the library; only Create and Apply gives the outfit a row. Giving an outfit to a
 situation is the Situations page's job (docs/situation-management-ui.md).
 
@@ -105,9 +110,9 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   popup, docs/outfit-management-ui.md §4), the name starting from the first free `New Outfit
   NNN`, then the Wardrobe page's `Layered outfit (?)` and `Keep items beneath (?)` ticks, off
   as the tab starts and after a Create (`State::createLayer`, `createKeepBeneath`; Create and
-  Apply then gives the new outfit as a layer), then the ticked pieces read only, with the Dress page's icons, under their count
-  line, as the Wardrobe page shows an outfit's. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
-- The icon follows the ticks until the user presses OK in `Choose icon`, which keeps it until
+  Apply then gives the new outfit as a layer), then the page's tick rows (`DrawSaveTicks`): each piece with the Dress page's icon, in its
+  order, faded when nobody carries it, under `N of M items selected`. Buttons `Create`, `Create and Apply`, `Back`; Enter is Create.
+- The icon follows the page's ticks until the user presses OK in `Choose icon`, which keeps it until
   a Create or the window's close (`OutfitIcons::SuggestKey`): the icon of the first ticked piece on the
   body slot, then head (head, hair, long hair), circlet, hands, feet, amulet, ring, then any,
   whose key `OutfitIcons::kKeys` lists and whose PNG is loaded; else the default key. Its
@@ -131,7 +136,7 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   outfit list (docs/outfit-management-ui.md §1, with its own search and sort), `CURRENT
   ITEMS` (the chosen outfit's pieces as the library has them, its count line counting those
   of unloaded plugins; `Select an outfit to update` while none is chosen) and `NEW ITEMS`
-  (the ticked pieces), each piece with the Dress page's icon. Each column's list grows with its rows until the window would pass 90% of the screen's
+  (the page's tick rows, as on the Create tab), each piece with the Dress page's icon. Each column's list grows with its rows until the window would pass 90% of the screen's
   height (`kMaxWindowHeightRatio`, `ListBottom`), then scrolls. The tab opens with its outfit, or else the one last loaded, or else the
   library outfit Livery has on the actor, chosen. A click on an outfit chooses it, fills the
   name from it and shows it on the preview; a second click unchooses it, which greys the name
@@ -157,7 +162,9 @@ situation is the Situations page's job (docs/situation-management-ui.md).
   becomes the Dress page's loaded outfit (`OutfitList::created`), as Load makes one, so
   Apply with the ticks unchanged gives it as that outfit (§5).
 
-Checks: Create saves, changes no row and goes back to the Dress page, the Create tab then
+Checks: the Save page's ticks start as the Dress page's each time it opens, an untick changes
+neither the Dress page's ticks nor the preview, and Create, Create and Apply and Update save
+only the pieces ticked there and are greyed with none; Create saves, changes no row and goes back to the Dress page, the Create tab then
 named with the next free `New Outfit NNN`, and Apply then dresses the actor in the new outfit
 by name, not as `Outfit (Not in Wardrobe)`; Create and Apply while wearing a Town outfit asks
 (Yes, Apply as Default, Cancel saves nothing), with a Default held asks before replacing it,
