@@ -282,17 +282,27 @@ namespace OutfitRows
 		return std::ranges::any_of(a_row.outfits, [&a_row](std::uint32_t a_outfit) { return ChanceOf(a_row, a_outfit) > 0; });
 	}
 
+	// The sum of the chances (ChanceOf) of the row's outfits other than `a_except` (0 for none):
+	// what Pick draws from, so an outfit's chance over the sum is the chance a pick is that outfit.
+	inline std::size_t ChanceTotal(const Row& a_row, std::uint32_t a_except = 0)
+	{
+		std::size_t total = 0;
+		for (const auto outfit : a_row.outfits) {
+			if (outfit != a_except) {
+				total += ChanceOf(a_row, outfit);
+			}
+		}
+		return total;
+	}
+
 	// An outfit of the row's list other than `a_except` (0 for none), picked in proportion to
 	// the outfits' chances (ChanceOf): one with chance 0 never. 0 when none is left.
 	// Contract: `a_draw(n)` returns a number below n, n above 0.
 	template <class Draw>
 	std::uint32_t Pick(const Row& a_row, std::uint32_t a_except, Draw&& a_draw)
 	{
-		const auto  chanceOf = [&a_row, a_except](std::uint32_t a_outfit) -> std::size_t { return a_outfit != a_except ? ChanceOf(a_row, a_outfit) : 0; };
-		std::size_t total = 0;
-		for (const auto outfit : a_row.outfits) {
-			total += chanceOf(outfit);
-		}
+		const auto chanceOf = [&a_row, a_except](std::uint32_t a_outfit) -> std::size_t { return a_outfit != a_except ? ChanceOf(a_row, a_outfit) : 0; };
+		const auto total = ChanceTotal(a_row, a_except);
 		if (total == 0) {
 			return 0;
 		}

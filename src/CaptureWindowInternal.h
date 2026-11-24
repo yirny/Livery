@@ -261,7 +261,8 @@ namespace CaptureWindow::Internal
 		// (ImGui::GetTime() seconds) and scrolled to while `editorScroll` frames remain, its
 		// height as last drawn; whether a popup was open over it at the end of the last frame (its
 		// Escape closed that, not the editor); whether it is still centred on the screen
-		// (BeginModal), not yet dragged; its height besides the conditions' area, as last drawn.
+		// (BeginModal), not yet dragged; its height under its columns' content (the button row and
+		// the padding), as last drawn, which its scroll areas leave room for (EditorAreaCap).
 		float  paneWidth = 0.0f;
 		float  columnGap = 0.0f;
 		int    editorFocus = -1;
@@ -270,7 +271,10 @@ namespace CaptureWindow::Internal
 		float  editorFocusHeight = 0.0f;
 		bool   editorPopupAbove = false;
 		bool   editorCentred = true;
-		float  editorOtherHeight = 0.0f;
+		float  editorBelow = 0.0f;
+		// The outfit whose slider is open under its row in the Edit situation popup's Selection
+		// Chances list; 0 for none.
+		std::uint32_t chancesOpen = 0;
 		// The Add place popup's choice, in the order it shows them (request.places.At).
 		int placePick = 0;
 		// The Add spell popup: its search, Show all spells, Show player spells, the spells it lists
@@ -670,21 +674,13 @@ namespace CaptureWindow::Internal
 	bool DrawOutfitRow(const State& a_state, const OutfitBrowser::State& a_browser, int a_index, bool a_selected, bool a_striped,
 		Theme::Grip a_grip = Theme::Grip::kNone, bool a_situationMark = true, const std::vector<std::uint32_t>* a_excluded = nullptr);
 
-	// What the user changed in DrawOutfitSummary this frame.
-	struct SummaryEdits
-	{
-		bool excluded = false;    // `a_excluded`, by a tick
-		bool chanceDone = false;  // `a_chance`, the slider let go after it moved
-	};
-
 	// Outfit `a_index` (into request.existingOutfits) in the Wardrobe page's order: its name as
 	// a one-row list whose grip drags a copy of it (OfferOutfitDrag; the Situations page only),
-	// `a_situations` under the "SITUATIONS (#{Name})" label (neither when it is ""), with
-	// `a_chance` the Selection Chance slider (OutfitRows::kMaxChance at most), which writes it as
-	// it moves, then its pieces (DrawPieceChoices) over their count line, which ends by screen Y
-	// `a_bottom`; the list scrolls when it needs more (one row shows at least).
-	SummaryEdits DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom,
-		std::vector<std::uint32_t>* a_excluded = nullptr, std::uint8_t* a_chance = nullptr);
+	// `a_situations` under the "SITUATIONS (#{Name})" label (neither when it is ""), then its pieces (DrawPieceChoices)
+	// over their count line, which ends by screen Y `a_bottom`; the list scrolls when it needs
+	// more (one row shows at least). Returns true when `a_excluded` changed.
+	bool DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom,
+		std::vector<std::uint32_t>* a_excluded = nullptr);
 
 	// An outfit's piece count line, the pieces whose plugin is not loaded included.
 	std::string PieceCountText(std::size_t a_loaded, std::size_t a_unloaded);

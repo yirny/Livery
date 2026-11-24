@@ -342,6 +342,17 @@ TEST_CASE("Pick draws in proportion to the chances, never one at 0 or the one le
 	CHECK(OutfitRows::Pick(Row{ .random = true }, 0, NoPick) == 0);
 }
 
+TEST_CASE("ChanceTotal sums the chances Pick draws from", "[rows][chance]")
+{
+	Row row{ .outfits = { 1, 2, 3 }, .random = true };
+	OutfitRows::SetChance(row, 1, 200);
+	OutfitRows::SetChance(row, 3, 0);
+	CHECK(OutfitRows::ChanceTotal(row) == 300);
+	CHECK(OutfitRows::ChanceTotal(row, 1) == 100);  // the others of 1: it is picked 200 / (200 + 100)
+	CHECK(OutfitRows::ChanceTotal(row, 9) == 300);  // not on the list: nothing left out
+	CHECK(OutfitRows::ChanceTotal(Row{ .random = true }) == 0);
+}
+
 TEST_CASE("A random row whose outfits are all at 0 is passed over but still held", "[rows][chance]")
 {
 	Row zero{ .outfits = { 3, 4 }, .random = true };

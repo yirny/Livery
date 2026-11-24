@@ -512,8 +512,7 @@ namespace CaptureWindow::Internal
 	// as the Situations page's outfit list does (a click on it does nothing); no situation star,
 	// as the field under it names them. Then the situations' label with that star, as the
 	// Situation List's headings have it, and `a_situations`; neither while that is empty.
-	SummaryEdits DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom, std::vector<std::uint32_t>* a_excluded,
-		std::uint8_t* a_chance)
+	bool DrawOutfitSummary(State& a_state, int a_index, const std::string& a_situations, float a_bottom, std::vector<std::uint32_t>* a_excluded)
 	{
 		const auto& outfit = OutfitAt(a_state, a_index);
 		Theme::SectionGap();  // as the label beside it opens (Theme::LabelText)
@@ -530,24 +529,11 @@ namespace CaptureWindow::Internal
 			Theme::LabelText(a_state.situationsLabel.c_str(), true, true);
 			DrawFieldText(a_situations.c_str());
 		}
-		SummaryEdits edits;
-		if (a_chance) {
-			Theme::LabelText(Strings::Get(Text::kSelectionChance));
-			if (Theme::LabelHelpMark()) {
-				DrawHelpTooltip(Strings::Get(Text::kSelectionChanceHelp));
-			}
-			int value = *a_chance;
-			ImGui::SetNextItemWidth(-FLT_MIN);
-			if (ImGui::SliderInt("##chance", &value, 0, OutfitRows::kMaxChance, "%d", ImGuiSliderFlags_AlwaysClamp)) {
-				*a_chance = static_cast<std::uint8_t>(value);
-			}
-			edits.chanceDone = ImGui::IsItemDeactivatedAfterEdit();
-		}
 		Theme::AfterFieldGap();
 		// A frame's height holds the count line under the list, in every skin's small font.
-		edits.excluded = DrawPieceChoices(a_state, outfit.pieces, a_excluded, a_bottom - ImGui::GetFrameHeightWithSpacing());
+		const bool changed = DrawPieceChoices(a_state, outfit.pieces, a_excluded, a_bottom - ImGui::GetFrameHeightWithSpacing());
 		Theme::CountText(PieceCountText(outfit.pieces.size(), outfit.unloadedPieces).c_str(), false);
-		return edits;
+		return changed;
 	}
 
 	// --- Load page ------------------------------------------------------------

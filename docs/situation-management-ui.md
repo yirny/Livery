@@ -31,8 +31,9 @@ Per actor, per row:
   leaves `outfits` (taken off, or replaced as `chosen`) loses them. Kept in the co-save's
   `EXCL` record (design.md §5).
 - `chances`: per outfit on `outfits`, its selection chance, 0 to 200, 100 when not set
-  (`OutfitRows::Chance`; only those not 100 are stored). Set only by the Selection Chance
-  slider of an outfit's details opened from the row (§5), saved with the page's edits. A new
+  (`OutfitRows::Chance`; only those not 100 are stored). Set only by the Selection Weight
+  slider of the row's Selection Chances in the Edit situation popup (§5), saved as its other
+  edits are, once it closes. A new
   outfit on the row has 100; a reorder, random off and on again, and a drag to another
   situation keep it (the target's own value wins when it has the outfit already); an outfit
   that leaves `outfits` loses it. Kept in the co-save's `CHNC` record (design.md §5).
@@ -278,12 +279,7 @@ click on it does nothing. Then `SITUATIONS (#{Name})`, its label starting with t
 Situations tab, a square of the label's line height in its grey, and 6px (`Theme::LabelText`),
 with the rows the page's edits
 give it (`Default, Town`), placed as the Applies text is; neither the label nor the text while
-no row holds the outfit. Then, clicked under a situation's heading with Random Outfit on and
-that row still holding the outfit, `Selection Chance (?)` (`Theme::LabelText`,
-`Theme::LabelHelpMark`; its help `How often this outfit is picked compared with the others on
-the list.` / `200 is picked twice as often as 100, and 0 is never picked.`, a blank line,
-`Default: 100`) over a slider the pane's width, 0 to 200 (§1 `chances`): it moves the row's
-chance as it is dragged, and the page's save waits for it to be let go. Then its pieces, with the Dress page's icons, under the
+no row holds the outfit. Then its pieces, with the Dress page's icons, under the
 `Name` and `Type` labels that sort them as on the Wardrobe page, over their count line. Clicked
 under a situation's heading, the pieces are the Wardrobe page's tick rows, ticked as that row wears the
 outfit; a tick is an edit of that row (§1 `excluded`), saved as any edit is, and the last
@@ -307,7 +303,7 @@ subtitle. Its left column holds the situation's settings, its fields evenly spac
 headings; with `Enable custom situations`, every situation but the Default has a right column,
 `Conditions (?)`, with the help of `Applies`, over the condition editor of docs/custom-situations.md §7. Off, and for
 the Default, the left column alone. The popup's edits (the name, Random Outfit, the
-conditions) are saved once it closes (§6). The left column:
+selection weights, the conditions) are saved once it closes (§6). The left column:
 
 - `Name`, an underlined field (as the Save page's), its label with no icon. Ending the edit with it empty, or with a
   name another situation has (ASCII case ignored), puts the previous name back; with that
@@ -323,6 +319,20 @@ conditions) are saved once it closes (§6). The left column:
 - `Random Outfit (for #{Name}) (?)`, a checkbox: `On: Each time this situation begins, #{Name}
   wears a random outfit from the list until it ends.` Unticking it keeps the last pick on
   (§1).
+- `Selection Chances (?)` while Random Outfit is on and the row has an outfit (`Theme::LabelText`,
+  `Theme::LabelHelpMark`; its help `The chance each outfit is picked.` / `Click an outfit to set
+  its weight with the slider.` / `An outfit with a weight of 0 is never picked.`): the row's
+  outfits in its order as the outfit list's rows, with no grip and no marks; in their place, at
+  the row's right end, the chance a new pick is that outfit, its chance over the sum of the
+  row's (`OutfitRows::ChanceTotal`, as `Pick` draws), to one decimal place (`7.5%`, `100.0%`,
+  `0.0%` with every one at 0). A click on a row draws it selected and opens its slider under
+  it, pushing the rows below down, and closes the one open; a click on the open one closes it;
+  every one is closed as the popup opens. The slider, 0 to 200 (§1 `chances`), runs from where
+  the row's icon starts to where its chance ends, an item spacing above and below it, 8px lower
+  than a frame, its grab in the scroll bar's grey (`ScrollbarGrab`, the label colour while
+  dragged), `Selection Weight: 100` on it. Moving it edits the row's chance and every row's
+  chance shown follows at once. The list scrolls once the popup would pass
+  `kMaxWindowHeightRatio` of the screen's height.
 
 Under the columns, the room above every button row (`ButtonRowGap`), then `Done` centred;
 Escape is Done unless it closed a dropdown or a popup over the popup.
@@ -356,9 +366,8 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   `Home: name reset`, `Cold: conditions reset`, `Sleep: name and conditions reset`); `Restore` / `Cancel`. The page's edits are
   saved first, and a refused save opens no popup. Restore writes `situations.json` (a refused
   or failed write changes nothing and shows the error) and keeps the selection.
-- Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, the Selection
-  Chance slider let go, a name entered, a condition, Allow during combat, a situation moved in
-  the order)
+- Saving: each edit (a drop, Random Outfit, a tick of an outfit's details, a selection
+  weight, a name entered, a condition, Allow during combat, a situation moved in the order)
   starts the wait of `kAutosaveDelay` (0.5 s) again, so a burst of edits writes and redresses
   once (`ScheduleAutosave`, `TakeAutosaveDue`). A drag, an open popup (the Edit situation
   popup's edits wait for it to close) or a name being typed holds the save until it ends. The page takes no input while a save runs but keeps its look
@@ -434,7 +443,9 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   new situation; an outfit's details from
   either pane, with Back, Escape and Open in Wardrobe, the labels' sort, both button layouts, and the preview; several drops in a row redressing
   once, about 0.5 s after the last (Live Preview on and off); Random Outfit on, picks at situation changes;
-  Selection Chance shown only for a random row's outfit, a 0 never picked and every one at 0
+  Selection Chances in the Edit situation popup only with Random Outfit on and an outfit on the
+  row, a row's slider opening and closing, every chance following the slider, the list
+  scrolling once the popup reaches its height limit, a 0 never picked and every one at 0
   passing the row over, the value kept across a save and load;
   the die of the row worn lit with its tooltip, a click wearing another outfit (Live Preview on and off),
   the other dice unlit with their reasons;
