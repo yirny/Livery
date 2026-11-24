@@ -124,7 +124,8 @@ says so), so a lock would be needed anyway.
   (`Assignments::IsDressedNpc`; an NPC in their own clothes whose situation rows wait is not
   one) and for the NPC the window's Live Preview shows, assigned or not
   (`OutfitPreview::IsPreviewedNpc`, an atomic id), so their outfit items stay off while they
-  wear Livery's pieces or the preview's; the rest of the pass, its best-armor step included,
+  wear Livery's pieces or the preview's (under a layer over their own clothes Livery puts them
+  on itself, §7 Layers); the rest of the pass, its best-armor step included,
   runs as before. The pass is not always on the game thread (§6), so the hook only reads those
   two and queues an SKSE task that runs after the pass. While the window's Live Preview shows them, the preview dresses
   them in its pieces again (`OutfitPreview::Reapply`), which takes off what it does not show;
@@ -152,7 +153,8 @@ says so), so a lock would be needed anyway.
   so the best-armor step leaves it in the inventory (§6) and the pass needs no take-off. They
   are locked after each dressing that puts pieces on, and the copies that came since (another
   mod's outfit change, a copy the take-off just took off) after each 3D load, menu close and
-  take-off after the pass that took something off. Livery takes those locks off
+  take-off after the pass that took something off. Not under a layer over their own clothes
+  (§7 Layers): their outfit items are those clothes. Livery takes those locks off
   (`Dressing::UnlockOutfitCopies`) before anything puts their own copies on, since a locked
   unworn copy cannot be equipped: at each dressing (before their own pieces go back on), at
   Restore, at death, at Release everyone, and for the live preview (`SuspendLocks`; locked
@@ -760,7 +762,12 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   armor. `Dressing::Dress` then takes nothing else off (`keepOthers`); the own pieces the
   engine pushes off for the layer's slots are noted in `takenOff` and go back on at the next
   dressing or release. `Dressing::TakeOffExtras` takes off only armor sharing a body slot with
-  a worn piece, outfit items included, since their clothes are their own outfit's.
+  a worn piece, outfit items included, since their clothes are their own outfit's. Their
+  outfit copies are not locked. Their 3D load takes their outfit items off and OwnOutfitGuard
+  leaves out the pass's call that would put them on again (seen in game, 2026-11-24), so at
+  their 3D load (after `PutBackOn`) and after each pass Livery puts them on in the slots no
+  worn armor takes (`Assignments` `PutOwnClothesOn`, `Dressing::PutOnOutfitItems`), the
+  copies an earlier build locked unlocked first; never from the trade menu's equip sink.
 - A situation's base that puts nothing on falls back to the Default's under the same layer;
   a layer that puts nothing on (not carried, refused) is no fallback.
 - Remove of a layer: the actors wearing it are redressed as for a situation outfit; a Default
@@ -793,7 +800,8 @@ In-game checks the design rests on (not yet made):
    free. An NPC's own outfit items are locked unworn (`LockOutfitCopies`); other own armor is
    not.
 3. A layer over their own clothes stays with those clothes across a 3D reload and a cell
-   reset.
+   reset (2026-11-24: their outfit items came off at a 3D reload and were locked; again since
+   `PutOwnClothesOn`).
 4. The feel of an outfit whose layer flag changed after rows were given it (Kinds above).
 5. `Dressing::WornArmor` reads the clothes beneath a layer over their own clothes as worn
    while their 3D is not loaded.

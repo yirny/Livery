@@ -319,14 +319,35 @@ namespace
 	// Locks the outfit copies of an NPC Livery has pieces on that are not locked yet: after a
 	// dressing, and those that came since (another mod's outfit change, the copies a take-off
 	// just took off). A log line when it locked any.
+	// Contract: none under a layer over their own clothes (`overOwn`): their outfit items are
+	// those clothes, which PutOwnClothesOn puts on again, and a locked unworn copy cannot go on.
 	void LockNewOutfitCopies(Assignment& a_assignment, RE::Actor& a_actor)
 	{
-		if (a_assignment.pieces.empty() || a_actor.IsPlayerRef()) {
+		if (a_assignment.pieces.empty() || a_actor.IsPlayerRef() || a_assignment.overOwn) {
 			return;
 		}
 		if (const auto count = Dressing::LockOutfitCopies(a_actor, a_assignment.pieces, a_assignment.lockedCopies); count > 0) {
 			logger::info("Locked {} of their outfit item(s) on {:08X}", count, a_actor.GetFormID());
 		}
+	}
+
+	// Under a layer over their own clothes (`overOwn`), puts their outfit items on again in the
+	// slots no worn armor takes, as the worn-gear pass's first call would, which OwnOutfitGuard
+	// leaves out for them: their 3D load takes those items off (seen in game, 2026-11-24). The
+	// copies locked before (a dressing ahead of the overOwn rule, an older build) are unlocked
+	// first. The layer's pieces keep their slots. Returns how many went on.
+	std::size_t PutOwnClothesOn(Assignment& a_assignment, RE::Actor& a_actor)
+	{
+		if (!a_assignment.overOwn || a_assignment.pieces.empty() || a_actor.IsPlayerRef()) {
+			return 0;
+		}
+		Dressing::UnlockOutfitCopies(a_actor, a_assignment.lockedCopies);
+		a_assignment.lockedCopies.clear();
+		const auto count = Dressing::PutOnOutfitItems(a_actor);
+		if (count > 0) {
+			logger::info("Put {} of their own outfit item(s) back on beside the layer on {:08X}", count, a_actor.GetFormID());
+		}
+		return count;
 	}
 
 	// How Redress dresses them, besides the situations they are in.
@@ -805,6 +826,8 @@ namespace
 		if (const auto count = Dressing::PutBackOn(*actor, assignment->pieces); count > 0) {
 			logger::info("Put {} piece(s) back on or locked again on {:08X}", count, a_actor);
 		}
+		// After PutBackOn, so their clothes fill only the slots the layer leaves free.
+		PutOwnClothesOn(*assignment, *actor);
 		// After PutBackOn, so the pieces it put on again count as worn.
 		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies, assignment->overOwn); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
@@ -850,8 +873,11 @@ namespace
 	// a hat after a dressing took them off). With none of the pieces left, their own clothes go
 	// back on instead (ReturnIfPiecesGone), except while a trade or container menu lists them:
 	// the pieces the player took there go on again as it closes (ReplenishTaken). `a_when` ends
-	// the log line. Returns whether what they wear changed.
-	bool TakeOffGiven(RE::FormID a_actor, std::string_view a_when)
+	// the log line. With `a_afterPass`, under a layer over their own clothes, their clothes go on
+	// again first (PutOwnClothesOn), in place of the pass's call OwnOutfitGuard left out; not from
+	// the equip sink, which each item put on would bring back here. Returns whether what they
+	// wear changed.
+	bool TakeOffGiven(RE::FormID a_actor, std::string_view a_when, bool a_afterPass)
 	{
 		if (a_actor == g_suspended) {
 			return false;  // the preview has them off on purpose
@@ -872,12 +898,15 @@ namespace
 			refreshIfHalted();
 			return true;
 		}
+		const auto putOn = a_afterPass ? PutOwnClothesOn(*assignment, *actor) : 0;
 		const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies, assignment->overOwn);
-		if (count == 0) {
+		if (count > 0) {
+			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
+			LockNewOutfitCopies(*assignment, *actor);
+		}
+		if (putOn == 0 && count == 0) {
 			return false;  // nothing changed: no lock pass either, this runs after every worn-gear pass
 		}
-		logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X} {}", count, a_actor, a_when);
-		LockNewOutfitCopies(*assignment, *actor);
 		refreshIfHalted();
 		return true;
 	}
@@ -1678,7 +1707,7 @@ namespace
 			const auto* item = RE::TESForm::LookupByID(a_event->baseObject);
 			if (item && item->IsArmor()) {
 				const auto id = a_event->actor->GetFormID();
-				SKSE::GetTaskInterface()->AddTask([id] { TakeOffGiven(id, "in a menu"); });
+				SKSE::GetTaskInterface()->AddTask([id] { TakeOffGiven(id, "in a menu", false); });
 			}
 			return RE::BSEventNotifyControl::kContinue;
 		}
@@ -2234,6 +2263,6 @@ namespace Assignments
 
 	bool TakeOffAfterPass(RE::FormID a_actor)
 	{
-		return TakeOffGiven(a_actor, "after the game's worn-gear pass");
+		return TakeOffGiven(a_actor, "after the game's worn-gear pass", true);
 	}
 }

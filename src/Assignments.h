@@ -241,7 +241,9 @@ namespace Assignments
 	// outfit leaves empty as [General] UnusedSlots says); when it took any, locks their outfit
 	// copies that came since (Dressing::LockOutfitCopies). When they carry none of the pieces
 	// any more, their own clothes go back on instead, unless a trade or container menu lists
-	// them. After either change, while the game is paused or frozen, rebuilds their model,
+	// them. Under a layer over their own clothes, their outfit items first go on again in the
+	// slots the layer leaves free, as the pass's call OwnOutfitGuard leaves out would put them on.
+	// After any change, while the game is paused or frozen, rebuilds their model,
 	// which a running game's actor update does itself. Nothing while the preview has their
 	// locks off (OutfitPreview::Reapply's turn). Returns whether what they wear changed.
 	// Contract: game thread, in the SKSE task OwnOutfitGuard queues as the pass begins.
