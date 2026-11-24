@@ -29,6 +29,9 @@ namespace Library
 		std::string           name;    // unique, ASCII case ignored
 		std::vector<PieceRef> pieces;  // never empty
 		OutfitIcons::Icon     icon;    // the default one for a file that names none
+		// Worn over the outfit beneath instead of in its place (docs/design.md §7); off for a
+		// file that names none.
+		bool layer = false;
 	};
 
 	// Reads the file. A missing or empty file (nothing but whitespace) is an empty library. A
@@ -46,15 +49,20 @@ namespace Library
 	// number of pieces whose plugin or form is not loaded.
 	std::vector<RE::TESObjectARMO*> LoadedPieces(const Outfit& a_outfit, std::size_t* a_unloaded = nullptr);
 
-	// Adds an outfit with icon `a_icon` and writes the file. Returns why it refused, having
-	// changed nothing: an empty or taken name, no armor, armor created in game, or a file it
-	// cannot write.
-	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon);
+	// Whether any of the outfit's pieces is loaded (LoadedPieces would not be empty), without
+	// building the list.
+	bool HasLoadedPiece(const Outfit& a_outfit);
+
+	// Adds an outfit with icon `a_icon`, a layer with `a_layer`, and writes the file. Returns
+	// why it refused, having changed nothing: an empty or taken name, no armor, armor created in
+	// game, or a file it cannot write.
+	std::optional<std::string> Create(std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon, bool a_layer);
 
 	// Replaces the outfit's loaded pieces with `a_armor` (pieces whose plugin or form is not
-	// loaded stay), its name and its icon, then writes the file. Refuses as Create does, having
-	// changed nothing; a name is taken when another outfit has it.
-	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon);
+	// loaded stay), its name, its icon and its layer flag, then writes the file. Refuses as
+	// Create does, having changed nothing; a name is taken when another outfit has it.
+	std::optional<std::string> Update(std::uint32_t a_id, std::string_view a_name, const std::vector<RE::TESObjectARMO*>& a_armor, const OutfitIcons::Icon& a_icon,
+		bool a_layer);
 
 	// Takes the outfit out and writes the file; its id is never given again. Returns why it
 	// refused, having changed nothing: the outfit is gone already, or a file it cannot write.

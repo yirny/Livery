@@ -230,11 +230,11 @@ namespace CaptureWindow::Internal
 			editedSituations = EditedSituationsText(a_state, outfit.id);
 			situations = &editedSituations;
 		}
-		const Theme::OutfitMarks marks{ .current = outfit.id != 0 && outfit.id == a_state.request.wornOutfit,
+		const Theme::OutfitMarks marks{ .current = outfit.id != 0 && (outfit.id == a_state.request.wornOutfit || outfit.id == a_state.request.wornLayer),
 			.defaultOutfit = edited ? OutfitRows::Holds(entries[0].row, outfit.id) : HoldsOutfit(a_state, 0, outfit.id),
 			.situations = a_situationMark && !situations->empty() ? situations->c_str() : nullptr,
 			.warning = ReasonIf(a_state.page == Page::kSituations && MissesCarried(a_state, outfit.pieces, a_excluded), Strings::Get(Text::kOutfitNotCarriedHint)) };
-		const auto               icon = RowIconOf(outfit.icon);
+		const auto               icon = RowIconOf(outfit.icon, outfit.layer);
 		const bool               clicked = Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &icon);
 		// An outfit none of whose items is loaded stays on its rows and drags as any other; its
 		// row says why it puts nothing on. Theme::BeginTooltip appends to a mark's tooltip.
@@ -321,7 +321,7 @@ namespace CaptureWindow::Internal
 		}
 		Theme::SectionGap();  // as the label beside it opens (Theme::LabelText)
 		const auto& outfit = OutfitAt(a_state, a_selected);
-		Theme::OutfitNameText(outfit.name.c_str(), RowIconOf(outfit.icon));
+		Theme::OutfitNameText(outfit.name.c_str(), RowIconOf(outfit.icon, outfit.layer));
 		return true;
 	}
 
@@ -721,6 +721,39 @@ namespace CaptureWindow::Internal
 	// which dresses them in the outfit now (DrawManageApplyPopup).
 
 	// The selected outfit's library id. Contract: an outfit is selected.
+	bool DrawLayerTick(bool& a_layer)
+	{
+		const bool changed = Theme::Checkbox(Strings::Get(Text::kLayerTick), &a_layer);
+		if (changed) {
+			QueueMenuSound(kFocusSound);
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("(?)");
+		const bool helpHovered = ImGui::IsItemHovered();
+		if (FocusStandIn("##layerHelp") || helpHovered) {
+			DrawHelpTooltip(Strings::Get(Text::kLayerTickHelp));
+		}
+		return changed;
+	}
+
+	std::vector<std::size_t> LayeredOver(const State& a_state, const std::vector<std::size_t>& a_base, const std::vector<std::size_t>& a_layer)
+	{
+		const auto& pieces = a_state.request.pieces;
+		auto        worn = OutfitRows::Uncovered(a_base, a_layer, [&pieces](std::size_t a_piece) { return pieces[a_piece].slots; });
+		worn.insert(worn.end(), a_layer.begin(), a_layer.end());
+		std::ranges::sort(worn);
+		const auto repeats = std::ranges::unique(worn);
+		worn.erase(repeats.begin(), repeats.end());
+		return worn;
+	}
+
+	std::vector<std::size_t> OverWorn(const State& a_state, const std::vector<std::size_t>& a_own, const std::vector<std::size_t>& a_worn)
+	{
+		auto base = TickedPieces(a_state);
+		std::erase_if(base, [&a_own](std::size_t a_piece) { return std::ranges::find(a_own, a_piece) != a_own.end(); });
+		return LayeredOver(a_state, base, a_worn);
+	}
+
 	std::uint32_t ManagedOutfitId(const State& a_state)
 	{
 		return OutfitAt(a_state, a_state.manage.outfit).id;
@@ -733,7 +766,8 @@ namespace CaptureWindow::Internal
 	// (DirectApplyRow), else the Default.
 	std::size_t SelectionRow(const State& a_state, std::uint32_t a_outfit)
 	{
-		return a_state.request.wornOutfit == a_outfit ? DirectApplyRow(a_state) : 0;
+		const bool layer = IsLayerOutfit(a_state, a_outfit);
+		return (layer ? a_state.request.wornLayer : a_state.request.wornOutfit) == a_outfit ? DirectApplyRow(a_state, layer) : 0;
 	}
 
 	// The items that row has `a_outfit` leave off, among `a_pieces` (ExcludedAmong).
@@ -744,10 +778,23 @@ namespace CaptureWindow::Internal
 		return row < assigned.size() ? ExcludedAmong(a_state, a_pieces, OutfitRows::ExcludedOf(assigned[row].row, a_outfit)) : std::vector<std::uint32_t>{};
 	}
 
-	// The selected outfit's pieces as edited, less those unticked: what the preview shows.
+	// The selected outfit's pieces as edited, less those unticked: what Apply dresses them in.
 	std::vector<std::size_t> ManagedWorn(const State& a_state)
 	{
 		return WornOf(a_state, a_state.manage.pieces, a_state.manage.excluded);
+	}
+
+	// What the preview shows of the selected outfit: ManagedWorn, for a layer over what they
+	// wear now (OverWorn), less its own pieces as the library and the edits have them.
+	std::vector<std::size_t> ManagedPreview(const State& a_state)
+	{
+		auto worn = ManagedWorn(a_state);
+		if (!a_state.manage.layer) {
+			return worn;
+		}
+		auto own = OutfitAt(a_state, a_state.manage.outfit).pieces;
+		own.insert(own.end(), a_state.manage.pieces.begin(), a_state.manage.pieces.end());
+		return OverWorn(a_state, own, worn);
 	}
 
 	void FillManageForm(State& a_state, int a_index)
@@ -766,6 +813,7 @@ namespace CaptureWindow::Internal
 		form.name.fill('\0');
 		std::strncpy(form.name.data(), outfit.name.c_str(), kNameCapacity - 1);
 		form.pieces = outfit.pieces;
+		form.layer = outfit.layer;
 		form.excluded = StoredExcluded(a_state, outfit.id, form.pieces);
 		a_state.manageApplyTip = ApplyTooltip(a_state);
 	}
@@ -775,15 +823,16 @@ namespace CaptureWindow::Internal
 	void SelectManaged(State& a_state, int a_index)
 	{
 		FillManageForm(a_state, a_index);
-		QueuePreview(a_state, a_index >= 0 ? ManagedWorn(a_state) : TickedPieces(a_state));
+		QueuePreview(a_state, a_index >= 0 ? ManagedPreview(a_state) : TickedPieces(a_state));
 	}
 
-	// The selected outfit's edited icon or trimmed name, or `a_pieces`, differ from the library's.
+	// The selected outfit's edited icon, trimmed name or layer flag, or `a_pieces`, differ from
+	// the library's.
 	bool DiffersFromLibrary(const State& a_state, const std::vector<std::size_t>& a_pieces)
 	{
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		return form.icon != outfit.icon || Trimmed(form.name.data()) != outfit.name || a_pieces != outfit.pieces;
+		return form.icon != outfit.icon || Trimmed(form.name.data()) != outfit.name || form.layer != outfit.layer || a_pieces != outfit.pieces;
 	}
 
 	// The selected outfit's edits differ from the library: its icon, trimmed name or loaded pieces.
@@ -849,14 +898,21 @@ namespace CaptureWindow::Internal
 			return ManageFormClick::kNone;
 		}
 		bool icon = false;
-		DrawNameField(a_state, form.name, &form.icon, &icon);
+		DrawNameField(a_state, form.name, &form.icon, &icon, Strings::Get(Text::kOutfitName), form.layer);
+		Theme::AfterFieldGap();
+		// The Layer tick is a library edit as a rename is; Apply then gives the outfit as what
+		// it is ticked, so its tooltip follows.
+		if (DrawLayerTick(form.layer)) {
+			a_state.manageApplyTip = ApplyTooltip(a_state);
+			QueuePreview(a_state, ManagedPreview(a_state));
+		}
 		Theme::AfterFieldGap();
 		// Under the list, its count line and Save's button row.
 		Theme::PushSmallFont();
 		const float under = ImGui::GetTextLineHeightWithSpacing() + ButtonRowGap() + Theme::ButtonHeight() + ImGui::GetStyle().ItemSpacing.y;
 		Theme::PopSmallFont();
 		if (DrawPieceChoices(a_state, form.pieces, &form.excluded, ListBottom() - under)) {
-			QueuePreview(a_state, ManagedWorn(a_state));
+			QueuePreview(a_state, ManagedPreview(a_state));
 		}
 		const auto selected = ManagedWorn(a_state).size();
 		const auto unloaded = OutfitAt(a_state, form.outfit).unloadedPieces;
@@ -890,45 +946,59 @@ namespace CaptureWindow::Internal
 	// outfit goes to one row, the situation outfit they wear when the user agrees, else the
 	// Default (row 0).
 
+	// The library outfit of one kind the actor wears now: their outfit (Request::wornOutfit), or
+	// with `a_layer` the layer over it (Request::wornLayer); 0 for none.
+	std::uint32_t WornOfKind(const State& a_state, bool a_layer)
+	{
+		return a_layer ? a_state.request.wornLayer : a_state.request.wornOutfit;
+	}
+
 	// The row of the situation the actor wears a library outfit for now (Request::wornFor), or
-	// nullopt: they wear the Default, nothing of Livery's, or a situation removed since.
-	std::optional<std::size_t> WornSituationRow(const State& a_state)
+	// nullopt: they wear the Default, nothing of Livery's, or a situation removed since. With
+	// `a_layer`, the situation their layer is from (Request::wornLayerFor), or while they wear
+	// no layer, the one their outfit is worn for: a layer given there goes over it.
+	std::optional<std::size_t> WornSituationRow(const State& a_state, bool a_layer)
 	{
 		const auto& request = a_state.request;
-		if (request.wornOutfit == 0 || request.wornFor == Situations::Situation::kDefault) {
+		auto        situation = request.wornOutfit != 0 ? request.wornFor : Situations::Situation::kDefault;
+		if (a_layer && request.wornLayer != 0 && request.wornLayerFor) {
+			situation = *request.wornLayerFor;
+		}
+		if (situation == Situations::Situation::kDefault) {
 			return std::nullopt;
 		}
-		const auto found = std::ranges::find(request.situations, request.wornFor, &CaptureWindow::SituationInfo::situation);
+		const auto found = std::ranges::find(request.situations, situation, &CaptureWindow::SituationInfo::situation);
 		if (found == request.situations.end()) {
 			return std::nullopt;
 		}
 		return static_cast<std::size_t>(found - request.situations.begin());
 	}
 
-	std::optional<std::size_t> OfferedRow(const State& a_state, std::uint32_t a_outfit)
+	std::optional<std::size_t> OfferedRow(const State& a_state, std::uint32_t a_outfit, bool a_layer)
 	{
-		const auto row = WornSituationRow(a_state);
-		return row && a_state.request.wornOutfit != a_outfit ? row : std::nullopt;
+		const auto row = WornSituationRow(a_state, a_layer);
+		return row && WornOfKind(a_state, a_layer) != a_outfit ? row : std::nullopt;
 	}
 
-	std::size_t DirectApplyRow(const State& a_state)
+	std::size_t DirectApplyRow(const State& a_state, bool a_layer)
 	{
-		return WornSituationRow(a_state).value_or(0);
+		return WornSituationRow(a_state, a_layer).value_or(0);
 	}
 
-	bool ApplyAsksFirst(const State& a_state, std::uint32_t a_outfit)
+	bool ApplyAsksFirst(const State& a_state, std::uint32_t a_outfit, bool a_layer)
 	{
-		return OfferedRow(a_state, a_outfit) || (DirectApplyRow(a_state) == 0 && IsTaken(a_state, 0, a_outfit));
+		return OfferedRow(a_state, a_outfit, a_layer) || (DirectApplyRow(a_state, a_layer) == 0 && IsTaken(a_state, 0, a_outfit, a_layer));
 	}
 
 	// Apply's tooltip: what it dresses the actor for. Contract: an outfit is selected.
 	std::string ApplyTooltip(const State& a_state)
 	{
 		const auto& name = a_state.request.actorName;
-		if (const auto offered = OfferedRow(a_state, ManagedOutfitId(a_state))) {
+		const bool  layer = a_state.manage.layer;
+		if (const auto offered = OfferedRow(a_state, ManagedOutfitId(a_state), layer)) {
 			return Strings::Format(Text::kWardrobeApplyOffer, name, RowName(a_state, *offered));
 		}
-		const auto row = DirectApplyRow(a_state);
+		const auto row = DirectApplyRow(a_state, layer);
 		return row == 0 ? Strings::Format(Text::kWardrobeApplyDefault, name) : Strings::Format(Text::kWardrobeApplyFor, name, RowName(a_state, row));
 	}
 
@@ -942,13 +1012,15 @@ namespace CaptureWindow::Internal
 	{
 		const auto& request = a_state.request;
 		const auto  id = ManagedOutfitId(a_state);
-		if (HasLibraryEdits(a_state) || request.wornOutfit != id || request.piecesNotWorn > 0 || request.extraWorn > 0) {
+		const bool  layer = a_state.manage.layer;
+		if (HasLibraryEdits(a_state) || WornOfKind(a_state, layer) != id || request.piecesNotWorn > 0 || request.extraWorn > 0) {
 			return false;
 		}
 		if (a_state.manage.excluded != StoredExcluded(a_state, id, a_state.manage.pieces)) {
 			return false;
 		}
-		return request.wornFor == Situations::Situation::kDefault || WornSituationRow(a_state).has_value();
+		const auto wornFor = layer ? request.wornLayerFor.value_or(Situations::Situation::kDefault) : request.wornFor;
+		return wornFor == Situations::Situation::kDefault || WornSituationRow(a_state, layer).has_value();
 	}
 
 	// Why Apply to #{Name} is greyed, or nullptr. It dresses the actor in the outfit as
@@ -1060,6 +1132,9 @@ namespace CaptureWindow::Internal
 		if (form.icon != outfit.icon) {
 			ImGui::TextUnformatted(Strings::Get(Text::kIconChanged));
 		}
+		if (form.layer != outfit.layer) {
+			ImGui::TextUnformatted(Strings::Get(form.layer ? Text::kLayerOn : Text::kLayerOff));
+		}
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", Strings::Format(Text::kUnloadedItemsStay, outfit.unloadedPieces).c_str());
 		}
@@ -1169,7 +1244,7 @@ namespace CaptureWindow::Internal
 	// Contract: an outfit is selected.
 	bool ApplyNeedsConfirm(const State& a_state)
 	{
-		return HasLibraryEdits(a_state) || ApplyAsksFirst(a_state, ManagedOutfitId(a_state));
+		return HasLibraryEdits(a_state) || ApplyAsksFirst(a_state, ManagedOutfitId(a_state), a_state.manage.layer);
 	}
 
 	// the Wardrobe page's selected outfit as its Apply popup names it; unsaved library edits are
@@ -1184,7 +1259,8 @@ namespace CaptureWindow::Internal
 			.applyLabel = Strings::Get(edits ? Text::kSaveAndApply : Text::kApply),
 			.saveFirst = edits ? ApplySubject::SaveFirst::kEdits : ApplySubject::SaveFirst::kNothing,
 			.saveFirstHelp = edits ? std::string("\n") + Strings::Get(Text::kSavedFirstHelp) : std::string(),
-			.drawSaveLines = edits ? &DrawLibraryChangeLines : nullptr };
+			.drawSaveLines = edits ? &DrawLibraryChangeLines : nullptr,
+			.layer = a_state.manage.layer };
 	}
 
 	// An Apply question's text by what is saved first: `a_texts` holds the forms with nothing,
@@ -1211,8 +1287,12 @@ namespace CaptureWindow::Internal
 	{
 		const auto& row = a_state.request.assigned[a_row].row;
 		auto        texts = std::array{ Text::kOfferAdd, Text::kOfferAddCreate, Text::kOfferAddEdits };
-		if (!row.random) {
+		if (!row.random && !a_subject.layer) {
 			texts = { Text::kOfferMake, Text::kOfferMakeCreate, Text::kOfferMakeEdits };
+		} else if (!row.random) {
+			// A layer takes the place of the row's layer, or goes over its outfit with none.
+			texts = IsTaken(a_state, a_row, a_subject.id, true) ? std::array{ Text::kOfferLayer, Text::kOfferLayerCreate, Text::kOfferLayerEdits } :
+			                                                      std::array{ Text::kOfferOver, Text::kOfferOverCreate, Text::kOfferOverEdits };
 		} else if (OutfitRows::Holds(row, a_subject.id)) {
 			texts = { Text::kOfferSwitch, Text::kOfferSwitchCreate, Text::kOfferSwitchEdits };
 		}
@@ -1224,8 +1304,10 @@ namespace CaptureWindow::Internal
 	std::string AsDefaultHelp(const State& a_state, const ApplySubject& a_subject)
 	{
 		const auto& name = a_state.request.actorName;
-		auto        help = IsTaken(a_state, 0, a_subject.id) ? Strings::Format(Text::kAsDefaultHelpReplacing, a_subject.name, name, HeldOutfitName(a_state, 0)) :
-		                                                       Strings::Format(Text::kAsDefaultHelp, a_subject.name, name);
+		const bool  layer = a_subject.layer;
+		const auto  replacing = layer ? Text::kAsDefaultLayerHelpReplacing : Text::kAsDefaultHelpReplacing;
+		auto        help = IsTaken(a_state, 0, a_subject.id, layer) ? Strings::Format(replacing, a_subject.name, name, HeldOutfitName(a_state, 0, layer)) :
+		                                                              Strings::Format(layer ? Text::kAsDefaultLayerHelp : Text::kAsDefaultHelp, a_subject.name, name);
 		return help + a_subject.saveFirstHelp;
 	}
 
@@ -1238,7 +1320,7 @@ namespace CaptureWindow::Internal
 	{
 		const auto& request = a_state.request;
 		const bool  random = request.assigned[a_row].row.random;
-		RunLine(random ? Text::kWearingOneOf : Text::kWearingFor, { TextRun(request.actorName.c_str()), WornOutfitRun(a_state), RowRun(a_state, a_row) });
+		RunLine(random ? Text::kWearingOneOf : Text::kWearingFor, { TextRun(request.actorName.c_str()), WornOutfitRun(a_state, a_subject.layer), RowRun(a_state, a_row) });
 		DrawOfferQuestion(a_state, a_subject, a_row);
 		if (a_subject.drawSaveLines) {
 			a_subject.drawSaveLines(a_state);
@@ -1275,15 +1357,21 @@ namespace CaptureWindow::Internal
 	std::optional<std::size_t> DrawDirectApplyPopupBody(const State& a_state, const ApplySubject& a_subject)
 	{
 		const auto& name = a_state.request.actorName;
-		const auto  row = DirectApplyRow(a_state);
-		const auto  texts = row == 0 ? std::array{ Text::kApplyAs, Text::kApplyAsCreate, Text::kApplyAsEdits } :
-		                               std::array{ Text::kApplyFor, Text::kApplyForCreate, Text::kApplyForEdits };
-		RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon), TextRun(name.c_str()), RowRun(a_state, row) });
+		const auto  row = DirectApplyRow(a_state, a_subject.layer);
+		if (a_subject.layer) {
+			// A layer goes over the row's outfit: `Wear A over their Default outfit?`
+			const auto texts = std::array{ Text::kOfferOver, Text::kOfferOverCreate, Text::kOfferOverEdits };
+			RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon), RowRun(a_state, row) });
+		} else {
+			const auto texts = row == 0 ? std::array{ Text::kApplyAs, Text::kApplyAsCreate, Text::kApplyAsEdits } :
+			                              std::array{ Text::kApplyFor, Text::kApplyForCreate, Text::kApplyForEdits };
+			RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon), TextRun(name.c_str()), RowRun(a_state, row) });
+		}
 		if (a_subject.drawSaveLines) {
 			a_subject.drawSaveLines(a_state);
 		}
-		if (row == 0 && IsTaken(a_state, 0, a_subject.id)) {
-			RunLine(Text::kThisReplaces, { HeldOutfitRun(a_state, 0) });
+		if (row == 0 && IsTaken(a_state, 0, a_subject.id, a_subject.layer)) {
+			RunLine(Text::kThisReplaces, { HeldOutfitRun(a_state, 0, a_subject.layer) });
 		}
 		const char* applyLabel = a_subject.applyLabel.c_str();
 		BeginButtonRow({ applyLabel, Strings::Get(Text::kCancel) });
@@ -1300,7 +1388,7 @@ namespace CaptureWindow::Internal
 
 	std::optional<std::size_t> DrawApplyPopupBody(const State& a_state, const ApplySubject& a_subject)
 	{
-		const auto offered = OfferedRow(a_state, a_subject.id);
+		const auto offered = OfferedRow(a_state, a_subject.id, a_subject.layer);
 		return offered ? DrawOfferPopupBody(a_state, a_subject, *offered) : DrawDirectApplyPopupBody(a_state, a_subject);
 	}
 
@@ -1336,7 +1424,8 @@ namespace CaptureWindow::Internal
 		CaptureWindow::SaveRequest edit{ .outfit = ManagedOutfitId(a_state),
 			.name = Trimmed(form.name.data()),
 			.pieces = a_applyRow ? form.pieces : ManagedWorn(a_state),
-			.icon = form.icon };
+			.icon = form.icon,
+			.layer = form.layer };
 		edit.applyRow = a_applyRow;
 		if (a_applyRow) {
 			edit.excluded = form.excluded;
@@ -1464,7 +1553,7 @@ namespace CaptureWindow::Internal
 		if (ApplyNeedsConfirm(a_state)) {
 			ImGui::OpenPopup(kManageApplyPopup);
 		} else {
-			RequestManageApply(a_state, DirectApplyRow(a_state));
+			RequestManageApply(a_state, DirectApplyRow(a_state, a_state.manage.layer));
 		}
 	}
 
@@ -1794,6 +1883,10 @@ namespace CaptureWindow::Internal
 		DrawPieceRows(a_state, list);
 		const auto links = DrawPieceCount(a_state, list, true);
 		DrawPreviewToggle(a_state, list);
+		// The Wardrobe page's Layer tick, on the Live Preview tick's line: the same edit, which
+		// Back does not take back.
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.x * 2.0f);
+		DrawLayerTick(a_state.manage.layer);
 		const char* useLabel = Strings::Get(Text::kUseSelectedItems);
 		BeginButtonRow({ useLabel, Strings::Get(Text::kBack) });
 		const auto ticked = Ticked(a_state, list);
@@ -1814,13 +1907,15 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kOkSound);
 			a_state.manage.pieces = ticked;
 			a_state.manage.excluded = ExcludedAmong(a_state, ticked, a_state.manage.excluded);
-			if (!a_state.manage.excluded.empty()) {
-				QueuePreview(a_state, ManagedWorn(a_state));  // else the preview shows the ticks already
+			if (!a_state.manage.excluded.empty() || a_state.manage.layer) {
+				QueuePreview(a_state, ManagedPreview(a_state));  // else the preview shows the ticks already
 			}
+			a_state.manageApplyTip = ApplyTooltip(a_state);  // the Layer tick may have changed
 			GoToPage(a_state, Page::kManage);
 		} else if (back) {
 			QueueMenuSound(kCancelSound);
-			QueuePreview(a_state, ManagedWorn(a_state));
+			QueuePreview(a_state, ManagedPreview(a_state));
+			a_state.manageApplyTip = ApplyTooltip(a_state);
 			GoToPage(a_state, Page::kManage);
 		}
 	}

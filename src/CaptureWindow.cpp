@@ -538,6 +538,12 @@ namespace CaptureWindow::Internal
 		return a_id != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
+	bool IsLayerOutfit(const State& a_state, std::uint32_t a_id)
+	{
+		const int index = IndexOfOutfit(a_state, a_id);
+		return index >= 0 && OutfitAt(a_state, index).layer;
+	}
+
 	// The Dress page's list: its ticks, the pieces nobody carries that a Load listed
 	// (State::inventoryShown) under the heading naming where they came from, with the chest
 	// icon while a chest was loaded last.
@@ -1221,6 +1227,7 @@ namespace CaptureWindow::Internal
 		const auto& request = a_state.request;
 		auto&       headings = a_state.headings;
 		headings[GroupIndex(Group::kLiveryOutfit)] = Strings::Format(Text::kGroupWornOutfit, request.outfitName);
+		headings[GroupIndex(Group::kLiveryLayer)] = Strings::Format(Text::kGroupWornOutfit, request.layerName);
 		headings[GroupIndex(Group::kNotInLibrary)] = Strings::Get(Text::kGroupNotInWardrobe);
 		headings[GroupIndex(Group::kUnmanaged)] = Strings::Get(Text::kGroupUnmanaged);
 		headings[GroupIndex(Group::kCarried)] = Strings::Get(Text::kGroupInventory);
@@ -1285,10 +1292,14 @@ namespace CaptureWindow::Internal
 		for (const auto index : a_pieces.ticked) {
 			a_state.pieceTicked[index] = true;
 		}
+		a_state.wornPieces = a_pieces.ticked;
 		request.outfitName = a_pieces.outfitName;
 		request.wornOutfit = a_pieces.wornOutfit;
 		request.wornSituation = a_pieces.wornSituation;
 		request.wornFor = a_pieces.wornFor;
+		request.wornLayer = a_pieces.wornLayer;
+		request.layerName = a_pieces.layerName;
+		request.wornLayerFor = a_pieces.wornLayerFor;
 		a_state.loadedOutfit = -1;
 		a_state.inventorySources.clear();
 		SetInventoryShown(a_state);
@@ -1325,6 +1336,19 @@ namespace CaptureWindow::Internal
 	void FollowWornOutfit(State& a_state)
 	{
 		auto& request = a_state.request;
+		// The layer over it likewise: its name now, or no layer named once it has left.
+		if (const int layer = IndexOfOutfit(a_state, request.wornLayer); layer >= 0) {
+			request.layerName = OutfitAt(a_state, layer).name;
+		} else if (request.wornLayer != 0) {
+			request.wornLayer = 0;
+			request.layerName.clear();
+			for (auto& piece : request.pieces) {
+				if (piece.group == CaptureWindow::PieceGroup::kLiveryLayer) {
+					piece.group = CaptureWindow::PieceGroup::kNotInLibrary;
+				}
+			}
+			SortPieces(a_state);
+		}
 		if (request.wornOutfit == 0) {
 			return;
 		}
@@ -1682,27 +1706,95 @@ namespace CaptureWindow::Internal
 		return a_state.request.wornOutfit != 0 && found != outfits.end() ? static_cast<int>(found - outfits.begin()) : -1;
 	}
 
-	// The id of the outfit last loaded when the ticks are exactly its pieces; 0 otherwise.
+	// The loaded pieces of the layer the actor wears (Request::wornLayer), which the Dress page
+	// lists and applies apart from the rest (docs/ui-redesign.md §5); none with no layer worn.
+	const std::vector<std::size_t>& WornLayerPieces(const State& a_state)
+	{
+		static const std::vector<std::size_t> none;
+		const int                             layer = IndexOfOutfit(a_state, a_state.request.wornLayer);
+		return layer >= 0 ? OutfitAt(a_state, layer).pieces : none;
+	}
+
+	// `a_pieces` less the pieces of the layer they wear: what Apply takes as their outfit.
+	std::vector<std::size_t> WithoutLayer(const State& a_state, std::vector<std::size_t> a_pieces)
+	{
+		const auto& layer = WornLayerPieces(a_state);
+		std::erase_if(a_pieces, [&layer](std::size_t a_piece) { return std::ranges::binary_search(layer, a_piece); });
+		return a_pieces;
+	}
+
+	// The ticks less the pieces of the layer they wear.
+	std::vector<std::size_t> BaseTicks(const State& a_state)
+	{
+		return WithoutLayer(a_state, TickedPieces(a_state));
+	}
+
+	// The body slots the ticked pieces of the layer they wear take: a piece of their outfit in
+	// one of them is under the layer, not left unticked.
+	std::uint32_t TickedLayerSlots(const State& a_state)
+	{
+		std::uint32_t slots = 0;
+		for (const auto piece : WornLayerPieces(a_state)) {
+			if (a_state.pieceTicked[piece]) {
+				slots |= a_state.request.pieces[piece].slots;
+			}
+		}
+		return slots;
+	}
+
+	// What the ticks of the layer's pieces ask (CaptureWindow::LayerApply): the armor of those
+	// left unticked, unless there is no layer or every one is unticked; `only` with no library
+	// outfit under it and the other ticks as they wear them.
+	CaptureWindow::LayerApply LayerApplyOf(const State& a_state)
+	{
+		CaptureWindow::LayerApply  apply;
+		const auto&                layer = WornLayerPieces(a_state);
+		std::vector<std::uint32_t> unticked;
+		for (const auto piece : layer) {
+			if (!a_state.pieceTicked[piece]) {
+				unticked.push_back(a_state.request.pieces[piece].armor);
+			}
+		}
+		if (layer.empty() || unticked.size() == layer.size()) {
+			return apply;
+		}
+		apply.excluded = std::move(unticked);
+		apply.only = WornOutfitIndex(a_state) < 0 && BaseTicks(a_state) == WithoutLayer(a_state, a_state.wornPieces);
+		return apply;
+	}
+
+	// The id of the outfit last loaded when the ticks, less the layer's, are exactly its pieces;
+	// 0 otherwise.
 	std::uint32_t TickedOutfitId(const State& a_state)
 	{
 		const int loaded = a_state.loadedOutfit;
-		return loaded >= 0 && TickedPieces(a_state) == OutfitAt(a_state, loaded).pieces ? OutfitAt(a_state, loaded).id : 0;
+		return loaded >= 0 && BaseTicks(a_state) == OutfitAt(a_state, loaded).pieces ? OutfitAt(a_state, loaded).id : 0;
 	}
 
-	// When the ticks are all or some of the pieces of `a_worn` (WornOutfitIndex) and nothing
-	// else: the armor (FormIDs) of its pieces left unticked, empty for none. nullopt otherwise.
+	// When the ticks, less the layer's, are all or some of the pieces of `a_worn`
+	// (WornOutfitIndex) and nothing else: the armor (FormIDs) of its pieces left unticked, empty
+	// for none. nullopt otherwise. A piece under a ticked piece of the layer (it shares a body
+	// slot) is not left unticked, unless the row leaves it off already.
 	std::optional<std::vector<std::uint32_t>> UntickedOfWorn(const State& a_state, int a_worn)
 	{
-		const auto& pieces = OutfitAt(a_state, a_worn).pieces;
-		const auto  ticked = TickedPieces(a_state);
+		const auto& outfit = OutfitAt(a_state, a_worn);
+		const auto& pieces = outfit.pieces;
+		const auto  ticked = BaseTicks(a_state);
 		const auto  inOutfit = [&pieces](std::size_t a_piece) { return std::ranges::binary_search(pieces, a_piece); };
 		if (!std::ranges::all_of(ticked, inOutfit)) {
 			return std::nullopt;
 		}
+		const auto                 covered = TickedLayerSlots(a_state);
+		const auto&                rows = a_state.request.assigned;
+		const auto                 found = std::ranges::find(a_state.request.situations, a_state.request.wornFor, &CaptureWindow::SituationInfo::situation);
+		const auto                 row = static_cast<std::size_t>(found - a_state.request.situations.begin());
+		const auto                 leftOff = row < rows.size() ? OutfitRows::ExcludedOf(rows[row].row, outfit.id) : std::vector<std::uint32_t>{};
 		std::vector<std::uint32_t> unticked;
 		for (const auto piece : pieces) {
-			if (!std::ranges::binary_search(ticked, piece)) {
-				unticked.push_back(a_state.request.pieces[piece].armor);
+			const auto& listed = a_state.request.pieces[piece];
+			const bool  under = (listed.slots & covered) != 0 && std::ranges::find(leftOff, listed.armor) == leftOff.end();
+			if (!std::ranges::binary_search(ticked, piece) && !under) {
+				unticked.push_back(listed.armor);
 			}
 		}
 		return unticked;
@@ -1790,12 +1882,13 @@ namespace CaptureWindow::Internal
 	{
 		a_state.status = Status::kSaving;
 		a_state.error.clear();
-		auto pieces = TickedPieces(a_state);
+		auto pieces = BaseTicks(a_state);
 		auto fromPlayer = TickedFromPlayer(a_state);
+		auto layer = LayerApplyOf(a_state);
 		auto onApply = a_state.request.onApply;
 		SKSE::GetTaskInterface()->AddTask(
-			[onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn, excluded = std::move(a_excluded)] {
-				onApply(pieces, fromPlayer, a_outfit, a_updateWorn, excluded);
+			[onApply, pieces = std::move(pieces), fromPlayer = std::move(fromPlayer), a_outfit, a_updateWorn, excluded = std::move(a_excluded), layer = std::move(layer)] {
+				onApply(pieces, fromPlayer, a_outfit, a_updateWorn, excluded, layer);
 			});
 	}
 
@@ -1815,7 +1908,8 @@ namespace CaptureWindow::Internal
 			}
 		}
 		const auto loaded = TickedOutfitId(a_state);
-		if (worn < 0 || loaded != 0) {
+		// With nothing ticked but the layer's items, there is no outfit to update either.
+		if (worn < 0 || loaded != 0 || BaseTicks(a_state).empty()) {
 			RequestApply(a_state, loaded, false);
 			return;
 		}
@@ -2056,13 +2150,23 @@ namespace CaptureWindow::Internal
 		return OutfitRows::Holds(a_state.request.assigned[a_row].row, a_outfit);
 	}
 
-	bool IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit)
+	// The outfit of one kind row `a_row` wears with random off (OutfitRows::ChosenOf); 0 for none.
+	std::uint32_t ChosenOnRow(const State& a_state, std::size_t a_row, bool a_layer)
+	{
+		return OutfitRows::ChosenOf(a_state.request.assigned[a_row].row, a_layer, [&a_state](std::uint32_t a_outfit) { return IsLayerOutfit(a_state, a_outfit); });
+	}
+
+	bool IsTaken(const State& a_state, std::size_t a_row, std::uint32_t a_outfit, bool a_layer)
 	{
 		const auto& [row, pieces] = a_state.request.assigned[a_row];
 		if (row.random) {
 			return false;  // the outfit joins the list
 		}
-		return row.chosen != 0 ? row.chosen != a_outfit : pieces;
+		const auto chosen = ChosenOnRow(a_state, a_row, a_layer);
+		if (a_layer) {
+			return chosen != 0 && chosen != a_outfit;  // a layer goes over the Default's pieces
+		}
+		return chosen != 0 ? chosen != a_outfit : pieces;
 	}
 
 	// A library outfit as a tooltip names it, quoted, or says it is gone.
@@ -2074,15 +2178,15 @@ namespace CaptureWindow::Internal
 	}
 
 	// What row `a_row` wears now with random off, as Apply as Default's help names it.
-	std::string HeldOutfitName(const State& a_state, std::size_t a_row)
+	std::string HeldOutfitName(const State& a_state, std::size_t a_row, bool a_layer)
 	{
-		const auto outfit = a_state.request.assigned[a_row].row.chosen;
+		const auto outfit = ChosenOnRow(a_state, a_row, a_layer);
 		return outfit ? QuotedOutfitName(a_state, outfit) : std::string(Strings::Get(Text::kItemsNotSaved));
 	}
 
-	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row)
+	Theme::SubtitleRun HeldOutfitRun(const State& a_state, std::size_t a_row, bool a_layer)
 	{
-		const auto outfit = a_state.request.assigned[a_row].row.chosen;
+		const auto outfit = ChosenOnRow(a_state, a_row, a_layer);
 		if (outfit == 0) {
 			return TextRun(Strings::Get(Text::kItemsNotSaved));
 		}
@@ -2091,8 +2195,12 @@ namespace CaptureWindow::Internal
 		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun(Strings::Get(Text::kOutfitGone));
 	}
 
-	Theme::SubtitleRun WornOutfitRun(const State& a_state)
+	Theme::SubtitleRun WornOutfitRun(const State& a_state, bool a_layer)
 	{
+		if (const int layer = a_layer ? IndexOfOutfit(a_state, a_state.request.wornLayer) : -1; layer >= 0) {
+			const auto& outfit = OutfitAt(a_state, layer);
+			return OutfitRun(outfit.name, outfit.icon);
+		}
 		if (const int worn = WornOutfitIndex(a_state); worn >= 0) {
 			const auto& outfit = OutfitAt(a_state, worn);
 			return OutfitRun(outfit.name, outfit.icon);
@@ -2135,11 +2243,11 @@ namespace CaptureWindow::Internal
 	// the line: with `a_iconClicked` (the Wardrobe page, the Create tab) it says `Outfit Icon` on
 	// hover and `*a_iconClicked` says whether it was clicked; without (the Update tab, which
 	// keeps the outfit's icon) it only shows the icon.
-	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked, const char* a_hint)
+	bool DrawNameField(State& a_state, std::array<char, kNameCapacity>& a_name, const OutfitIcons::Icon* a_icon, bool* a_iconClicked, const char* a_hint, bool a_layer)
 	{
 		Theme::SectionGap();  // a field with no label
 		if (a_icon) {
-			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon), a_iconClicked != nullptr);
+			const bool clicked = Theme::IconField("##outfitIcon", RowIconOf(*a_icon, a_layer), a_iconClicked != nullptr);
 			if (a_iconClicked) {
 				if (ImGui::IsItemHovered()) {
 					Theme::Tooltip(Strings::Get(Text::kOutfitIcon));
@@ -2226,7 +2334,9 @@ namespace CaptureWindow::Internal
 		ImGui::PushID("create");
 		const auto pieces = TickedPieces(a_state);
 		const auto icon = CreateIcon(a_state, pieces);
-		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked);
+		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked, Strings::Get(Text::kOutfitName), a_state.createLayer);
+		Theme::AfterFieldGap();
+		DrawLayerTick(a_state.createLayer);
 		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(pieces.size(), 0).c_str());
 		DrawPieceNames(a_state, pieces);
@@ -2357,7 +2467,7 @@ namespace CaptureWindow::Internal
 			return std::nullopt;
 		}
 		const auto name = Trimmed(a_state.createName.data());
-		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = Strings::Get(Text::kCreateAndApply), .saveFirst = ApplySubject::SaveFirst::kCreate });
+		const auto row = DrawApplyPopupBody(a_state, { .name = name, .icon = CreateIcon(a_state, TickedPieces(a_state)), .applyLabel = Strings::Get(Text::kCreateAndApply), .saveFirst = ApplySubject::SaveFirst::kCreate, .layer = a_state.createLayer });
 		ImGui::EndPopup();
 		return row;
 	}
@@ -2404,6 +2514,7 @@ namespace CaptureWindow::Internal
 		a_state.createName.fill('\0');
 		std::strncpy(a_state.createName.data(), a_state.request.suggestedName.c_str(), kNameCapacity - 1);
 		a_state.createIcon.reset();
+		a_state.createLayer = false;
 	}
 
 	// Hands the save to onSave; `a_applyRow` (Create and Apply) is the row the new outfit goes
@@ -2420,6 +2531,7 @@ namespace CaptureWindow::Internal
 			.applyRow = a_applyRow };
 		if (!a_state.updateTab) {
 			save.icon = CreateIcon(a_state, save.pieces);
+			save.layer = a_state.createLayer;
 		}
 		if (a_applyRow) {
 			save.fromPlayer = TickedFromPlayer(a_state);
@@ -2434,11 +2546,11 @@ namespace CaptureWindow::Internal
 	// Contract: called in the window's own ID scope, as DrawCreateApplyPopup is.
 	void BeginCreateAndApply(State& a_state)
 	{
-		if (ApplyAsksFirst(a_state, 0)) {
+		if (ApplyAsksFirst(a_state, 0, a_state.createLayer)) {
 			ImGui::OpenPopup(kCreateApplyPopup);
 			return;
 		}
-		RequestSave(a_state, DirectApplyRow(a_state));
+		RequestSave(a_state, DirectApplyRow(a_state, a_state.createLayer));
 	}
 
 	// Reached only with at least one piece ticked, which onSave relies on; the ticks cannot
@@ -2616,8 +2728,12 @@ namespace CaptureWindow
 			const std::scoped_lock lock(state.mutex);
 			state.request = std::move(a_request);
 			state.pieceTicked = std::make_unique<bool[]>(state.request.pieces.size());
+			state.wornPieces.clear();
 			for (std::size_t i = 0; i < state.request.pieces.size(); ++i) {
 				state.pieceTicked[i] = state.request.pieces[i].selected;
+				if (state.request.pieces[i].selected) {
+					state.wornPieces.push_back(i);
+				}
 			}
 			// The Update tab's name is filled when an outfit is chosen (ChooseOutfit).
 			RestartCreateTab(state);
@@ -2725,6 +2841,7 @@ namespace CaptureWindow
 			state.request = {};
 			state.createName = {};
 			state.createIcon.reset();
+			state.createLayer = false;
 			state.updateName = {};
 			state.manage = {};
 			state.situationForm = {};

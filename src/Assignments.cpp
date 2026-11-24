@@ -4,8 +4,9 @@
 //   Constants   - the player's reference, co-save ids
 //   Records     - one assignment per actor, with its rows (OutfitRows); g_managed mirrors the
 //                 NPCs for the event sinks, g_dressed those with pieces on for OwnOutfitGuard
-//   Dressing    - which row a situation resolves to and the outfit it wears (a random row's
-//                 pick), and putting it on in place of the one worn
+//   Dressing    - which rows a situation resolves to for the base and the layer and the
+//                 outfits they wear (a random row's pick), and putting them on in place of
+//                 those worn
 //   Release     - Livery's locks and copies off, the actor's own pieces back on
 //   Load, death - pieces put back on, and armor worn over them taken off, when an assigned NPC
 //                 loads, or their own clothes back on when every piece is gone; outfit copies
@@ -15,12 +16,12 @@
 //   Co-save     - save, load (version 6; the rows of situations removed in situations.json
 //                 or unknown to this version dropped, but a user's situation's kept while
 //                 situations.json cannot be read),
-//                 the items the rows' outfits leave off and their selection chances in records
-//                 of their own, revert
+//                 the items the rows' outfits leave off, their selection chances and the layers
+//                 in records of their own, revert
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
 //                 inventory), MenuOpenCloseEvent (also logs menus opening or closing while
 //                 the window is open)
-//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / Refresh / PickAnother / WearFor /
+//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / SetLayerExcluded / Refresh / PickAnother / WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc /
 //                 TakeOffAfterPass
@@ -64,6 +65,8 @@ namespace
 	constexpr std::uint32_t kExclusionsVersion = 2;  // the only version read
 	constexpr std::uint32_t kChancesRecord = 'CHNC';
 	constexpr std::uint32_t kChancesVersion = 1;  // the only version read
+	constexpr std::uint32_t kLayersRecord = 'LAYR';
+	constexpr std::uint32_t kLayersVersion = 1;  // the only version read
 
 	// --- Records --------------------------------------------------------------
 
@@ -88,8 +91,16 @@ namespace
 		// The Default's armor not in the wardrobe, worn while its row wears no outfit; empty
 		// for none (their own clothes).
 		std::vector<RE::FormID> defaultPieces;
-		Situation               worn = Situation::kDefault;  // the row `pieces` are for
-		std::uint32_t           wornOutfit = 0;              // the library outfit `pieces` are from; 0 for none or the Default's pieces
+		Situation               worn = Situation::kDefault;  // the row the base of `pieces` is for
+		std::uint32_t           wornOutfit = 0;              // the library outfit the base is from; 0 for none or the Default's pieces
+		// The row the layer of `pieces` is from (OutfitRows::ResolveLayer); nullopt while no row
+		// has a layer for them. With `layer` 0 that row drew none, which it keeps while it stays
+		// the layer row, as a random row keeps its pick.
+		std::optional<Situation> layerRow;
+		std::uint32_t            layer = 0;  // the layer worn over the base; 0 for none
+		// The layer is on over their own clothes (no row has a base for them): their other armor
+		// stays on (Dressing::Dress, TakeOffExtras's `keepOthers`).
+		bool overOwn = false;
 		// The rows of user's situations this session does not have, as the co-save held them
 		// while situations.json could not be read (SituationTable::KeepsUnknownRow), written
 		// back on save; never worn or shown. Each holds something (HoldsSomething).
@@ -244,8 +255,25 @@ namespace
 		return stored ? Strings::Format(Strings::Text::kQuotedName, stored->name) : Strings::Get(Strings::Text::kOutfitGone);
 	}
 
+	// What they wear as the HUD names it while a layer is on, `"Cloak" over "Guard"`: the layer
+	// over the base's outfit, the default items, or their own clothes. nullopt with no layer on.
+	std::optional<std::string> LayeredText(RE::Actor& a_actor, const Assignment& a_assignment)
+	{
+		using Strings::Text;
+		if (a_assignment.layer == 0 || a_assignment.pieces.empty()) {
+			return std::nullopt;
+		}
+		std::string base = Strings::Get(Text::kHudDefaultItems);
+		if (a_assignment.overOwn) {
+			base = Strings::Get(a_actor.IsPlayerRef() ? Text::kOwnClothesYour : Text::kOwnClothesTheir);
+		} else if (a_assignment.wornOutfit != 0) {
+			base = QuotedOutfitName(a_assignment.wornOutfit);
+		}
+		return Strings::Format(Text::kOutfitOver, QuotedOutfitName(a_assignment.layer), base);
+	}
+
 	// The HUD line for a redress because a situation began or ended (WearFor): what they wear
-	// now, and the situation it is for.
+	// now, and the situation it is for; with a layer on, both outfits, for the base's situation.
 	std::string SituationChangeText(RE::Actor& a_actor, const Assignment& a_assignment)
 	{
 		using Strings::Text;
@@ -253,6 +281,12 @@ namespace
 		const auto name = NameOf(a_actor);
 		if (a_assignment.pieces.empty()) {
 			return Strings::Format(player ? Text::kHudYouWearOwn : Text::kHudWearsOwn, name);
+		}
+		if (const auto layered = LayeredText(a_actor, a_assignment)) {
+			if (a_assignment.worn == Situation::kDefault || a_assignment.overOwn) {
+				return Strings::Format(player ? Text::kHudYouWearNow : Text::kHudWearsNow, name, *layered);
+			}
+			return Strings::Format(player ? Text::kHudYouWearFor : Text::kHudWearsFor, name, *layered, SituationStore::Name(a_assignment.worn));
 		}
 		if (a_assignment.worn == Situation::kDefault) {
 			return Strings::Format(player ? Text::kHudYouWearDefault : Text::kHudWearsDefault, name);
@@ -299,15 +333,51 @@ namespace
 	{
 		bool                            force = false;  // dress them even when they wear what is due
 		std::vector<RE::TESObjectARMO*> leaveOut;       // stays out of this dressing only
-		// An outfit just given to `givenRows` (Assign, Change): a random one of them worn now
-		// wears it as its pick.
-		std::uint32_t          given = 0;
-		std::vector<Situation> givenRows;
+		// Outfits just given to `givenRows` (Assign, Change), or picked for them (Refresh): a
+		// random one of them worn now wears `givenBase` as its base, and `givenLayer` as its
+		// layer (0 for a draw of none).
+		std::uint32_t                givenBase = 0;
+		std::optional<std::uint32_t> givenLayer;
+		std::vector<Situation>       givenRows;
 	};
 
 	bool InLibrary(std::uint32_t a_outfit)
 	{
 		return Library::Find(a_outfit) != nullptr;
+	}
+
+	// Whether library outfit `a_outfit` is a layer now (OutfitRows' `a_isLayer`); one gone from
+	// the library is not.
+	bool IsLayerOutfit(std::uint32_t a_outfit)
+	{
+		const auto* outfit = Library::Find(a_outfit);
+		return outfit && outfit->layer;
+	}
+
+	// Whether outfit `a_outfit` has an item loaded (OutfitRows' `a_wearable`): a layer with none
+	// is passed over, so another can be worn in its place.
+	bool WearableLayer(std::uint32_t a_outfit)
+	{
+		const auto* outfit = Library::Find(a_outfit);
+		return outfit && Library::HasLoadedPiece(*outfit);
+	}
+
+	std::uint32_t SlotsOf(const RE::TESObjectARMO* a_armor)
+	{
+		return a_armor->GetSlotMask().underlying();
+	}
+
+	// RedressOptions for outfit `a_outfit` just given to `a_rows`: as their base, or as their
+	// layer when it is one.
+	RedressOptions GivenTo(std::uint32_t a_outfit, std::vector<Situation> a_rows)
+	{
+		RedressOptions options{ .givenRows = std::move(a_rows) };
+		if (IsLayerOutfit(a_outfit)) {
+			options.givenLayer = a_outfit;
+		} else {
+			options.givenBase = a_outfit;
+		}
+		return options;
 	}
 
 	// Their rows as dressing sees them (OutfitRows::WithoutGone): an outfit another save's row
@@ -322,14 +392,62 @@ namespace
 		return rows;
 	}
 
-	// The library outfit row `a_row` of `a_rows` (LiveRows) wears now, 0 for none
-	// (OutfitRows::Wears): a random row keeps the pick they wear for it while it is on the
-	// list, or wears the outfit just given.
+	bool IsGivenTo(const RedressOptions& a_options, Situation a_row)
+	{
+		return std::ranges::find(a_options.givenRows, a_row) != a_options.givenRows.end();
+	}
+
+	// The base row `a_row` of `a_rows` (LiveRows) wears now, 0 for none (OutfitRows::Wears): a
+	// random row keeps the base they wear for it while it is on the list, or wears the one just
+	// given.
 	std::uint32_t OutfitFor(const Assignment& a_assignment, const OutfitRows::Rows& a_rows, Situation a_row, const RedressOptions& a_options)
 	{
-		const bool given = a_options.given != 0 && std::ranges::find(a_options.givenRows, a_row) != a_options.givenRows.end();
-		const auto kept = given ? a_options.given : (a_assignment.worn == a_row ? a_assignment.wornOutfit : 0);
-		return OutfitRows::Wears(a_rows[RowOf(a_row)], kept, RandomBelow);
+		const bool given = a_options.givenBase != 0 && IsGivenTo(a_options, a_row);
+		const auto kept = given ? a_options.givenBase : (a_assignment.worn == a_row ? a_assignment.wornOutfit : 0);
+		return OutfitRows::Wears(a_rows[RowOf(a_row)], kept, RandomBelow, IsLayerOutfit);
+	}
+
+	// The layer row `a_row` of `a_rows` (LiveRows) wears now, 0 for none (OutfitRows::WearsLayer):
+	// a random row keeps what it drew while it stays the layer row (none included), or wears the
+	// one just given.
+	std::uint32_t LayerFor(const Assignment& a_assignment, const OutfitRows::Rows& a_rows, Situation a_row, const RedressOptions& a_options)
+	{
+		std::optional<std::uint32_t> kept;
+		if (a_options.givenLayer && IsGivenTo(a_options, a_row)) {
+			kept = a_options.givenLayer;
+		} else if (a_assignment.layerRow == a_row) {
+			kept = a_assignment.layer;
+		}
+		return OutfitRows::WearsLayer(a_rows[RowOf(a_row)], kept, RandomBelow, IsLayerOutfit, WearableLayer);
+	}
+
+	// What a dressing puts on: the base from row `row` (`outfit`, 0 for none or the Default's
+	// pieces) and, with `layerRow`, the layer from that row over it (`layer`, 0 for a draw of
+	// none).
+	struct Due
+	{
+		Situation                row = Situation::kDefault;
+		std::uint32_t            outfit = 0;
+		std::optional<Situation> layerRow;
+		std::uint32_t            layer = 0;
+	};
+
+	// What is due for `a_now`, the rows as LiveRows sees them.
+	Due DueFor(const Assignment& a_assignment, const OutfitRows::Rows& a_rows, const Situations::Applicable& a_now, const RedressOptions& a_options)
+	{
+		Due due{ .row = OutfitRows::Resolve(a_rows, a_now, IsLayerOutfit) };
+		due.outfit = OutfitFor(a_assignment, a_rows, due.row, a_options);
+		due.layerRow = OutfitRows::ResolveLayer(a_rows, a_now, IsLayerOutfit, WearableLayer);
+		if (due.layerRow) {
+			due.layer = LayerFor(a_assignment, a_rows, *due.layerRow, a_options);
+		}
+		return due;
+	}
+
+	bool IsWorn(const Assignment& a_assignment, const Due& a_due)
+	{
+		return a_due.row == a_assignment.worn && a_due.outfit == a_assignment.wornOutfit && a_due.layerRow == a_assignment.layerRow &&
+		       a_due.layer == a_assignment.layer;
 	}
 
 	// The armor row `a_row` wears as `a_outfit`: the library outfit's loaded pieces less those
@@ -357,13 +475,24 @@ namespace
 		return armor;
 	}
 
-	// Puts row `a_row`'s `a_outfit` on them in place of what Livery has on them, less
-	// `a_leaveOut`. Their own pieces from before go back on first, so they are what this
-	// dressing takes off and notes. With no armor for the row they end up in their own
-	// clothes. An NPC's outfit copies are locked again once pieces are on. A random row's
-	// pick is recorded as its `chosen`, which turning random off keeps on
-	// (OutfitRows::SetRandom).
-	Dressing::Result Wear(Assignment& a_assignment, RE::Actor& a_actor, Situation a_row, std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_leaveOut)
+	// A dressing's result, and how its base fared: Redress falls back to the Default's base
+	// when a situation's base put nothing on.
+	struct Worn
+	{
+		Dressing::Result result;
+		bool             baseOn = false;      // a piece of the base went on, or the layer covers all of them
+		std::size_t      baseNotCarried = 0;  // the base's pieces left out: not carried and adding was off
+		std::size_t      baseRefused = 0;     // the base's pieces the engine would not put on
+	};
+
+	// Puts `a_due` on them in place of what Livery has on them, less `a_leaveOut`: the base's
+	// pieces whose body slots no layer piece takes, then the layer's (OutfitRows::Uncovered).
+	// With no base but a layer, the layer goes over their own clothes, which stay on. Their own
+	// pieces from before go back on first, so they are what this dressing takes off and notes.
+	// With no armor for the rows they end up in their own clothes. An NPC's outfit copies are
+	// locked again once pieces are on. A random row's picks are recorded as its `chosen` and
+	// `chosenLayer`, which turning random off keeps on (OutfitRows::SetRandom).
+	Worn Wear(Assignment& a_assignment, RE::Actor& a_actor, const Due& a_due, const std::vector<RE::TESObjectARMO*>& a_leaveOut)
 	{
 		Dressing::Release(a_actor, a_assignment.pieces, true);
 		// Before PutBack and Dress, which skip a locked unworn copy: their outfit items can be
@@ -371,19 +500,42 @@ namespace
 		Dressing::UnlockOutfitCopies(a_actor, a_assignment.lockedCopies);
 		a_assignment.lockedCopies.clear();
 		Dressing::PutBack(a_actor, a_assignment.takenOff);
-		auto armor = ArmorFor(a_assignment, a_row, a_outfit);
-		std::erase_if(armor, [&a_leaveOut](const RE::TESObjectARMO* a_piece) { return std::ranges::find(a_leaveOut, a_piece) != a_leaveOut.end(); });
+		const auto without = [&a_leaveOut](std::vector<RE::TESObjectARMO*> a_armor) {
+			std::erase_if(a_armor, [&a_leaveOut](const RE::TESObjectARMO* a_piece) { return std::ranges::find(a_leaveOut, a_piece) != a_leaveOut.end(); });
+			return a_armor;
+		};
+		const auto base = without(ArmorFor(a_assignment, a_due.row, a_due.outfit));
+		const auto layer = a_due.layerRow && a_due.layer != 0 ? without(ArmorFor(a_assignment, *a_due.layerRow, a_due.layer)) : std::vector<RE::TESObjectARMO*>{};
+		const auto uncovered = OutfitRows::Uncovered(base, layer, SlotsOf);
+		auto       armor = uncovered;
+		armor.insert(armor.end(), layer.begin(), layer.end());
+		const bool overOwn = base.empty() && !layer.empty();
 		const bool isPlayer = a_actor.IsPlayerRef();
-		auto       result = Dressing::Dress(a_actor, armor, !isPlayer, !isPlayer || Settings::PlayerAddsMissingPieces());
-		a_assignment.pieces = result.worn;
-		a_assignment.takenOff = result.takenOff;
-		a_assignment.worn = a_row;
-		a_assignment.wornOutfit = a_outfit;
+		Worn       worn{ .result = Dressing::Dress(a_actor, armor, !isPlayer, !isPlayer || Settings::PlayerAddsMissingPieces(), overOwn) };
+		const auto inBase = [&uncovered](const RE::TESObjectARMO* a_piece) { return std::ranges::find(uncovered, a_piece) != uncovered.end(); };
+		const auto baseWorn = [&uncovered](const Dressing::Piece& a_piece) {
+			return std::ranges::any_of(uncovered, [&a_piece](const RE::TESObjectARMO* a_armor) { return a_armor->GetFormID() == a_piece.key.armor; });
+		};
+		worn.baseOn = uncovered.empty() ? !base.empty() : std::ranges::any_of(worn.result.worn, baseWorn);
+		worn.baseNotCarried = static_cast<std::size_t>(std::ranges::count_if(worn.result.notCarried, inBase));
+		worn.baseRefused = static_cast<std::size_t>(std::ranges::count_if(worn.result.refused, inBase));
+		a_assignment.pieces = worn.result.worn;
+		a_assignment.takenOff = worn.result.takenOff;
+		a_assignment.worn = a_due.row;
+		a_assignment.wornOutfit = a_due.outfit;
+		a_assignment.layerRow = a_due.layerRow;
+		a_assignment.layer = a_due.layer;
+		a_assignment.overOwn = overOwn && !worn.result.worn.empty();
 		LockNewOutfitCopies(a_assignment, a_actor);
-		if (auto& row = a_assignment.rows[RowOf(a_row)]; row.random && a_outfit != 0) {
-			row.chosen = a_outfit;  // on the list: OutfitRows::Wears picks from it
+		if (auto& row = a_assignment.rows[RowOf(a_due.row)]; row.random && a_due.outfit != 0) {
+			row.chosen = a_due.outfit;  // on the list: OutfitRows::Wears picks from it
 		}
-		return result;
+		if (a_due.layerRow && a_due.layer != 0) {
+			if (auto& row = a_assignment.rows[RowOf(*a_due.layerRow)]; row.random) {
+				row.chosenLayer = a_due.layer;  // a draw of none leaves the last one
+			}
+		}
+		return worn;
 	}
 
 	// Why a situation outfit put nothing on, so the Default went on instead (Redress).
@@ -427,33 +579,34 @@ namespace
 		return a_text;
 	}
 
-	// Dresses them for `a_now` unless they already wear the row it resolves to and the
-	// outfit that row wears (`force` dresses them anyway), the rows as LiveRows sees them. A
-	// situation outfit that puts nothing on falls back to the Default, with a log line that
-	// says why. Returns the dressing's result, or nullopt when nothing changed; the
-	// assignment's `worn` and `wornOutfit` tell what went on.
+	// Dresses them for `a_now` unless they already wear what it is due (DueFor; `force` dresses
+	// them anyway), the rows as LiveRows sees them. A situation's base that puts nothing on falls
+	// back to the Default's, under the same layer, with a log line that says why. Returns the
+	// dressing's result, or nullopt when nothing changed; the assignment's `worn`, `wornOutfit`,
+	// `layerRow` and `layer` tell what went on.
 	std::optional<Redressed> Redress(Assignment& a_assignment, RE::Actor& a_actor, const Situations::Applicable& a_now, const RedressOptions& a_options = {})
 	{
 		const auto rows = LiveRows(a_assignment);
-		const auto row = OutfitRows::Resolve(rows, a_now);
-		const auto outfit = OutfitFor(a_assignment, rows, row, a_options);
-		if (!a_options.force && row == a_assignment.worn && outfit == a_assignment.wornOutfit) {
+		auto       due = DueFor(a_assignment, rows, a_now, a_options);
+		if (!a_options.force && IsWorn(a_assignment, due)) {
 			return std::nullopt;
 		}
 		// Read before Wear, which changes what they wear and so a random Default's kept pick.
-		const auto defaultOutfit = row != Situation::kDefault ? OutfitFor(a_assignment, rows, Situation::kDefault, a_options) : outfit;
-		Redressed  redressed{ .result = Wear(a_assignment, a_actor, row, outfit, a_options.leaveOut) };
-		if (redressed.result.worn.empty() && row != Situation::kDefault) {
-			const auto* stored = Library::Find(outfit);
-			const auto& missed = redressed.result;
-			redressed.fallback = Fallback{ .row = row,
-				.outfit = outfit,
-				.notCarried = missed.notCarried.size(),
-				.refused = missed.refused.size(),
-				.loaded = stored && !Library::LoadedPieces(*stored).empty() };
-			logger::info("No piece of the {} outfit \"{}\" went on {:08X}: {} not carried, {} could not be put on; the default outfit instead", Situations::Name(row),
-				stored ? stored->name : "no longer in the Wardrobe", a_actor.GetFormID(), missed.notCarried.size(), missed.refused.size());
-			redressed.result = Wear(a_assignment, a_actor, Situation::kDefault, defaultOutfit, a_options.leaveOut);
+		const auto defaultOutfit = due.row != Situation::kDefault ? OutfitFor(a_assignment, rows, Situation::kDefault, a_options) : due.outfit;
+		auto       worn = Wear(a_assignment, a_actor, due, a_options.leaveOut);
+		Redressed  redressed{ .result = std::move(worn.result) };
+		if (!worn.baseOn && due.row != Situation::kDefault) {
+			const auto* stored = Library::Find(due.outfit);
+			redressed.fallback = Fallback{ .row = due.row,
+				.outfit = due.outfit,
+				.notCarried = worn.baseNotCarried,
+				.refused = worn.baseRefused,
+				.loaded = stored && Library::HasLoadedPiece(*stored) };
+			logger::info("No piece of the {} outfit \"{}\" went on {:08X}: {} not carried, {} could not be put on; the default outfit instead", Situations::Name(due.row),
+				stored ? stored->name : "no longer in the Wardrobe", a_actor.GetFormID(), worn.baseNotCarried, worn.baseRefused);
+			due.row = Situation::kDefault;
+			due.outfit = defaultOutfit;
+			redressed.result = Wear(a_assignment, a_actor, due, a_options.leaveOut).result;
 		}
 		return redressed;
 	}
@@ -473,12 +626,12 @@ namespace
 	}
 
 	// Row `a_row` gets library outfit `a_outfit`, leaving `a_excluded` off (OutfitRows::Give);
-	// a library outfit made the Default's `chosen` with random off drops the Default's pieces
-	// (a random Default keeps them for an empty list). Nobody is dressed here.
+	// a base made the Default's `chosen` with random off drops the Default's pieces (a random
+	// Default keeps them for an empty list; a layer goes over them). Nobody is dressed here.
 	void GiveRow(Assignment& a_assignment, Situation a_row, std::uint32_t a_outfit, const std::vector<RE::FormID>& a_excluded = {})
 	{
 		auto& row = a_assignment.rows[RowOf(a_row)];
-		OutfitRows::Give(row, a_outfit, a_excluded);
+		OutfitRows::Give(row, a_outfit, a_excluded, IsLayerOutfit);
 		if (a_row == Situation::kDefault && !row.random && row.chosen == a_outfit) {
 			a_assignment.defaultPieces.clear();
 		}
@@ -497,18 +650,40 @@ namespace
 		}
 	}
 
-	// The outfit the row they wear now gains first in `a_rows` while it is random, which their
-	// next dressing wears as its pick (docs/situation-management-ui.md §1); 0 for none, or
-	// while nothing is on them.
-	std::uint32_t GainedPick(const Assignment& a_assignment, const OutfitRows::Rows& a_rows)
+	// The outfit of one kind (a layer with `a_layer`, else a base) row `a_row` gains first in
+	// `a_rows` while it is random; 0 for none.
+	std::uint32_t Gained(const Assignment& a_assignment, const OutfitRows::Rows& a_rows, Situation a_row, bool a_layer)
 	{
-		const auto& before = a_assignment.rows[RowOf(a_assignment.worn)].outfits;
-		const auto& after = a_rows[RowOf(a_assignment.worn)];
-		if (a_assignment.pieces.empty() || !after.random) {
+		const auto& before = a_assignment.rows[RowOf(a_row)].outfits;
+		const auto& after = a_rows[RowOf(a_row)];
+		if (!after.random) {
 			return 0;
 		}
-		const auto gained = std::ranges::find_if(after.outfits, [&before](std::uint32_t a_outfit) { return std::ranges::find(before, a_outfit) == before.end(); });
+		const auto gained = std::ranges::find_if(after.outfits, [&before, a_layer](std::uint32_t a_outfit) {
+			return IsLayerOutfit(a_outfit) == a_layer && std::ranges::find(before, a_outfit) == before.end();
+		});
 		return gained != after.outfits.end() ? *gained : 0;
+	}
+
+	// The outfits the random rows they wear now gain first in `a_rows`, which their next
+	// dressing wears as the picks (docs/situation-management-ui.md §1): the base the row of
+	// their base gains, and the layer that row gains, else the row of their layer; none while
+	// nothing is on them.
+	Assignments::Picks GainedPicks(const Assignment& a_assignment, const OutfitRows::Rows& a_rows)
+	{
+		Assignments::Picks picks;
+		if (a_assignment.pieces.empty()) {
+			return picks;
+		}
+		picks.base = Gained(a_assignment, a_rows, a_assignment.worn, false);
+		auto layer = Gained(a_assignment, a_rows, a_assignment.worn, true);
+		if (layer == 0 && a_assignment.layerRow) {
+			layer = Gained(a_assignment, a_rows, *a_assignment.layerRow, true);
+		}
+		if (layer != 0) {
+			picks.layer = layer;
+		}
+		return picks;
 	}
 
 	// The library outfit's loaded pieces not in `a_armor`.
@@ -560,6 +735,7 @@ namespace
 		a_assignment.pieces.clear();
 		a_assignment.takenOff.clear();
 		a_assignment.lockedCopies.clear();
+		a_assignment.overOwn = false;
 		logger::info("None of Livery's pieces on {:08X} is in their inventory any more; {} of their own piece(s) and {} outfit item(s) went back on", id,
 			putBack, outfitItems);
 		DropIfEmpty(id);
@@ -597,7 +773,7 @@ namespace
 			logger::info("Put {} piece(s) back on or locked again on {:08X}", count, a_actor);
 		}
 		// After PutBackOn, so the pieces it put on again count as worn.
-		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies); count > 0) {
+		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies, assignment->overOwn); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
 		}
 		LockNewOutfitCopies(*assignment, *actor);
@@ -629,7 +805,7 @@ namespace
 			logger::info("Upgraded {} piece(s) on {:08X} to a better copy", count, a_actor);
 		}
 		// After Upgrade, so a better copy it put on counts as a piece.
-		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies); count > 0) {
+		if (const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies, assignment->overOwn); count > 0) {
 			logger::info("Took off {} item(s) worn outside Livery's pieces on {:08X}", count, a_actor);
 		}
 		LockNewOutfitCopies(*assignment, *actor);
@@ -663,7 +839,7 @@ namespace
 			refreshIfHalted();
 			return true;
 		}
-		const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies);
+		const auto count = Dressing::TakeOffExtras(*actor, assignment->pieces, assignment->lockedCopies, assignment->overOwn);
 		if (count == 0) {
 			return false;  // nothing changed: no lock pass either, this runs after every worn-gear pass
 		}
@@ -807,7 +983,7 @@ namespace
 	}
 
 	// Calls `a_call(actor, key, row)` for every row stored, kept rows included, as the records
-	// of a row's outfits (EXCL, CHNC) name them: by the actor and the situation's key.
+	// of a row's outfits (EXCL, CHNC, LAYR) name them: by the actor and the situation's key.
 	template <class Call>
 	void ForEachStoredRow(Call&& a_call)
 	{
@@ -886,6 +1062,54 @@ namespace
 		}
 	}
 
+	// Record LAYR v1, written after ASGN while an assignment has a layer row or wears a layer
+	// over their own clothes (HasLayerState), or a row has a layer chosen (Row::chosenLayer):
+	// the count of those assignments; per assignment the actor FormID, whether `layerRow` is
+	// set (one byte), `overOwn` (one byte), and with `layerRow` its situation (by its key, as in
+	// ASGN) and `layer`; then the count of rows with a layer chosen; per row the actor FormID,
+	// the row's situation and `chosenLayer`. A record of its own, so a Livery that does not know
+	// LAYR skips it: no layer is worn, and the layers wait on their rows' lists.
+
+	bool HasLayerState(const Assignment& a_assignment)
+	{
+		return a_assignment.layerRow.has_value() || a_assignment.overOwn;
+	}
+
+	void SaveLayers(SKSE::SerializationInterface* a_intfc)
+	{
+		const auto    states = static_cast<std::uint32_t>(std::ranges::count_if(g_assignments, HasLayerState));
+		std::uint32_t chosen = 0;
+		ForEachStoredRow([&chosen](RE::FormID, std::string_view, const OutfitRows::Row& a_row) { chosen += a_row.chosenLayer != 0 ? 1u : 0u; });
+		if (states == 0 && chosen == 0) {
+			return;
+		}
+		if (!a_intfc->OpenRecord(kLayersRecord, kLayersVersion)) {
+			logger::error("Could not open the co-save record of the layers");
+			return;
+		}
+		bool written = Write(*a_intfc, states);
+		for (const auto& assignment : g_assignments) {
+			if (!HasLayerState(assignment)) {
+				continue;
+			}
+			const auto& row = assignment.layerRow;
+			written = written && Write(*a_intfc, assignment.actor) && Write(*a_intfc, static_cast<std::uint8_t>(row.has_value())) &&
+			          Write(*a_intfc, static_cast<std::uint8_t>(assignment.overOwn));
+			if (row) {
+				written = written && WriteSituation(*a_intfc, *row) && Write(*a_intfc, assignment.layer);
+			}
+		}
+		written = written && Write(*a_intfc, chosen);
+		ForEachStoredRow([&written, a_intfc](RE::FormID a_actor, std::string_view a_key, const OutfitRows::Row& a_row) {
+			if (a_row.chosenLayer != 0) {
+				written = written && Write(*a_intfc, a_actor) && WriteSituationKey(*a_intfc, a_key) && Write(*a_intfc, a_row.chosenLayer);
+			}
+		});
+		if (!written) {
+			logger::error("Could not write the co-save record of the layers");
+		}
+	}
+
 	void OnSave(SKSE::SerializationInterface* a_intfc)
 	{
 		if (g_assignments.empty()) {
@@ -904,6 +1128,7 @@ namespace
 		}
 		SaveExclusions(a_intfc);
 		SaveChances(a_intfc);
+		SaveLayers(a_intfc);
 	}
 
 	bool ReadPiece(const SKSE::SerializationInterface& a_intfc, Dressing::Piece& a_piece, bool& a_resolved)
@@ -1025,7 +1250,8 @@ namespace
 			}
 			const auto situation = Situations::FromKey(key);
 			if (!situation) {
-				if (!HoldsSomething(row)) {
+				// One with outfits on its list may hold a layer LAYR names (OnLoad drops it if not).
+				if (!HoldsSomething(row) && row.outfits.empty()) {
 					continue;
 				}
 				if (SituationTable::KeepsUnknownRow(key, SituationStore::WasLoaded())) {
@@ -1066,8 +1292,8 @@ namespace
 		}
 	}
 
-	// An assignment with nothing on the actor and no situation row holding an outfit, or
-	// whose actor's plugin is gone, is dropped.
+	// An assignment whose actor's plugin is gone is dropped; one with nothing on the actor and
+	// no situation row holding an outfit is, once the other records are attached (OnLoad).
 	std::vector<Assignment> ReadAssignments(const SKSE::SerializationInterface& a_intfc)
 	{
 		std::vector<Assignment> assignments;
@@ -1084,7 +1310,7 @@ namespace
 				return assignments;
 			}
 			DropRemovedRows(assignment);
-			if (actorResolved && !IsEmpty(assignment)) {
+			if (actorResolved) {
 				assignments.push_back(std::move(assignment));
 			}
 		}
@@ -1158,8 +1384,82 @@ namespace
 		return entries;
 	}
 
-	// The row an EXCL or CHNC entry belongs to: a situation's, or a kept row stored under its
-	// key; nullptr for neither.
+	// A LAYR assignment entry as read, its actor's FormID fixed for the current load order.
+	struct StoredLayerState
+	{
+		RE::FormID    actor = 0;
+		bool          hasRow = false;
+		bool          overOwn = false;
+		std::string   key;  // the layer row's situation as stored, with `hasRow`
+		std::uint32_t layer = 0;
+	};
+
+	// A LAYR row entry as read, as an EXCL entry is.
+	struct StoredChosenLayer
+	{
+		RE::FormID               actor = 0;
+		std::optional<Situation> row;  // nullopt for a situation this session does not have
+		std::string              key;  // the row's situation as stored, for a kept row (Assignment::kept)
+		std::uint32_t            outfit = 0;
+	};
+
+	struct StoredLayers
+	{
+		std::vector<StoredLayerState>  states;
+		std::vector<StoredChosenLayer> chosen;
+	};
+
+	bool ReadLayerState(const SKSE::SerializationInterface& a_intfc, StoredLayerState& a_entry)
+	{
+		std::uint8_t hasRow = 0;
+		std::uint8_t overOwn = 0;
+		if (!Read(a_intfc, a_entry.actor) || !Read(a_intfc, hasRow) || !Read(a_intfc, overOwn)) {
+			return false;
+		}
+		a_entry.hasRow = hasRow != 0;
+		a_entry.overOwn = overOwn != 0;
+		return !a_entry.hasRow || (ReadSituationKey(a_intfc, a_entry.key) && Read(a_intfc, a_entry.layer));
+	}
+
+	// Reads the LAYR record. An entry whose actor's plugin is gone is dropped.
+	StoredLayers ReadLayers(const SKSE::SerializationInterface& a_intfc)
+	{
+		StoredLayers  layers;
+		std::uint32_t count = 0;
+		if (!Read(a_intfc, count)) {
+			logger::error("The co-save record of the layers is cut short");
+			return layers;
+		}
+		for (; count > 0; --count) {
+			StoredLayerState entry;
+			if (!ReadLayerState(a_intfc, entry)) {
+				logger::error("The co-save record of the layers is cut short");
+				return layers;
+			}
+			if (a_intfc.ResolveFormID(entry.actor, entry.actor)) {
+				layers.states.push_back(std::move(entry));
+			}
+		}
+		if (!Read(a_intfc, count)) {
+			logger::error("The co-save record of the layers is cut short");
+			return layers;
+		}
+		for (; count > 0; --count) {
+			StoredChosenLayer entry;
+			if (!Read(a_intfc, entry.actor) || !ReadSituationKey(a_intfc, entry.key) || !Read(a_intfc, entry.outfit)) {
+				logger::error("The co-save record of the layers is cut short");
+				return layers;
+			}
+			entry.row = Situations::FromKey(entry.key);
+			if (a_intfc.ResolveFormID(entry.actor, entry.actor)) {
+				layers.chosen.push_back(std::move(entry));
+			}
+		}
+		return layers;
+	}
+
+	// The row an EXCL, CHNC or LAYR entry belongs to: a situation's, or a kept row stored under
+	// its key; nullptr for neither.
 	template <class Entry>
 	OutfitRows::Row* EntryRow(Assignment& a_assignment, const Entry& a_entry)
 	{
@@ -1203,6 +1503,33 @@ namespace
 		}
 	}
 
+	// Gives the assignments read the rows their layer is from and the layers their rows have
+	// chosen, kept rows included. An entry for an actor without an assignment is dropped, and so
+	// is a layer row this session does not have (the next dressing draws anew) and a row entry
+	// AttachExclusions would drop.
+	// Contract: after the ASGN record was read, in whichever order the records came.
+	void AttachLayers(const StoredLayers& a_layers)
+	{
+		for (const auto& entry : a_layers.states) {
+			auto* assignment = FindAssignment(entry.actor);
+			if (!assignment) {
+				continue;
+			}
+			assignment->overOwn = entry.overOwn && !assignment->pieces.empty();
+			if (const auto row = entry.hasRow ? Situations::FromKey(entry.key) : std::optional<Situation>{}) {
+				assignment->layerRow = row;
+				assignment->layer = entry.layer;
+			}
+		}
+		for (const auto& entry : a_layers.chosen) {
+			auto* assignment = FindAssignment(entry.actor);
+			auto* row = assignment ? EntryRow(*assignment, entry) : nullptr;
+			if (row && std::ranges::find(row->outfits, entry.outfit) != row->outfits.end()) {
+				row->chosenLayer = entry.outfit;
+			}
+		}
+	}
+
 	void OnLoad(SKSE::SerializationInterface* a_intfc)
 	{
 		std::uint32_t                type = 0;
@@ -1210,7 +1537,16 @@ namespace
 		std::uint32_t                length = 0;
 		std::vector<StoredExclusion> exclusions;
 		std::vector<StoredChance>    chances;
+		StoredLayers                 layers;
 		while (a_intfc->GetNextRecordInfo(type, version, length)) {
+			if (type == kLayersRecord) {
+				if (version != kLayersVersion) {
+					logger::warn("Co-save record LAYR version {} is not {}; no layer is worn until the next dressing", version, kLayersVersion);
+					continue;
+				}
+				layers = ReadLayers(*a_intfc);
+				continue;
+			}
 			if (type == kChancesRecord) {
 				if (version != kChancesVersion) {
 					logger::warn("Co-save record CHNC version {} is not {}; every outfit has the default selection chance", version, kChancesVersion);
@@ -1239,6 +1575,11 @@ namespace
 		}
 		AttachExclusions(exclusions);
 		AttachChances(chances);
+		AttachLayers(layers);
+		for (auto& assignment : g_assignments) {
+			std::erase_if(assignment.kept, [](const KeptRow& a_kept) { return !HoldsSomething(a_kept.row); });
+		}
+		std::erase_if(g_assignments, IsEmpty);
 		SyncManaged();
 		logger::info("Loaded {} assignment(s) from the co-save", g_assignments.size());
 	}
@@ -1422,17 +1763,21 @@ namespace Assignments
 		RedressOptions options;
 		if (a_outfit != 0) {
 			GiveRow(assignment, Situation::kDefault, a_outfit);
-			options = { .leaveOut = PiecesNotIn(a_outfit, a_armor), .given = a_outfit, .givenRows = { Situation::kDefault } };
+			options = GivenTo(a_outfit, { Situation::kDefault });
+			options.leaveOut = PiecesNotIn(a_outfit, a_armor);
 		} else {
 			assignment.defaultPieces = FormIDsOf(a_armor);
 			auto& row = assignment.rows[RowOf(Situation::kDefault)];
+			OutfitRows::SortChosen(row, IsLayerOutfit);  // a layer chosen as a base before its flag changed stays
 			row.chosen = 0;
 			row.random = false;
 		}
-		// The new Default goes on even when they already wore the Default; a situation
-		// outfit they wear stays on and the Default waits for its turn.
+		// The new Default goes on even when they already wore the Default, as their base or their
+		// layer; a situation outfit they wear stays on and the Default waits for its turn.
 		const auto now = Situations::Evaluate(a_actor, assignment.rows);
-		options.force = OutfitRows::Resolve(LiveRows(assignment), now) == Situation::kDefault;
+		const auto rows = LiveRows(assignment);
+		options.force = OutfitRows::Resolve(rows, now, IsLayerOutfit) == Situation::kDefault ||
+		                OutfitRows::ResolveLayer(rows, now, IsLayerOutfit, WearableLayer) == Situation::kDefault;
 		const auto result = Redress(assignment, a_actor, now, options);
 		const auto wornFor = assignment.worn;  // read before DropIfEmpty, which may end the record
 		DropIfEmpty(id);
@@ -1470,8 +1815,10 @@ namespace Assignments
 		for (const auto row : a_changes.remove) {
 			(OutfitRows::HoldsAny(assignment.rows[RowOf(row)]) ? kept : emptied).push_back(row);
 		}
-		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor, assignment.rows),
-			{ .force = true, .leaveOut = a_changes.leaveOut, .given = a_changes.outfit, .givenRows = a_changes.assign });
+		auto options = GivenTo(a_changes.outfit, a_changes.assign);
+		options.force = true;
+		options.leaveOut = a_changes.leaveOut;
+		const auto result = Redress(assignment, a_actor, Situations::Evaluate(a_actor, assignment.rows), options);
 		const auto worn = assignment.worn;  // read before DropIfEmpty, which may end the record
 		const auto pieces = assignment.pieces.size();
 		DropIfEmpty(id);
@@ -1503,14 +1850,14 @@ namespace Assignments
 		Notify(EndOf(result ? WithRedressNotes(std::move(text), a_actor, *result) : text));
 	}
 
-	std::optional<std::uint32_t> SetRows(RE::Actor& a_actor, const OutfitRows::Rows& a_rows, bool a_dropDefaultPieces)
+	std::optional<Picks> SetRows(RE::Actor& a_actor, const OutfitRows::Rows& a_rows, bool a_dropDefaultPieces)
 	{
 		if (!CanBeDressed(a_actor)) {
 			return std::nullopt;
 		}
 		const auto id = a_actor.GetFormID();
 		auto&      assignment = FindOrAddAssignment(id);
-		const auto pick = GainedPick(assignment, a_rows);
+		const auto picks = GainedPicks(assignment, a_rows);
 		assignment.rows = a_rows;
 		for (const auto situation : Situations::Order()) {
 			if (SituationStore::IsRemoved(situation)) {
@@ -1523,10 +1870,25 @@ namespace Assignments
 		// Contract: no DropIfEmpty here. The record of someone Livery has nothing on yet would
 		// end before the Refresh that dresses them; that dressing ends it if nothing goes on.
 		SyncManaged();
-		return pick;
+		return picks;
 	}
 
-	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, std::uint32_t a_pick)
+	bool SetLayerExcluded(RE::FormID a_actor, const std::vector<RE::FormID>& a_excluded)
+	{
+		auto* assignment = FindAssignment(a_actor);
+		if (!assignment || assignment->layer == 0 || !assignment->layerRow || assignment->pieces.empty()) {
+			return false;
+		}
+		auto& row = assignment->rows[RowOf(*assignment->layerRow)];
+		if (std::ranges::find(row.outfits, assignment->layer) == row.outfits.end()) {
+			return false;  // SetExcluded's contract: the outfit is on the row
+		}
+		const auto before = row.excluded;
+		OutfitRows::SetExcluded(row, assignment->layer, a_excluded);
+		return row.excluded != before;
+	}
+
+	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, const Picks& a_picks)
 	{
 		const auto id = a_actor.GetFormID();
 		auto*      assignment = FindAssignment(id);
@@ -1537,11 +1899,15 @@ namespace Assignments
 			Notify(Strings::Format(Strings::Text::kHudDead, NameOf(a_actor)));
 			return;
 		}
-		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor, assignment->rows),
-			{ .force = true, .leaveOut = a_leaveOut, .given = a_pick, .givenRows = { assignment->worn } });
+		RedressOptions options{ .force = true, .leaveOut = a_leaveOut, .givenBase = a_picks.base, .givenLayer = a_picks.layer, .givenRows = { assignment->worn } };
+		if (assignment->layerRow) {
+			options.givenRows.push_back(*assignment->layerRow);
+		}
+		const auto result = Redress(*assignment, a_actor, Situations::Evaluate(a_actor, assignment->rows), options);
 		const auto worn = assignment->worn;  // read before DropIfEmpty, which may end the record
 		const auto outfit = assignment->wornOutfit;
 		const auto pieces = assignment->pieces.size();
+		const auto layered = LayeredText(a_actor, *assignment);
 		DropIfEmpty(id);
 		SyncManaged();
 		using Strings::Text;
@@ -1550,24 +1916,31 @@ namespace Assignments
 		if (pieces == 0) {
 			text = Strings::Format(Text::kHudOwnClothes, name);
 		} else {
-			const auto wears = outfit ? QuotedOutfitName(outfit) : std::string{ Strings::Get(Text::kHudDefaultItems) };
+			const auto wears = layered ? *layered : (outfit ? QuotedOutfitName(outfit) : std::string{ Strings::Get(Text::kHudDefaultItems) });
 			text = Strings::Format(worn == Situation::kDefault ? Text::kHudWearsOutfit : Text::kHudWearsOutfitFor, name, wears, SituationStore::Name(worn));
 		}
 		Notify(EndOf(result ? WithRedressNotes(std::move(text), a_actor, *result) : text));
 	}
 
-	std::uint32_t PickAnother(RE::FormID a_actor)
+	Picks PickAnother(RE::FormID a_actor, Situations::Situation a_row)
 	{
+		Picks       picks;
 		const auto* assignment = FindAssignment(a_actor);
 		if (!assignment || assignment->pieces.empty()) {
-			return 0;
+			return picks;
 		}
 		const auto  rows = LiveRows(*assignment);
-		const auto& row = rows[RowOf(assignment->worn)];
+		const auto& row = rows[RowOf(a_row)];
 		if (!row.random) {
-			return 0;
+			return picks;
 		}
-		return OutfitRows::Pick(row, assignment->wornOutfit, RandomBelow);
+		if (assignment->worn == a_row) {
+			picks.base = OutfitRows::Pick(row, assignment->wornOutfit, RandomBelow, [](std::uint32_t a_outfit) { return !IsLayerOutfit(a_outfit); });
+		}
+		if (assignment->layerRow == a_row) {
+			picks.layer = OutfitRows::DrawLayer(row, RandomBelow, [](std::uint32_t a_outfit) { return IsLayerOutfit(a_outfit) && WearableLayer(a_outfit); });
+		}
+		return picks;
 	}
 
 	bool WearFor(RE::Actor& a_actor, const Situations::Applicable& a_now)
@@ -1594,17 +1967,15 @@ namespace Assignments
 		return true;
 	}
 
-	// Redress's test without the dressing: on the row they wear, OutfitFor keeps the outfit
-	// worn while the row still has it, so no random pick is drawn for nothing.
+	// Redress's test without the dressing: on the rows they wear, OutfitFor and LayerFor keep
+	// what is worn while the rows still have it, so no random pick is drawn for nothing.
 	bool WouldRedress(RE::Actor& a_actor, const Situations::Applicable& a_now)
 	{
 		const auto* assignment = FindAssignment(a_actor.GetFormID());
 		if (!assignment) {
 			return false;
 		}
-		const auto rows = LiveRows(*assignment);
-		const auto row = OutfitRows::Resolve(rows, a_now);
-		return row != assignment->worn || OutfitFor(*assignment, rows, row, {}) != assignment->wornOutfit;
+		return !IsWorn(*assignment, DueFor(*assignment, LiveRows(*assignment), a_now, {}));
 	}
 
 	Situations::Applicable SituationsNow(RE::Actor& a_actor)
@@ -1617,7 +1988,9 @@ namespace Assignments
 	{
 		std::vector<RE::FormID> actors;
 		for (const auto& assignment : g_assignments) {
-			if (HasSituations(assignment) || assignment.worn != Situation::kDefault) {
+			const bool situationLayer = assignment.layerRow && *assignment.layerRow != Situation::kDefault;
+			const bool layerGone = assignment.layer != 0 && !InLibrary(assignment.layer);  // a Default's layer ForgetOutfit took
+			if (HasSituations(assignment) || assignment.worn != Situation::kDefault || situationLayer || layerGone) {
 				actors.push_back(assignment.actor);
 			}
 		}
@@ -1660,17 +2033,18 @@ namespace Assignments
 		return holders;
 	}
 
-	// The pieces worn for a cleared situation row stay on until the next dressing (WearFor),
-	// which ActorsWithSituations keeps the poll watching for. A Default worn from the outfit
-	// is no longer worn from a library outfit (wornOutfit 0).
-	std::vector<RE::FormID> ForgetOutfit(std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_pieces)
+	// The pieces worn for a cleared situation row, or as a layer, stay on until the next
+	// dressing (WearFor), which ActorsWithSituations keeps the poll watching for. A Default's
+	// base worn from the outfit is no longer worn from a library outfit (wornOutfit 0).
+	std::vector<RE::FormID> ForgetOutfit(std::uint32_t a_outfit, const std::vector<RE::TESObjectARMO*>& a_pieces, bool a_layer)
 	{
 		std::vector<RE::FormID> wearing;
 		if (a_outfit == 0) {
 			return wearing;
 		}
 		for (auto& assignment : g_assignments) {
-			if (assignment.worn != Situation::kDefault && assignment.wornOutfit == a_outfit && !assignment.pieces.empty()) {
+			const bool situationBase = assignment.worn != Situation::kDefault && assignment.wornOutfit == a_outfit;
+			if ((situationBase || assignment.layer == a_outfit) && !assignment.pieces.empty()) {
 				wearing.push_back(assignment.actor);
 			}
 			const auto& defaultRow = assignment.rows[RowOf(Situation::kDefault)];
@@ -1682,7 +2056,7 @@ namespace Assignments
 				OutfitRows::Take(kept.row, a_outfit);
 			}
 			std::erase_if(assignment.kept, [](const KeptRow& a_kept) { return !HoldsSomething(a_kept.row); });
-			if (heldByDefault && !OutfitRows::HoldsAny(defaultRow) && assignment.defaultPieces.empty()) {
+			if (!a_layer && heldByDefault && !OutfitRows::HoldsAny(defaultRow) && assignment.defaultPieces.empty()) {
 				assignment.defaultPieces = FormIDsOf(a_pieces);
 			}
 			if (assignment.worn == Situation::kDefault && assignment.wornOutfit == a_outfit) {
@@ -1702,7 +2076,7 @@ namespace Assignments
 			return wearing;
 		}
 		for (auto& assignment : g_assignments) {
-			if (assignment.worn == a_situation && !assignment.pieces.empty()) {
+			if ((assignment.worn == a_situation || assignment.layerRow == a_situation) && !assignment.pieces.empty()) {
 				wearing.push_back(assignment.actor);
 			}
 			assignment.rows[RowOf(a_situation)] = {};
@@ -1746,6 +2120,9 @@ namespace Assignments
 			.defaultPieces = !assignment->defaultPieces.empty(),
 			.worn = assignment->worn,
 			.wornOutfit = assignment->wornOutfit,
+			.layerRow = assignment->layerRow,
+			.layer = assignment->layer,
+			.overOwn = assignment->overOwn,
 		};
 	}
 

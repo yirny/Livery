@@ -73,6 +73,9 @@
 	X(kWornAlready, "Already worn as is.")                                                                                          \
 	X(kNotCarriedHint, "This item isn't in your inventory.\nWith \"Dress yourself from inventory only\" on, it won't be equipped.") \
 	X(kOutfitGone, "an outfit no longer in the Wardrobe")                                                                           \
+	X(kOutfitOver, "{0} over {1}")                                                                                                  \
+	X(kOwnClothesTheir, "their own clothes")                                                                                        \
+	X(kOwnClothesYour, "your own clothes")                                                                                          \
 	X(kItemsNotSaved, "items that are not a saved outfit")                                                                          \
 	X(kChestsSubtitle, "Items in a chest can be loaded on the {0} page.")                                                           \
 	X(kAppearanceSubtitle, "Other settings are in Livery.ini or on the SKSE Menu Framework page.")                                  \
@@ -178,6 +181,10 @@
 	X(kKeepEditing, "Keep editing")                                                                                                                             \
 	X(kItemsChange, "Items: {0} to {1}")                                                                                                                        \
 	X(kIconChanged, "Icon: changed")                                                                                                                            \
+	X(kLayerOn, "Layer: on")                                                                                                                                    \
+	X(kLayerOff, "Layer: off")                                                                                                                                  \
+	X(kLayerTick, "Layer over the outfit beneath")                                                                                                              \
+	X(kLayerTickHelp, "Worn over another outfit instead of replacing it.\nThe outfit beneath leaves off its items in the same body slots.")                     \
 	X(kRemoveItemsTitle, "Remove items from the outfit?")                                                                                                       \
 	X(kUnselectedRemoved, "These unselected items will be removed from {0}:")                                                                                   \
 	X(kKeepItemsHint, "To keep these items in the outfit, choose {0} instead.")                                                                                 \
@@ -193,6 +200,12 @@
 	X(kOfferAdd, "Add {0} to their {1} outfits and dress them in it?")                                                                                          \
 	X(kOfferAddCreate, "Create {0}, add it to their {1} outfits, and dress them in it?")                                                                        \
 	X(kOfferAddEdits, "Save changes, add {0} to their {1} outfits, and dress them in it?")                                                                      \
+	X(kOfferOver, "Wear {0} over their {1} outfit?")                                                                                                            \
+	X(kOfferOverCreate, "Create {0}, then wear it over their {1} outfit?")                                                                                      \
+	X(kOfferOverEdits, "Save changes and wear {0} over their {1} outfit?")                                                                                      \
+	X(kOfferLayer, "Make {0} their new {1} layer?")                                                                                                             \
+	X(kOfferLayerCreate, "Create {0}, then make it their new {1} layer?")                                                                                       \
+	X(kOfferLayerEdits, "Save changes and make {0} their new {1} layer?")                                                                                       \
 	X(kApplyAs, "Apply {0} as {1}'s {2}?")                                                                                                                      \
 	X(kApplyAsCreate, "Create {0}, then apply it as {1}'s {2}?")                                                                                                \
 	X(kApplyAsEdits, "Save changes and apply {0} as {1}'s {2}?")                                                                                                \
@@ -204,6 +217,8 @@
 	X(kApplyAsDefault, "Apply as Default")                                                                                                                      \
 	X(kAsDefaultHelp, "Sets \"{0}\" as {1}'s default outfit.\nTheir current situational outfit stays equipped.")                                                \
 	X(kAsDefaultHelpReplacing, "Sets \"{0}\" as {1}'s default outfit, replacing {2}.\nTheir current situational outfit stays equipped.")                        \
+	X(kAsDefaultLayerHelp, "Sets \"{0}\" as {1}'s default layer.\nIt is worn wherever no situation has a layer of its own.")                                    \
+	X(kAsDefaultLayerHelpReplacing, "Sets \"{0}\" as {1}'s default layer, replacing {2}.\nIt is worn wherever no situation has a layer of its own.")            \
 	X(kThisReplaces, "This replaces {0}.")                                                                                                                      \
 	X(kRemoveFromWardrobe, "Remove {0} from the Wardrobe?")                                                                                                     \
 	X(kUsedBy, "Used by:")                                                                                                                                      \
@@ -603,6 +618,8 @@
 	X(kHudWearsDefault, "Livery: {0} now wears the default outfit.")                                                 \
 	X(kHudYouWearFor, "Livery: you now wear {1} for {2}.")                                                           \
 	X(kHudWearsFor, "Livery: {0} now wears {1} for {2}.")                                                            \
+	X(kHudYouWearNow, "Livery: you now wear {1}.")                                                                   \
+	X(kHudWearsNow, "Livery: {0} now wears {1}.")                                                                    \
 	X(kHudFallbackNotLoaded, "no item of {0} for {1} is loaded")                                                     \
 	X(kHudFallbackNotCarried, "you carry none of the items of {0} for {1}")                                          \
 	X(kHudFallbackRefusedYou, "none of the items of {0} for {1} could be put on you")                                \
