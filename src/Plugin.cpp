@@ -1338,9 +1338,12 @@ namespace
 			}
 			const auto dress = [&] {
 				const auto notMoved = MovePlayerPieces(*target, PickPieces(armors, fromPlayer));
-				// The layer's unticked items are left off on its row first, so the one dressing
-				// below wears it so (docs/ui-redesign.md §5).
-				const bool layerChanged = layer.excluded && Assignments::SetLayerExcluded(actorID, *layer.excluded);
+				// The layer's unticked items are left off on its row first, or with every one
+				// unticked the layer comes off, so the one dressing below wears it so
+				// (docs/ui-redesign.md §5). Each branch below dresses them even in what is due when
+				// it changed (Assignments::TakeOffLayer's contract).
+				const bool layerChanged = (layer.excluded && Assignments::SetLayerExcluded(actorID, *layer.excluded)) ||
+				                          (layer.takeOff && Assignments::TakeOffLayer(actorID));
 				// A situation outfit is read from the library, so the update is what goes on;
 				// the default is not touched.
 				if (updateWorn && forSituation) {

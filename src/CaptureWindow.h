@@ -177,11 +177,12 @@ namespace CaptureWindow
 	struct LayerApply
 	{
 		// The armor (FormIDs) of the layer's pieces left unticked, which it is to leave off on the
-		// row it is from; nullopt with no layer worn, or with every one unticked (the layer stays
-		// as it is: a layer comes off through its row).
+		// row it is from; nullopt with no layer worn, or with every one unticked (`takeOff`).
 		std::optional<std::vector<std::uint32_t>> excluded;
-		// The other ticks are what they wear outside a library outfit, unchanged: only the layer's
-		// items change, and nothing is made their Default.
+		// Every piece of the layer is unticked: the layer comes off (Assignments::TakeOffLayer).
+		bool takeOff = false;
+		// The other ticks are what they wear outside a library outfit, unchanged: only the layer
+		// changes, and nothing is made their Default.
 		bool only = false;
 	};
 

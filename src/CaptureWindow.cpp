@@ -1743,8 +1743,8 @@ namespace CaptureWindow::Internal
 	}
 
 	// What the ticks of the layer's pieces ask (CaptureWindow::LayerApply): the armor of those
-	// left unticked, unless there is no layer or every one is unticked; `only` with no library
-	// outfit under it and the other ticks as they wear them.
+	// left unticked, or with every one unticked that the layer comes off; nothing with no layer.
+	// `only` with no library outfit under it and the other ticks as they wear them.
 	CaptureWindow::LayerApply LayerApplyOf(const State& a_state)
 	{
 		CaptureWindow::LayerApply  apply;
@@ -1755,10 +1755,14 @@ namespace CaptureWindow::Internal
 				unticked.push_back(a_state.request.pieces[piece].armor);
 			}
 		}
-		if (layer.empty() || unticked.size() == layer.size()) {
+		if (layer.empty()) {
 			return apply;
 		}
-		apply.excluded = std::move(unticked);
+		if (unticked.size() == layer.size()) {
+			apply.takeOff = true;
+		} else {
+			apply.excluded = std::move(unticked);
+		}
 		apply.only = WornOutfitIndex(a_state) < 0 && BaseTicks(a_state) == WithoutLayer(a_state, a_state.wornPieces);
 		return apply;
 	}

@@ -86,6 +86,15 @@ namespace Assignments
 	// Contract: game thread.
 	bool SetLayerExcluded(RE::FormID a_actor, const std::vector<RE::FormID>& a_excluded);
 
+	// From now on the layer they wear is off: random off, it leaves the row it is from
+	// (OutfitRows::Take); random on, that row's draw becomes none, kept as a draw of none is
+	// while the row stays their layer row. Nobody is dressed here. Returns whether that changed
+	// anything; false too while they wear no layer. The Dress page's Apply with every item of the
+	// layer unticked.
+	// Contract: game thread. After true a dressing that runs even in what is due follows (Refresh,
+	// Change): the record already says none for a random row, so the poll would not take it off.
+	bool TakeOffLayer(RE::FormID a_actor);
+
 	// Dresses them anew for their situations now, even in the outfit they already wear, so a
 	// library outfit whose pieces just changed goes on at once; a random row keeps its pick
 	// while it is on the list, or with `a_picks` (SetRows, PickAnother) the rows they wear wear

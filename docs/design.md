@@ -759,7 +759,9 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   Wardrobe page's Save; a flag changed on an outfit the captured actor has redresses them at
   once when another outfit is due, the others at their next dressing. A layer's icon has a
   badge. Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
-  page lists and applies the worn layer's items apart (docs/ui-redesign.md §5); the previews
+  page lists and applies the worn layer's items apart, and with every one unticked takes the
+  layer off: random off off its row, random on as a draw of none (docs/ui-redesign.md §5,
+  `Assignments::TakeOffLayer`); the previews
   show a layer over what they wear. The summary line and the HUD name both outfits, `B over
   A` (`Livery: {0} now wears {1} for {2}.` with it for the base's situation, `Livery: {0} now
   wears {1}.` over the Default's or their own clothes), and a layer over their own clothes

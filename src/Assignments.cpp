@@ -21,7 +21,8 @@
 //   Event sinks - TESObjectLoadedEvent, TESDeathEvent, TESEquipEvent (while a menu lists an
 //                 inventory), MenuOpenCloseEvent (also logs menus opening or closing while
 //                 the window is open)
-//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / SetLayerExcluded / Refresh / PickAnother / WearFor /
+//   API         - RegisterCoSave / RegisterSinks / ReleaseEveryone / Assign / Change / SetRows / SetLayerExcluded / TakeOffLayer / Refresh / PickAnother /
+//                 WearFor /
 //                 ActorsWithSituations / UsesOf / HoldersOf / ForgetOutfit / ForgetSituation / Unassign / ChoicesOf /
 //                 SuspendLocks / ResumeLocks / MarkAddedCopies / UnmarkAddedCopies / NoteShownInMenu / IsDressedNpc /
 //                 TakeOffAfterPass
@@ -1886,6 +1887,21 @@ namespace Assignments
 		const auto before = row.excluded;
 		OutfitRows::SetExcluded(row, assignment->layer, a_excluded);
 		return row.excluded != before;
+	}
+
+	bool TakeOffLayer(RE::FormID a_actor)
+	{
+		auto* assignment = FindAssignment(a_actor);
+		if (!assignment || assignment->layer == 0 || !assignment->layerRow || assignment->pieces.empty()) {
+			return false;
+		}
+		auto& row = assignment->rows[RowOf(*assignment->layerRow)];
+		if (row.random) {
+			assignment->layer = 0;  // the next dressing keeps it (LayerFor), as a draw of none
+		} else {
+			OutfitRows::Take(row, assignment->layer);
+		}
+		return true;
 	}
 
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, const Picks& a_picks)

@@ -193,11 +193,13 @@ and stays on the Save page with its error.
   under a heading of their own, `Outfit ("<layer>")` (`PieceGroup::kLiveryLayer`), and Apply
   takes them apart from the rest (`LayerApplyOf`): the layer's items left unticked are left
   off on the row the layer is from (`Assignments::SetLayerExcluded`, before the one dressing);
-  with every one unticked the layer stays as it is. Everything above then reads the ticks less
+  with every one unticked the layer comes off (`Assignments::TakeOffLayer`): random off, it
+  leaves that row; random on, the row's draw becomes none, kept as a draw of none is.
+  Everything above then reads the ticks less
   the layer's items (`BaseTicks`): an item of X under a ticked item of the layer (it shares a
   body slot) is not left unticked, unless that row leaves it off already; Update and Apply Only
   take the ticks less the layer's. With no library outfit under the layer and the other ticks
-  as they wear them, only the layer's items change and nothing is made their Default.
+  as they wear them, only the layer changes and nothing is made their Default.
 - Apply is greyed with no ticked piece (`kNeedPiece`).
 
 Checks: no modal on a dressed NPC with one piece unticked, which comes off and stays unticked
