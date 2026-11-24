@@ -491,10 +491,11 @@ namespace OutfitRows
 	}
 
 	// The layer the row wears, 0 for none: ChosenOf a layer with random off, while `a_wearable`
-	// accepts it; with random on `a_kept` when set: 0 (a draw of none, kept while the row stays
-	// the layer row), or a wearable layer on `outfits`, whatever its chance; else a new draw
-	// among the wearable layers (DrawLayer). The caller records a random row's layer in
-	// `chosenLayer` once worn.
+	// accepts it; with random on none while every wearable layer on `outfits` is at 0, as a row
+	// whose bases are all at 0 is passed over (PicksBase); else `a_kept` when set: 0 (a draw of
+	// none, kept while the row stays the layer row), or a wearable layer on `outfits`, whatever
+	// its chance; else a new draw among the wearable layers (DrawLayer). The caller records a
+	// random row's layer in `chosenLayer` once worn.
 	// Contract: as Pick's for `a_draw`.
 	template <class Draw, class IsLayer, class Wearable>
 	std::uint32_t WearsLayer(const Row& a_row, std::optional<std::uint32_t> a_kept, Draw&& a_draw, IsLayer&& a_isLayer, Wearable&& a_wearable)
@@ -503,6 +504,9 @@ namespace OutfitRows
 		if (!a_row.random) {
 			const auto layer = ChosenOf(a_row, true, a_isLayer);
 			return layer != 0 && a_wearable(layer) ? layer : 0;
+		}
+		if (std::ranges::none_of(a_row.outfits, [&](std::uint32_t a_outfit) { return candidate(a_outfit) && ChanceOf(a_row, a_outfit) > 0; })) {
+			return 0;
 		}
 		if (a_kept && (*a_kept == 0 || (candidate(*a_kept) && std::ranges::find(a_row.outfits, *a_kept) != a_row.outfits.end()))) {
 			return *a_kept;

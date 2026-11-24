@@ -737,7 +737,9 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   proportion to their chances (`OutfitRows::DrawLayer`), so one layer at 70 is worn 70% of
   the time and one at 100 or above means a layer always. A draw of none is kept as a pick is:
   the record holds the layer row with layer 0 until that row stops being the layer row, so a
-  redress (rain, a cell change, a row edit) does not draw again. A layer gained by the row of
+  redress (rain, a cell change, a row edit) does not draw again. A layer worn stays on when its
+  chance is set to 0 while another wearable layer of the list is above it; with every one at 0
+  the row wears none at the next dressing (`OutfitRows::WearsLayer`). A layer gained by the row of
   the base or of the layer is worn as its pick (`Assignments::SetRows`). A row's die
   (`Assignments::PickAnother`) picks another base when their base is from it, and draws the
   layer anew, none or the same one included, when their layer is.

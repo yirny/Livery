@@ -648,6 +648,21 @@ TEST_CASE("WearsLayer keeps a draw of none or a kept layer while the row stays t
 	CHECK(OutfitRows::WearsLayer(off, std::nullopt, NoPick, IsLayer, [](std::uint32_t) { return false; }) == 0);
 }
 
+TEST_CASE("WearsLayer keeps a layer set to 0 while another is above 0, and wears none with all at 0", "[rows][layer][chance]")
+{
+	Row row{ .outfits = { 1, 101, 102 }, .random = true };
+	OutfitRows::SetChance(row, 102, 0);
+	CHECK(OutfitRows::WearsLayer(row, 102u, NoPick, IsLayer, Loaded) == 102);  // 101 is above 0
+	OutfitRows::SetChance(row, 101, 0);
+	CHECK(OutfitRows::WearsLayer(row, 102u, NoPick, IsLayer, Loaded) == 0);
+	const auto only102 = [](std::uint32_t a_outfit) { return a_outfit == 102; };
+	OutfitRows::SetChance(row, 101, OutfitRows::kDefaultChance);
+	CHECK(OutfitRows::WearsLayer(row, 102u, NoPick, IsLayer, only102) == 0);  // 101 above 0 but nothing of it loaded
+
+	const Row off{ .outfits = { 101 }, .chosenLayer = 101, .chances = { { .outfit = 101, .value = 0 } } };
+	CHECK(OutfitRows::WearsLayer(off, std::nullopt, NoPick, IsLayer, Loaded) == 101);  // random off: chances do not count
+}
+
 TEST_CASE("Wears picks the base among the bases only", "[rows][layer]")
 {
 	const Row row{ .outfits = { 101, 1 }, .random = true };
