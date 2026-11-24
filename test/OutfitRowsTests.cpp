@@ -414,16 +414,16 @@ TEST_CASE("A random row whose outfits are all at 0 is passed over but still held
 {
 	Row zero{ .outfits = { 3, 4 }, .random = true };
 	OutfitRows::SetChance(zero, 3, 0);
-	CHECK(OutfitRows::PicksAny(zero));
+	CHECK(OutfitRows::PicksBase(zero, NoLayer));
 	OutfitRows::SetChance(zero, 4, 0);
-	CHECK_FALSE(OutfitRows::PicksAny(zero));
-	CHECK(OutfitRows::HoldsAny(zero));                        // the window still shows its list
+	CHECK_FALSE(OutfitRows::PicksBase(zero, NoLayer));
+	CHECK(OutfitRows::HoldsAny(zero));                        // the window still shows its list, and Evaluate reads it
 	CHECK(OutfitRows::Wears(zero, 3, NoPick, NoLayer) == 3);  // a pick worn stays on
 	CHECK(OutfitRows::Wears(zero, 0, NoPick, NoLayer) == 0);
 
-	CHECK(OutfitRows::PicksAny(Row{ .outfits = { 3 }, .chosen = 3 }));  // random off: chances do not count
+	CHECK(OutfitRows::PicksBase(Row{ .outfits = { 3 }, .chosen = 3 }, NoLayer));  // random off: chances do not count
 	OutfitRows::SetRandom(zero, false, NoLayer);
-	CHECK(OutfitRows::PicksAny(zero));
+	CHECK(OutfitRows::PicksBase(zero, NoLayer));
 
 	OutfitRows::Rows rows{};
 	rows[OutfitRows::RowOf(Situation::kDefault)] = { .outfits = { 1 }, .chosen = 1 };
@@ -537,7 +537,6 @@ TEST_CASE("Take, WithoutGone and KeepGone treat the chosen layer as chosen", "[r
 	Row row{ .outfits = { 1, 101 }, .chosen = 1, .chosenLayer = 101 };
 	CHECK(OutfitRows::Holds(row, 101));
 	CHECK(OutfitRows::HoldsAny(Row{ .outfits = { 101 }, .chosenLayer = 101 }));
-	CHECK(OutfitRows::PicksAny(Row{ .outfits = { 101 }, .chosenLayer = 101 }));
 	OutfitRows::Take(row, 101);
 	CHECK(row.chosenLayer == 0);
 	CHECK(row.chosen == 1);
@@ -578,15 +577,19 @@ TEST_CASE("Resolve and ResolveLayer take the base and the layer from rows apart"
 	rows[OutfitRows::RowOf(Situation::kCold)] = { .outfits = { 2, 104 }, .random = true };
 	OutfitRows::SetChance(rows[OutfitRows::RowOf(Situation::kCold)], 104, 0);
 	CHECK(OutfitRows::Resolve(rows, now, IsLayer) == Situation::kCold);
-	CHECK(OutfitRows::ResolveLayer(rows, now, IsLayer, Loaded) == Situation::kTown);  // Cold's layer at 0 is passed over
+	// Cold's layers all at 0: it gives the layer, a draw of none, which ends the walk.
+	CHECK(OutfitRows::ResolveLayer(rows, now, IsLayer, Loaded) == Situation::kCold);
+	CHECK(OutfitRows::WearsLayer(rows[OutfitRows::RowOf(Situation::kCold)], std::nullopt, NoPick, IsLayer, Loaded) == 0);
 }
 
 TEST_CASE("PicksBase and PicksLayer tell a random row's kinds apart", "[rows][layer]")
 {
 	Row layers{ .outfits = { 101, 102 }, .random = true };
-	CHECK(OutfitRows::PicksAny(layers));
 	CHECK_FALSE(OutfitRows::PicksBase(layers, IsLayer));
 	CHECK(OutfitRows::PicksLayer(layers, IsLayer, Loaded));
+	OutfitRows::SetChance(layers, 101, 0);
+	OutfitRows::SetChance(layers, 102, 0);
+	CHECK(OutfitRows::PicksLayer(layers, IsLayer, Loaded));  // at 0 too: the row draws none
 
 	Row mixed{ .outfits = { 1, 101 }, .random = true };
 	OutfitRows::SetChance(mixed, 1, 0);

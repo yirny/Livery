@@ -363,20 +363,12 @@ namespace OutfitRows
 	}
 
 	// Whether the row holds any outfit: what the window shows and the record keeps.
+	// Situations::Evaluate reads the conditions of these rows only, a random row's at any chance:
+	// its layers all at 0 still end the walk for a layer (PicksLayer). PicksBase and PicksLayer
+	// tell which kind the row gives.
 	inline bool HoldsAny(const Row& a_row)
 	{
 		return a_row.random ? !a_row.outfits.empty() : a_row.chosen != 0 || a_row.chosenLayer != 0;
-	}
-
-	// Whether the row may have an outfit to wear, a base or a layer: a chosen one with random
-	// off, an outfit on the list whose chance is above 0 with random on. Situations::Evaluate
-	// reads the conditions of these rows only; PicksBase and PicksLayer tell which kind.
-	inline bool PicksAny(const Row& a_row)
-	{
-		if (!a_row.random) {
-			return a_row.chosen != 0 || a_row.chosenLayer != 0;
-		}
-		return std::ranges::any_of(a_row.outfits, [&a_row](std::uint32_t a_outfit) { return ChanceOf(a_row, a_outfit) > 0; });
 	}
 
 	// Whether the row has a base to wear: ChosenOf a base with random off, a base on the list
@@ -392,8 +384,9 @@ namespace OutfitRows
 	}
 
 	// Whether the row has a layer to wear: ChosenOf a layer that `a_wearable` accepts (one with
-	// a loaded item) with random off, such a layer on the list whose chance is above 0 with
-	// random on. The row then gives the layer, even when its draw gives none (ResolveLayer).
+	// a loaded item) with random off, such a layer on the list at any chance with random on. The
+	// row then gives the layer, even when its draw gives none, as it always does with every one
+	// at 0 (ResolveLayer, DrawLayer).
 	template <class IsLayer, class Wearable>
 	bool PicksLayer(const Row& a_row, IsLayer&& a_isLayer, Wearable&& a_wearable)
 	{
@@ -401,8 +394,7 @@ namespace OutfitRows
 			const auto layer = ChosenOf(a_row, true, a_isLayer);
 			return layer != 0 && a_wearable(layer);
 		}
-		return std::ranges::any_of(a_row.outfits,
-			[&](std::uint32_t a_outfit) { return a_isLayer(a_outfit) && a_wearable(a_outfit) && ChanceOf(a_row, a_outfit) > 0; });
+		return std::ranges::any_of(a_row.outfits, [&](std::uint32_t a_outfit) { return a_isLayer(a_outfit) && a_wearable(a_outfit); });
 	}
 
 	// The sum of the chances (ChanceOf) of the row's outfits that `a_candidate` accepts, other

@@ -729,8 +729,9 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   `SortChosen` puts each in its own field).
 - Resolution: the base row and the layer row are found apart (Detection above). A row has a
   layer when, random off, its layer has an item loaded, or, random on, a layer with an item
-  loaded and a chance above 0 is on its list; a layer with nothing loaded is passed over, so a
-  lower row's or another of the list is worn.
+  loaded is on its list, at any chance: layers all at 0 draw none and end the walk as a draw
+  of none does. A layer with nothing loaded is passed over, so a lower row's or another of the
+  list is worn.
 - Random: the bases are picked as before, among the bases only. The layers apart:
   no layer with probability Π(1 − min(c, 100) / 100) over the list's layers, else one in
   proportion to their chances (`OutfitRows::DrawLayer`), so one layer at 70 is worn 70% of
@@ -796,9 +797,6 @@ conditions, one order for the presets and the user's, the presets' rules editabl
      the merged list is the layer's pieces whose body slots no base piece takes, then the
      base's pieces whole, so a guard keeps the helmet and gets only the cloak. Off, the layer
      wins, as in Dressing above.
-   - The code differs from two rules decided before it, to settle: a random row whose layers
-     are all at 0 should end the walk for a layer as a draw of none does (`PicksLayer` passes
-     it over); and a row's die should never draw no layer (`PickAnother` may).
    - In game, beside the four checks of §7 Layers: an existing save wears what it wore, and `outfits.json`
      stays `"version": 1` until an outfit is a layer and returns to it when none is; the Layer
      tick on the Create tab, the Wardrobe page and the Edit page (its place on each, and the

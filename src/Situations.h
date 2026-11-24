@@ -206,7 +206,7 @@ namespace Situations
 	};
 
 	// The situations of `a_rows` (the actor's rows) whose row has an outfit to wear
-	// (OutfitRows::PicksAny) and whose rules (SituationStore::RulesOf) hold now, read from the end of Order(): a situation they have no
+	// (OutfitRows::HoldsAny) and whose rules (SituationStore::RulesOf) hold now, read from the end of Order(): a situation they have no
 	// outfit for cannot be worn, so its conditions are not read. A situation for wading ends later
 	// for an actor last told in water (hysteresis on a shore).
 	// Contract: game thread; reads Order() as it is, allocating nothing.

@@ -53,11 +53,14 @@ What a row wears (the base and the layer apart; design.md §7 Layers):
   nothing. The bases are picked among the bases, the layers apart (a list whose layers are
   all below 100 may wear none: design.md §7 Layers). The Default with no base on its list, or
   every base at 0: its `pieces`.
-- A row *has an outfit* when it wears something by these rules (`OutfitRows::PicksAny`: a
-  random row needs an outfit above 0); `Situations::Applicable` is walked as today, the
-  first row that has one is worn, else the Default, else their own clothes. A pick worn
-  stays on when its chance is set to 0 while other outfits of the row are above it; with
-  every one at 0 the row is passed over at the next dressing.
+- A row *has a base* when it wears one by these rules (`OutfitRows::PicksBase`: a random row
+  needs a base above 0); `Situations::Applicable` is walked as today, the first row that has
+  one is worn, else the Default, else their own clothes. A pick worn stays on when its chance
+  is set to 0 while other bases of the row are above it; with every one at 0 the row is
+  passed over at the next dressing. A random row with a layer on its list gives the layer at
+  any chance, so layers all at 0 draw none and end the walk for a layer
+  (`OutfitRows::PicksLayer`, design.md §7 Layers). `Situations::Evaluate` reads the conditions
+  of every row that holds an outfit (`OutfitRows::HoldsAny`).
 - A row *holds* an outfit when it is `chosen` or `chosenLayer` (random off) or on `outfits`
   (random on).
   "Holds" is what the outfit list's Situation headings and star mark, and Remove's popup
