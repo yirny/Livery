@@ -829,7 +829,9 @@ conditions, one order for the presets and the user's, the presets' rules editabl
      each, and the badge's size), Save's `Layered outfit: on` / `off` and `Keep items beneath:
      on` / `off` lines; Apply to <name> and Create and Apply of a layer, with and
      without a situation's outfit worn; a layer alone on an NPC Livery does not dress (their
-     clothes stay); the dice; the other previews.
+     clothes stay); the dice, the one worn picked again at times; the diamond badge on every
+     outfit icon (Selection Chances, a dragged copy, popup lines, the summary line); the Edit
+     page's preview of a layer; the Save page's ticks; the other previews.
    - Known gap: other actors holding an outfit whose layer flags changed follow at their next
      dressing.
 2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand
