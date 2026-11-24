@@ -56,9 +56,11 @@ makes that sort the one every page's list starts in when the window opens, writt
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
   the library.
 - Each row: the outfit's icon and name, one line high. A layer's icon (design.md §7 Layers)
-  carries a badge, two overlapping squares over its lower right corner (`Theme::RowIcon::badge`,
-  `RowIconOf`), wherever the icon shows: the lists, a drag's copy aside, the name over the
-  details, the icon field.
+  carries a badge, two stacked diamonds (light blue over dark blue, outlined near black) half
+  the icon's side wide on its lower right corner (`Theme::RowIcon::badge`, `RowIconOf`,
+  `OutfitRun`), wherever an outfit's icon shows: the lists and Selection Chances, a drag's
+  copy, the name over the details, the icon fields (the Update tab's too), the popups' lines,
+  the Edit page's heading and the summary line.
 - Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
   colour, graded as a selected row's fill; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws
@@ -258,13 +260,15 @@ makes that sort the one every page's list starts in when the window opens, writt
     instead of replacing it.`): the outfit's layer flag as edited, an edit as a rename is
     (Save's popup lists it as `Layered outfit: on` or `Layered outfit: off`). Apply and its
     popup treat the outfit as what the tick says, since the edits are saved first.
-  - `Keep items beneath (?)` under it (`DrawKeepBeneathTick`, greyed while `Layered outfit`
-    is off; its help `When items occupy the same body slots:` / `On: Keep the items beneath and
+  - `Keep items beneath (?)` under it, its box under the `Layered outfit` label
+    (`DrawKeepBeneathTick`), greyed while `Layered outfit` is off; its help `When items occupy the same body slots:` / `On: Keep the items beneath and
     skip those in this outfit.` / `Off: Equip the items in this outfit, replacing those
     beneath.`): the outfit's `keepBeneath` as edited (design.md §7 Layers), an edit while
     `Layered outfit` is on (Save's popup lists it as `Keep items beneath: on` or `off`, unless
     `Layered outfit` goes off). The Edit page shows both ticks too: `Layered outfit` on the
-    Live Preview line, `Keep items beneath` under it.
+    Live Preview line, `Keep items beneath` under it. With `Layered outfit` on, its preview
+    shows the ticks over what they wear (`EditShown`, as the Wardrobe page's
+    `ManagedPreview`), shown whole again at each tick.
   - 4px of extra room, then its pieces under `Name` and `Type` column labels
     (`Theme::HeaderRow`), which sort them as the Dress page's do: a click sorts by the column,
     a second reverses it, from the item sort at each open (docs/ui-redesign.md; Name ascending

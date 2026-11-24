@@ -436,32 +436,31 @@ namespace OutfitRows
 		return std::ranges::any_of(a_row.outfits, [&](std::uint32_t a_outfit) { return a_isLayer(a_outfit) && a_wearable(a_outfit); });
 	}
 
-	// The sum of the chances (ChanceOf) of the row's outfits that `a_candidate` accepts, other
-	// than `a_except` (0 for none): what Pick draws from, so an outfit's chance over the sum is
-	// the chance a pick is that outfit.
+	// The sum of the chances (ChanceOf) of the row's outfits that `a_candidate` accepts: what
+	// Pick draws from, so an outfit's chance over the sum is the chance a pick is that outfit.
 	template <class Candidate>
-	std::size_t ChanceTotal(const Row& a_row, std::uint32_t a_except, Candidate&& a_candidate)
+	std::size_t ChanceTotal(const Row& a_row, Candidate&& a_candidate)
 	{
 		std::size_t total = 0;
 		for (const auto outfit : a_row.outfits) {
-			if (outfit != a_except && a_candidate(outfit)) {
+			if (a_candidate(outfit)) {
 				total += ChanceOf(a_row, outfit);
 			}
 		}
 		return total;
 	}
 
-	// An outfit of the row's list that `a_candidate` accepts, other than `a_except` (0 for none),
-	// picked in proportion to the outfits' chances (ChanceOf): one with chance 0 never. 0 when
-	// none is left.
+	// An outfit of the row's list that `a_candidate` accepts, picked in proportion to the
+	// outfits' chances (ChanceOf): one with chance 0 never, the one worn now as any other. 0 when
+	// there is none.
 	// Contract: `a_draw(n)` returns a number below n, n above 0.
 	template <class Draw, class Candidate>
-	std::uint32_t Pick(const Row& a_row, std::uint32_t a_except, Draw&& a_draw, Candidate&& a_candidate)
+	std::uint32_t Pick(const Row& a_row, Draw&& a_draw, Candidate&& a_candidate)
 	{
 		const auto chanceOf = [&](std::uint32_t a_outfit) -> std::size_t {
-			return a_outfit != a_except && a_candidate(a_outfit) ? ChanceOf(a_row, a_outfit) : 0;
+			return a_candidate(a_outfit) ? ChanceOf(a_row, a_outfit) : 0;
 		};
-		const auto total = ChanceTotal(a_row, a_except, a_candidate);
+		const auto total = ChanceTotal(a_row, a_candidate);
 		if (total == 0) {
 			return 0;
 		}
@@ -490,7 +489,7 @@ namespace OutfitRows
 			}
 			const auto chance = (std::min)(ChanceOf(a_row, outfit), kDefaultChance);
 			if (chance >= kDefaultChance || (chance > 0 && static_cast<std::size_t>(a_draw(std::size_t{ kDefaultChance })) < std::size_t{ chance })) {
-				return Pick(a_row, 0, a_draw, a_candidate);
+				return Pick(a_row, a_draw, a_candidate);
 			}
 		}
 		return 0;
@@ -526,7 +525,7 @@ namespace OutfitRows
 		if (a_kept != 0 && !a_isLayer(a_kept) && std::ranges::find(a_row.outfits, a_kept) != a_row.outfits.end()) {
 			return a_kept;
 		}
-		return Pick(a_row, 0, a_draw, [&a_isLayer](std::uint32_t a_outfit) { return !a_isLayer(a_outfit); });
+		return Pick(a_row, a_draw, [&a_isLayer](std::uint32_t a_outfit) { return !a_isLayer(a_outfit); });
 	}
 
 	// The layer the row wears, 0 for none: ChosenOf a layer with random off, while `a_wearable`

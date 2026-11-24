@@ -2012,7 +2012,7 @@ namespace Assignments
 			return picks;
 		}
 		if (assignment->worn == a_row) {
-			picks.base = OutfitRows::Pick(row, assignment->wornOutfit, RandomBelow, [](std::uint32_t a_outfit) { return !IsLayerOutfit(a_outfit); });
+			picks.base = OutfitRows::Pick(row, RandomBelow, [](std::uint32_t a_outfit) { return !IsLayerOutfit(a_outfit); });
 		}
 		if (assignment->layerRow == a_row) {
 			picks.layer = OutfitRows::DrawLayer(row, RandomBelow, [](std::uint32_t a_outfit) { return IsLayerOutfit(a_outfit) && WearableLayer(a_outfit); });

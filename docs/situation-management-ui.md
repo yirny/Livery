@@ -219,11 +219,11 @@ outfit for Town any more`.
   moves it in the order (docs/custom-situations.md §7).
 - The die's area (random on) is a button while the actor wears an outfit of the row's list
   (as edited) for it and another is on the list: lit as the chevron while hovered, with `One of these
-  outfits is picked at random each time this situation begins. Click to pick another now.` on
+  outfits is picked at random each time this situation begins. Click to pick again now.` on
   hover. A click saves the page's edits
-  with it (Saving below), then puts on another outfit of the list, picked by the chances
-  (§1), never the one worn or one at 0 (a row their layer is from draws the layer anew, none or
-  the same one included; the die is lit for a row their base is from with two bases on its
+  with it (Saving below), then puts on an outfit of the list picked anew by the chances
+  (§1), the one worn included, never one at 0 (a row their layer is from draws the layer anew,
+  none or the same one included; the die is lit for a row their base is from with two bases on its
   list, or one their layer is from with a layer on it; `SituationSave::reroll` names the row); an outfit's details close, so the preview shows what they wear. Else a click
   there does nothing, the die stays grey, and hovering it shows the same first sentence, then
   why: `#{Name} is not wearing one of them now.` or `Add another to pick from.`
@@ -402,8 +402,8 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   docs/outfit-management-ui.md §6 (at once, Live Preview on or off; with it on the preview
   begins again on the outfit whose details show (§5), else on what they wear); a random
   row they wear wears the outfit it gained first. A die's click (§4) saves at once, with
-  `SituationSave::reroll`: after the rows, `Assignments::PickAnother` picks another outfit
-  of the row they wear and the `Refresh` wears it, even with no edit to save. The page
+  `SituationSave::reroll`: after the rows, `Assignments::PickAnother` picks an outfit
+  of the row they wear anew, the one worn included, and the `Refresh` wears it, even with no edit to save. The page
   stays, an outfit's details too, and the edits start again from what was saved.
 - HUD: `Livery: created the situation "X".` (Create, Duplicate), `Livery: removed the
   situation "X".` or `...; cleared from 2 characters.` (Remove), `Livery: restored the preset
@@ -470,7 +470,7 @@ Escape is Done unless it closed a dropdown or a popup over the popup.
   row, a row's slider opening and closing, every chance following the slider, the list
   scrolling once the popup reaches its height limit, a 0 never picked and every one at 0
   passing the row over, the value kept across a save and load;
-  the die of the row worn lit with its tooltip, a click wearing another outfit (Live Preview on and off),
+  the die of the row worn lit with its tooltip, a click picking anew, the same outfit at times (Live Preview on and off),
   the other dice unlit with their reasons;
   rename refused when empty or taken; Remove and its popup, the rows gone; Restore Presets brings it back empty; the
   Exit, Escape and a tab right after an edit, saving before they go; the three skins.

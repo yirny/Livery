@@ -89,6 +89,7 @@
 // The Dress page: its item list, Live Preview and its buttons and popups.
 #define LIVERY_STRINGS_DRESS(X)                                                                                                                          \
 	X(kGroupWornOutfit, "Outfit (\"{0}\")")                                                                                                              \
+	X(kGroupWornLayer, "Layered Outfit (\"{0}\")")                                                                                                       \
 	X(kGroupNotInWardrobe, "Outfit (Not in Wardrobe)")                                                                                                   \
 	X(kGroupUnmanaged, "Outfit (Unmanaged)")                                                                                                             \
 	X(kGroupInventory, "Inventory")                                                                                                                      \
@@ -265,7 +266,7 @@
 	X(kRandomLine, "One of these outfits is picked at random each time this situation begins.")                                                                                                                      \
 	X(kRandomNotWearing, "{0} is not wearing one of them now.")                                                                                                                                                      \
 	X(kRandomAddAnother, "Add another to pick from.")                                                                                                                                                                \
-	X(kRandomClick, "Click to pick another now.")                                                                                                                                                                    \
+	X(kRandomClick, "Click to pick again now.")                                                                                                                                                                      \
 	X(kOutfitList, "Outfit List")                                                                                                                                                                                    \
 	X(kOutfitListHelp, "Drag an outfit onto a situation to add it, or between outfits to set its position.\nDrag it to another situation to move it, or back here to remove it.\nClick an outfit to see its items.") \
 	X(kDefaultOutfitOf, "This is {0}'s default outfit.")                                                                                                                                                             \

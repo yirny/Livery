@@ -926,13 +926,13 @@ namespace CaptureWindow::Internal
 	}
 
 	// The pieces a tab page keeps on the preview in place of the Dress page's ticks:
-	// the Wardrobe page's selected outfit as edited, less its unticked items, the Situations page's
-	// outfit whose details show (ViewedOutfitPieces); nullopt while it shows the ticks. A page
-	// that gets a preview of its own adds it here.
+	// the Wardrobe page's selected outfit (ManagedPreview), the Situations page's outfit whose
+	// details show (ViewedOutfitPieces); nullopt while it shows the ticks. A page that gets a
+	// preview of its own adds it here.
 	std::optional<std::vector<std::size_t>> PagePreview(const State& a_state, Page a_page)
 	{
 		if (a_page == Page::kManage && a_state.manage.outfit >= 0) {
-			return WornOf(a_state, a_state.manage.pieces, a_state.manage.excluded);
+			return ManagedPreview(a_state);
 		}
 		if (a_page == Page::kSituations && IndexOfOutfit(a_state, a_state.situationForm.viewedOutfit) >= 0) {
 			return ViewedOutfitPieces(a_state);
@@ -1034,7 +1034,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, a_summary.lead.c_str());
 			return;
 		}
-		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey };
+		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey, .badge = a_summary.iconBadge };
 		const auto               runs = RunsOf(a_summary.text, { outfit, SituationRun(a_summary.situation.c_str(), a_summary.situationIsDefault), TextRun(a_summary.gaps.c_str()) });
 		Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, runs.Parts());
 	}
@@ -1055,7 +1055,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(Theme::HeadingIcon::kStar, a_state.situationsTitle.c_str());
 			break;
 		case Page::kEdit:
-			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { OutfitRun(a_state.editTitle, a_state.manage.icon) }).Parts());
+			Theme::HeadingRunText(RunsOf(Text::kEditHeading, { OutfitRun(a_state.editTitle, a_state.manage.icon, a_state.manage.layer) }).Parts());
 			break;
 		case Page::kChests:
 			{
@@ -1227,7 +1227,7 @@ namespace CaptureWindow::Internal
 		const auto& request = a_state.request;
 		auto&       headings = a_state.headings;
 		headings[GroupIndex(Group::kLiveryOutfit)] = Strings::Format(Text::kGroupWornOutfit, request.outfitName);
-		headings[GroupIndex(Group::kLiveryLayer)] = Strings::Format(Text::kGroupWornOutfit, request.layerName);
+		headings[GroupIndex(Group::kLiveryLayer)] = Strings::Format(Text::kGroupWornLayer, request.layerName);
 		headings[GroupIndex(Group::kNotInLibrary)] = Strings::Get(Text::kGroupNotInWardrobe);
 		headings[GroupIndex(Group::kUnmanaged)] = Strings::Get(Text::kGroupUnmanaged);
 		headings[GroupIndex(Group::kCarried)] = Strings::Get(Text::kGroupInventory);
@@ -1481,8 +1481,9 @@ namespace CaptureWindow::Internal
 	// Contract: a piece that is not listed is never ticked: on the Dress page only Load
 	// ticks a piece nobody carries, and the next Load sets every tick again; the Edit page
 	// lists every edited piece it opened with.
-	void DrawPieceRows(State& a_state, const PieceList& a_list)
+	bool DrawPieceRows(State& a_state, const PieceList& a_list, bool a_eachPiece)
 	{
+		bool              anyToggled = false;
 		const auto&       pieces = a_state.request.pieces;
 		const auto&       onToggled = a_state.request.onPieceToggled;
 		const bool        locked = a_state.request.saveOnly;
@@ -1538,10 +1539,11 @@ namespace CaptureWindow::Internal
 				}
 				if (toggled) {
 					QueueMenuSound(kFocusSound);
+					anyToggled = true;
 					if (a_list.ticked[i]) {
 						UntickSharingSlots(a_state, a_list, i);
 					}
-					if (onToggled) {
+					if (onToggled && a_eachPiece) {
 						SKSE::GetTaskInterface()->AddTask([onToggled, i, ticked = a_list.ticked[i]] { onToggled(i, ticked); });
 					}
 				}
@@ -1550,6 +1552,7 @@ namespace CaptureWindow::Internal
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
+		return anyToggled;
 	}
 
 	// A link of the count line, greyed with `a_reason` (shown on hover or keyboard focus).
@@ -1664,10 +1667,10 @@ namespace CaptureWindow::Internal
 	}
 
 	// The Live Preview tick: greyed, with the reason on hover, when the preview
-	// cannot be on; each click queues ApplyPreviewToggle with the list's ticked
+	// cannot be on; each click queues ApplyPreviewToggle with the list's ticked (or `a_shown`'s)
 	// pieces of that moment, so the piece clicks queued after it apply on top. A
 	// "(?)" beside it explains the preview and its camera controls on hover.
-	void DrawPreviewToggle(State& a_state, const PieceList& a_list)
+	void DrawPreviewToggle(State& a_state, const PieceList& a_list, std::vector<std::size_t> (*a_shown)(const State&))
 	{
 		const auto& note = a_state.request.previewNote;
 		const bool  available = note.empty() && a_state.request.onPreviewOn && a_state.request.onPreviewOff;
@@ -1695,7 +1698,7 @@ namespace CaptureWindow::Internal
 			QueueMenuSound(kFocusSound);
 			a_state.previewBusy = true;
 			SKSE::GetTaskInterface()->AddTask(
-				[session = a_state.session, on, pieces = Ticked(a_state, a_list)] { ApplyPreviewToggle(session, on, pieces); });
+				[session = a_state.session, on, pieces = a_shown ? a_shown(a_state) : Ticked(a_state, a_list)] { ApplyPreviewToggle(session, on, pieces); });
 		}
 	}
 
@@ -1986,7 +1989,7 @@ namespace CaptureWindow::Internal
 		}
 		const auto& request = a_state.request;
 		const auto& outfit = OutfitAt(a_state, worn);
-		RunLine(Text::kUpdateWithSelected, { OutfitRun(outfit.name, outfit.icon) });
+		RunLine(Text::kUpdateWithSelected, { OutfitRun(outfit) });
 		if (!request.wornSituation.empty()) {
 			RunLine(Text::kWornForSituation, { TextRun(request.actorName.c_str()), SituationRun(request.wornSituation.c_str()) });
 		}
@@ -2231,18 +2234,18 @@ namespace CaptureWindow::Internal
 		}
 		const auto& outfits = a_state.request.existingOutfits;
 		const auto  found = std::ranges::find(outfits, outfit, &CaptureWindow::ExistingOutfit::id);
-		return found != outfits.end() ? OutfitRun(found->name, found->icon) : TextRun(Strings::Get(Text::kOutfitGone));
+		return found != outfits.end() ? OutfitRun(*found) : TextRun(Strings::Get(Text::kOutfitGone));
 	}
 
 	Theme::SubtitleRun WornOutfitRun(const State& a_state, bool a_layer)
 	{
 		if (const int layer = a_layer ? IndexOfOutfit(a_state, a_state.request.wornLayer) : -1; layer >= 0) {
 			const auto& outfit = OutfitAt(a_state, layer);
-			return OutfitRun(outfit.name, outfit.icon);
+			return OutfitRun(outfit);
 		}
 		if (const int worn = WornOutfitIndex(a_state); worn >= 0) {
 			const auto& outfit = OutfitAt(a_state, worn);
-			return OutfitRun(outfit.name, outfit.icon);
+			return OutfitRun(outfit);
 		}
 		return { .text = a_state.request.outfitName.c_str(), .rowIconKey = OutfitIcons::kDefaultKey };
 	}
@@ -2375,8 +2378,9 @@ namespace CaptureWindow::Internal
 		const auto icon = CreateIcon(a_state, pieces);
 		input.enter = DrawNameField(a_state, a_state.createName, &icon, &input.iconClicked, Strings::Get(Text::kOutfitName), a_state.createLayer);
 		Theme::AfterFieldGap();
-		DrawLayerTick(a_state.createLayer);
-		DrawKeepBeneathTick(a_state.createKeepBeneath, a_state.createLayer);
+		float layerLabelX = 0.0f;
+		DrawLayerTick(a_state.createLayer, layerLabelX);
+		DrawKeepBeneathTick(a_state.createKeepBeneath, a_state.createLayer, layerLabelX);
 		Theme::AfterFieldGap();
 		Theme::CountText(PieceCountText(pieces.size(), 0).c_str());
 		DrawPieceNames(a_state, pieces);
@@ -2418,8 +2422,9 @@ namespace CaptureWindow::Internal
 			a_state.focusNameField = false;  // a greyed field takes no focus
 		}
 		const OutfitIcons::Icon icon = chosen ? OutfitAt(a_state, a_state.chosenOutfit).icon : OutfitIcons::Icon{};
+		const bool              layer = chosen && OutfitAt(a_state, a_state.chosenOutfit).layer;
 		ImGui::BeginDisabled(!chosen);
-		input.enter = DrawNameField(a_state, a_state.updateName, &icon);
+		input.enter = DrawNameField(a_state, a_state.updateName, &icon, nullptr, Strings::Get(Text::kOutfitName), layer);
 		ImGui::EndDisabled();
 		Theme::AfterFieldGap();
 		if (BeginColumns("columns", 3)) {
@@ -2527,12 +2532,12 @@ namespace CaptureWindow::Internal
 		const auto& outfit = OutfitAt(a_state, a_state.chosenOutfit);
 		const auto  current = std::to_string(outfit.pieces.size());
 		const auto  selected = std::to_string(CountTickedPieces(a_state));
-		RunLine(Text::kReplaceItems, { OutfitRun(outfit.name, outfit.icon), TextRun(current.c_str()), TextRun(selected.c_str()) });
+		RunLine(Text::kReplaceItems, { OutfitRun(outfit), TextRun(current.c_str()), TextRun(selected.c_str()) });
 		if (outfit.unloadedPieces) {
 			ImGui::TextDisabled("%s", Strings::Format(Text::kUnloadedItemsStay, outfit.unloadedPieces).c_str());
 		}
 		if (const auto name = Trimmed(a_state.updateName.data()); name != outfit.name) {
-			RunLine(Text::kNewName, { OutfitRun(name, outfit.icon) });
+			RunLine(Text::kNewName, { OutfitRun(name, outfit.icon, outfit.layer) });
 		}
 		BeginButtonRow({ Strings::Get(Text::kConfirm), Strings::Get(Text::kCancel) });
 		const bool confirm = Theme::Button(Strings::Get(Text::kConfirm));

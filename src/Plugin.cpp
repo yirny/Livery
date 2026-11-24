@@ -931,6 +931,7 @@ namespace
 		return { .text = isDefault ? (wearing ? Text::kSummaryWearingAs : Text::kSummaryAssignedAs) : (wearing ? Text::kSummaryWearingFor : Text::kSummaryAssignedFor),
 			.outfit = stored && layer ? Strings::Format(Text::kOutfitOver, layer->name, stored->name) : (stored ? stored->name : layer->name),
 			.iconKey = stored ? stored->icon.key : layer->icon.key,
+			.iconBadge = stored ? stored->layer : layer->layer,
 			.situation = SituationStore::Name(row),
 			.situationIsDefault = isDefault,
 			.gaps = GapsText(gaps) };
@@ -1546,7 +1547,7 @@ namespace
 		// The rows are made at once, so the window shows them, and dressed for in one Refresh,
 		// at once, Live Preview on or off (RedressCaptured, the preview begun again on the
 		// outfit whose details show, else on what they wear). The row they wear, when random,
-		// wears the outfit it gained first, or with `reroll` another of its outfits, picked at
+		// wears the outfit it gained first, or with `reroll` one of its outfits picked anew at
 		// random.
 		request.onSituationsSave = [handle, actorID, armors, offered](const CaptureWindow::SituationSave& save) {
 			const bool written = !save.edits.empty() || !save.order.empty();

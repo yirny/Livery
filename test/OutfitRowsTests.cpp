@@ -353,7 +353,7 @@ TEST_CASE("SetChance keeps each outfit's chance sorted, drops the default and ca
 	CHECK(same == row);
 }
 
-TEST_CASE("Pick draws in proportion to the chances, never one at 0 or the one left out", "[rows][chance]")
+TEST_CASE("Pick draws in proportion to the chances, never one at 0", "[rows][chance]")
 {
 	Row row{ .outfits = { 1, 2, 3 }, .random = true };
 	OutfitRows::SetChance(row, 1, 200);
@@ -365,23 +365,21 @@ TEST_CASE("Pick draws in proportion to the chances, never one at 0 or the one le
 		return drawn;
 	};
 	drawn = 0;
-	CHECK(OutfitRows::Pick(row, 0, draw, Any) == 1);
+	CHECK(OutfitRows::Pick(row, draw, Any) == 1);
 	CHECK(total == 300);
 	drawn = 199;
-	CHECK(OutfitRows::Pick(row, 0, draw, Any) == 1);
+	CHECK(OutfitRows::Pick(row, draw, Any) == 1);
 	drawn = 200;
-	CHECK(OutfitRows::Pick(row, 0, draw, Any) == 2);
+	CHECK(OutfitRows::Pick(row, draw, Any) == 2);
 	drawn = 299;
-	CHECK(OutfitRows::Pick(row, 0, draw, Any) == 2);
+	CHECK(OutfitRows::Pick(row, draw, Any) == 2);
 
 	drawn = 0;
-	CHECK(OutfitRows::Pick(row, 1, draw, Any) == 2);  // the one worn left out
+	CHECK(OutfitRows::Pick(row, draw, [](std::uint32_t a_outfit) { return a_outfit != 1; }) == 2);  // 3 is at 0: 2 is all that is left
 	CHECK(total == 100);
-	CHECK(OutfitRows::Pick(row, 2, draw, Any) == 1);  // 3 is at 0: 1 is all that is left
-	CHECK(total == 200);
-	OutfitRows::SetChance(row, 1, 0);
-	CHECK(OutfitRows::Pick(row, 2, NoPick, Any) == 0);  // nothing left to draw from
-	CHECK(OutfitRows::Pick(Row{ .random = true }, 0, NoPick, Any) == 0);
+	OutfitRows::SetChance(row, 2, 0);
+	CHECK(OutfitRows::Pick(row, NoPick, [](std::uint32_t a_outfit) { return a_outfit != 1; }) == 0);  // nothing left to draw from
+	CHECK(OutfitRows::Pick(Row{ .random = true }, NoPick, Any) == 0);
 }
 
 TEST_CASE("ChanceTotal sums the chances Pick draws from", "[rows][chance]")
@@ -389,11 +387,9 @@ TEST_CASE("ChanceTotal sums the chances Pick draws from", "[rows][chance]")
 	Row row{ .outfits = { 1, 2, 3 }, .random = true };
 	OutfitRows::SetChance(row, 1, 200);
 	OutfitRows::SetChance(row, 3, 0);
-	CHECK(OutfitRows::ChanceTotal(row, 0, Any) == 300);
-	CHECK(OutfitRows::ChanceTotal(row, 1, Any) == 100);  // the others of 1: it is picked 200 / (200 + 100)
-	CHECK(OutfitRows::ChanceTotal(row, 9, Any) == 300);  // not on the list: nothing left out
-	CHECK(OutfitRows::ChanceTotal(Row{ .random = true }, 0, Any) == 0);
-	CHECK(OutfitRows::ChanceTotal(row, 0, [](std::uint32_t a_outfit) { return a_outfit != 1; }) == 100);  // the others' kind only
+	CHECK(OutfitRows::ChanceTotal(row, Any) == 300);
+	CHECK(OutfitRows::ChanceTotal(Row{ .random = true }, Any) == 0);
+	CHECK(OutfitRows::ChanceTotal(row, [](std::uint32_t a_outfit) { return a_outfit != 1; }) == 100);  // the others' kind only
 }
 
 TEST_CASE("LayerDrawChance is the chance DrawLayer draws a layer at all", "[rows][chance][layer]")

@@ -234,7 +234,7 @@ namespace CaptureWindow::Internal
 			.defaultOutfit = edited ? OutfitRows::Holds(entries[0].row, outfit.id) : HoldsOutfit(a_state, 0, outfit.id),
 			.situations = a_situationMark && !situations->empty() ? situations->c_str() : nullptr,
 			.warning = ReasonIf(a_state.page == Page::kSituations && MissesCarried(a_state, outfit.pieces, a_excluded), Strings::Get(Text::kOutfitNotCarriedHint)) };
-		const auto               icon = RowIconOf(outfit.icon, outfit.layer);
+		const auto               icon = RowIconOf(outfit);
 		const bool               clicked = Theme::OutfitRow(outfit.name.c_str(), a_selected, marks, a_striped, a_grip, &icon);
 		// An outfit none of whose items is loaded stays on its rows and drags as any other; its
 		// row says why it puts nothing on. Theme::BeginTooltip appends to a mark's tooltip.
@@ -291,7 +291,7 @@ namespace CaptureWindow::Internal
 				}
 				if (a_draggable) {
 					const auto& outfit = OutfitAt(a_state, index);
-					OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), grip, &outfit.icon);
+					OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), grip, &outfit.icon, outfit.layer);
 				}
 				ImGui::PopID();
 			}
@@ -321,7 +321,7 @@ namespace CaptureWindow::Internal
 		}
 		Theme::SectionGap();  // as the label beside it opens (Theme::LabelText)
 		const auto& outfit = OutfitAt(a_state, a_selected);
-		Theme::OutfitNameText(outfit.name.c_str(), RowIconOf(outfit.icon, outfit.layer));
+		Theme::OutfitNameText(outfit.name.c_str(), RowIconOf(outfit));
 		return true;
 	}
 
@@ -521,7 +521,7 @@ namespace CaptureWindow::Internal
 		const float rowHeight = Theme::OutfitRowHeight();
 		if (Theme::BeginList("outfitName", FittedListHeight(rowHeight, rowHeight))) {
 			DrawOutfitRow(a_state, a_state.situationBrowser, a_index, false, false, Theme::Grip::kEdge, false);
-			OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), Theme::Grip::kEdge, &outfit.icon);
+			OfferOutfitDrag({ .outfit = outfit.id }, outfit.name.c_str(), Theme::Grip::kEdge, &outfit.icon, outfit.layer);
 		}
 		ImGui::PopStyleVar();
 		Theme::EndList();
@@ -721,9 +721,12 @@ namespace CaptureWindow::Internal
 	// which dresses them in the outfit now (DrawManageApplyPopup).
 
 	// The selected outfit's library id. Contract: an outfit is selected.
-	bool DrawLayerTick(bool& a_layer)
+	bool DrawLayerTick(bool& a_layer, float& a_labelX)
 	{
-		const bool changed = Theme::Checkbox(Strings::Get(Text::kLayerTick), &a_layer);
+		const char* label = Strings::Get(Text::kLayerTick);
+		const bool  changed = Theme::Checkbox(label, &a_layer);
+		// Every skin's tick is its box, ItemInnerSpacing and the label, so the label ends the item.
+		a_labelX = ImGui::GetItemRectMax().x - ImGui::CalcTextSize(label).x;
 		if (changed) {
 			QueueMenuSound(kFocusSound);
 		}
@@ -736,8 +739,9 @@ namespace CaptureWindow::Internal
 		return changed;
 	}
 
-	bool DrawKeepBeneathTick(bool& a_keepBeneath, bool a_layer)
+	bool DrawKeepBeneathTick(bool& a_keepBeneath, bool a_layer, float a_x)
 	{
+		ImGui::SetCursorScreenPos(ImVec2(a_x, ImGui::GetCursorScreenPos().y));
 		ImGui::BeginDisabled(!a_layer);
 		const bool changed = Theme::Checkbox(Strings::Get(Text::kKeepBeneathTick), &a_keepBeneath);
 		ImGui::EndDisabled();
@@ -895,7 +899,7 @@ namespace CaptureWindow::Internal
 			return;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.manage.outfit);
-		RunLine(Text::kUnsavedChangesTo, { OutfitRun(outfit.name, outfit.icon) });
+		RunLine(Text::kUnsavedChangesTo, { OutfitRun(outfit) });
 	}
 
 	// Why Save is greyed, or nullptr: it needs something to write (HasSaveChanges) and a name.
@@ -935,11 +939,12 @@ namespace CaptureWindow::Internal
 		Theme::AfterFieldGap();
 		// The Layer tick is a library edit as a rename is; Apply then gives the outfit as what
 		// it is ticked, so its tooltip follows.
-		if (DrawLayerTick(form.layer)) {
+		float layerLabelX = 0.0f;
+		if (DrawLayerTick(form.layer, layerLabelX)) {
 			a_state.manageApplyTip = ApplyTooltip(a_state);
 			QueuePreview(a_state, ManagedPreview(a_state));
 		}
-		if (DrawKeepBeneathTick(form.keepBeneath, form.layer)) {
+		if (DrawKeepBeneathTick(form.keepBeneath, form.layer, layerLabelX)) {
 			QueuePreview(a_state, ManagedPreview(a_state));
 		}
 		Theme::AfterFieldGap();
@@ -1135,7 +1140,7 @@ namespace CaptureWindow::Internal
 			return UnsavedChoice::kNone;
 		}
 		const auto& outfit = OutfitAt(a_state, a_state.manage.outfit);
-		RunLine(Text::kChangesLost, { OutfitRun(outfit.name, outfit.icon) });
+		RunLine(Text::kChangesLost, { OutfitRun(outfit) });
 		DrawLibraryChangeLines(a_state);
 		BeginButtonRow({ a_first, a_second });
 		const bool first = Theme::Button(a_first);
@@ -1163,7 +1168,7 @@ namespace CaptureWindow::Internal
 			ImGui::TextUnformatted(Strings::Format(Text::kItemsChange, outfit.pieces.size(), a_pieces.size()).c_str());
 		}
 		if (const auto name = Trimmed(form.name.data()); name != outfit.name) {
-			RunLine(Text::kNewName, { OutfitRun(name, form.icon) });
+			RunLine(Text::kNewName, { OutfitRun(name, form.icon, form.layer) });
 		}
 		if (form.icon != outfit.icon) {
 			ImGui::TextUnformatted(Strings::Get(Text::kIconChanged));
@@ -1215,7 +1220,7 @@ namespace CaptureWindow::Internal
 		const auto& form = a_state.manage;
 		const auto& outfit = OutfitAt(a_state, form.outfit);
 		Theme::PopupTitle(Strings::Get(Text::kRemoveItemsTitle));
-		RunLine(Text::kUnselectedRemoved, { OutfitRun(outfit.name, outfit.icon) });
+		RunLine(Text::kUnselectedRemoved, { OutfitRun(outfit) });
 		for (const auto i : a_unselected) {
 			ImGui::BulletText("%s", a_state.request.pieces[i].name.c_str());
 		}
@@ -1251,7 +1256,7 @@ namespace CaptureWindow::Internal
 		bool       apply = false;
 		if (unselected.empty()) {
 			const auto& outfit = OutfitAt(a_state, form.outfit);
-			RunLine(Text::kSaveChangesTo, { OutfitRun(outfit.name, outfit.icon) });
+			RunLine(Text::kSaveChangesTo, { OutfitRun(outfit) });
 			DrawSaveChangeLines(a_state);
 			BeginButtonRow({ Strings::Get(Text::kConfirm), Strings::Get(Text::kCancel) });
 			save = Theme::Button(Strings::Get(Text::kConfirm));
@@ -1336,7 +1341,7 @@ namespace CaptureWindow::Internal
 		} else if (OutfitRows::Holds(row, a_subject.id)) {
 			texts = { Text::kOfferSwitch, Text::kOfferSwitchCreate, Text::kOfferSwitchEdits };
 		}
-		RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon), RowRun(a_state, a_row) });
+		RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon, a_subject.layer), RowRun(a_state, a_row) });
 	}
 
 	// What Apply as Default does, for its "(?)": the outfit becomes the Default, in the place
@@ -1401,11 +1406,11 @@ namespace CaptureWindow::Internal
 		if (a_subject.layer) {
 			// A layer goes over the row's outfit: `Wear A over their Default outfit?`
 			const auto texts = std::array{ Text::kOfferOver, Text::kOfferOverCreate, Text::kOfferOverEdits };
-			RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon), RowRun(a_state, row) });
+			RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon, a_subject.layer), RowRun(a_state, row) });
 		} else {
 			const auto texts = row == 0 ? std::array{ Text::kApplyAs, Text::kApplyAsCreate, Text::kApplyAsEdits } :
 			                              std::array{ Text::kApplyFor, Text::kApplyForCreate, Text::kApplyForEdits };
-			RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon), TextRun(name.c_str()), RowRun(a_state, row) });
+			RunLine(QuestionFor(a_subject.saveFirst, texts), { OutfitRun(a_subject.name, a_subject.icon, a_subject.layer), TextRun(name.c_str()), RowRun(a_state, row) });
 		}
 		if (a_subject.drawSaveLines) {
 			a_subject.drawSaveLines(a_state);
@@ -1490,7 +1495,7 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		RunLine(Text::kRemoveFromWardrobe, { OutfitRun(outfit.name, outfit.icon) });
+		RunLine(Text::kRemoveFromWardrobe, { OutfitRun(outfit) });
 		if (!outfit.users.empty()) {
 			ImGui::TextUnformatted(Strings::Get(Text::kUsedBy));
 			for (const auto& user : outfit.users) {
@@ -1539,7 +1544,7 @@ namespace CaptureWindow::Internal
 			return false;
 		}
 		const auto& outfit = OutfitAt(a_state, form.outfit);
-		RunLine(Text::kNotCarriedFrom, { OutfitRun(outfit.name, outfit.icon) });
+		RunLine(Text::kNotCarriedFrom, { OutfitRun(outfit) });
 		for (const auto i : missing) {
 			ImGui::BulletText("%s", a_state.request.pieces[i].name.c_str());
 		}
@@ -1825,10 +1830,31 @@ namespace CaptureWindow::Internal
 		return names;
 	}
 
+	// Ticks `a_ticked` of the Edit page as the preview shows them: as they are, or for a layer
+	// over what they wear now (OverWorn), less the outfit's own pieces as the library, the
+	// Wardrobe page's edits and the ticks have them.
+	std::vector<std::size_t> EditShown(const State& a_state, std::vector<std::size_t> a_ticked)
+	{
+		const auto& form = a_state.manage;
+		if (!form.layer) {
+			return a_ticked;
+		}
+		auto own = OutfitAt(a_state, form.outfit).pieces;
+		own.insert(own.end(), form.pieces.begin(), form.pieces.end());
+		own.insert(own.end(), a_ticked.begin(), a_ticked.end());
+		return OverWorn(a_state, own, a_ticked, form.keepBeneath);
+	}
+
+	// The Edit page's ticks as the preview shows them (EditShown).
+	std::vector<std::size_t> EditPageShown(const State& a_state)
+	{
+		return EditShown(a_state, Ticked(a_state, EditPieces(a_state)));
+	}
+
 	// The page's ticks with the Load page's selected outfit added, when one is: its pieces
 	// ticked, and a ticked piece sharing a body slot with one of them unticked, as ticking that
 	// piece would untick it (UntickSharingSlots).
-	std::vector<std::size_t> EditPreview(const State& a_state)
+	std::vector<std::size_t> EditLoadTicks(const State& a_state)
 	{
 		if (a_state.previewedOutfit < 0) {
 			return Ticked(a_state, EditPieces(a_state));
@@ -1848,14 +1874,19 @@ namespace CaptureWindow::Internal
 		return ticked;
 	}
 
-	// The Load page's selected outfit added to the page's ticks (EditPreview), which the
-	// preview already shows; its pieces stay listed, and the heading over those nobody carries
-	// names it when it brings one. The Dress page's ticks stay as they were.
+	std::vector<std::size_t> EditPreview(const State& a_state)
+	{
+		return EditShown(a_state, EditLoadTicks(a_state));
+	}
+
+	// The Load page's selected outfit added to the page's ticks (EditLoadTicks), which the
+	// preview already shows (EditPreview); its pieces stay listed, and the heading over those
+	// nobody carries names it when it brings one. The Dress page's ticks stay as they were.
 	// Contract: an outfit is selected on the Load page.
 	void AddToEdit(State& a_state)
 	{
 		const auto& outfit = OutfitAt(a_state, a_state.previewedOutfit);
-		const auto  ticked = EditPreview(a_state);
+		const auto  ticked = EditLoadTicks(a_state);
 		for (std::size_t i = 0; i < a_state.request.pieces.size(); ++i) {
 			a_state.editTicked[i] = std::ranges::binary_search(ticked, i);
 		}
@@ -1921,14 +1952,20 @@ namespace CaptureWindow::Internal
 	{
 		ImGui::BeginDisabled(a_state.status != Status::kEditing);
 		const auto list = EditPieces(a_state);
-		DrawPieceRows(a_state, list);
+		// A layer shows over what they wear, so each tick shows the whole preview anew.
+		if (DrawPieceRows(a_state, list, !a_state.manage.layer) && a_state.manage.layer) {
+			QueuePreview(a_state, EditPageShown(a_state));
+		}
 		const auto links = DrawPieceCount(a_state, list, true);
-		DrawPreviewToggle(a_state, list);
+		DrawPreviewToggle(a_state, list, &EditPageShown);
 		// The Wardrobe page's Layer tick, on the Live Preview tick's line, and its Keep items
 		// beneath tick under them: the same edits, which Back does not take back.
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.x * 2.0f);
-		DrawLayerTick(a_state.manage.layer);
-		DrawKeepBeneathTick(a_state.manage.keepBeneath, a_state.manage.layer);
+		float      layerLabelX = 0.0f;
+		const bool layerChanged = DrawLayerTick(a_state.manage.layer, layerLabelX);
+		if (DrawKeepBeneathTick(a_state.manage.keepBeneath, a_state.manage.layer, layerLabelX) || layerChanged) {
+			QueuePreview(a_state, EditPageShown(a_state));
+		}
 		const char* useLabel = Strings::Get(Text::kUseSelectedItems);
 		BeginButtonRow({ useLabel, Strings::Get(Text::kBack) });
 		const auto ticked = Ticked(a_state, list);

@@ -105,10 +105,10 @@ namespace Assignments
 	void Refresh(RE::Actor& a_actor, const std::vector<RE::TESObjectARMO*>& a_leaveOut, const Picks& a_picks = {});
 
 	// New picks for random row `a_row` while they wear for it (its outfits gone from the library
-	// left out), for Refresh: when their base is from it another base, by the selection chances
-	// (OutfitRows::Pick), never the one they wear or one with chance 0 (0 when there is none);
-	// when their layer is from it a new draw (OutfitRows::DrawLayer), none or the same one
-	// included. Nothing while Livery has nothing on them or the row is not random.
+	// left out), for Refresh: when their base is from it a new pick among the bases, by the
+	// selection chances (OutfitRows::Pick), the one they wear included, never one with chance 0
+	// (0 when there is none); when their layer is from it a new draw (OutfitRows::DrawLayer),
+	// none or the same one included. Nothing while Livery has nothing on them or the row is not random.
 	// Contract: game thread.
 	Picks PickAnother(RE::FormID a_actor, Situations::Situation a_row);
 

@@ -795,7 +795,7 @@ namespace CaptureWindow::Internal
 				}
 				const float bottom = ImGui::GetItemRectMax().y;
 				const auto& outfit = OutfitAt(a_state, index);
-				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, outfit.name.c_str(), Theme::Grip::kName, &outfit.icon);
+				OfferOutfitDrag({ .from = static_cast<int>(a_entry), .outfit = shown[k] }, outfit.name.c_str(), Theme::Grip::kName, &outfit.icon, outfit.layer);
 				if (ImGui::BeginDragDropTarget()) {
 					const bool after = random && ImGui::GetMousePos().y >= (top + bottom) * 0.5f;
 					if (const auto dropped = AcceptOnSituation(after ? bottom : top)) {
@@ -816,7 +816,7 @@ namespace CaptureWindow::Internal
 		};
 
 		// The actor wears for it when their base is from it, or their layer (a draw of none too);
-		// a click then picks another base, which needs two on the list, or draws the layer anew,
+		// a click then picks the base anew, which needs two on the list, or draws the layer anew,
 		// which needs one (Assignments::PickAnother).
 		Dice DiceOf(const State& a_state, std::size_t a_entry)
 		{
@@ -1938,8 +1938,8 @@ namespace CaptureWindow::Internal
 				// layer among the wearable layers, after the draw of any layer at all.
 				const auto isBase = [&a_state](std::uint32_t a_outfit) { return !IsLayer(a_state, a_outfit); };
 				const auto isLayer = [&a_state](std::uint32_t a_outfit) { return IsLayer(a_state, a_outfit) && HasLoadedItem(a_state, a_outfit); };
-				const auto baseTotal = OutfitRows::ChanceTotal(a_row, 0, isBase);
-				const auto layerTotal = OutfitRows::ChanceTotal(a_row, 0, isLayer);
+				const auto baseTotal = OutfitRows::ChanceTotal(a_row, isBase);
+				const auto layerTotal = OutfitRows::ChanceTotal(a_row, isLayer);
 				const auto layerDrawn = OutfitRows::LayerDrawChance(a_row, isLayer);
 				for (std::size_t k = 0; k < a_row.outfits.size(); ++k) {
 					const auto id = a_row.outfits[k];
@@ -1956,7 +1956,7 @@ namespace CaptureWindow::Internal
 					}
 					const auto  share = std::format("{:.1f}%", percent);
 					const auto& outfit = OutfitAt(a_state, index);
-					const auto  icon = RowIconOf(outfit.icon);
+					const auto  icon = RowIconOf(outfit);
 					ImGui::PushID(static_cast<int>(k));
 					if (Theme::OutfitRow(outfit.name.c_str(), id == form.chancesOpen, { .trailing = share.c_str() }, k % 2 == 1, Theme::Grip::kNone, &icon)) {
 						QueueMenuSound(kFocusSound);
@@ -3036,13 +3036,13 @@ namespace CaptureWindow::Internal
 		return outfit.layer ? OverWorn(a_state, pieces, worn, outfit.keepBeneath) : worn;
 	}
 
-	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon)
+	void OfferOutfitDrag(const OutfitPayload& a_payload, const char* a_label, Theme::Grip a_grip, const OutfitIcons::Icon* a_icon, bool a_layer)
 	{
 		if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoPreviewTooltip)) {
 			return;
 		}
 		ImGui::SetDragDropPayload(kOutfitPayload, &a_payload, sizeof(a_payload));
-		const auto icon = a_icon ? RowIconOf(*a_icon) : Theme::RowIcon{};
+		const auto icon = a_icon ? RowIconOf(*a_icon, a_layer) : Theme::RowIcon{};
 		Theme::OutfitDragGhost(a_label, a_grip, a_icon ? &icon : nullptr);
 		ImGui::EndDragDropSource();
 	}

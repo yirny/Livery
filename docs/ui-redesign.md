@@ -190,7 +190,7 @@ and stays on the Save page with its error.
     outfit, it adds that the new Default takes effect when no situational outfit applies.
   - `Cancel`: back to the window.
 - While they wear a layer (`Request::wornLayer`, design.md §7 Layers), its items are listed
-  under a heading of their own, `Outfit ("<layer>")` (`PieceGroup::kLiveryLayer`), and Apply
+  under a heading of their own, `Layered Outfit ("<layer>")` (`PieceGroup::kLiveryLayer`), and Apply
   takes them apart from the rest (`LayerApplyOf`): the layer's items left unticked are left
   off on the row the layer is from (`Assignments::SetLayerExcluded`, before the one dressing);
   with none ticked and one unticked that the row does not leave off already (or every one

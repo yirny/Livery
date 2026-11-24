@@ -744,8 +744,8 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   chance is set to 0 while another wearable layer of the list is above it; with every one at 0
   the row wears none at the next dressing (`OutfitRows::WearsLayer`). A layer gained by the row of
   the base or of the layer is worn as its pick (`Assignments::SetRows`). A row's die
-  (`Assignments::PickAnother`) picks another base when their base is from it, and draws the
-  layer anew, none or the same one included, when their layer is.
+  (`Assignments::PickAnother`) picks the base anew, the same one included, when their base is
+  from it, and draws the layer anew, none or the same one included, when their layer is.
 - Dressing (`Assignments` `Wear`): one list through the existing path, the base's pieces
   and the layer's that `OutfitRows::LayerOver` keeps, the base's first. A base piece that
   stays leaves off every layer piece sharing a body slot with it; then the layer pieces kept
@@ -774,12 +774,12 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   that held it does not get its pieces. Update redresses the actor when they wear it as the
   layer too.
 - The window: the flags are ticked on the Save page's Create tab, the Wardrobe page and its
-  Edit page (`Layered outfit`, then `Keep items beneath` under it, greyed while the first is
-  off; docs/ui-redesign.md §4, docs/outfit-management-ui.md §4) and written by Create and the
+  Edit page (`Layered outfit`, then `Keep items beneath` under its label, greyed while the
+  first is off; docs/ui-redesign.md §4, docs/outfit-management-ui.md §4) and written by Create and the
   Wardrobe page's Save; a flag changed on an outfit the captured actor has redresses them at
   once when another outfit is due, the others at their next dressing. The `Keep items beneath`
-  tooltip leaves the body armor rule above unsaid. A layer's icon has a
-  badge. Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
+  tooltip leaves the body armor rule above unsaid. A layer's icon carries a
+  badge wherever an outfit's icon shows. Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
   page lists and applies the worn layer's items apart, and with none ticked and one unticked
   the row does not leave off already (or every one) takes the layer off: random off off its
   row, random on as a draw of none (docs/ui-redesign.md §5, `Assignments::TakeOffLayer`). An
@@ -830,9 +830,8 @@ conditions, one order for the presets and the user's, the presets' rules editabl
      on` / `off` lines; Apply to <name> and Create and Apply of a layer, with and
      without a situation's outfit worn; a layer alone on an NPC Livery does not dress (their
      clothes stay); the dice; the other previews.
-   - Known gaps: a dragged row's copy has no badge; the Edit page's preview does not show a
-     layer over what they wear; the Dress page's layer heading reads `Outfit ("<layer>")`;
-     other actors holding an outfit whose layer flags changed follow at their next dressing.
+   - Known gap: other actors holding an outfit whose layer flags changed follow at their next
+     dressing.
 2. The open in-game checks: Castle, Home (§7); quickload with the window open, then New Game; the player's left-hand
    weapon back after a shield preview; tempered player gear after Exit; a follower's given
    armor gone after Load Outfit + Exit.
