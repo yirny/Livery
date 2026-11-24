@@ -56,11 +56,14 @@ makes that sort the one every page's list starts in when the window opens, writt
   hold the outfit (Default and the situations), from `Request::assigned`. Never stored in
   the library.
 - Each row: the outfit's icon and name, one line high. A layer's icon (design.md §7 Layers)
-  carries a badge, two stacked diamonds (light blue over dark blue, outlined near black) half
-  the icon's side wide on its lower right corner (`Theme::RowIcon::badge`, `RowIconOf`,
+  carries a badge, two stacked diamonds (light blue over dark blue, outlined near black) 0.6
+  of the icon's side wide on its lower right corner (`Theme::RowIcon::badge`, `RowIconOf`,
   `OutfitRun`), wherever an outfit's icon shows: the lists and Selection Chances, a drag's
   copy, the name over the details, the icon fields (the Update tab's too), the popups' lines,
-  the Edit page's heading and the summary line.
+  the Edit page's heading and the summary line. Its name there is light blue (`#a4c4ea`,
+  `kLayerNameRgb`; `RowIcon::nameRgb`, `SubtitleRun::rgb`), but for the name field beside an
+  icon field, which keeps the field's colour; a popup line's icon keeps the emphasis, and the
+  summary line's `B over A` follows the base's icon.
 - Hover, in every list and in the dropdowns' rows: Modern fills a hovered row in the hover
   colour, graded as a selected row's fill; Vanilla lights it with a soft white ellipse fading out to the row's edges, as SkyUI
   lights its MCM title bar (a texture made at load, `Theme::LoadTextures`); Nordic draws

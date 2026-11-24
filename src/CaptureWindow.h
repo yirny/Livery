@@ -228,7 +228,7 @@ namespace CaptureWindow
 		Strings::Text text{};
 		std::string   outfit;
 		std::string   iconKey;            // OutfitIcons::Icon::key
-		bool          iconBadge = false;  // the icon is a layer's, under its badge
+		bool          iconBadge = false;  // the icon is a layer's: under its badge, `outfit` in the layer's colour
 		std::string   situation;
 		bool          situationIsDefault = false;  // marked with the Default's form, not the situations' star
 		std::string   gaps;                        // `, 1 item not worn`, `, 2 extra items worn`, both, or ""

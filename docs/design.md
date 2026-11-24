@@ -781,7 +781,8 @@ layer comes off when its situation ends, and a layer never goes over a layer.
   Wardrobe page's Save; a flag changed on an outfit the captured actor has redresses them at
   once when another outfit is due, the others at their next dressing. The `Keep items beneath`
   tooltip leaves the body armor rule above unsaid. A layer's icon carries a
-  badge wherever an outfit's icon shows. Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
+  badge wherever an outfit's icon shows, and its name is light blue there
+  (docs/outfit-management-ui.md §1). Apply gives a layer to a row as its layer (docs/outfit-management-ui.md §4); the Dress
   page lists and applies the worn layer's items apart, and with none ticked and one unticked
   the row does not leave off already (or every one) takes the layer off: random off off its
   row, random on as a draw of none (docs/ui-redesign.md §5, `Assignments::TakeOffLayer`). An
@@ -832,7 +833,7 @@ conditions, one order for the presets and the user's, the presets' rules editabl
    badge.
    - In game, open: a layer over their own clothes after its situation changed while they
      were away (their outfit items read beneath it, `PutOnOutfitItems` in `Wear`); the badge
-     a size larger; `outfits.json` stays `"version": 1` until an
+     a size larger; a layer's name light blue wherever its icon has the badge; `outfits.json` stays `"version": 1` until an
      outfit is a layer and returns to it when none is; the `Layered outfit` and `Keep items
      beneath` ticks on the Create tab, the Wardrobe page and the Edit page (their place on
      each, and the badge's size), Save's `Layered outfit: on` / `off` and `Keep items beneath:

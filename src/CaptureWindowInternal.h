@@ -69,6 +69,9 @@ namespace CaptureWindow::Internal
 	// and its hover text. Shared by the piece lists of CaptureWindow.cpp and OutfitPages.cpp.
 	constexpr float        kNotCarriedAlpha = 0.5f;
 	constexpr Strings::Ref kNotCarriedHint{ Strings::Text::kNotCarriedHint };
+	// A layer's name, 0xRRGGBB, wherever its icon carries the badge (RowIconOf, OutfitRun and the
+	// summary line).
+	constexpr std::uint32_t kLayerNameRgb = 0xA4C4EA;
 
 	// A greyed button's reason (one of the texts above) while `a_when`, else nullptr.
 	inline const char* ReasonIf(bool a_when, const char* a_reason)
@@ -823,12 +826,13 @@ namespace CaptureWindow::Internal
 
 	// An outfit's icon as the skins draw it. Contract: the key is a view into `a_icon`, so the
 	// result lives no longer than it.
-	// With `a_layer`, under the badge of a layer (Theme::RowIcon::badge): every outfit icon
-	// shows it for a layer.
+	// With `a_layer`, under the badge of a layer (Theme::RowIcon::badge), its name in
+	// kLayerNameRgb: every outfit icon shows them for a layer.
 	inline Theme::RowIcon RowIconOf(const OutfitIcons::Icon& a_icon, bool a_layer)
 	{
 		Theme::RowIcon icon{ a_icon.key, OutfitIcons::ColorOf(a_icon.color).rgb };
 		icon.badge = a_layer;
+		icon.nameRgb = a_layer ? kLayerNameRgb : 0;
 		return icon;
 	}
 
@@ -848,10 +852,10 @@ namespace CaptureWindow::Internal
 		return { .text = a_text };
 	}
 
-	// With `a_layer`, its icon under a layer's badge.
+	// With `a_layer`, its icon under a layer's badge and its name in kLayerNameRgb.
 	inline Theme::SubtitleRun OutfitRun(const std::string& a_name, const OutfitIcons::Icon& a_icon, bool a_layer)
 	{
-		return { .text = a_name.c_str(), .rowIconKey = a_icon.key, .badge = a_layer };
+		return { .text = a_name.c_str(), .rowIconKey = a_icon.key, .badge = a_layer, .rgb = a_layer ? kLayerNameRgb : 0 };
 	}
 
 	inline Theme::SubtitleRun OutfitRun(const CaptureWindow::ExistingOutfit& a_outfit)

@@ -1034,7 +1034,7 @@ namespace CaptureWindow::Internal
 			Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, a_summary.lead.c_str());
 			return;
 		}
-		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey, .badge = a_summary.iconBadge };
+		const Theme::SubtitleRun outfit{ .text = a_summary.outfit.c_str(), .rowIconKey = a_summary.iconKey, .badge = a_summary.iconBadge, .rgb = a_summary.iconBadge ? kLayerNameRgb : 0 };
 		const auto               runs = RunsOf(a_summary.text, { outfit, SituationRun(a_summary.situation.c_str(), a_summary.situationIsDefault), TextRun(a_summary.gaps.c_str()) });
 		Theme::HeadingText(Theme::HeadingIcon::kBareForm, a_title, runs.Parts());
 	}
