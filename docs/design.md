@@ -800,8 +800,8 @@ In-game checks the design rests on (not yet made):
    free. An NPC's own outfit items are locked unworn (`LockOutfitCopies`); other own armor is
    not.
 3. A layer over their own clothes stays with those clothes across a 3D reload and a cell
-   reset (2026-11-24: their outfit items came off at a 3D reload and were locked; again since
-   `PutOwnClothesOn`).
+   reset (2026-11-24: their outfit items came off at a 3D reload and were locked; they stay
+   since `PutOwnClothesOn`, checked in game).
 4. The feel of an outfit whose layer flag changed after rows were given it (Kinds above).
 5. `Dressing::WornArmor` reads the clothes beneath a layer over their own clothes as worn
    while their 3D is not loaded.
@@ -819,16 +819,15 @@ conditions, one order for the presets and the user's, the presets' rules editabl
 1. Layer outfits (§7 Layers): on branch `feat/layer-outfits`, `main` merged in; checked in
    game: an existing save, a situation's layer and `B over A`, its end, the draws and
    Selection Chances, the Dress page's layer heading and its items unticked, the Wardrobe
-   page's preview after Apply or Save. Tableau's `lib/sarrai-common` is not bumped to the icon
+   page's preview after Apply or Save, `Keep items beneath` (on and off, over a base and over
+   their own clothes, the body armor rule, the Dress page's Apply), a layer over their own
+   clothes across a 3D reload. Tableau's `lib/sarrai-common` is not bumped to the icon
    badge.
-   - In game, open: the five checks of §7 Layers; `outfits.json` stays `"version": 1` until an
+   - In game, open: checks 1, 2, 4 and 5 of §7 Layers; `outfits.json` stays `"version": 1` until an
      outfit is a layer and returns to it when none is; the `Layered outfit` and `Keep items
      beneath` ticks on the Create tab, the Wardrobe page and the Edit page (their place on
      each, and the badge's size), Save's `Layered outfit: on` / `off` and `Keep items beneath:
-     on` / `off` lines; a hood layer over a base with a helmet keeps the helmet with `Keep items
-     beneath` on and puts the hood on with it off, over their own clothes too; a gloves layer
-     with it off leaves on a cuirass that takes the forearms; the Dress page's Apply keeps a
-     layer whose items all stay off; Apply to <name> and Create and Apply of a layer, with and
+     on` / `off` lines; Apply to <name> and Create and Apply of a layer, with and
      without a situation's outfit worn; a layer alone on an NPC Livery does not dress (their
      clothes stay); the dice; the other previews.
    - Known gaps: a dragged row's copy has no badge; the Edit page's preview does not show a
